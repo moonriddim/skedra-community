@@ -38,6 +38,26 @@ The Docker image contains only the open editor client from this repository. It
 does not include Skedra Workspace, accounts, teams, hosted persistence,
 comments, AI, LiveKit, or the closed self-host stack.
 
+## Full Workspace Self-Host
+
+Versioned GitHub releases may also include deployment files for the full
+Skedra Workspace self-host stack:
+
+```text
+docker-compose.yml
+docker-compose.livekit.yml
+env.example
+README.md
+LICENSE
+```
+
+Those release files run the official Skedra Workspace container images. That
+stack includes accounts, teams, stored boards, realtime collaboration,
+comments, library workflows, optional AI, and optional LiveKit-backed calls.
+
+The deployment files are public, but the Workspace source code and official
+Workspace images are not MIT licensed.
+
 ## Packages
 
 ```text
