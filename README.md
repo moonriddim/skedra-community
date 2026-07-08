@@ -55,6 +55,16 @@ Those release files run the official Skedra Workspace container images. That
 stack includes accounts, teams, stored boards, realtime collaboration,
 comments, library workflows, optional AI, and optional LiveKit-backed calls.
 
+For the simplest full self-host install, use the proprietary standalone image:
+
+```bash
+docker run -d \
+  --name skedra \
+  -p 3000:80 \
+  -v skedra_data:/data \
+  ghcr.io/moonriddim/skedra-standalone:latest
+```
+
 The deployment files are public, but the Workspace source code and official
 Workspace images are not MIT licensed.
 
