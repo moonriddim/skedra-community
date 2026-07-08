@@ -4,10 +4,10 @@ React SDK for embedding the Skedra canvas without the Skedra app shell.
 
 The package includes the full client-side canvas tooling layer: drawing tools, sticky notes, frames, Kanban boards, mindmaps, templates, local state, controlled state, and an imperative API. Auth, roles, comments, and realtime collaboration are intentionally left to the host app or optional adapters.
 
-This package is the OSS editor surface. Workspace features such as accounts,
-teams, comments, hosted realtime, AI backends, and voice/screen-share rooms
-belong to the closed Skedra Workspace app. The SDK only exports typed hooks
-for those integrations.
+This package is the MIT editor surface. Workspace features such as accounts,
+teams, comments, hosted realtime, AI backends, and voice/screen-share rooms live
+in the open Skedra Community workspace or optional commercial services. The SDK
+only exports typed hooks for those integrations.
 
 The package is ESM-only. Import the CSS explicitly alongside the component.
 
@@ -80,5 +80,5 @@ import type { SkedraWorkspaceHooks } from "@skedra/react/workspace-hooks";
 ```
 
 The public hooks can represent state such as `isInCall`, `isMuted`,
-`isSpeaking`, and `isScreenSharing`. The actual room orchestration and
-provider wiring stays in the closed Skedra Workspace layer.
+`isSpeaking`, and `isScreenSharing`. The actual room orchestration and provider
+wiring belongs in the workspace app or a host-provided adapter.
