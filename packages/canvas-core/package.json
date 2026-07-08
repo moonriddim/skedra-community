@@ -1,0 +1,40 @@
+{
+	"name": "@skedra/canvas-core",
+	"version": "0.1.0",
+	"private": true,
+	"license": "MIT",
+	"type": "module",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./align": "./src/align.ts",
+		"./corner-radius": "./src/corner-radius.ts",
+		"./element-factory": "./src/element-factory.ts",
+		"./excalidraw-import": "./src/excalidraw-import.ts",
+		"./flowchart": "./src/flowchart.ts",
+		"./flowchart-navigation": "./src/flowchart-navigation.ts",
+		"./types": "./src/types.ts",
+		"./geometry": "./src/geometry.ts",
+		"./geometry-bbox": "./src/geometry-bbox.ts",
+		"./geometry-handles": "./src/geometry-handles.ts",
+		"./history-delta": "./src/history-delta.ts",
+		"./hit-test": "./src/hit-test.ts",
+		"./image-crop": "./src/image-crop.ts",
+		"./kanban": "./src/kanban.ts",
+		"./mindmap": "./src/mindmap.ts",
+		"./ordering": "./src/ordering.ts",
+		"./path-rendering": "./src/path-rendering.ts",
+		"./scene": "./src/scene.ts",
+		"./selection": "./src/selection.ts",
+		"./snap": "./src/snap.ts",
+		"./viewport": "./src/viewport.ts"
+	},
+	"scripts": {
+		"build": "tsc --declaration --emitDeclarationOnly --outDir dist",
+		"test": "esbuild src/*.test.ts --bundle --platform=node --format=esm --outdir=.tmp/test-build-tests && node --test \".tmp/test-build-tests/*.js\""
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0"
+	}
+}

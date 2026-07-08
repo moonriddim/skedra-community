@@ -1,0 +1,256 @@
+import {
+	KANBAN_CARD_GAP,
+	KANBAN_LIST_FOOTER_HEIGHT,
+	KANBAN_LIST_HEADER,
+	KANBAN_LIST_PADDING,
+	type KanbanPriority,
+	computeKanbanCardHeight,
+} from "./kanban";
+import { type CanvasElement, DEFAULT_FONT_FAMILY } from "./types";
+
+export const STICKY_NOTE_TEXT_PADDING = 12;
+export const KANBAN_LIST_WIDTH = 280;
+export const KANBAN_CARD_WIDTH = KANBAN_LIST_WIDTH - KANBAN_LIST_PADDING * 2;
+
+export interface CanvasElementFactoryDefaults {
+	createId: () => string;
+	stroke: string;
+	fontFamily?: string;
+	kanbanFontFamily?: string;
+}
+
+export function createBaseCanvasElement(
+	defaults: CanvasElementFactoryDefaults,
+	overrides: Partial<CanvasElement> & { type: CanvasElement["type"] },
+): CanvasElement {
+	return {
+		id: defaults.createId(),
+		x: 0,
+		y: 0,
+		width: 100,
+		height: 100,
+		rotation: 0,
+		fill: "transparent",
+		stroke: defaults.stroke,
+		strokeWidth: 2,
+		strokeStyle: "solid",
+		opacity: 100,
+		locked: false,
+		groupId: null,
+		flipX: false,
+		flipY: false,
+		...overrides,
+	};
+}
+
+export function createStickyNoteElement(
+	defaults: CanvasElementFactoryDefaults,
+	options: {
+		x: number;
+		y: number;
+		color: string;
+		text?: string;
+		width?: number;
+		height?: number;
+		fontSize?: number;
+		fontFamily?: string;
+		textAlign?: "left" | "center" | "right";
+		stroke?: string;
+		frameId?: string;
+		stackIndex?: string;
+		customData?: Record<string, unknown>;
+	},
+): CanvasElement {
+	return createBaseCanvasElement(defaults, {
+		type: "rectangle",
+		x: options.x,
+		y: options.y,
+		width: options.width ?? 200,
+		height: options.height ?? 200,
+		fill: options.color,
+		stroke: options.stroke ?? "#CED4DA",
+		strokeWidth: 1,
+		cornerRadius: 8,
+		text: options.text ?? "",
+		fontSize: options.fontSize ?? 20,
+		fontFamily:
+			options.fontFamily ?? defaults.fontFamily ?? DEFAULT_FONT_FAMILY,
+		textAlign: options.textAlign ?? "left",
+		frameId: options.frameId,
+		stackIndex: options.stackIndex,
+		customData: {
+			skedraType: "sticky-note",
+			stickyNoteMode: "note",
+			stickyChecklist: [],
+			...(options.customData ?? {}),
+		},
+	});
+}
+
+export function fitImageSize(
+	width: number,
+	height: number,
+	maxWidth = 480,
+	maxHeight = 360,
+) {
+	const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+	return {
+		width: Math.max(1, Math.round(width * ratio)),
+		height: Math.max(1, Math.round(height * ratio)),
+	};
+}
+
+export function createImageCanvasElement(
+	defaults: CanvasElementFactoryDefaults,
+	options: {
+		x: number;
+		y: number;
+		src: string;
+		width: number;
+		height: number;
+		alt: string;
+	},
+): CanvasElement {
+	const fitted = fitImageSize(options.width, options.height);
+	return createBaseCanvasElement(defaults, {
+		type: "image",
+		x: options.x,
+		y: options.y,
+		width: fitted.width,
+		height: fitted.height,
+		fill: "transparent",
+		stroke: "#00000020",
+		strokeWidth: 1,
+		customData: {
+			imageSrc: options.src,
+			imageAlt: options.alt,
+			naturalWidth: options.width,
+			naturalHeight: options.height,
+			imageCrop: { x: 0, y: 0, width: 1, height: 1 },
+		},
+	});
+}
+
+export function createKanbanCardElement(
+	defaults: CanvasElementFactoryDefaults,
+	options: {
+		x: number;
+		y: number;
+		title: string;
+		priority?: KanbanPriority | null;
+		listId?: string;
+		stackIndex?: string;
+	},
+): CanvasElement {
+	return createBaseCanvasElement(defaults, {
+		type: "rectangle",
+		x: options.x,
+		y: options.y,
+		width: KANBAN_CARD_WIDTH,
+		height: getInitialKanbanCardHeight(options.title),
+		fill: "transparent",
+		stroke: "transparent",
+		strokeWidth: 1,
+		cornerRadius: 8,
+		text: options.title,
+		fontSize: 14,
+		fontFamily:
+			defaults.kanbanFontFamily ??
+			defaults.fontFamily ??
+			"system-ui, sans-serif",
+		textAlign: "left",
+		frameId: options.listId,
+		stackIndex: options.stackIndex,
+		customData: {
+			skedraType: "kanban-card",
+			priority: options.priority ?? null,
+			description: "",
+			startDate: null,
+			dueDate: null,
+			dueComplete: false,
+			coverImage: null,
+			imageSrc: null,
+			checklist: [],
+			attachments: [],
+		},
+	});
+}
+
+export function createKanbanListElements(
+	defaults: CanvasElementFactoryDefaults,
+	options: {
+		x: number;
+		y: number;
+		name: string;
+		cardTitles: string[];
+	},
+): CanvasElement[] {
+	const listId = defaults.createId();
+	const cardHeights = options.cardTitles.map(getInitialKanbanCardHeight);
+	const listHeight =
+		KANBAN_LIST_HEADER +
+		cardHeights.reduce((sum, height) => sum + height, 0) +
+		Math.max(0, options.cardTitles.length - 1) * KANBAN_CARD_GAP +
+		KANBAN_LIST_PADDING +
+		KANBAN_LIST_FOOTER_HEIGHT;
+
+	const list = createBaseCanvasElement(defaults, {
+		id: listId,
+		type: "frame",
+		x: options.x,
+		y: options.y,
+		width: KANBAN_LIST_WIDTH,
+		height: listHeight,
+		fill: "transparent",
+		stroke: "transparent",
+		frameLabel: options.name,
+		customData: { skedraType: "kanban-list" },
+	});
+
+	let nextCardY = options.y + KANBAN_LIST_HEADER;
+	const cardElements = options.cardTitles.map((title) => {
+		const card = createKanbanCardElement(defaults, {
+			x: options.x + KANBAN_LIST_PADDING,
+			y: nextCardY,
+			title,
+			listId,
+		});
+		nextCardY += card.height + KANBAN_CARD_GAP;
+		return card;
+	});
+
+	return [list, ...cardElements];
+}
+
+export function createKanbanBoardElements(
+	defaults: CanvasElementFactoryDefaults,
+	options: {
+		x: number;
+		y: number;
+		lists: Array<{ name: string; cards: string[] }>;
+		defaultCardTitle: string;
+	},
+): CanvasElement[] {
+	const gap = 24;
+	return options.lists.flatMap((list, index) =>
+		createKanbanListElements(defaults, {
+			x: options.x + index * (KANBAN_LIST_WIDTH + gap),
+			y: options.y,
+			name: list.name,
+			cardTitles:
+				list.cards.length > 0 ? list.cards : [options.defaultCardTitle],
+		}),
+	);
+}
+
+function getInitialKanbanCardHeight(title: string): number {
+	return computeKanbanCardHeight({
+		title,
+		description: "",
+		checklist: [],
+		coverImage: null,
+		attachments: [],
+		startDate: null,
+		dueDate: null,
+	});
+}
