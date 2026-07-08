@@ -1,0 +1,9 @@
+services:
+  skedra-core:
+    build:
+      context: .
+    image: ghcr.io/moonriddim/skedra-core:latest
+    container_name: skedra-core
+    ports:
+      - "3000:80"
+    restart: on-failure

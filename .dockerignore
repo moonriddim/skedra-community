@@ -1,0 +1,10 @@
+node_modules
+dist
+.tmp
+.turbo
+.git
+*.log
+*.tsbuildinfo
+apps/*/dist
+packages/*/dist
+packages/*/.tmp

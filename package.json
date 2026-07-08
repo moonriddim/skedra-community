@@ -4,10 +4,13 @@
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
+		"dev": "pnpm --filter @skedra/app dev",
 		"build": "pnpm -r build",
+		"build:app": "pnpm --filter @skedra/app build",
 		"test": "pnpm --filter @skedra/canvas-core test && pnpm --filter @skedra/react test",
 		"lint": "biome check .",
-		"format": "biome format --write ."
+		"format": "biome format --write .",
+		"preview": "pnpm --filter @skedra/app preview"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",
