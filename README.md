@@ -1,19 +1,15 @@
 # Skedra
 
-Skedra is an open-core collaborative whiteboard. The Community edition is meant
-to be a serious self-hosted workspace, not just a small editor demo.
+Skedra is an open-source collaborative whiteboard. The Community edition is
+meant to be a serious self-hosted workspace, not just a small editor demo.
 
 - Skedra Community is open source and includes the workspace app, accounts,
   teams, stored boards, database schema, realtime collaboration, comments,
   library workflows, and self-host Docker images.
 - Skedra Core is the MIT-licensed reusable editor layer in
   `packages/canvas-core` and `packages/react`.
-- Future commercial Skedra work should live around Skedra Cloud, enterprise
-  identity and compliance, managed AI, billing, premium integrations, and
-  support. Those services are not shipped in this repository today.
 
-See [PRODUCT_BOUNDARY.md](PRODUCT_BOUNDARY.md) for the exact open/commercial
-boundary.
+See [PRODUCT_BOUNDARY.md](PRODUCT_BOUNDARY.md) for the exact Community scope.
 
 ## Core Features
 
@@ -31,17 +27,6 @@ boundary.
 - Optional AI-assisted generation for diagrams, sticky notes, boards, and structured canvas content
 - Self-hostable PostgreSQL-backed deployment
 - Optional LiveKit-backed voice, camera, and screen sharing
-
-## Future Commercial Areas
-
-These are reserved product directions, not implemented features in this
-repository today:
-
-- Skedra Cloud hosting, managed upgrades, backups, monitoring, and uptime/SLA
-- SSO/SAML/OIDC, SCIM, enterprise identity policy, and advanced admin controls
-- Audit logs, retention, compliance workflows, and enterprise governance
-- Managed AI gateway, hosted model routing, team AI policy, and provider billing
-- Billing, subscriptions, premium integrations, migration help, and priority support
 
 ## Architecture
 

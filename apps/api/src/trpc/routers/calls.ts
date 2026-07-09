@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, TrackSource } from "livekit-server-sdk";
 import { z } from "zod";
 import { appErrorCodes, createAppError } from "../../lib/app-errors";
 import { resolveLiveKitConfig } from "../../lib/instance-settings";
@@ -57,7 +57,8 @@ export const callsRouter = router({
 				room: roomName,
 				roomJoin: true,
 				canPublish: true,
-				canPublishData: true,
+				canPublishData: false,
+				canPublishSources: [TrackSource.MICROPHONE],
 				canSubscribe: true,
 			});
 

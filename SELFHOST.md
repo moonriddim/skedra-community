@@ -6,17 +6,13 @@ visual workspace on their own infrastructure.
 This self-host package uses official Skedra Community Docker images built from
 the open-source Skedra codebase.
 
-Skedra uses an open-core split:
+Skedra uses a clear Community/Core license split:
 
 - Skedra Community is open source and includes the workspace app, accounts,
   teams, stored boards, database schema, realtime collaboration, comments, and
   self-host deployment.
 - Skedra Core is the MIT-licensed editor/canvas layer in
   `packages/canvas-core` and `packages/react`.
-- Future commercial Skedra areas are reserved for Skedra Cloud, enterprise
-  identity and compliance, managed AI, billing, premium integrations, and
-  support. Those services are not required for this self-hosted Community
-  edition and are not shipped here today.
 
 The full Community source lives in this public OSS repository. The reusable
 editor packages remain MIT licensed inside `packages/canvas-core` and
@@ -277,7 +273,7 @@ Make sure WebSocket upgrades are enabled for `/realtime`.
 
 ## License
 
-This self-host package follows the Skedra open-core split:
+This self-host package follows the Skedra Community/Core license split:
 
 - The deployment files are MIT licensed so you can copy and adapt them for your server.
 - The official Skedra Community container images are built from open-source
@@ -285,7 +281,3 @@ This self-host package follows the Skedra open-core split:
   source is licensed under `AGPL-3.0-only`.
 - The reusable editor/core packages are MIT licensed separately in
   `packages/canvas-core` and `packages/react`.
-
-Commercial Skedra Cloud and enterprise-only services are not implemented in
-this repository today and are not required to run this self-hosted Community
-edition.

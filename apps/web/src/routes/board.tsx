@@ -18,6 +18,7 @@ import type { PendingCommentPlacement } from "@/components/whiteboard/canvas-com
 import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard-comment-types";
 import { WhiteboardCommentsPanel } from "@/components/whiteboard/whiteboard-comments-panel";
 import { authClient } from "@/lib/auth-client";
+import { toUint8Array } from "@/lib/canvas/preview";
 import {
 	encryptYjsUpdate,
 	generateE2eeKey,
@@ -103,6 +104,7 @@ export function BoardPage() {
 		null,
 	);
 	const e2eeStateRef = useRef<(() => Uint8Array | null) | null>(null);
+	const legacyE2eeMigrationStartedRef = useRef(false);
 
 	const { data: board, isLoading } = trpc.whiteboard.getById.useQuery(
 		{ id: boardId ?? "" },
@@ -118,6 +120,8 @@ export function BoardPage() {
 	const canManageMembers = board?.canManageMembers ?? canManage;
 	const canViewActivity = board?.canViewActivity ?? true;
 	const canResolveComments = board?.canResolveComments ?? canManage;
+	const legacyE2eeMigrationEnabled =
+		!!boardId && board?.e2eeEnabled === false && canManage;
 
 	const { data: inviteRoles } = trpc.whiteboard.listInviteRoles.useQuery(
 		{ id: boardId ?? "" },
@@ -140,6 +144,12 @@ export function BoardPage() {
 		trpc.whiteboard.getEmbedShareSettings.useQuery(
 			{ id: boardId ?? "" },
 			{ enabled: !!boardId && canManageShare },
+		);
+
+	const { data: legacyE2eePreviewState } =
+		trpc.whiteboard.getPreviewState.useQuery(
+			{ id: boardId ?? "" },
+			{ enabled: legacyE2eeMigrationEnabled },
 		);
 
 	const { data: integrations = [] } = trpc.integrations.listBoard.useQuery(
@@ -233,8 +243,6 @@ export function BoardPage() {
 		},
 	});
 
-	const appendE2eeUpdate = trpc.whiteboard.appendE2eeUpdate.useMutation();
-
 	const saveNotionIntegration = trpc.integrations.saveNotion.useMutation({
 		onSuccess: () =>
 			void utils.integrations.listBoard.invalidate({
@@ -300,20 +308,20 @@ export function BoardPage() {
 	const shareUrl = useMemo(() => {
 		if (!shareSettings?.shareToken) return "";
 		const url = `${window.location.origin}/present/${shareSettings.shareToken}`;
-		return board?.e2eeEnabled ? withE2eeKeyFragment(url, e2eeKey) : url;
-	}, [board?.e2eeEnabled, e2eeKey, shareSettings?.shareToken]);
+		return withE2eeKeyFragment(url, e2eeKey);
+	}, [e2eeKey, shareSettings?.shareToken]);
 
 	const collabUrl = useMemo(() => {
 		if (!collabSettings?.shareToken) return "";
 		const url = `${window.location.origin}/collab/${collabSettings.shareToken}`;
-		return board?.e2eeEnabled ? withE2eeKeyFragment(url, e2eeKey) : url;
-	}, [board?.e2eeEnabled, collabSettings?.shareToken, e2eeKey]);
+		return withE2eeKeyFragment(url, e2eeKey);
+	}, [collabSettings?.shareToken, e2eeKey]);
 
 	const embedUrl = useMemo(() => {
 		if (!embedSettings?.shareToken) return "";
 		const url = `${window.location.origin}/embed/${embedSettings.shareToken}`;
-		return board?.e2eeEnabled ? withE2eeKeyFragment(url, e2eeKey) : url;
-	}, [board?.e2eeEnabled, e2eeKey, embedSettings?.shareToken]);
+		return withE2eeKeyFragment(url, e2eeKey);
+	}, [e2eeKey, embedSettings?.shareToken]);
 
 	const embedCode = useMemo(() => {
 		if (!embedUrl) return "";
@@ -324,8 +332,8 @@ export function BoardPage() {
 		if (embedUrl) return embedUrl;
 		if (shareUrl) return shareUrl;
 		const url = boardId ? `${window.location.origin}/board/${boardId}` : "";
-		return board?.e2eeEnabled ? withE2eeKeyFragment(url, e2eeKey) : url;
-	}, [board?.e2eeEnabled, boardId, e2eeKey, embedUrl, shareUrl]);
+		return withE2eeKeyFragment(url, e2eeKey);
+	}, [boardId, e2eeKey, embedUrl, shareUrl]);
 
 	const obsidianMarkdown = useMemo(() => {
 		if (!integrationUrl) return "";
@@ -363,6 +371,62 @@ export function BoardPage() {
 			setE2eeKeyDraft(known);
 		}
 	}, [boardId]);
+
+	useEffect(() => {
+		if (
+			!boardId ||
+			!board ||
+			board.e2eeEnabled ||
+			!board.canManage ||
+			legacyE2eePreviewState === undefined ||
+			legacyE2eeMigrationStartedRef.current
+		) {
+			return;
+		}
+
+		legacyE2eeMigrationStartedRef.current = true;
+		const migrateLegacyBoard = async () => {
+			try {
+				const key = generateE2eeKey();
+				const legacyState = toUint8Array(legacyE2eePreviewState.yjsState);
+				if (
+					legacyE2eePreviewState.hasState &&
+					(!legacyState || legacyState.length === 0)
+				) {
+					legacyE2eeMigrationStartedRef.current = false;
+					console.error("Legacy E2EE migration skipped: state unavailable");
+					return;
+				}
+				const initialUpdate =
+					legacyState && legacyState.length > 0
+						? await encryptYjsUpdate(legacyState, key)
+						: undefined;
+
+				storeE2eeKey(boardId, key);
+				putE2eeKeyInCurrentUrl(key);
+				setE2eeKey(key);
+				setE2eeKeyDraft(key);
+
+				await enableE2ee.mutateAsync({
+					id: boardId,
+					keyHint: `created-${new Date().toISOString().slice(0, 10)}`,
+					initialUpdate,
+				});
+				await utils.whiteboard.getById.invalidate({ id: boardId });
+			} catch (error) {
+				legacyE2eeMigrationStartedRef.current = false;
+				console.error("Legacy E2EE migration failed", error);
+			}
+		};
+
+		void migrateLegacyBoard();
+	}, [
+		board,
+		boardId,
+		enableE2ee.mutateAsync,
+		legacyE2eePreviewState,
+		utils.whiteboard.getById,
+	]);
 
 	const notionIntegration = integrations.find(
 		(integration) => integration.provider === "notion",
@@ -495,29 +559,6 @@ export function BoardPage() {
 		storeE2eeKey(boardId, key);
 		putE2eeKeyInCurrentUrl(key);
 		setE2eeKey(key);
-	};
-
-	const handleEnableE2ee = async () => {
-		if (!boardId || !board?.canManage) return;
-		const key = generateE2eeKey();
-		const currentState = e2eeStateRef.current?.() ?? null;
-		storeE2eeKey(boardId, key);
-		putE2eeKeyInCurrentUrl(key);
-		setE2eeKey(key);
-		setE2eeKeyDraft(key);
-		await enableE2ee.mutateAsync({
-			id: boardId,
-			keyHint: `created-${new Date().toISOString().slice(0, 10)}`,
-		});
-		if (currentState && currentState.length > 0) {
-			const encrypted = await encryptYjsUpdate(currentState, key);
-			await appendE2eeUpdate.mutateAsync({
-				whiteboardId: boardId,
-				clientId: `migration-${Date.now()}`,
-				update: encrypted,
-			});
-		}
-		await utils.whiteboard.getById.invalidate({ id: boardId });
 	};
 
 	const handleCopyE2eeBoardLink = async () => {
@@ -831,14 +872,18 @@ export function BoardPage() {
 												</Button>
 											</div>
 										) : (
-											<Button
-												variant="outline"
-												disabled={enableE2ee.isPending || !board.canManage}
-												onClick={() => void handleEnableE2ee()}
-											>
-												<ShieldCheck className="mr-2 h-4 w-4" />
-												E2EE aktivieren
-											</Button>
+											<div className="flex items-center gap-2 text-xs text-muted-foreground">
+												{board.canManage ? (
+													<Loader2 className="h-4 w-4 animate-spin" />
+												) : (
+													<ShieldCheck className="h-4 w-4" />
+												)}
+												<span>
+													{board.canManage
+														? "E2EE wird automatisch eingerichtet..."
+														: "Dieses Legacy-Board wird automatisch verschluesselt, sobald ein Admin es oeffnet."}
+												</span>
+											</div>
 										)}
 									</div>
 									<div className="border-t pt-4 space-y-3">

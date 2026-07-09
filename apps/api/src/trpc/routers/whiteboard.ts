@@ -25,7 +25,7 @@ import {
 	boardRolePermissionsSchema,
 	parseTeamRolePermissions,
 } from "@skedra/shared";
-import { decryptBytes, encryptBytes } from "@skedra/shared/server-crypto";
+import { decryptBytes } from "@skedra/shared/server-crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -336,7 +336,7 @@ export const whiteboardRouter = router({
 		.query(async ({ ctx, input }) => {
 			const access = await requireBoardMember(ctx, input.id);
 			if (access.whiteboard.e2eeEnabled) {
-				return { yjsState: null as Uint8Array | null };
+				return { yjsState: null as Uint8Array | null, hasState: false };
 			}
 
 			const full = await ctx.db.query.whiteboards.findFirst({
@@ -344,17 +344,18 @@ export const whiteboardRouter = router({
 				columns: { yjsState: true },
 			});
 
-			if (!full?.yjsState) {
-				return { yjsState: null as Uint8Array | null };
+			if (!full?.yjsState || full.yjsState.length === 0) {
+				return { yjsState: null as Uint8Array | null, hasState: false };
 			}
 
 			try {
 				return {
 					yjsState: decryptBytes(full.yjsState, getYjsEncryptionOptions()),
+					hasState: true,
 				};
 			} catch (error) {
 				console.error("Failed to decrypt board yjsState for preview", error);
-				return { yjsState: null as Uint8Array | null };
+				return { yjsState: null as Uint8Array | null, hasState: true };
 			}
 		}),
 
@@ -553,6 +554,8 @@ export const whiteboardRouter = router({
 					ownerId: ctx.user.id,
 					teamId: workspace.id,
 					folderId: folder?.id ?? null,
+					e2eeEnabled: true,
+					e2eeCreatedAt: new Date(),
 				})
 				.returning();
 
@@ -566,43 +569,47 @@ export const whiteboardRouter = router({
 			return created;
 		}),
 
-	/** Gast-Canvas: lokalen Y.js-Stand nach Anmeldung in die Cloud uebernehmen. */
+	/** Gast-Canvas: browserseitig verschluesselten Y.js-Stand in die Cloud uebernehmen. */
 	createWithState: protectedProcedure
 		.input(createWhiteboardWithStateSchema)
 		.mutation(async ({ ctx, input }) => {
-			let stateBuffer: Buffer;
-			try {
-				stateBuffer = Buffer.from(input.stateBase64, "base64");
-			} catch {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Ungültiger Canvas-Stand",
-				});
-			}
-
-			if (stateBuffer.length === 0) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Leerer Canvas-Stand",
-				});
-			}
-
 			const workspace = await ensureOwnedWorkspace(ctx.db, ctx.user);
 			const folder = await requireFolderInOwnedWorkspace(
 				ctx,
 				workspace.id,
 				input.folderId,
 			);
-			const [created] = await ctx.db
-				.insert(whiteboards)
-				.values({
-					name: input.name,
-					ownerId: ctx.user.id,
-					teamId: workspace.id,
-					folderId: folder?.id ?? null,
-					yjsState: encryptBytes(stateBuffer, getYjsEncryptionOptions()),
-				})
-				.returning();
+			const created = await ctx.db.transaction(async (tx) => {
+				const [board] = await tx
+					.insert(whiteboards)
+					.values({
+						name: input.name,
+						ownerId: ctx.user.id,
+						teamId: workspace.id,
+						folderId: folder?.id ?? null,
+						e2eeEnabled: true,
+						e2eeKeyHint: input.e2eeKeyHint?.trim() || null,
+						e2eeCreatedAt: new Date(),
+						yjsState: null,
+					})
+					.returning();
+
+				if (!board) {
+					throw new TRPCError({
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Board konnte nicht erstellt werden",
+					});
+				}
+
+				await tx.insert(whiteboardE2eeUpdates).values({
+					whiteboardId: board.id,
+					userId: ctx.user.id,
+					clientId: `initial-${Date.now()}`,
+					update: input.e2eeInitialUpdate,
+				});
+
+				return board;
+			});
 
 			await logWhiteboardActivity(ctx.db, {
 				whiteboardId: created.id,
@@ -983,33 +990,59 @@ export const whiteboardRouter = router({
 			z.object({
 				id: z.string().uuid(),
 				keyHint: z.string().max(120).optional(),
+				initialUpdate: z.string().min(1).max(4_000_000).optional(),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			await requireBoardOwner(ctx, input.id);
-
-			const [updated] = await ctx.db
-				.update(whiteboards)
-				.set({
-					e2eeEnabled: true,
-					e2eeKeyHint: input.keyHint?.trim() || null,
-					e2eeCreatedAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.where(eq(whiteboards.id, input.id))
-				.returning({
-					enabled: whiteboards.e2eeEnabled,
-					keyHint: whiteboards.e2eeKeyHint,
-					createdAt: whiteboards.e2eeCreatedAt,
-				});
-
-			if (!updated) {
-				throw createAppError({
-					code: "NOT_FOUND",
-					appErrorCode: appErrorCodes.whiteboardNotFound,
-					message: "Board nicht gefunden",
+			const access = await requireBoardOwner(ctx, input.id);
+			if (
+				!input.initialUpdate &&
+				!access.whiteboard.e2eeEnabled &&
+				access.whiteboard.yjsState &&
+				access.whiteboard.yjsState.length > 0
+			) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Initiales E2EE-Update fehlt",
 				});
 			}
+
+			const updated = await ctx.db.transaction(async (tx) => {
+				const [board] = await tx
+					.update(whiteboards)
+					.set({
+						e2eeEnabled: true,
+						e2eeKeyHint: input.keyHint?.trim() || null,
+						e2eeCreatedAt: access.whiteboard.e2eeCreatedAt ?? new Date(),
+						yjsState: null,
+						updatedAt: new Date(),
+					})
+					.where(eq(whiteboards.id, input.id))
+					.returning({
+						enabled: whiteboards.e2eeEnabled,
+						keyHint: whiteboards.e2eeKeyHint,
+						createdAt: whiteboards.e2eeCreatedAt,
+					});
+
+				if (!board) {
+					throw createAppError({
+						code: "NOT_FOUND",
+						appErrorCode: appErrorCodes.whiteboardNotFound,
+						message: "Board nicht gefunden",
+					});
+				}
+
+				if (input.initialUpdate) {
+					await tx.insert(whiteboardE2eeUpdates).values({
+						whiteboardId: input.id,
+						userId: ctx.user.id,
+						clientId: `migration-${Date.now()}`,
+						update: input.initialUpdate,
+					});
+				}
+
+				return board;
+			});
 
 			return updated;
 		}),

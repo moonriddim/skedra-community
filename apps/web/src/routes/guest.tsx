@@ -23,6 +23,13 @@ import {
 } from "@/lib/canvas/export-utils";
 import { clearLocalCanvasState } from "@/lib/canvas/local-canvas-storage";
 import type { SkedraCanvasFileActions } from "@/lib/canvas/skedra-file-utils";
+import {
+	base64ToBytes,
+	encryptYjsUpdate,
+	generateE2eeKey,
+	storeE2eeKey,
+	withE2eeKeyFragmentPath,
+} from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -50,14 +57,26 @@ export function GuestCanvasPage() {
 	const [clearDialogOpen, setClearDialogOpen] = useState(false);
 	const [boardName, setBoardName] = useState("");
 	const [saveError, setSaveError] = useState("");
+	const pendingE2eeKeyRef = useRef<string | null>(null);
 	const zenMode = useCanvasStore((state) => state.zenMode);
 
 	const createWithState = trpc.whiteboard.createWithState.useMutation({
 		onSuccess: (board) => {
+			const key = pendingE2eeKeyRef.current;
+			if (key) {
+				storeE2eeKey(board.id, key);
+			}
+			pendingE2eeKeyRef.current = null;
 			clearLocalCanvasState();
-			navigate(`/board/${board.id}`, { replace: true });
+			navigate(
+				key
+					? withE2eeKeyFragmentPath(`/board/${board.id}`, key)
+					: `/board/${board.id}`,
+				{ replace: true },
+			);
 		},
 		onError: (error) => {
+			pendingE2eeKeyRef.current = null;
 			setSaveError(error.message);
 		},
 	});
@@ -96,16 +115,23 @@ export function GuestCanvasPage() {
 		handleSaveClick();
 	};
 
-	const handleConfirmSave = () => {
+	const handleConfirmSave = async () => {
 		const stateBase64 = saveStateRef.current?.();
 		if (!stateBase64) {
 			setSaveError(t("guestCanvas.saveEmptyError"));
 			return;
 		}
 
+		const key = generateE2eeKey();
+		const e2eeInitialUpdate = await encryptYjsUpdate(
+			base64ToBytes(stateBase64),
+			key,
+		);
+		pendingE2eeKeyRef.current = key;
 		createWithState.mutate({
 			name: boardName.trim() || t("project.newCanvas"),
-			stateBase64,
+			e2eeInitialUpdate,
+			e2eeKeyHint: `created-${new Date().toISOString().slice(0, 10)}`,
 		});
 	};
 

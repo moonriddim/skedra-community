@@ -31,6 +31,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
+import {
+	base64ToBytes,
+	encryptYjsUpdate,
+	generateE2eeKey,
+	storeE2eeKey,
+	withE2eeKeyFragmentPath,
+} from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
 import { TEMPLATES, createBase64StateFromElements } from "@/lib/templates";
 import { trpc } from "@/lib/trpc";
@@ -113,19 +120,17 @@ export function HomePage() {
 	// --- TRPC MUTATIONS ---
 	// Normales neues Board anlegen (blanko)
 	const createBoard = trpc.whiteboard.create.useMutation({
-		onSuccess: (board) => {
+		onSuccess: () => {
 			void utils.whiteboard.list.invalidate();
 			void utils.whiteboard.listActivity.invalidate();
-			navigate(`/board/${board.id}`);
 		},
 	});
 
 	// Neues Board basierend auf einem Y.Doc-Zustand (Vorlagen) anlegen
 	const createBoardWithState = trpc.whiteboard.createWithState.useMutation({
-		onSuccess: (board) => {
+		onSuccess: () => {
 			void utils.whiteboard.list.invalidate();
 			void utils.whiteboard.listActivity.invalidate();
-			navigate(`/board/${board.id}`);
 		},
 	});
 
@@ -175,20 +180,27 @@ export function HomePage() {
 
 	// --- LOGIK-FUNKTIONEN ---
 	// Einfaches neues Canvas erstellen
-	const handleCreate = () => {
+	const openEncryptedBoard = (boardId: string, key: string) => {
+		storeE2eeKey(boardId, key);
+		navigate(withE2eeKeyFragmentPath(`/board/${boardId}`, key));
+	};
+
+	const handleCreate = async () => {
 		const name = newName.trim() || t("project.newCanvas");
-		createBoard.mutate({
+		const key = generateE2eeKey();
+		const board = await createBoard.mutateAsync({
 			name,
 			folderId:
 				folderFilter !== "all" && folderFilter !== "unfiled"
 					? folderFilter
 					: undefined,
 		});
+		openEncryptedBoard(board.id, key);
 		setNewName("");
 	};
 
 	// Ein Board über eine Schnellstart-Vorlage erstellen
-	const handleCreateFromTemplate = (
+	const handleCreateFromTemplate = async (
 		templateId: string,
 		templateTitleKey: string,
 	) => {
@@ -199,15 +211,22 @@ export function HomePage() {
 		const elements = template.create(0, 0, { resolvedTheme });
 		const stateBase64 = createBase64StateFromElements(elements);
 		const templateName = t(templateTitleKey) || template.name;
+		const key = generateE2eeKey();
+		const e2eeInitialUpdate = await encryptYjsUpdate(
+			base64ToBytes(stateBase64),
+			key,
+		);
 
-		createBoardWithState.mutate({
+		const board = await createBoardWithState.mutateAsync({
 			name: templateName,
-			stateBase64,
+			e2eeInitialUpdate,
+			e2eeKeyHint: `created-${new Date().toISOString().slice(0, 10)}`,
 			folderId:
 				folderFilter !== "all" && folderFilter !== "unfiled"
 					? folderFilter
 					: undefined,
 		});
+		openEncryptedBoard(board.id, key);
 	};
 
 	const handleCreateFolder = () => {

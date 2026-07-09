@@ -84,7 +84,12 @@ boardsRouter.post("/boards", (c) =>
 
 			const [created] = await db
 				.insert(whiteboards)
-				.values({ name: body.name, ownerId: user.id })
+				.values({
+					name: body.name,
+					ownerId: user.id,
+					e2eeEnabled: true,
+					e2eeCreatedAt: new Date(),
+				})
 				.returning();
 
 			await logWhiteboardActivity(db, {
@@ -242,6 +247,12 @@ boardsRouter.get("/boards/:id/elements", (c) =>
 				toPermissionCtx(c.get("apiUser")),
 				c.req.param("id"),
 			);
+			if (access.whiteboard.e2eeEnabled) {
+				return c.json(
+					{ error: "E2EE-Boards koennen ueber REST nicht gelesen werden" },
+					409,
+				);
+			}
 			const full = await db.query.whiteboards.findFirst({
 				where: eq(whiteboards.id, access.whiteboard.id),
 				columns: { yjsState: true },
@@ -261,6 +272,12 @@ boardsRouter.post("/boards/:id/elements", (c) =>
 			const user = c.get("apiUser");
 			const id = c.req.param("id");
 			const access = await requireBoardMember(toPermissionCtx(user), id);
+			if (access.whiteboard.e2eeEnabled) {
+				return c.json(
+					{ error: "E2EE-Boards koennen ueber REST nicht bearbeitet werden" },
+					409,
+				);
+			}
 			if (!access.canWrite) {
 				return c.json(
 					{ error: "Nur Besitzer und Mitglieder duerfen Elemente hinzufuegen" },
@@ -299,6 +316,12 @@ boardsRouter.patch("/boards/:id/elements/:elementId", (c) =>
 			const boardId = c.req.param("id");
 			const elementId = c.req.param("elementId");
 			const access = await requireBoardMember(toPermissionCtx(user), boardId);
+			if (access.whiteboard.e2eeEnabled) {
+				return c.json(
+					{ error: "E2EE-Boards koennen ueber REST nicht bearbeitet werden" },
+					409,
+				);
+			}
 			if (!access.canWrite) {
 				return c.json(
 					{ error: "Nur Besitzer und Mitglieder duerfen Elemente bearbeiten" },
@@ -341,6 +364,12 @@ boardsRouter.delete("/boards/:id/elements/:elementId", (c) =>
 			const boardId = c.req.param("id");
 			const elementId = c.req.param("elementId");
 			const access = await requireBoardMember(toPermissionCtx(user), boardId);
+			if (access.whiteboard.e2eeEnabled) {
+				return c.json(
+					{ error: "E2EE-Boards koennen ueber REST nicht bearbeitet werden" },
+					409,
+				);
+			}
 			if (!access.canWrite) {
 				return c.json(
 					{ error: "Nur Besitzer und Mitglieder duerfen Elemente loeschen" },

@@ -201,7 +201,7 @@ export const whiteboards = pgTable(
 		 * Browserseitiges E2EE: Y.js-Updates werden clientseitig verschluesselt
 		 * und als Ciphertext in whiteboard_e2ee_updates gespeichert.
 		 */
-		e2eeEnabled: boolean("e2ee_enabled").notNull().default(false),
+		e2eeEnabled: boolean("e2ee_enabled").notNull().default(true),
 		e2eeKeyHint: text("e2ee_key_hint"),
 		e2eeCreatedAt: timestamp("e2ee_created_at"),
 		yjsState: bytea("yjs_state"),

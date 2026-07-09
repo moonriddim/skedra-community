@@ -710,7 +710,7 @@ export const deMessages = {
 		callsCard: {
 			title: "Calls",
 			description:
-				"Konfiguriere Voice, Kamera und Screensharing auf Instanzebene ueber LiveKit.",
+				"Konfiguriere Voice-Hangouts auf Instanzebene ueber LiveKit.",
 			statusTitle: "Aktiver Call-Anbieter",
 			activeSource: "Aktive Quelle",
 			useCustomConfig: "Call-Konfiguration in der App verwalten",
@@ -1853,15 +1853,24 @@ export const deMessages = {
 		},
 		call: {
 			open: "Call",
-			title: "Voice & Screensharing",
+			title: "Voice-Hangout",
 			description:
-				"Oeffnet einen gemeinsamen Call fuer dieses Board. Teilnehmende koennen sprechen und ihren Bildschirm teilen.",
+				"Oeffnet einen gemeinsamen Audio-Raum fuer dieses Board. Teilnehmende koennen sprechen, waehrend sie am Canvas arbeiten.",
 			connecting: "Call wird vorbereitet...",
 			unavailable: "Calls sind auf dieser Skedra-Instanz nicht aktiviert.",
 			error: "Der Call konnte nicht gestartet werden.",
 			retry: "Erneut versuchen",
 			left: "Du hast den Call verlassen.",
 			rejoin: "Call erneut betreten",
+			participants: "Teilnehmende",
+			you: "Du",
+			guest: "Teilnehmer",
+			micOn: "Mikrofon an",
+			micOff: "Mikrofon stumm",
+			mute: "Stummschalten",
+			unmute: "Mikro einschalten",
+			leaveAction: "Verlassen",
+			allowAudio: "Audio-Wiedergabe erlauben",
 			livekitHint:
 				"Medien laufen ueber LiveKit fuer {boardName}. Skedra speichert nur die Board-Session-Zuordnung, keine Call-Medien.",
 		},

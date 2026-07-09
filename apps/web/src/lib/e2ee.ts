@@ -27,7 +27,7 @@ function bytesToBase64(bytes: Uint8Array) {
 	return btoa(binary);
 }
 
-function base64ToBytes(value: string) {
+export function base64ToBytes(value: string) {
 	const binary = atob(value);
 	const bytes = new Uint8Array(binary.length);
 	for (let index = 0; index < binary.length; index++) {
@@ -154,6 +154,18 @@ export function withE2eeKeyFragment(
 	params.set(E2EE_HASH_PARAM, key);
 	target.hash = params.toString();
 	return target.toString();
+}
+
+export function withE2eeKeyFragmentPath(
+	path: string,
+	key: string | null | undefined,
+) {
+	if (!key) return path;
+	const target = new URL(path, window.location.origin);
+	const params = new URLSearchParams(target.hash.replace(/^#/u, ""));
+	params.set(E2EE_HASH_PARAM, key);
+	target.hash = params.toString();
+	return `${target.pathname}${target.search}${target.hash}`;
 }
 
 export function putE2eeKeyInCurrentUrl(key: string) {

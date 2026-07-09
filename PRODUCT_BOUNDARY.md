@@ -1,8 +1,7 @@
-# Skedra Product Boundary
+# Skedra Community Scope
 
-Skedra is an open-core product with a strong open-source Community edition.
-The goal is simple: self-hosted Skedra should be useful, inspectable, and
-trustworthy without needing a commercial license.
+Skedra has a strong open-source Community edition. The goal is simple:
+self-hosted Skedra should be useful, inspectable, and trustworthy.
 
 ## Open-Source Community Edition
 
@@ -33,28 +32,6 @@ The reusable editor packages remain MIT licensed:
 The wider Community workspace source is licensed under `AGPL-3.0-only` unless a
 file or directory has its own license.
 
-## Future Commercial And Hosted Skedra
-
-Commercial value should live around operations, enterprise controls, managed
-services, and support rather than hiding the core collaboration product.
-
-The following areas are reserved for future commercial or hosted work. They are
-not a claim that these capabilities are implemented today:
-
-- Skedra Cloud hosting, managed upgrades, backups, monitoring, and uptime/SLA.
-- SSO/SAML/OIDC, SCIM, enterprise identity policy, and domain controls.
-- Enterprise roles, audit logs, retention, legal hold, compliance workflows, and
-  advanced admin controls.
-- Managed AI gateway, hosted model routing, credit limits, team AI policy, and
-  provider billing.
-- Billing, subscriptions, usage metering, plan management, and payment systems.
-- Premium integrations with external SaaS products.
-- Priority support, migration help, onboarding, and enterprise services.
-
-These features should be isolated from the Community edition with explicit
-module boundaries and clear license notices. Community code must continue to
-build and run without private services.
-
 ## Public Repository And Images
 
 This public OSS repository contains the Skedra Community edition:
@@ -69,13 +46,11 @@ It must not contain:
 
 - Secrets, production credentials, private infrastructure state, or unpublished
   assets.
-- Skedra Cloud operational credentials or customer data.
-- Commercial-only source unless it is intentionally published with a compatible
-  license and clear gating.
+- Private operational credentials or customer data.
+- Private deployment, release, or mirror automation that is specific to the
+  maintainer's infrastructure.
 
 ## Rule Of Thumb
 
 If a feature is needed to run a serious self-hosted collaborative workspace, it
-belongs in the open Community edition. If it is about managed hosting,
-enterprise governance, billing, proprietary integrations, or Skedra-operated
-services, it can be commercial.
+belongs in the open Community edition.

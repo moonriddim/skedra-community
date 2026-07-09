@@ -697,8 +697,7 @@ export const enMessages = {
 		},
 		callsCard: {
 			title: "Calls",
-			description:
-				"Configure instance-wide voice, camera, and screen sharing through LiveKit.",
+			description: "Configure instance-wide voice hangouts through LiveKit.",
 			statusTitle: "Active call provider",
 			activeSource: "Active source",
 			useCustomConfig: "Use app-managed call configuration",
@@ -1825,15 +1824,24 @@ export const enMessages = {
 		},
 		call: {
 			open: "Call",
-			title: "Voice & screen share",
+			title: "Voice hangout",
 			description:
-				"Open a shared call for this board. Participants can talk and share their screen while working on the canvas.",
+				"Open a shared audio room for this board. Participants can talk while working on the canvas.",
 			connecting: "Preparing call...",
 			unavailable: "Calls are not enabled on this Skedra instance.",
 			error: "The call could not be started.",
 			retry: "Try again",
 			left: "You left the call.",
 			rejoin: "Rejoin call",
+			participants: "Participants",
+			you: "You",
+			guest: "Participant",
+			micOn: "Microphone on",
+			micOff: "Microphone muted",
+			mute: "Mute",
+			unmute: "Unmute",
+			leaveAction: "Leave",
+			allowAudio: "Allow audio playback",
 			livekitHint:
 				"Media is routed by LiveKit for {boardName}. Skedra stores the board session mapping, not call media.",
 		},

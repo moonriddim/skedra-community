@@ -170,6 +170,9 @@ app.get("/api/realtime/token", async (c) => {
 			{ db, user: session.user },
 			whiteboardId,
 		);
+		if (access.whiteboard.e2eeEnabled) {
+			return c.json({ error: "E2EE-Boards nutzen verschluesselten Sync" }, 409);
+		}
 		const realtimeRole = access.canWrite ? access.role : "viewer";
 		const exp = Math.floor(Date.now() / 1000) + 60 * 5;
 
@@ -208,6 +211,9 @@ app.get("/api/realtime/collab-token", async (c) => {
 
 	try {
 		const access = await getCollabShareAccess(db, shareToken);
+		if (access.whiteboard.e2eeEnabled) {
+			return c.json({ error: "E2EE-Boards nutzen verschluesselten Sync" }, 409);
+		}
 		const exp = Math.floor(Date.now() / 1000) + 60 * 5;
 		const guestId = `guest-${shareToken.slice(0, 8)}`;
 		const role = access.canWrite ? "editor" : "viewer";
@@ -245,6 +251,9 @@ app.get("/api/realtime/presentation-token", async (c) => {
 
 	try {
 		const access = await getPresentationShareAccess(db, shareToken);
+		if (access.whiteboard.e2eeEnabled) {
+			return c.json({ error: "E2EE-Boards nutzen verschluesselten Sync" }, 409);
+		}
 		const exp = Math.floor(Date.now() / 1000) + 60 * 5;
 
 		const token = createRealtimeAuthToken(
@@ -284,6 +293,9 @@ app.get("/api/realtime/embed-token", async (c) => {
 
 	try {
 		const access = await getEmbedShareAccess(db, shareToken);
+		if (access.whiteboard.e2eeEnabled) {
+			return c.json({ error: "E2EE-Boards nutzen verschluesselten Sync" }, 409);
+		}
 		const exp = Math.floor(Date.now() / 1000) + 60 * 5;
 		const guestId = `embed-${shareToken.slice(0, 8)}`;
 

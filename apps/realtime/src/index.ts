@@ -22,6 +22,13 @@ const READONLY_ROLES: RealtimeRole[] = ["viewer"];
 
 const db = createDb(env.DATABASE_URL);
 
+function rejectE2eeRealtime(whiteboard: typeof whiteboards.$inferSelect) {
+	if (!whiteboard.e2eeEnabled) return;
+	throw Object.assign(new Error("e2ee-board-realtime-disabled"), {
+		reason: "e2ee-board-realtime-disabled",
+	});
+}
+
 function getYjsEncryptionOptions() {
 	return {
 		secret: env.DATA_ENCRYPTION_SECRET ?? env.AUTH_SECRET,
@@ -158,12 +165,15 @@ const server = new Hocuspocus({
 		new Database({
 			async fetch({ documentName }) {
 				const result = await db
-					.select({ yjsState: whiteboards.yjsState })
+					.select({
+						e2eeEnabled: whiteboards.e2eeEnabled,
+						yjsState: whiteboards.yjsState,
+					})
 					.from(whiteboards)
 					.where(eq(whiteboards.id, documentName))
 					.limit(1);
 
-				if (result.length > 0 && result[0].yjsState) {
+				if (result.length > 0 && !result[0].e2eeEnabled && result[0].yjsState) {
 					return decryptBytes(result[0].yjsState, getYjsEncryptionOptions());
 				}
 				return null;
@@ -179,7 +189,12 @@ const server = new Hocuspocus({
 						),
 						updatedAt: new Date(),
 					})
-					.where(eq(whiteboards.id, documentName));
+					.where(
+						and(
+							eq(whiteboards.id, documentName),
+							eq(whiteboards.e2eeEnabled, false),
+						),
+					);
 			},
 		}),
 	],
@@ -199,10 +214,11 @@ const server = new Hocuspocus({
 					reason: "presentation-token-invalid",
 				});
 			}
-			await requirePresentationAccess(
+			const access = await requirePresentationAccess(
 				documentName,
 				payload.presentationShareToken,
 			);
+			rejectE2eeRealtime(access.whiteboard);
 		} else if (payload.accessType === "collabLink") {
 			if (!payload.collabShareToken) {
 				throw Object.assign(new Error("collab-token-invalid"), {
@@ -213,6 +229,7 @@ const server = new Hocuspocus({
 				documentName,
 				payload.collabShareToken,
 			);
+			rejectE2eeRealtime(collab.whiteboard);
 			const expectedRole: RealtimeRole = collab.canWrite ? "editor" : "viewer";
 			if (payload.role !== expectedRole) {
 				throw Object.assign(new Error("collab-role-mismatch"), {
@@ -225,12 +242,17 @@ const server = new Hocuspocus({
 					reason: "embed-token-invalid",
 				});
 			}
-			await requireEmbedAccess(documentName, payload.embedShareToken);
+			const access = await requireEmbedAccess(
+				documentName,
+				payload.embedShareToken,
+			);
+			rejectE2eeRealtime(access.whiteboard);
 		} else {
 			const access = await requireMemberAccess(
 				payload.userId,
 				documentName,
 			).catch(() => requireWorkspaceAccess(payload.userId, documentName));
+			rejectE2eeRealtime(access.whiteboard);
 			const expectedRole: RealtimeRole = access.canWrite
 				? payload.role === "owner"
 					? "owner"

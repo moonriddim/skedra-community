@@ -88,7 +88,10 @@ ALTER TABLE "whiteboards"
 	ADD COLUMN IF NOT EXISTS "embed_share_token" text;
 
 ALTER TABLE "whiteboards"
-	ADD COLUMN IF NOT EXISTS "e2ee_enabled" boolean DEFAULT false NOT NULL;
+	ADD COLUMN IF NOT EXISTS "e2ee_enabled" boolean DEFAULT true NOT NULL;
+
+ALTER TABLE "whiteboards"
+	ALTER COLUMN "e2ee_enabled" SET DEFAULT true;
 
 ALTER TABLE "whiteboards"
 	ADD COLUMN IF NOT EXISTS "e2ee_key_hint" text;
