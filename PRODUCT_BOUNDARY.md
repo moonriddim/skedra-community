@@ -33,12 +33,13 @@ The reusable editor packages remain MIT licensed:
 The wider Community workspace source is licensed under `AGPL-3.0-only` unless a
 file or directory has its own license.
 
-## Commercial And Hosted Skedra
+## Future Commercial And Hosted Skedra
 
 Commercial value should live around operations, enterprise controls, managed
 services, and support rather than hiding the core collaboration product.
 
-Commercial or hosted-only features may include:
+The following areas are reserved for future commercial or hosted work. They are
+not a claim that these capabilities are implemented today:
 
 - Skedra Cloud hosting, managed upgrades, backups, monitoring, and uptime/SLA.
 - SSO/SAML/OIDC, SCIM, enterprise identity policy, and domain controls.

@@ -13,8 +13,10 @@ Skedra uses an open-core split:
   self-host deployment.
 - Skedra Core is the MIT-licensed editor/canvas layer in
   `packages/canvas-core` and `packages/react`.
-- Commercial Skedra features are reserved for Skedra Cloud, enterprise identity
-  and compliance, managed AI, billing, premium integrations, and support.
+- Future commercial Skedra areas are reserved for Skedra Cloud, enterprise
+  identity and compliance, managed AI, billing, premium integrations, and
+  support. Those services are not required for this self-hosted Community
+  edition and are not shipped here today.
 
 The full Community source lives in this public OSS repository. The reusable
 editor packages remain MIT licensed inside `packages/canvas-core` and
@@ -284,5 +286,6 @@ This self-host package follows the Skedra open-core split:
 - The reusable editor/core packages are MIT licensed separately in
   `packages/canvas-core` and `packages/react`.
 
-Commercial Skedra Cloud and enterprise-only services are not required to run
-this self-hosted Community edition.
+Commercial Skedra Cloud and enterprise-only services are not implemented in
+this repository today and are not required to run this self-hosted Community
+edition.
