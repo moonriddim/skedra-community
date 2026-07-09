@@ -87,10 +87,12 @@ packages/react        Auth-free React canvas SDK, local/controlled state, toolba
                       factories, templates, and public workspace hook contracts.
 ```
 
-## What Lives Elsewhere
+## Open Community Features, Not In This Mirror
 
-The AGPL Skedra Community Workspace is intentionally not copied into this MIT
-mirror. In the main Skedra repository it includes:
+These features are open source in the main
+[moonriddim/Skedra](https://github.com/moonriddim/Skedra) repository as part of
+the AGPL Skedra Community Workspace, but they are intentionally not copied into
+this smaller MIT editor mirror:
 
 - Accounts, workspaces, teams, permissions, comments, mentions, and activity
 - Realtime backend, API, database schema, migrations, and self-host images
