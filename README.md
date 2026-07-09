@@ -2,11 +2,16 @@
 
 Skedra Core is the open-source editor layer of Skedra. It contains the reusable
 whiteboard/canvas packages that can be embedded in other apps without the
-closed Skedra Workspace product.
+wider Skedra Workspace app.
 
 This repository is MIT licensed. It also builds the public Skedra Core Docker
 image: a static, nginx-served OSS editor client similar in scope to the public
 Excalidraw client image.
+
+The broader Skedra Community Workspace is also open source in
+[moonriddim/Skedra](https://github.com/moonriddim/Skedra) under `AGPL-3.0-only`.
+This `skedra-core` mirror is intentionally narrower so the reusable editor SDK
+and standalone editor client can remain small and MIT licensed.
 
 ## App
 
@@ -35,13 +40,14 @@ docker compose up --build
 Open `http://localhost:3000`.
 
 The Docker image contains only the open editor client from this repository. It
-does not include Skedra Workspace, accounts, teams, hosted persistence,
-comments, AI, LiveKit, or the closed self-host stack.
+does not include the Community Workspace services such as accounts, teams,
+PostgreSQL-backed boards, realtime backend, comments, AI settings, or LiveKit
+call orchestration. Those live in the open Skedra Community Workspace repo.
 
 ## Full Workspace Self-Host
 
-Versioned GitHub releases may also include deployment files for the full
-Skedra Workspace self-host stack:
+Versioned GitHub releases from the main Skedra repository may also include
+deployment files for the full Skedra Community self-host stack:
 
 ```text
 docker-compose.yml
@@ -51,11 +57,12 @@ README.md
 LICENSE
 ```
 
-Those release files run the official Skedra Workspace container images. That
-stack includes accounts, teams, stored boards, realtime collaboration,
-comments, library workflows, optional AI, and optional LiveKit-backed calls.
+Those release files run the official Skedra Community container images built
+from the open AGPL workspace source. That stack includes accounts, teams,
+stored boards, realtime collaboration, comments, library workflows, optional
+BYOK/local AI, and optional LiveKit-backed calls.
 
-For the simplest full self-host install, use the proprietary standalone image:
+For the simplest full self-host install, use the Community standalone image:
 
 ```bash
 docker run -d \
@@ -65,8 +72,10 @@ docker run -d \
   ghcr.io/moonriddim/skedra-standalone:latest
 ```
 
-The deployment files are public, but the Workspace source code and official
-Workspace images are not MIT licensed.
+The deployment files are public and the Workspace source is open, but the
+Workspace code and official Workspace images are not MIT licensed. They follow
+the Skedra Community `AGPL-3.0-only` license unless a file or directory has its
+own license.
 
 ## Packages
 
@@ -78,19 +87,29 @@ packages/react        Auth-free React canvas SDK, local/controlled state, toolba
                       factories, templates, and public workspace hook contracts.
 ```
 
-## What Is Not Here
+## What Lives Elsewhere
 
-The commercial Skedra Workspace application is intentionally not included in
-this repository. Closed-source Workspace code includes:
+The AGPL Skedra Community Workspace is intentionally not copied into this MIT
+mirror. In the main Skedra repository it includes:
 
 - Accounts, workspaces, teams, permissions, comments, mentions, and activity
-- Hosted realtime backend, API, database schema, deployment image source, and private release automation
-- AI backends, provider routing, integrations, moderation, and cloud dashboard
-- Voice/screen-share room orchestration and provider infrastructure
+- Realtime backend, API, database schema, migrations, and self-host images
+- Library workflows, optional BYOK/local AI, and optional LiveKit call support
+- Workspace web app, API, realtime service, database package, and shared helpers
+
+Commercial-only Skedra code remains outside this MIT mirror and outside the
+Community workspace. That may include:
+
+- Skedra Cloud hosting, managed upgrades, monitoring, backups, and SLA
+- SSO/SAML/OIDC, SCIM, enterprise identity policy, and advanced admin controls
+- Audit logs, retention, legal hold, compliance workflows, and governance
+- Managed AI gateway, hosted model routing, billing, and premium integrations
+- Priority support, migrations, onboarding, and enterprise services
 
 The public SDK may expose status/callback contracts such as `isInCall`,
 `isMuted`, `isSpeaking`, and `isScreenSharing`, but the implementation of those
-workspace features belongs to the closed Workspace app.
+workspace features belongs to a host app such as the open Community Workspace
+or a commercial Skedra service.
 
 ## Development
 
