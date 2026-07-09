@@ -1,0 +1,200 @@
+/**
+ * Praesentations-, Hilfe- und KI-Chrome um das Canvas.
+ */
+
+import { CanvasCommandPalette } from "@/components/canvas/canvas-command-palette";
+import type { CanvasCommand } from "@/components/canvas/canvas-command-palette";
+import { CanvasFooter } from "@/components/canvas/canvas-footer";
+import { useI18n } from "@/lib/i18n";
+import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
+import { Sparkles } from "lucide-react";
+import { Suspense, lazy } from "react";
+
+const AiDiagramPanel = lazy(() =>
+	import("@/components/board/ai-diagram-panel").then((module) => ({
+		default: module.AiDiagramPanel,
+	})),
+);
+const AudienceChrome = lazy(() =>
+	import("@/components/board/audience-chrome").then((module) => ({
+		default: module.AudienceChrome,
+	})),
+);
+const PresenterChrome = lazy(() =>
+	import("@/components/board/presenter-chrome").then((module) => ({
+		default: module.PresenterChrome,
+	})),
+);
+const PresenterNotesPanel = lazy(() =>
+	import("@/components/board/presenter-notes-panel").then((module) => ({
+		default: module.PresenterNotesPanel,
+	})),
+);
+const CanvasHelpDialog = lazy(() =>
+	import("@/components/canvas/canvas-help-dialog").then((module) => ({
+		default: module.CanvasHelpDialog,
+	})),
+);
+
+interface SkedraCanvasChromeProps {
+	presentationMode: boolean;
+	presenterMode: boolean;
+	zenMode: boolean;
+	localMode: boolean;
+	whiteboardId?: string;
+	canUseAi: boolean;
+	helpGuestMode: boolean;
+	helpDialogOpen: boolean;
+	onHelpDialogOpenChange: (open: boolean) => void;
+	commandPaletteOpen: boolean;
+	onCommandPaletteOpenChange: (open: boolean) => void;
+	commandPaletteCommands: CanvasCommand[];
+	aiPanelOpen: boolean;
+	onAiPanelOpenChange: (open: boolean) => void;
+	onAddElements: (elements: CanvasElement[]) => void;
+	onToggleZenMode: () => void;
+	presenterNotesOpen: boolean;
+	onPresenterNotesOpenChange: (open: boolean) => void;
+	activeView: SavedCanvasView | null;
+	savedViewList: SavedCanvasView[];
+	onUpdatePresenterNotes: (viewId: string, notes: string) => void;
+	onSelectView: (viewId: string) => void;
+	presenterShareUrl: string;
+	presenterIsLive: boolean;
+	presentationShareToken?: string;
+	audienceBoardName?: string;
+	audienceIsLive: boolean;
+}
+
+export function SkedraCanvasChrome({
+	presentationMode,
+	presenterMode,
+	zenMode,
+	localMode,
+	whiteboardId,
+	canUseAi,
+	helpGuestMode,
+	helpDialogOpen,
+	onHelpDialogOpenChange,
+	commandPaletteOpen,
+	onCommandPaletteOpenChange,
+	commandPaletteCommands,
+	aiPanelOpen,
+	onAiPanelOpenChange,
+	onAddElements,
+	onToggleZenMode,
+	presenterNotesOpen,
+	onPresenterNotesOpenChange,
+	activeView,
+	savedViewList,
+	onUpdatePresenterNotes,
+	onSelectView,
+	presenterShareUrl,
+	presenterIsLive,
+	presentationShareToken,
+	audienceBoardName,
+	audienceIsLive,
+}: SkedraCanvasChromeProps) {
+	const { t } = useI18n();
+
+	return (
+		<>
+			{zenMode && !presentationMode && (
+				<button
+					type="button"
+					className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-card/90 px-4 py-2 text-sm text-muted-foreground shadow-lg backdrop-blur hover:text-foreground"
+					onClick={onToggleZenMode}
+				>
+					{t("canvas.zenMode.exit")}
+				</button>
+			)}
+
+			<CanvasCommandPalette
+				open={commandPaletteOpen}
+				onOpenChange={onCommandPaletteOpenChange}
+				commands={commandPaletteCommands}
+			/>
+
+			{!presentationMode && !presenterMode && !zenMode && (
+				<CanvasFooter
+					onOpenHelp={() => onHelpDialogOpenChange(true)}
+					encryptionMode={localMode ? "local" : "cloud"}
+				/>
+			)}
+
+			{helpDialogOpen && (
+				<Suspense fallback={null}>
+					<CanvasHelpDialog
+						open={helpDialogOpen}
+						onOpenChange={onHelpDialogOpenChange}
+						guestMode={helpGuestMode}
+					/>
+				</Suspense>
+			)}
+
+			{presenterMode && !localMode && (
+				<Suspense fallback={null}>
+					<PresenterNotesPanel
+						open={presenterNotesOpen}
+						activeView={activeView}
+						views={savedViewList}
+						onUpdateNotes={onUpdatePresenterNotes}
+						onSelectView={onSelectView}
+						onClose={() => onPresenterNotesOpenChange(false)}
+					/>
+				</Suspense>
+			)}
+
+			{presenterMode && !localMode && (
+				<Suspense fallback={null}>
+					<PresenterChrome
+						shareUrl={presenterShareUrl}
+						isLive={presenterIsLive}
+						activeSlideName={activeView?.name ?? null}
+						slideCount={savedViewList.length}
+						onOpenNotes={() => onPresenterNotesOpenChange(!presenterNotesOpen)}
+						notesOpen={presenterNotesOpen}
+					/>
+				</Suspense>
+			)}
+
+			{presentationMode && presentationShareToken && audienceBoardName && (
+				<Suspense fallback={null}>
+					<AudienceChrome
+						boardName={audienceBoardName}
+						activeView={activeView}
+						isLive={audienceIsLive}
+						slideCount={savedViewList.length}
+					/>
+				</Suspense>
+			)}
+
+			{!presentationMode &&
+				!presenterMode &&
+				!localMode &&
+				whiteboardId &&
+				canUseAi && (
+					<>
+						<button
+							type="button"
+							onClick={() => onAiPanelOpenChange(true)}
+							className="absolute bottom-3 left-3 z-40 flex items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-1.5 text-sm font-medium shadow-xl backdrop-blur-md hover:bg-card"
+						>
+							<Sparkles className="h-4 w-4 text-primary" />
+							{t("whiteboardPage.ai.open")}
+						</button>
+						{aiPanelOpen && (
+							<Suspense fallback={null}>
+								<AiDiagramPanel
+									open={aiPanelOpen}
+									whiteboardId={whiteboardId}
+									onClose={() => onAiPanelOpenChange(false)}
+									onAddElements={onAddElements}
+								/>
+							</Suspense>
+						)}
+					</>
+				)}
+		</>
+	);
+}

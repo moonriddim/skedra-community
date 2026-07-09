@@ -1,6 +1,14 @@
 node_modules/
 dist/
-.tmp/
 .turbo/
+*.log
 *.tsbuildinfo
 .DS_Store
+.vite/
+data/
+.tmp/
+.env
+.env.*
+!.env.example
+!.env.docker.example
+!.env.selfhost.example

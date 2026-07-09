@@ -1,0 +1,525 @@
+@import url("https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Kalam:wght@400;700&family=Outfit:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+/* Skedra Branding */
+.font-display {
+	font-family: "Outfit", system-ui, sans-serif;
+}
+
+/* Comic-Hinweise fuer Pfeil-Annotationen (passend zum skizzenhaften Look) */
+.font-comic-note {
+	font-family: "Kalam", "Architects Daughter", "Segoe Print", cursive;
+	font-weight: 400;
+}
+
+@theme {
+	--font-display: "Outfit", system-ui, sans-serif;
+	--font-comic: "Comic Neue", "Comic Sans MS", cursive;
+	--font-sketch: "Kalam", "Architects Daughter", "Segoe Print", cursive;
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-border: var(--border-color);
+	--color-destructive: var(--destructive);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--radius-sm: 0.25rem;
+	--radius-md: 0.375rem;
+	--radius-lg: 0.5rem;
+}
+
+:root {
+	--primary: #0f766e;
+	--primary-foreground: #ffffff;
+	--secondary: #e8efe7;
+	--secondary-foreground: #18201c;
+	--background: #f4f4ef;
+	--foreground: #18201c;
+	--muted: #e7ebe1;
+	--muted-foreground: #667069;
+	--border-color: #d6ddd1;
+	--destructive: #ef4444;
+	--accent: #dde6d8;
+	--accent-foreground: #18201c;
+	--card: #fffef9;
+	--card-foreground: #18201c;
+	--popover: #fffef9;
+	--popover-foreground: #18201c;
+	--sidebar: #edf0e7;
+	--sidebar-foreground: #18201c;
+	--sidebar-border: #d6ddd1;
+	--document-viewer-bg: color-mix(
+		in srgb,
+		var(--background) 82%,
+		var(--foreground) 18%
+	);
+	--document-markup-preview-bg: color-mix(
+		in srgb,
+		var(--background) 78%,
+		var(--foreground) 22%
+	);
+
+	/* Kanban */
+	--kanban-list-bg: #f1f3f5;
+	--kanban-list-border: #dee2e6;
+	--kanban-list-header-bg: #e9ecef;
+	--kanban-list-header-text: #212529;
+	--kanban-card-bg: #ffffff;
+	--kanban-card-border: #dee2e6;
+	--kanban-card-text: #1a1d20;
+	--kanban-card-muted: #6c757d;
+	--kanban-card-shadow: rgba(0, 0, 0, 0.08);
+	--kanban-priority-low: #51cf66;
+	--kanban-priority-medium: #fab005;
+	--kanban-priority-high: #fd7e14;
+	--kanban-priority-urgent: #fa5252;
+	--kanban-priority-none: #adb5bd;
+	--kanban-due-default-bg: #eef2f6;
+	--kanban-due-default-text: #495057;
+	--kanban-due-soon-bg: #fff3bf;
+	--kanban-due-soon-text: #8f5b00;
+	--kanban-due-overdue-bg: #ffe3e3;
+	--kanban-due-overdue-text: #c92a2a;
+	--kanban-due-overdue-long-bg: #ffd8e1;
+	--kanban-due-overdue-long-text: #a61e4d;
+	--kanban-due-complete-bg: #d3f9d8;
+	--kanban-due-complete-text: #2b8a3e;
+}
+
+.dark {
+	--primary: #14b8a6;
+	--primary-foreground: #ffffff;
+	--secondary: #19211d;
+	--secondary-foreground: #e6efe8;
+	--background: #111714;
+	--foreground: #e6efe8;
+	--muted: #17201b;
+	--muted-foreground: #95a59d;
+	--border-color: #2a362f;
+	--destructive: #f87171;
+	--accent: #1d2823;
+	--accent-foreground: #e6efe8;
+	--card: #151d19;
+	--card-foreground: #e6efe8;
+	--popover: #151d19;
+	--popover-foreground: #e6efe8;
+	--sidebar: #0f1612;
+	--sidebar-foreground: #e6efe8;
+	--sidebar-border: #2a362f;
+	--document-viewer-bg: color-mix(in srgb, var(--background) 86%, black 14%);
+	--document-markup-preview-bg: color-mix(
+		in srgb,
+		var(--background) 82%,
+		black 18%
+	);
+
+	/* Kanban */
+	--kanban-list-bg: #1f2229;
+	--kanban-list-border: #2f343d;
+	--kanban-list-header-bg: #14171c;
+	--kanban-list-header-text: #e5e7eb;
+	--kanban-card-bg: #2a2e36;
+	--kanban-card-border: #3a3f4a;
+	--kanban-card-text: #f1f3f5;
+	--kanban-card-muted: #9ca3af;
+	--kanban-card-shadow: rgba(0, 0, 0, 0.45);
+	--kanban-priority-low: #51cf66;
+	--kanban-priority-medium: #fab005;
+	--kanban-priority-high: #fd7e14;
+	--kanban-priority-urgent: #fa5252;
+	--kanban-priority-none: #6b7280;
+	--kanban-due-default-bg: #313844;
+	--kanban-due-default-text: #d0d7e2;
+	--kanban-due-soon-bg: #5c4300;
+	--kanban-due-soon-text: #ffe08a;
+	--kanban-due-overdue-bg: #5b2323;
+	--kanban-due-overdue-text: #ffb3b3;
+	--kanban-due-overdue-long-bg: #5b1f35;
+	--kanban-due-overdue-long-text: #ffc0d6;
+	--kanban-due-complete-bg: #1f4a2e;
+	--kanban-due-complete-text: #8ce99a;
+}
+
+body {
+	background: radial-gradient(
+			circle at top left,
+			rgba(20, 184, 166, 0.08),
+			transparent 26%
+		),
+		radial-gradient(
+			circle at bottom right,
+			rgba(245, 158, 11, 0.08),
+			transparent 22%
+		), var(--background);
+	color: var(--foreground);
+	font-family: "Aptos", "Segoe UI Variable Text", "Segoe UI", "Segoe UI Emoji",
+		"Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+}
+
+.workspace-hero {
+	background: radial-gradient(
+			circle at 0% 0%,
+			rgba(15, 118, 110, 0.16),
+			transparent 30%
+		),
+		radial-gradient(
+			circle at 84% 12%,
+			rgba(255, 255, 255, 0.72),
+			transparent 24%
+		),
+		linear-gradient(
+			135deg,
+			rgba(239, 246, 241, 0.98),
+			rgba(249, 248, 242, 0.98) 44%,
+			rgba(239, 232, 214, 0.98)
+		);
+	box-shadow: 0 26px 70px -42px rgba(121, 104, 53, 0.28);
+}
+
+.workspace-hero-eyebrow {
+	color: rgba(22, 78, 74, 0.72);
+}
+
+.workspace-hero-title {
+	color: #17211d;
+}
+
+.workspace-hero-description {
+	color: rgba(52, 67, 60, 0.9);
+}
+
+.dark .workspace-hero {
+	background: radial-gradient(
+			circle at top left,
+			rgba(20, 184, 166, 0.18),
+			transparent 30%
+		),
+		radial-gradient(
+			circle at 78% 18%,
+			rgba(255, 255, 255, 0.14),
+			transparent 22%
+		),
+		linear-gradient(
+			135deg,
+			rgba(11, 20, 17, 0.98),
+			rgba(19, 36, 31, 0.95) 38%,
+			rgba(32, 44, 38, 0.92) 68%,
+			rgba(88, 74, 35, 0.88)
+		);
+	box-shadow: 0 24px 72px -42px rgba(0, 0, 0, 0.55);
+}
+
+.dark .workspace-hero-eyebrow {
+	color: rgba(236, 253, 245, 0.72);
+}
+
+.dark .workspace-hero-title {
+	color: #ffffff;
+}
+
+.dark .workspace-hero-description {
+	color: rgba(226, 232, 240, 0.84);
+}
+
+#root {
+	min-height: 100vh;
+}
+
+.picker-input {
+	appearance: none;
+	color-scheme: light dark;
+	line-height: 1.25rem;
+}
+
+.picker-input::-webkit-calendar-picker-indicator {
+	display: none;
+	-webkit-appearance: none;
+}
+
+.picker-input::-webkit-date-and-time-value {
+	min-height: 1.25rem;
+	text-align: left;
+}
+
+.picker-input::-webkit-datetime-edit {
+	display: inline-flex;
+	align-items: center;
+	min-height: 1.25rem;
+	padding: 0;
+}
+
+.picker-input::-webkit-datetime-edit-fields-wrapper {
+	display: inline-flex;
+	align-items: center;
+	min-height: 1.25rem;
+	padding: 0;
+}
+
+.picker-input::-webkit-datetime-edit-text,
+.picker-input::-webkit-datetime-edit-day-field,
+.picker-input::-webkit-datetime-edit-month-field,
+.picker-input::-webkit-datetime-edit-year-field,
+.picker-input::-webkit-datetime-edit-hour-field,
+.picker-input::-webkit-datetime-edit-minute-field,
+.picker-input::-webkit-datetime-edit-ampm-field {
+	margin: 0;
+	padding: 0;
+}
+
+.settings-redesign {
+	--settings-panel-bg: color-mix(in srgb, var(--card) 86%, var(--background));
+	--settings-soft-bg: color-mix(in srgb, var(--muted) 42%, transparent);
+}
+
+.settings-dense {
+	max-width: none;
+}
+
+.settings-dense-toolbar {
+	display: flex;
+	min-height: 3rem;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--card) 82%, var(--background));
+	padding: 0.375rem;
+}
+
+.settings-primary-tabs {
+	display: flex;
+	min-width: 0;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+}
+
+.settings-context-selectors {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+.settings-redesign [data-slot="card"],
+.settings-detail-linear [data-slot="card"],
+.settings-project-detail [data-slot="card"] {
+	border-color: color-mix(in srgb, var(--border-color) 78%, transparent);
+	border-radius: 8px;
+	background: var(
+		--settings-panel-bg,
+		color-mix(in srgb, var(--card) 88%, var(--background))
+	);
+	box-shadow: none;
+}
+
+.settings-redesign [data-slot="card-header"],
+.settings-detail-linear [data-slot="card-header"],
+.settings-project-detail [data-slot="card-header"] {
+	padding: 1.25rem;
+}
+
+.settings-redesign [data-slot="card-title"],
+.settings-detail-linear [data-slot="card-title"],
+.settings-project-detail [data-slot="card-title"] {
+	font-size: 1rem;
+	line-height: 1.35;
+	letter-spacing: 0;
+}
+
+.settings-redesign [data-slot="card-description"],
+.settings-detail-linear [data-slot="card-description"],
+.settings-project-detail [data-slot="card-description"] {
+	line-height: 1.55;
+}
+
+.settings-redesign [data-slot="card-content"],
+.settings-detail-linear [data-slot="card-content"],
+.settings-project-detail [data-slot="card-content"] {
+	padding: 0 1.25rem 1.25rem;
+}
+
+.settings-redesign input,
+.settings-redesign select,
+.settings-redesign textarea,
+.settings-detail-linear input,
+.settings-detail-linear select,
+.settings-detail-linear textarea,
+.settings-project-detail input,
+.settings-project-detail select,
+.settings-project-detail textarea {
+	border-radius: 8px !important;
+}
+
+.settings-detail-linear > .grid {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.settings-detail-linear > .grid > div {
+	display: contents;
+}
+
+.settings-detail-linear > .grid [data-slot="card"] {
+	display: grid;
+	grid-template-columns: minmax(13rem, 0.34fr) minmax(0, 1fr);
+	overflow: hidden;
+}
+
+.settings-detail-linear > .grid [data-slot="card-header"] {
+	border-right: 1px solid
+		color-mix(in srgb, var(--border-color) 76%, transparent);
+	background: color-mix(in srgb, var(--muted) 28%, transparent);
+}
+
+.settings-detail-linear > .grid [data-slot="card-content"] {
+	padding: 1.25rem;
+}
+
+.settings-detail-linear .rounded-2xl,
+.settings-detail-linear .rounded-xl,
+.settings-project-detail .rounded-2xl,
+.settings-project-detail .rounded-xl,
+.settings-redesign .rounded-2xl,
+.settings-redesign .rounded-xl,
+.settings-redesign .rounded-\[24px\],
+.settings-redesign .rounded-\[28px\] {
+	border-radius: 8px;
+}
+
+.settings-detail-linear .bg-muted\/20,
+.settings-project-detail .bg-muted\/20,
+.settings-redesign .bg-muted\/20 {
+	background-color: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+.settings-project-detail > .grid {
+	grid-template-columns: minmax(12rem, 13.75rem) minmax(0, 1fr);
+}
+
+.settings-project-detail aside [data-slot="card"] {
+	background: color-mix(in srgb, var(--card) 82%, var(--background));
+}
+
+.settings-project-detail aside [data-slot="card-header"],
+.settings-project-detail aside [data-slot="card-content"] > .grid {
+	display: none;
+}
+
+.settings-project-detail aside [data-slot="card-content"] {
+	padding: 0.375rem;
+}
+
+.settings-project-detail aside nav {
+	display: grid;
+	gap: 0.125rem;
+}
+
+.settings-project-detail aside nav button {
+	padding: 0.55rem 0.65rem;
+}
+
+.settings-project-detail aside nav button span span:last-child {
+	display: none;
+}
+
+.settings-project-detail > .flex,
+.settings-project-detail > .grid + .flex {
+	margin: 0;
+}
+
+.settings-project-detail > div:first-child {
+	min-height: 2.75rem;
+	align-items: center;
+	border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--card) 82%, var(--background));
+	padding: 0.375rem 0.5rem;
+}
+
+.settings-project-detail > div:first-child > div:first-child {
+	display: none;
+}
+
+.settings-project-detail > div:first-child button {
+	height: 2.25rem;
+}
+
+.settings-project-detail > .grid > div > [data-slot="card"] {
+	min-height: 34rem;
+}
+
+.settings-project-detail
+	> .grid
+	> div
+	> [data-slot="card"]
+	[data-slot="card-header"] {
+	border-bottom: 1px solid
+		color-mix(in srgb, var(--border-color) 76%, transparent);
+	background: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+
+.settings-project-detail
+	> .grid
+	> div
+	> [data-slot="card"]
+	[data-slot="card-content"] {
+	padding: 1rem;
+}
+
+.settings-project-detail textarea {
+	min-height: 8rem !important;
+}
+
+.settings-project-detail aside nav button,
+.settings-redesign aside button {
+	border: 1px solid transparent;
+}
+
+.settings-project-detail aside nav button:hover,
+.settings-redesign aside button:hover {
+	border-color: color-mix(in srgb, var(--border-color) 85%, transparent);
+}
+
+.settings-project-detail aside nav button.bg-accent,
+.settings-redesign aside button.bg-accent {
+	border-color: color-mix(in srgb, var(--primary) 34%, var(--border-color));
+	background: color-mix(in srgb, var(--primary) 12%, var(--muted));
+}
+
+@media (max-width: 900px) {
+	.settings-detail-linear > .grid [data-slot="card"] {
+		display: block;
+	}
+
+	.settings-detail-linear > .grid [data-slot="card-header"] {
+		border-right: 0;
+		border-bottom: 1px solid
+			color-mix(in srgb, var(--border-color) 76%, transparent);
+	}
+
+	.settings-project-detail > .grid {
+		grid-template-columns: 1fr;
+	}
+}

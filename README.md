@@ -1,147 +1,260 @@
-# Skedra Core
+# Skedra
 
-Skedra Core is the open-source editor layer of Skedra. It contains the reusable
-whiteboard/canvas packages that can be embedded in other apps without the
-wider Skedra Workspace app.
+Skedra is an open-core collaborative whiteboard. The Community edition is meant
+to be a serious self-hosted workspace, not just a small editor demo.
 
-This repository is MIT licensed. It also builds the public Skedra Core Docker
-image: a static, nginx-served OSS editor client similar in scope to the public
-Excalidraw client image.
+- Skedra Community is open source and includes the workspace app, accounts,
+  teams, stored boards, database schema, realtime collaboration, comments,
+  library workflows, and self-host Docker images.
+- Skedra Core is the MIT-licensed reusable editor layer in
+  `packages/canvas-core` and `packages/react`.
+- Commercial Skedra work should live around Skedra Cloud, enterprise identity
+  and compliance, managed AI, billing, premium integrations, and support.
 
-The broader Skedra Community Workspace is also open source in
-[moonriddim/Skedra](https://github.com/moonriddim/Skedra) under `AGPL-3.0-only`.
-This `skedra-core` mirror is intentionally narrower so the reusable editor SDK
-and standalone editor client can remain small and MIT licensed.
+See [PRODUCT_BOUNDARY.md](PRODUCT_BOUNDARY.md) for the exact open/commercial
+boundary.
 
-## App
+## Core Features
+
+- Infinite canvas with shapes, text, freehand paths, frames, flowcharts, mind maps, kanban boards, and reusable templates
+- Auth-free React SDK for embedding the canvas in another app
+- `.skedra` and `.skedralib` file formats
+
+## Community Workspace Features
+
+- Real-time collaboration powered by Y.js and Hocuspocus
+- User accounts, invite-only self-host registration, private boards, shared boards, and guest collaboration links
+- Presentation mode with share links and audience-friendly views
+- Comments, mentions, activity tracking, and board-level roles
+- Private shape libraries, `.skedralib` imports, and reviewed community catalog submissions
+- Optional AI-assisted generation for diagrams, sticky notes, boards, and structured canvas content
+- Self-hostable PostgreSQL-backed deployment
+- Optional LiveKit-backed voice, camera, and screen sharing
+
+## Commercial Features
+
+- Skedra Cloud hosting, managed upgrades, backups, monitoring, and uptime/SLA
+- SSO/SAML/OIDC, SCIM, enterprise identity policy, and advanced admin controls
+- Audit logs, retention, compliance workflows, and enterprise governance
+- Managed AI gateway, hosted model routing, team AI policy, and provider billing
+- Billing, subscriptions, premium integrations, migration help, and priority support
+
+## Architecture
+
+```text
+MIT Editor Core
+packages/canvas-core  MIT canvas domain model and algorithms
+packages/react        MIT auth-free React SDK for embedding the editor
+
+Open Community Workspace
+apps/web              React workspace app
+apps/libraries        Public shape library catalog app
+apps/api              Hono + tRPC + auth + REST API
+apps/realtime         Hocuspocus WebSocket collaboration server
+apps/mcp              Skedra MCP integration server
+packages/db           Drizzle schema and database utilities
+packages/shared       Internal shared server/app helpers
+```
+
+## Local Development
+
+Local development runs the open Community Workspace stack on top of the MIT
+Core packages.
 
 ```bash
+docker compose -f docker-compose.dev.yml up -d
+cp .env.example .env
 pnpm install
+pnpm db:push
 pnpm dev
 ```
 
-Open `http://localhost:5173`.
+Default development ports:
 
-## Docker
+| Service | Port |
+| --- | ---: |
+| Web app | 5174 |
+| Library catalog | 5175 |
+| API | 3001 |
+| Realtime | 1235 |
+| PostgreSQL | 5434 |
 
-Build and run the public OSS editor client:
+Open `http://localhost:5174` to start using the app.
+
+## Docker Build
+
+Build the stack directly from source:
 
 ```bash
-docker build -t skedra-core .
-docker run --rm -p 3000:80 skedra-core
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker build
+docker compose --env-file .env.docker up -d
 ```
 
-Or use Compose locally:
+`docker compose up -d` runs the database migration inside the API container before the API
+server starts.
 
-```bash
-docker compose up --build
+If you change `POSTGRES_PASSWORD` after the Postgres volume has already been initialized,
+update the database role password as well or recreate the Postgres volume. Docker does not
+rewrite the password inside an existing data directory.
+
+For a domain-backed deployment, set at least:
+
+```env
+SKEDRA_PUBLIC_APP_URL=https://skedra.example.com
+SKEDRA_PUBLIC_LIBRARIES_URL=https://libraries.example.com
+SKEDRA_PUBLIC_API_URL=https://skedra.example.com
 ```
 
-Open `http://localhost:3000`.
+Point your reverse proxy to:
 
-The Docker image contains only the open editor client from this repository. It
-does not include the Community Workspace services such as accounts, teams,
-PostgreSQL-backed boards, realtime backend, comments, AI settings, or LiveKit
-call orchestration. Those live in the open Skedra Community Workspace repo.
+- `https://skedra.example.com` -> Compose port `5174`
+- `https://libraries.example.com` -> Compose port `5175`
 
-## Full Workspace Self-Host
+The internal nginx containers proxy `/api` and `/realtime` to the API and realtime services.
 
-Versioned GitHub releases from the main Skedra repository may also include
-deployment files for the full Skedra Community self-host stack:
+Calls are optional and are configured under `Settings -> System -> Calls`.
+The server environment can also provide a fallback:
+
+```env
+SKEDRA_CALLS_ENABLED=true
+SKEDRA_CALL_PROVIDER=livekit
+SKEDRA_PUBLIC_LIVEKIT_URL=wss://livekit.example.com
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+```
+
+For local testing, `docker-compose.livekit.yml` starts a dev LiveKit server and wires the API
+to it. For production, use LiveKit Cloud or the official LiveKit self-host setup with TLS/TURN.
+
+## Community Library Catalog
+
+Use the app domain for accounts and review administration, and the libraries subdomain for the
+public catalog:
+
+```env
+SKEDRA_PUBLIC_APP_URL=https://skedra.xyz
+SKEDRA_PUBLIC_LIBRARIES_URL=https://libraries.skedra.xyz
+SKEDRA_LIBRARY_CATALOG_MODE=local
+```
+
+Self-hosted installs should use `SKEDRA_LIBRARY_CATALOG_MODE=remote` with
+`SKEDRA_LIBRARY_CATALOG_API_URL=https://libraries.skedra.xyz`. Users can submit from their
+self-hosted instance; submissions stay pending in the central review queue until an admin
+approves them.
+
+The review queue is intentionally not part of the public libraries site. `libraries.skedra.xyz`
+serves the catalog UI and accepts `/api/libraries/submissions`, while Skedra admins review,
+approve, or reject submissions from the protected system settings in the main app.
+
+## Community Self-Hosting
+
+The GitHub Actions workflow at `.github/workflows/docker-images.yml` builds and
+pushes the open Community images:
 
 ```text
-docker-compose.yml
-docker-compose.livekit.yml
-env.example
-README.md
-LICENSE
+ghcr.io/<github-user>/skedra-api
+ghcr.io/<github-user>/skedra-realtime
+ghcr.io/<github-user>/skedra-web
+ghcr.io/<github-user>/skedra-libraries
+ghcr.io/<github-user>/skedra-standalone
 ```
 
-Those release files run the official Skedra Community container images built
-from the open AGPL workspace source. That stack includes accounts, teams,
-stored boards, realtime collaboration, comments, library workflows, optional
-BYOK/local AI, and optional LiveKit-backed calls.
+Create a release tag to publish versioned Community images and release assets:
 
-For the simplest full self-host install, use the Community standalone image:
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release will include:
+
+- `docker-compose.yml`
+- `docker-compose.livekit.yml`
+- `env.example`
+- `README.md`
+- `LICENSE`
+
+Users who want the simplest install can run the all-in-one Community image:
 
 ```bash
 docker run -d \
   --name skedra \
   -p 3000:80 \
   -v skedra_data:/data \
-  ghcr.io/moonriddim/skedra-standalone:latest
+  ghcr.io/<github-user>/skedra-standalone:v0.1.0
 ```
 
-The deployment files are public and the Workspace source is open, but the
-Workspace code and official Workspace images are not MIT licensed. They follow
-the Skedra Community `AGPL-3.0-only` license unless a file or directory has its
-own license.
+That single container starts embedded PostgreSQL, API, realtime collaboration,
+the web app, and the library catalog. It is convenient for small teams, NAS
+installs, trials, and simple self-hosting. For larger or stricter production
+deployments, use the Compose stack so the database and app services are
+separate.
 
-## Packages
-
-```text
-apps/app              Static OSS editor client used for the public Docker image.
-packages/canvas-core  Canvas element model, geometry, scene, selection, hit testing,
-                      ordering, snapping, path rendering, and import helpers.
-packages/react        Auth-free React canvas SDK, local/controlled state, toolbar,
-                      factories, templates, and public workspace hook contracts.
-```
-
-## Open Community Features, Not In This Mirror
-
-These features are open source in the main
-[moonriddim/Skedra](https://github.com/moonriddim/Skedra) repository as part of
-the AGPL Skedra Community Workspace, but they are intentionally not copied into
-this smaller MIT editor mirror:
-
-- Accounts, workspaces, teams, permissions, comments, mentions, and activity
-- Realtime backend, API, database schema, migrations, and self-host images
-- Library workflows, optional BYOK/local AI, and optional LiveKit call support
-- Workspace web app, API, realtime service, database package, and shared helpers
-
-Commercial-only Skedra code remains outside this MIT mirror and outside the
-Community workspace. That may include:
-
-- Skedra Cloud hosting, managed upgrades, monitoring, backups, and SLA
-- SSO/SAML/OIDC, SCIM, enterprise identity policy, and advanced admin controls
-- Audit logs, retention, legal hold, compliance workflows, and governance
-- Managed AI gateway, hosted model routing, billing, and premium integrations
-- Priority support, migrations, onboarding, and enterprise services
-
-The public SDK may expose status/callback contracts such as `isInCall`,
-`isMuted`, `isSpeaking`, and `isScreenSharing`, but the implementation of those
-workspace features belongs to a host app such as the open Community Workspace
-or a commercial Skedra service.
-
-## Development
+Compose users can deploy with:
 
 ```bash
-pnpm install
-pnpm build
-pnpm test
-pnpm lint
+cp env.example .env
+docker compose --env-file .env up -d
 ```
 
-## React SDK
+For TrueNAS, Dockge, Portainer, or a plain Docker host, use the release `docker-compose.yml` and configure `.env` with your domain, storage path, database password, and secrets.
 
-```tsx
-import { SkedraCanvas } from "@skedra/react";
-import "@skedra/react/style.css";
+This full self-host stack includes accounts, teams, stored boards, database
+migrations, realtime collaboration, comments, library workflows, optional BYOK
+or local AI, and optional LiveKit-backed calls.
 
-export function Whiteboard() {
-	return (
-		<div style={{ height: 600 }}>
-			<SkedraCanvas onChange={(elements) => console.info(elements)} />
-		</div>
-	);
-}
+## Release Notes
+
+Use version tags for stable deployments:
+
+- `latest` is for the newest build from the default branch.
+- `vX.Y.Z` tags are for reproducible self-host releases.
+
+For production installs, prefer a fixed version tag such as `v0.1.0`.
+
+Database migrations are part of API startup. After pulling or building a new version,
+`docker compose up -d` starts the API only after the database schema has been updated.
+
+## Security
+
+Generate strong secrets before deploying:
+
+```bash
+openssl rand -hex 48
 ```
 
-## Workspace Hooks
+Set these values in `.env` or `.env.docker`:
 
-```ts
-import type { SkedraWorkspaceHooks } from "@skedra/react/workspace-hooks";
+```env
+POSTGRES_PASSWORD=...
+SKEDRA_AUTH_SECRET=...
+SKEDRA_DATA_ENCRYPTION_SECRET=...
 ```
 
-Use these types to connect a host app to optional workspace features while
-keeping provider code outside the open-source editor core.
+Never commit real environment files. Only example files should be tracked.
+
+## Troubleshooting
+
+If the API logs show `password authentication failed for user "skedra"`, the app password in
+`.env` does not match the password stored in the existing PostgreSQL volume. To keep the data,
+connect as the local Postgres admin and update the role password:
+
+```bash
+docker compose --env-file .env exec -u postgres postgres psql -d postgres
+```
+
+```sql
+ALTER USER skedra WITH PASSWORD 'the-value-from-POSTGRES_PASSWORD';
+\q
+```
+
+For disposable test data, stop the stack, remove the configured Postgres volume or directory,
+then rerun the migration and start the stack.
+
+## License
+
+Unless a file or directory contains its own license file, this repository is
+licensed under `AGPL-3.0-only`. The reusable editor packages
+`packages/canvas-core` and `packages/react` are MIT licensed in their own
+directories.

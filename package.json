@@ -1,20 +1,24 @@
 {
-	"name": "skedra-core",
+	"name": "skedra",
 	"private": true,
-	"license": "MIT",
-	"type": "module",
+	"license": "AGPL-3.0-only",
 	"scripts": {
-		"dev": "pnpm --filter @skedra/app dev",
-		"build": "pnpm -r build",
-		"build:app": "pnpm --filter @skedra/app build",
-		"test": "pnpm --filter @skedra/canvas-core test && pnpm --filter @skedra/react test",
-		"lint": "biome check .",
+		"dev": "turbo dev",
+		"build": "turbo build",
+		"test": "turbo test",
+		"lint": "node scripts/check-canvas-boundary.mjs && biome check .",
+		"lint:canvas-boundary": "node scripts/check-canvas-boundary.mjs",
+		"analyze": "fallow",
+		"analyze:fix": "fallow fix --yes",
 		"format": "biome format --write .",
-		"preview": "pnpm --filter @skedra/app preview"
+		"db:push": "turbo db:push",
+		"db:migrate": "node packages/db/scripts/apply-team-roles-migration.mjs && node packages/db/scripts/apply-excalidraw-perms-migration.mjs && node packages/db/scripts/apply-comments-instance-migration.mjs && node packages/db/scripts/apply-board-roles-migration.mjs && node packages/db/scripts/apply-plus-features-migration.mjs",
+		"db:studio": "turbo db:studio"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",
 		"esbuild": "^0.28.1",
+		"turbo": "^2.3.0",
 		"typescript": "^5.7.0"
 	},
 	"packageManager": "pnpm@10.33.2"

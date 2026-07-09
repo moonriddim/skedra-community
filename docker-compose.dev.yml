@@ -1,0 +1,27 @@
+## Skedra – lokale Entwicklung (PostgreSQL)
+## docker compose -f docker-compose.dev.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: skedra-postgres
+    environment:
+      POSTGRES_DB: skedra
+      POSTGRES_USER: skedra
+      POSTGRES_PASSWORD: skedra_secret
+    ports:
+      - "5434:5432"
+    volumes:
+      - skedra_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=skedra_secret psql -h 127.0.0.1 -U skedra -d skedra -v ON_ERROR_STOP=1 -tAc \"select 1\" >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  skedra_postgres_data:

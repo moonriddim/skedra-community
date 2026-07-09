@@ -1,9 +1,139 @@
+name: skedra
+
+x-frontend-build-args: &frontend-build-args
+  VITE_APP_URL: ${SKEDRA_PUBLIC_APP_URL:-http://localhost:5174}
+  VITE_LIBRARIES_URL: ${SKEDRA_PUBLIC_LIBRARIES_URL:-http://localhost:5175}
+  VITE_API_URL: ${SKEDRA_PUBLIC_FRONTEND_API_URL:-}
+  VITE_REALTIME_URL: ${SKEDRA_PUBLIC_FRONTEND_REALTIME_URL:-}
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql://${POSTGRES_USER:-skedra}:${POSTGRES_PASSWORD:-skedra_secret}@postgres:5432/${POSTGRES_DB:-skedra}
+  AUTH_SECRET: ${SKEDRA_AUTH_SECRET:-change-me-to-a-random-secret-min-32-chars}
+  DATA_ENCRYPTION_SECRET: ${SKEDRA_DATA_ENCRYPTION_SECRET:-change-me-to-a-long-random-secret-min-32-chars}
+  APP_URL: ${SKEDRA_PUBLIC_APP_URL:-http://localhost:5174}
+  API_URL: ${SKEDRA_PUBLIC_API_URL:-http://localhost:5174}
+  LIBRARIES_URL: ${SKEDRA_PUBLIC_LIBRARIES_URL:-http://localhost:5175}
+  REALTIME_URL: ${SKEDRA_PUBLIC_REALTIME_URL:-ws://localhost:5174/realtime}
+  SKEDRA_REGISTRATION_MODE: ${SKEDRA_REGISTRATION_MODE:-invite}
+  SKEDRA_LIBRARY_CATALOG_MODE: ${SKEDRA_LIBRARY_CATALOG_MODE:-local}
+  SKEDRA_LIBRARY_CATALOG_API_URL: ${SKEDRA_LIBRARY_CATALOG_API_URL:-}
+  SKEDRA_LIBRARY_SUBMIT_URL: ${SKEDRA_LIBRARY_SUBMIT_URL:-}
+
 services:
-  skedra-core:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-skedra}
+      POSTGRES_USER: ${POSTGRES_USER:-skedra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skedra_secret}
+    volumes:
+      - ${SKEDRA_POSTGRES_DATA:-skedra_postgres_data}:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=\"$${POSTGRES_PASSWORD}\" psql -h 127.0.0.1 -U \"$${POSTGRES_USER:-skedra}\" -d \"$${POSTGRES_DB:-skedra}\" -v ON_ERROR_STOP=1 -tAc \"select 1\" >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
     build:
       context: .
-    image: ghcr.io/moonriddim/skedra-core:latest
-    container_name: skedra-core
+      target: api
+      args: *frontend-build-args
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      SKEDRA_CALLS_ENABLED: ${SKEDRA_CALLS_ENABLED:-false}
+      SKEDRA_CALL_PROVIDER: ${SKEDRA_CALL_PROVIDER:-none}
+      SKEDRA_PUBLIC_LIVEKIT_URL: ${SKEDRA_PUBLIC_LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_TOKEN_TTL_SECONDS: ${LIVEKIT_TOKEN_TTL_SECONDS:-3600}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3001/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  realtime:
+    build:
+      context: .
+      target: realtime
+      args: *frontend-build-args
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      REALTIME_PORT: 1235
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const net=require('node:net'); const s=net.connect(1235,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      target: web
+      args: *frontend-build-args
+    restart: unless-stopped
+    environment:
+      SKEDRA_PUBLIC_APP_URL: ${SKEDRA_PUBLIC_APP_URL:-http://localhost:5174}
+      SKEDRA_PUBLIC_LIBRARIES_URL: ${SKEDRA_PUBLIC_LIBRARIES_URL:-http://localhost:5175}
+      SKEDRA_PUBLIC_FRONTEND_API_URL: ${SKEDRA_PUBLIC_FRONTEND_API_URL:-}
+      SKEDRA_PUBLIC_FRONTEND_REALTIME_URL: ${SKEDRA_PUBLIC_FRONTEND_REALTIME_URL:-}
     ports:
-      - "3000:80"
-    restart: on-failure
+      - "${SKEDRA_WEB_PORT:-5174}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  libraries:
+    build:
+      context: .
+      target: libraries
+      args: *frontend-build-args
+    restart: unless-stopped
+    environment:
+      SKEDRA_PUBLIC_APP_URL: ${SKEDRA_PUBLIC_APP_URL:-http://localhost:5174}
+      SKEDRA_PUBLIC_LIBRARIES_URL: ${SKEDRA_PUBLIC_LIBRARIES_URL:-http://localhost:5175}
+      SKEDRA_PUBLIC_FRONTEND_API_URL: ${SKEDRA_PUBLIC_FRONTEND_API_URL:-}
+    ports:
+      - "${SKEDRA_LIBRARIES_PORT:-5175}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  skedra_postgres_data:

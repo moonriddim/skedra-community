@@ -1,21 +1,34 @@
-MIT License
+Skedra Repository License
 
 Copyright (c) 2026 Skedra contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Skedra is an open-core project.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Unless a file or directory contains its own license file, source code,
+documentation, configuration, Docker build files, migrations, and release
+automation in this repository are licensed under the GNU Affero General Public
+License v3.0 only (`AGPL-3.0-only`).
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Open-source MIT components:
+
+- `packages/canvas-core` is licensed under the MIT License in
+  `packages/canvas-core/LICENSE`.
+- `packages/react` is licensed under the MIT License in `packages/react/LICENSE`.
+
+Community workspace components covered by the AGPL include, among other files:
+
+- `apps/web`, `apps/api`, `apps/realtime`, `apps/libraries`, and `apps/mcp`.
+- `packages/db` and `packages/shared`.
+- Self-host Dockerfiles, Compose files, migrations, and standalone image build
+  scripts.
+
+Self-host release bundles may include deployment files under the separate
+`SELFHOST_LICENSE`, which licenses those copied deployment files under MIT so
+operators can adapt them freely.
+
+Commercial or hosted Skedra Cloud features, if added, must carry their own clear
+license notice and must not be required to build or run the open Community
+edition.
+
+For the AGPL-3.0-only license terms, see:
+https://www.gnu.org/licenses/agpl-3.0.html

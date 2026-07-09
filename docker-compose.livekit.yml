@@ -1,0 +1,27 @@
+name: skedra
+
+# Optional local/single-node LiveKit overlay.
+# Use LiveKit Cloud or the official LiveKit production generator for serious
+# internet-facing deployments with TLS, TURN, and host networking.
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "${LIVEKIT_HTTP_PORT:-7880}:7880"
+      - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
+      - "${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp"
+
+  api:
+    environment:
+      SKEDRA_CALLS_ENABLED: "true"
+      SKEDRA_CALL_PROVIDER: livekit
+      SKEDRA_PUBLIC_LIVEKIT_URL: ${SKEDRA_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LIVEKIT_TOKEN_TTL_SECONDS: ${LIVEKIT_TOKEN_TTL_SECONDS:-3600}
+    depends_on:
+      livekit:
+        condition: service_started

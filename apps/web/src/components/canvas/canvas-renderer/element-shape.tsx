@@ -1,0 +1,298 @@
+/**
+ * SVG-Rendering fuer ein einzelnes Canvas-Element (alle Typen).
+ */
+
+import {
+	getEffectiveCornerRadius,
+	getImageRenderGeometry,
+	linePath,
+	smoothPath,
+} from "@skedra/canvas-core";
+import type { CanvasElement } from "@skedra/canvas-core";
+import { memo } from "react";
+import { FrameElementShape } from "./frame-shapes";
+import { KanbanCardShape } from "./kanban-card-shape";
+import {
+	ArrowShape,
+	PathTextLabel,
+	RectText,
+	TextBlock,
+} from "./path-and-text-shapes";
+import { dashArray, useRoughShapeLayers } from "./render-helpers";
+import { RoughGeometryLayers, RoughSvgMarkup } from "./rough-svg-markup";
+import { StickyNoteShape } from "./sticky-note-shape";
+
+export const ElementShape = memo(function ElementShape({
+	element: el,
+	isEditingText,
+}: {
+	element: CanvasElement;
+	isEditingText: boolean;
+}) {
+	const commonProps = {
+		"data-element-id": el.id,
+		opacity: el.opacity / 100,
+	};
+
+	const dash = dashArray(el.strokeStyle, el.strokeWidth);
+
+	/* Transformation (Rotation + Flip) */
+	const cx = el.x + el.width / 2;
+	const cy = el.y + el.height / 2;
+	const transforms: string[] = [];
+	if (el.rotation) transforms.push(`rotate(${el.rotation} ${cx} ${cy})`);
+	if (el.flipX || el.flipY) {
+		transforms.push(
+			`translate(${cx}, ${cy}) scale(${el.flipX ? -1 : 1}, ${el.flipY ? -1 : 1}) translate(${-cx}, ${-cy})`,
+		);
+	}
+	const transform = transforms.length > 0 ? transforms.join(" ") : undefined;
+
+	const roughLayers = useRoughShapeLayers(el);
+	const roughLineHtml =
+		roughLayers && !roughLayers.fillHtml ? roughLayers.strokeHtml : null;
+
+	switch (el.type) {
+		case "rectangle": {
+			if (el.customData?.skedraType === "kanban-card") {
+				return (
+					<KanbanCardShape
+						el={el}
+						transform={transform}
+						commonProps={commonProps}
+					/>
+				);
+			}
+			if (el.customData?.skedraType === "sticky-note") {
+				return (
+					<StickyNoteShape
+						el={el}
+						transform={transform}
+						commonProps={commonProps}
+						isEditingText={isEditingText}
+					/>
+				);
+			}
+			return (
+				<g transform={transform} {...commonProps}>
+					{roughLayers ? (
+						roughLayers.fillHtml ? (
+							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
+						) : (
+							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
+						)
+					) : (
+						<rect
+							x={el.x}
+							y={el.y}
+							width={Math.max(1, el.width)}
+							height={Math.max(1, el.height)}
+							rx={getEffectiveCornerRadius(el)}
+							ry={getEffectiveCornerRadius(el)}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+						/>
+					)}
+					{!isEditingText && <RectText el={el} />}
+				</g>
+			);
+		}
+
+		case "diamond": {
+			const dCx = el.x + el.width / 2;
+			const dCy = el.y + el.height / 2;
+			const dPoints = `${dCx},${el.y} ${el.x + el.width},${dCy} ${dCx},${el.y + el.height} ${el.x},${dCy}`;
+			return (
+				<g transform={transform} {...commonProps}>
+					{roughLayers ? (
+						roughLayers.fillHtml ? (
+							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
+						) : (
+							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
+						)
+					) : (
+						<polygon
+							points={dPoints}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinejoin="round"
+						/>
+					)}
+					{!isEditingText && <RectText el={el} />}
+				</g>
+			);
+		}
+
+		case "ellipse":
+			return (
+				<g transform={transform} {...commonProps}>
+					{roughLayers ? (
+						roughLayers.fillHtml ? (
+							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
+						) : (
+							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
+						)
+					) : (
+						<ellipse
+							cx={el.x + el.width / 2}
+							cy={el.y + el.height / 2}
+							rx={Math.max(1, el.width / 2)}
+							ry={Math.max(1, el.height / 2)}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+						/>
+					)}
+					{!isEditingText && el.text && <RectText el={el} />}
+				</g>
+			);
+
+		case "text": {
+			const isPreview = el.id === "__preview";
+			return (
+				<g transform={transform} {...commonProps}>
+					<rect
+						x={el.x}
+						y={el.y}
+						width={Math.max(20, el.width)}
+						height={Math.max(20, el.height)}
+						fill={isPreview ? "var(--primary, #3b82f6)" : "transparent"}
+						fillOpacity={isPreview ? 0.06 : 0}
+						stroke={isPreview ? "var(--primary, #3b82f6)" : "none"}
+						strokeWidth={isPreview ? 1.5 : 0}
+						strokeDasharray={isPreview ? "6 3" : undefined}
+						rx={3}
+					/>
+					{!isPreview && !isEditingText && <TextBlock el={el} />}
+				</g>
+			);
+		}
+
+		case "image": {
+			const geometry = getImageRenderGeometry(el);
+			if (!geometry.src) return null;
+			return (
+				<g transform={transform} {...commonProps}>
+					{geometry.clipId && geometry.clipRect && (
+						<defs>
+							<clipPath id={geometry.clipId}>
+								<rect
+									x={geometry.clipRect.x}
+									y={geometry.clipRect.y}
+									width={geometry.clipRect.width}
+									height={geometry.clipRect.height}
+								/>
+							</clipPath>
+						</defs>
+					)}
+					<rect
+						x={geometry.x}
+						y={geometry.y}
+						width={Math.max(1, geometry.width)}
+						height={Math.max(1, geometry.height)}
+						fill="var(--card, #ffffff)"
+						stroke={el.stroke || "#00000020"}
+						strokeWidth={el.strokeWidth ?? 1}
+						rx={8}
+					/>
+					<image
+						href={geometry.src}
+						x={geometry.imageX}
+						y={geometry.imageY}
+						width={Math.max(1, geometry.imageWidth)}
+						height={Math.max(1, geometry.imageHeight)}
+						preserveAspectRatio="xMidYMid meet"
+						clipPath={geometry.clipId ? `url(#${geometry.clipId})` : undefined}
+					/>
+				</g>
+			);
+		}
+
+		case "line": {
+			if (!el.points || el.points.length < 2) return null;
+			const textPathId = `skedra-line-text-${el.id}`;
+			if (roughLineHtml) {
+				return (
+					<g {...commonProps}>
+						<RoughSvgMarkup html={roughLineHtml} dash={dash} />
+						{!isEditingText && <PathTextLabel el={el} pathId={textPathId} />}
+					</g>
+				);
+			}
+			const dLine = linePath(el.points);
+			return (
+				<g {...commonProps}>
+					<path
+						d={dLine}
+						fill="none"
+						stroke={el.stroke}
+						strokeWidth={el.strokeWidth}
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeDasharray={dash}
+						transform={`translate(${el.x}, ${el.y})`}
+					/>
+					{!isEditingText && <PathTextLabel el={el} pathId={textPathId} />}
+				</g>
+			);
+		}
+
+		case "arrow": {
+			if (!el.points || el.points.length < 2) return null;
+			return (
+				<ArrowShape
+					el={el}
+					commonProps={commonProps}
+					dash={dash}
+					isRough={roughLineHtml != null}
+					roughHtml={roughLineHtml}
+					isEditingText={isEditingText}
+				/>
+			);
+		}
+
+		case "freehand": {
+			if (!el.points || el.points.length < 2) return null;
+			if (roughLineHtml) {
+				return (
+					<g {...commonProps}>
+						<RoughSvgMarkup html={roughLineHtml} dash={dash} />
+					</g>
+				);
+			}
+			const d = smoothPath(el.points);
+			return (
+				<g {...commonProps}>
+					<path
+						d={d}
+						fill="none"
+						stroke={el.stroke}
+						strokeWidth={el.strokeWidth}
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeDasharray={dash}
+						transform={`translate(${el.x}, ${el.y})`}
+					/>
+				</g>
+			);
+		}
+
+		case "frame":
+			return (
+				<FrameElementShape
+					el={el}
+					transform={transform}
+					commonProps={commonProps}
+					isEditingText={isEditingText}
+				/>
+			);
+
+		default:
+			return null;
+	}
+});
