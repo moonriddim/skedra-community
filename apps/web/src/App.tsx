@@ -1,4 +1,3 @@
-import { authClient } from "@/lib/auth-client";
 import { I18nProvider } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { AuthLayout } from "@/routes/layout";
@@ -16,6 +15,9 @@ const LoginPage = lazy(() =>
 );
 const RegisterPage = lazy(() =>
 	import("@/routes/register").then((m) => ({ default: m.RegisterPage })),
+);
+const SubscribePage = lazy(() =>
+	import("@/routes/subscribe").then((m) => ({ default: m.SubscribePage })),
 );
 const ForgotPasswordPage = lazy(() =>
 	import("@/routes/forgot-password").then((m) => ({
@@ -57,14 +59,6 @@ function PageLoader() {
 }
 
 function RootPage() {
-	const { data: session, isPending: sessionPending } = authClient.useSession();
-	const { data: config, isPending: configPending } =
-		trpc.billing.getPublicConfig.useQuery();
-
-	if (sessionPending || configPending) return <PageLoader />;
-	if (config?.managed) {
-		return <Navigate to={session?.user ? "/library" : "/login"} replace />;
-	}
 	return <GuestCanvasPage />;
 }
 
@@ -110,6 +104,14 @@ export function App() {
 								element={
 									<Suspense fallback={<PageLoader />}>
 										<RegisterPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/subscribe"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<SubscribePage />
 									</Suspense>
 								}
 							/>

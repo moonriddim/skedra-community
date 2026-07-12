@@ -347,6 +347,9 @@ export const enMessages = {
 		description:
 			"Every registered person needs their own access. Choose a plan to use boards, teams, and cloud features.",
 		signOut: "Sign out",
+		freeWhiteboard: "Back to the free whiteboard",
+		existingAccount: "Already have a Skedra Cloud subscription?",
+		existingAccountAction: "Sign in with an existing account",
 		monthly: "Monthly",
 		yearly: "Yearly",
 		perMonth: "per month",

@@ -32,6 +32,7 @@ import { Link } from "react-router";
 
 interface GuestCanvasChromeProps {
 	isLoggedIn: boolean;
+	managedBilling: boolean;
 	onSave: () => void;
 	onSaveSkedra: () => void;
 	onSaveEncryptedSkedra: () => void;
@@ -48,6 +49,7 @@ interface GuestCanvasChromeProps {
 /** Excalidraw-aehnliche Gast-UI: Hamburger links, Teilen rechts. */
 export function GuestCanvasChrome({
 	isLoggedIn,
+	managedBilling,
 	onSave,
 	onSaveSkedra,
 	onSaveEncryptedSkedra,
@@ -141,14 +143,16 @@ export function GuestCanvasChrome({
 						) : (
 							<>
 								<DropdownMenuItem asChild>
-									<Link to={`/login?redirect=${encodeURIComponent("/")}`}>
+									<Link
+										to={`${managedBilling ? "/subscribe" : "/login"}?redirect=${encodeURIComponent("/")}`}
+									>
 										<UserPlus className="mr-2 h-4 w-4" />
 										{t("guestCanvas.signIn")}
 									</Link>
 								</DropdownMenuItem>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`/register?redirect=${encodeURIComponent("/?save=1")}`}
+										to={`${managedBilling ? "/subscribe" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4 text-primary" />
 										<span className="text-primary">

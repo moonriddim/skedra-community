@@ -48,6 +48,11 @@ export function GuestCanvasPage() {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data: session } = authClient.useSession();
+	const { data: publicConfig } = trpc.billing.getPublicConfig.useQuery();
+	const { data: billing } = trpc.billing.getStatus.useQuery(undefined, {
+		enabled: Boolean(session?.user && publicConfig?.managed),
+		retry: false,
+	});
 	const saveStateRef = useRef<(() => string | null) | null>(null);
 	const clearCanvasRef = useRef<(() => void) | null>(null);
 	const canvasFileRef = useRef<SkedraCanvasFileActions | null>(null);
@@ -87,20 +92,38 @@ export function GuestCanvasPage() {
 
 	useEffect(() => {
 		if (searchParams.get("save") !== "1" || !session?.user) return;
+		if (publicConfig?.managed && !billing?.accessGranted) return;
 		setSaveEncryptionMode(null);
 		setSaveDialogOpen(true);
 		setSearchParams({}, { replace: true });
-	}, [searchParams, session?.user, setSearchParams]);
+	}, [
+		billing?.accessGranted,
+		publicConfig?.managed,
+		searchParams,
+		session?.user,
+		setSearchParams,
+	]);
 
 	useEffect(() => {
 		if (searchParams.get("collab") !== "1" || !session?.user) return;
+		if (publicConfig?.managed && !billing?.accessGranted) return;
 		setLiveCollabDialogOpen(true);
 		setSearchParams({}, { replace: true });
-	}, [searchParams, session?.user, setSearchParams]);
+	}, [
+		billing?.accessGranted,
+		publicConfig?.managed,
+		searchParams,
+		session?.user,
+		setSearchParams,
+	]);
 
 	const openHelp = () => canvasCommandRef.current?.openHelp();
 
 	const handleSaveClick = () => {
+		if (publicConfig?.managed !== false && !billing?.accessGranted) {
+			navigate(`/subscribe?redirect=${encodeURIComponent("/?save=1")}`);
+			return;
+		}
 		if (!session?.user) {
 			navigate(`/login?redirect=${encodeURIComponent("/?save=1")}`);
 			return;
@@ -203,6 +226,7 @@ export function GuestCanvasPage() {
 			{!zenMode && (
 				<GuestCanvasChrome
 					isLoggedIn={!!session?.user}
+					managedBilling={publicConfig?.managed !== false}
 					onSave={handleSaveClick}
 					onSaveSkedra={handleSaveSkedra}
 					onSaveEncryptedSkedra={handleSaveEncryptedSkedra}
@@ -243,6 +267,7 @@ export function GuestCanvasPage() {
 				onOpenHelp={openHelp}
 				onOpenLiveCollaboration={handleLiveCollaborationClick}
 				isLoggedIn={!!session?.user}
+				managedBilling={publicConfig?.managed !== false}
 			/>
 
 			{!zenMode && (
@@ -256,6 +281,7 @@ export function GuestCanvasPage() {
 				open={liveCollabDialogOpen}
 				onOpenChange={setLiveCollabDialogOpen}
 				isLoggedIn={!!session?.user}
+				managedBilling={publicConfig?.managed !== false}
 				onStartSession={handleStartLiveSession}
 			/>
 

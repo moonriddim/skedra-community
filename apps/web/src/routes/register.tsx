@@ -9,6 +9,7 @@ import {
 } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 
@@ -16,7 +17,22 @@ export function RegisterPage() {
 	const { data: session, isPending } = authClient.useSession();
 	const { t } = useI18n();
 	const [searchParams] = useSearchParams();
-	const baseRedirectTo = searchParams.get("redirect") || "/library";
+	const config = trpc.billing.getPublicConfig.useQuery();
+	const requestedRedirect = searchParams.get("redirect") || "/library";
+	const requestedPlan = searchParams.get("plan");
+	const plan =
+		requestedPlan === "pro_monthly" || requestedPlan === "pro_yearly"
+			? requestedPlan
+			: null;
+	const hasSelectedPlan = plan !== null;
+	const baseRedirectTo =
+		config.data?.managed && plan
+			? `/subscribe?${new URLSearchParams({
+					plan,
+					checkout: "start",
+					redirect: requestedRedirect,
+				}).toString()}`
+			: requestedRedirect;
 	const e2eeKeyFromHash = readE2eeKeyFromHash();
 	const redirectTo = e2eeKeyFromHash
 		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)
@@ -32,6 +48,23 @@ export function RegisterPage() {
 		retry: false,
 	});
 	const saveIdentity = trpc.userE2ee.saveIdentity.useMutation();
+
+	if (config.isPending) {
+		return (
+			<div className="flex h-screen items-center justify-center">
+				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+			</div>
+		);
+	}
+
+	if (config.data?.managed && !inviteToken && !hasSelectedPlan) {
+		return (
+			<Navigate
+				to={`/subscribe?redirect=${encodeURIComponent(requestedRedirect)}`}
+				replace
+			/>
+		);
+	}
 
 	if (!isPending && session?.user) {
 		return <Navigate to={redirectTo} replace />;

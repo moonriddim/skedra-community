@@ -353,6 +353,9 @@ export const deMessages = {
 		description:
 			"Jede registrierte Person benötigt einen eigenen Zugang. Wähle dein Abo, um Boards, Teams und Cloud-Funktionen zu verwenden.",
 		signOut: "Abmelden",
+		freeWhiteboard: "Zum kostenlosen Whiteboard",
+		existingAccount: "Du hast bereits ein Skedra-Cloud-Abo?",
+		existingAccountAction: "Mit bestehendem Konto anmelden",
 		monthly: "Monatlich",
 		yearly: "Jährlich",
 		perMonth: "pro Monat",

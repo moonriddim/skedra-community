@@ -62,6 +62,7 @@ async function getOrCreateStripeCustomer(input: {
 export const billingRouter = router({
 	getPublicConfig: publicProcedure.query(() => ({
 		managed: env.SKEDRA_DEPLOYMENT_MODE === "managed",
+		configured: isStripeBillingConfigured(),
 	})),
 
 	getStatus: protectedProcedure.query(async ({ ctx }) => {
@@ -91,7 +92,12 @@ export const billingRouter = router({
 	}),
 
 	createCheckoutSession: protectedProcedure
-		.input(z.object({ plan: z.enum(stripePlanCodes) }))
+		.input(
+			z.object({
+				plan: z.enum(stripePlanCodes),
+				redirect: z.string().max(2048).optional(),
+			}),
+		)
 		.mutation(async ({ ctx, input }) => {
 			assertStripeBillingConfigured();
 			const stored = await getOrCreateStripeCustomer({
@@ -126,8 +132,8 @@ export const billingRouter = router({
 						skedra_plan: plan.code,
 					},
 				},
-				success_url: `${getBillingSettingsUrl("success")}&session_id={CHECKOUT_SESSION_ID}`,
-				cancel_url: getBillingSettingsUrl("canceled"),
+				success_url: `${getBillingSettingsUrl("success", input.redirect)}&session_id={CHECKOUT_SESSION_ID}`,
+				cancel_url: getBillingSettingsUrl("canceled", input.redirect),
 			});
 			if (!session.url)
 				throw new Error("Stripe hat keine Checkout-URL zurueckgegeben.");

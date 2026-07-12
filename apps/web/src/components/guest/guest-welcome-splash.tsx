@@ -10,6 +10,7 @@ interface GuestWelcomeSplashProps {
 	onOpenHelp: () => void;
 	onOpenLiveCollaboration: () => void;
 	isLoggedIn: boolean;
+	managedBilling: boolean;
 }
 
 /**
@@ -22,6 +23,7 @@ export function GuestWelcomeSplash({
 	onOpenHelp,
 	onOpenLiveCollaboration,
 	isLoggedIn,
+	managedBilling,
 }: GuestWelcomeSplashProps) {
 	const { t } = useI18n();
 
@@ -101,7 +103,7 @@ export function GuestWelcomeSplash({
 							<>
 								<li>
 									<Link
-										to={`/register?redirect=${encodeURIComponent("/?save=1")}`}
+										to={`${managedBilling ? "/subscribe" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
 										className="inline-flex items-center gap-2.5 text-primary hover:underline"
 									>
 										<UserPlus className="h-4 w-4 shrink-0" />
@@ -110,7 +112,7 @@ export function GuestWelcomeSplash({
 								</li>
 								<li>
 									<Link
-										to={`/login?redirect=${encodeURIComponent("/")}`}
+										to={`${managedBilling ? "/subscribe" : "/login"}?redirect=${encodeURIComponent("/")}`}
 										className="inline-flex items-center gap-2.5 text-muted-foreground hover:text-foreground hover:underline"
 									>
 										<LogIn className="h-4 w-4 shrink-0" />

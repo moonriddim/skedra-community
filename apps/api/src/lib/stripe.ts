@@ -44,9 +44,19 @@ export function isStripeBillingConfigured() {
 	);
 }
 
-export function getBillingSettingsUrl(checkout?: "success" | "canceled") {
-	const url = new URL("/settings", env.APP_URL);
-	url.searchParams.set("tab", "billing");
+export function getBillingSettingsUrl(
+	checkout?: "success" | "canceled",
+	redirect?: string,
+) {
+	const safeRedirect =
+		redirect?.startsWith("/") &&
+		!redirect.startsWith("//") &&
+		!redirect.includes("\\")
+			? redirect
+			: undefined;
+	const url = new URL(safeRedirect ? "/subscribe" : "/settings", env.APP_URL);
+	if (safeRedirect) url.searchParams.set("redirect", safeRedirect);
+	else url.searchParams.set("tab", "billing");
 	if (checkout) url.searchParams.set("checkout", checkout);
 	return url.toString();
 }

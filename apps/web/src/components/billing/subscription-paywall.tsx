@@ -12,6 +12,7 @@ import {
 	LogOut,
 	Server,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 
 const SELFHOST_URL = "https://github.com/moonriddim/skedra-selfhost";
@@ -23,10 +24,24 @@ const portalStatuses = new Set([
 	"incomplete",
 ]);
 
-export function SubscriptionPaywall() {
+export type SubscriptionPlanCode = "pro_monthly" | "pro_yearly";
+
+interface SubscriptionPaywallProps {
+	initialPlan?: SubscriptionPlanCode;
+	redirect?: string;
+}
+
+export function SubscriptionPaywall({
+	initialPlan,
+	redirect,
+}: SubscriptionPaywallProps = {}) {
 	const { t } = useI18n();
 	const [searchParams] = useSearchParams();
-	const { data: billing } = trpc.billing.getStatus.useQuery();
+	const checkoutStarted = useRef(false);
+	const { data: billing } = trpc.billing.getStatus.useQuery(undefined, {
+		refetchInterval: (query) =>
+			query.state.data?.accessGranted ? false : 3000,
+	});
 	const checkout = trpc.billing.createCheckoutSession.useMutation({
 		onSuccess: ({ url }) => window.location.assign(url),
 	});
@@ -38,6 +53,20 @@ export function SubscriptionPaywall() {
 			portalStatuses.has(billing.subscription.status),
 	);
 	const error = checkout.error ?? portal.error;
+
+	useEffect(() => {
+		if (
+			!initialPlan ||
+			checkoutStarted.current ||
+			!billing?.configured ||
+			billing.accessGranted ||
+			canUsePortal
+		) {
+			return;
+		}
+		checkoutStarted.current = true;
+		checkout.mutate({ plan: initialPlan, redirect });
+	}, [billing, canUsePortal, checkout, initialPlan, redirect]);
 
 	return (
 		<div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_38%),linear-gradient(to_bottom,hsl(var(--background)),hsl(var(--muted)/0.35))] px-4 py-8 sm:py-14">
@@ -84,32 +113,10 @@ export function SubscriptionPaywall() {
 						</p>
 					</div>
 				) : !canUsePortal ? (
-					<div className="mt-10 grid gap-5 md:grid-cols-2">
-						<PlanCard
-							title={t("subscriptionWall.monthly")}
-							price="CHF 4.90"
-							period={t("subscriptionWall.perMonth")}
-							description={t("subscriptionWall.monthlyDescription")}
-							action={t("subscriptionWall.chooseMonthly")}
-							featureOne={t("subscriptionWall.personalAccess")}
-							featureTwo={t("subscriptionWall.cloudFeatures")}
-							loading={checkout.isPending}
-							onClick={() => checkout.mutate({ plan: "pro_monthly" })}
-						/>
-						<PlanCard
-							title={t("subscriptionWall.yearly")}
-							price="CHF 49"
-							period={t("subscriptionWall.perYear")}
-							description={t("subscriptionWall.yearlyDescription")}
-							action={t("subscriptionWall.chooseYearly")}
-							featureOne={t("subscriptionWall.personalAccess")}
-							featureTwo={t("subscriptionWall.cloudFeatures")}
-							savings={t("subscriptionWall.savings")}
-							loading={checkout.isPending}
-							highlight
-							onClick={() => checkout.mutate({ plan: "pro_yearly" })}
-						/>
-					</div>
+					<SubscriptionPlanCards
+						loading={checkout.isPending}
+						onChoose={(plan) => checkout.mutate({ plan, redirect })}
+					/>
 				) : (
 					<div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-amber-500/30 bg-background/85 p-6 text-center shadow-sm">
 						<h2 className="font-semibold text-foreground">
@@ -170,6 +177,47 @@ export function SubscriptionPaywall() {
 					{t("subscriptionWall.guestNote")}
 				</p>
 			</div>
+		</div>
+	);
+}
+
+interface SubscriptionPlanCardsProps {
+	loading: boolean;
+	onChoose: (plan: SubscriptionPlanCode) => void;
+}
+
+export function SubscriptionPlanCards({
+	loading,
+	onChoose,
+}: SubscriptionPlanCardsProps) {
+	const { t } = useI18n();
+
+	return (
+		<div className="mt-10 grid gap-5 md:grid-cols-2">
+			<PlanCard
+				title={t("subscriptionWall.monthly")}
+				price="CHF 4.90"
+				period={t("subscriptionWall.perMonth")}
+				description={t("subscriptionWall.monthlyDescription")}
+				action={t("subscriptionWall.chooseMonthly")}
+				featureOne={t("subscriptionWall.personalAccess")}
+				featureTwo={t("subscriptionWall.cloudFeatures")}
+				loading={loading}
+				onClick={() => onChoose("pro_monthly")}
+			/>
+			<PlanCard
+				title={t("subscriptionWall.yearly")}
+				price="CHF 49"
+				period={t("subscriptionWall.perYear")}
+				description={t("subscriptionWall.yearlyDescription")}
+				action={t("subscriptionWall.chooseYearly")}
+				featureOne={t("subscriptionWall.personalAccess")}
+				featureTwo={t("subscriptionWall.cloudFeatures")}
+				savings={t("subscriptionWall.savings")}
+				loading={loading}
+				highlight
+				onClick={() => onChoose("pro_yearly")}
+			/>
 		</div>
 	);
 }
