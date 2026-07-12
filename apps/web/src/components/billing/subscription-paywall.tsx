@@ -13,7 +13,7 @@ import {
 	Server,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 const SELFHOST_URL = "https://github.com/moonriddim/skedra-selfhost";
 const portalStatuses = new Set([
@@ -176,6 +176,20 @@ export function SubscriptionPaywall({
 				<p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
 					{t("subscriptionWall.guestNote")}
 				</p>
+				<div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+					<Link className="hover:text-foreground hover:underline" to="/pricing">
+						Preise
+					</Link>
+					<Link className="hover:text-foreground hover:underline" to="/privacy">
+						Datenschutz
+					</Link>
+					<Link className="hover:text-foreground hover:underline" to="/terms">
+						AGB
+					</Link>
+					<Link className="hover:text-foreground hover:underline" to="/imprint">
+						Impressum
+					</Link>
+				</div>
 			</div>
 		</div>
 	);

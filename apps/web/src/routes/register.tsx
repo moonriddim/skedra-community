@@ -41,6 +41,7 @@ export function RegisterPage() {
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState(searchParams.get("email") ?? "");
 	const [password, setPassword] = useState("");
+	const [acceptedTerms, setAcceptedTerms] = useState(false);
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 	const identityQuery = trpc.userE2ee.getIdentity.useQuery(undefined, {
@@ -60,7 +61,7 @@ export function RegisterPage() {
 	if (config.data?.managed && !inviteToken && !hasSelectedPlan) {
 		return (
 			<Navigate
-				to={`/subscribe?redirect=${encodeURIComponent(requestedRedirect)}`}
+				to={`/pricing?redirect=${encodeURIComponent(requestedRedirect)}`}
 				replace
 			/>
 		);
@@ -163,6 +164,36 @@ export function RegisterPage() {
 					minLength={8}
 				/>
 			</div>
+			{config.data?.managed && hasSelectedPlan && (
+				<label className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
+					<input
+						type="checkbox"
+						checked={acceptedTerms}
+						onChange={(event) => setAcceptedTerms(event.target.checked)}
+						required
+						className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+					/>
+					<span>
+						Ich akzeptiere die{" "}
+						<Link
+							className="text-primary hover:underline"
+							to="/terms"
+							target="_blank"
+						>
+							AGB
+						</Link>{" "}
+						und habe die{" "}
+						<Link
+							className="text-primary hover:underline"
+							to="/privacy"
+							target="_blank"
+						>
+							Datenschutzerklärung
+						</Link>{" "}
+						gelesen.
+					</span>
+				</label>
+			)}
 		</AuthFormLayout>
 	);
 }

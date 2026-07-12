@@ -103,7 +103,7 @@ export function GuestWelcomeSplash({
 							<>
 								<li>
 									<Link
-										to={`${managedBilling ? "/subscribe" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
+										to={`${managedBilling ? "/pricing" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
 										className="inline-flex items-center gap-2.5 text-primary hover:underline"
 									>
 										<UserPlus className="h-4 w-4 shrink-0" />
@@ -112,7 +112,7 @@ export function GuestWelcomeSplash({
 								</li>
 								<li>
 									<Link
-										to={`${managedBilling ? "/subscribe" : "/login"}?redirect=${encodeURIComponent("/")}`}
+										to={`${managedBilling ? "/pricing" : "/login"}?redirect=${encodeURIComponent("/")}`}
 										className="inline-flex items-center gap-2.5 text-muted-foreground hover:text-foreground hover:underline"
 									>
 										<LogIn className="h-4 w-4 shrink-0" />

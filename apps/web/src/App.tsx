@@ -19,6 +19,18 @@ const RegisterPage = lazy(() =>
 const SubscribePage = lazy(() =>
 	import("@/routes/subscribe").then((m) => ({ default: m.SubscribePage })),
 );
+const PricingPage = lazy(() =>
+	import("@/routes/pricing").then((m) => ({ default: m.PricingPage })),
+);
+const PrivacyPage = lazy(() =>
+	import("@/routes/privacy").then((m) => ({ default: m.PrivacyPage })),
+);
+const TermsPage = lazy(() =>
+	import("@/routes/terms").then((m) => ({ default: m.TermsPage })),
+);
+const ImprintPage = lazy(() =>
+	import("@/routes/imprint").then((m) => ({ default: m.ImprintPage })),
+);
 const ForgotPasswordPage = lazy(() =>
 	import("@/routes/forgot-password").then((m) => ({
 		default: m.ForgotPasswordPage,
@@ -112,6 +124,38 @@ export function App() {
 								element={
 									<Suspense fallback={<PageLoader />}>
 										<SubscribePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/pricing"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<PricingPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/privacy"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<PrivacyPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/terms"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<TermsPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/imprint"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<ImprintPage />
 									</Suspense>
 								}
 							/>

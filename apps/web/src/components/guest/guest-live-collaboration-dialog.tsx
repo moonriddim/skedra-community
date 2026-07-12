@@ -59,7 +59,7 @@ export function GuestLiveCollaborationDialog({
 						<div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
 							<Button asChild variant="default" className="gap-2">
 								<Link
-									to={`${managedBilling ? "/subscribe" : "/register"}?redirect=${encodeURIComponent("/?collab=1")}`}
+									to={`${managedBilling ? "/pricing" : "/register"}?redirect=${encodeURIComponent("/?collab=1")}`}
 								>
 									<UserPlus className="h-4 w-4" />
 									{t("guestCanvas.signUp")}
@@ -67,7 +67,7 @@ export function GuestLiveCollaborationDialog({
 							</Button>
 							<Button asChild variant="outline" className="gap-2">
 								<Link
-									to={`${managedBilling ? "/subscribe" : "/login"}?redirect=${encodeURIComponent("/?collab=1")}`}
+									to={`${managedBilling ? "/pricing" : "/login"}?redirect=${encodeURIComponent("/?collab=1")}`}
 								>
 									<LogIn className="h-4 w-4" />
 									{t("guestCanvas.signIn")}

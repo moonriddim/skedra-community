@@ -144,7 +144,7 @@ export function GuestCanvasChrome({
 							<>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`${managedBilling ? "/subscribe" : "/login"}?redirect=${encodeURIComponent("/")}`}
+										to={`${managedBilling ? "/pricing" : "/login"}?redirect=${encodeURIComponent("/")}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4" />
 										{t("guestCanvas.signIn")}
@@ -152,7 +152,7 @@ export function GuestCanvasChrome({
 								</DropdownMenuItem>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`${managedBilling ? "/subscribe" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
+										to={`${managedBilling ? "/pricing" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4 text-primary" />
 										<span className="text-primary">

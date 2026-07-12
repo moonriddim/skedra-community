@@ -121,7 +121,7 @@ export function GuestCanvasPage() {
 
 	const handleSaveClick = () => {
 		if (publicConfig?.managed !== false && !billing?.accessGranted) {
-			navigate(`/subscribe?redirect=${encodeURIComponent("/?save=1")}`);
+			navigate(`/pricing?redirect=${encodeURIComponent("/?save=1")}`);
 			return;
 		}
 		if (!session?.user) {
