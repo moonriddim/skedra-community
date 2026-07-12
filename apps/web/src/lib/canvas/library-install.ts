@@ -23,6 +23,7 @@ export interface InstalledShapeLibrary {
 	description?: string;
 	author?: string;
 	source?: string;
+	license?: SkedraLibraryFile["license"];
 	items: SkedraLibraryItem[];
 	installedAt: number;
 }
@@ -73,6 +74,7 @@ export function installedLibraryFromFile(
 		description: file.description,
 		author: file.author,
 		source: file.source ?? format,
+		license: file.license,
 		items,
 		installedAt: Date.now(),
 	};

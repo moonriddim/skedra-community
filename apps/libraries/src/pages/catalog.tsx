@@ -143,6 +143,7 @@ export function CatalogPage() {
 						<Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
 						<div className="space-y-2 text-sm text-muted-foreground">
 							<p>{t.intro}</p>
+							<p className="text-foreground/80">{t.licenseNotice}</p>
 							<p className="font-mono text-xs text-foreground/80">
 								{catalogOrigin}
 							</p>
@@ -219,9 +220,14 @@ export function CatalogPage() {
 								}`}
 							>
 								<div className="min-w-0 flex-1">
-									<h2 className="font-display text-lg font-semibold leading-tight">
-										{entry.name}
-									</h2>
+									<div className="flex items-start justify-between gap-3">
+										<h2 className="font-display text-lg font-semibold leading-tight">
+											{entry.name}
+										</h2>
+										<span className="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
+											{t.licenseLabel}
+										</span>
+									</div>
 									{entry.description && (
 										<p className="mt-2 text-sm leading-relaxed text-muted-foreground">
 											{entry.description}

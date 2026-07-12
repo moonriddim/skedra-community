@@ -2353,6 +2353,8 @@ export const deMessages = {
 		publishDescriptionPlaceholder: "Kurzbeschreibung (optional)",
 		publishHint:
 			"Admins prüfen die Einreichung, bevor sie im Community-Katalog erscheint.",
+		mitLicenseConsent:
+			"Ich bestätige, dass ich diese Bibliothek unter der MIT-Lizenz veröffentlichen darf und keine Rechte Dritter verletze.",
 		publishSubmit: "Zur Review einreichen",
 		publishLoginHint: "Melde dich an, um Bibliotheken zur Review einzureichen.",
 		publishedSuccess: "Bibliothek eingereicht",

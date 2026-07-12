@@ -73,6 +73,7 @@ export function LibraryPanel({
 	const [publishOpen, setPublishOpen] = useState(false);
 	const [publishSlug, setPublishSlug] = useState("");
 	const [publishDescription, setPublishDescription] = useState("");
+	const [licenseAccepted, setLicenseAccepted] = useState(false);
 	const [submissionMessage, setSubmissionMessage] = useState<string | null>(
 		null,
 	);
@@ -107,6 +108,7 @@ export function LibraryPanel({
 		onSuccess: () => {
 			setSubmissionMessage(t("shapeLibrary.reviewSubmitted"));
 			setPublishOpen(false);
+			setLicenseAccepted(false);
 			setDraftPackageId(null);
 			void utils.shapeLibrary.listMine.invalidate();
 		},
@@ -278,13 +280,14 @@ export function LibraryPanel({
 	};
 
 	const handlePublish = () => {
-		if (!activePackage || activeItems.length === 0) return;
+		if (!activePackage || activeItems.length === 0 || !licenseAccepted) return;
 		const slug = publishSlug.trim();
 		if (!slug) return;
 		setImportError("");
 		submitMutation.mutate({
 			slug,
 			name: activePackage.name,
+			licenseAccepted: true,
 			description:
 				publishDescription.trim() || activePackage.description || undefined,
 			items: activeItems,
@@ -555,6 +558,7 @@ export function LibraryPanel({
 										disabled={activeItems.length === 0}
 										onClick={() => {
 											setPublishOpen(true);
+											setLicenseAccepted(false);
 											if (!publishSlug && activePackage) {
 												setPublishSlug(
 													activePackage.name
@@ -591,13 +595,27 @@ export function LibraryPanel({
 										<p className="text-[10px] leading-snug text-muted-foreground">
 											{t("shapeLibrary.publishHint")}
 										</p>
+										<label className="flex cursor-pointer items-start gap-2 rounded-md border border-border/60 bg-muted/20 p-2 text-[10px] leading-snug text-muted-foreground">
+											<input
+												type="checkbox"
+												checked={licenseAccepted}
+												onChange={(event) =>
+													setLicenseAccepted(event.target.checked)
+												}
+												className="mt-0.5 accent-primary"
+											/>
+											<span>{t("shapeLibrary.mitLicenseConsent")}</span>
+										</label>
 										<div className="flex gap-2">
 											<Button
 												type="button"
 												variant="outline"
 												size="sm"
 												className="h-9 flex-1 text-xs"
-												onClick={() => setPublishOpen(false)}
+												onClick={() => {
+													setPublishOpen(false);
+													setLicenseAccepted(false);
+												}}
 											>
 												{t("shapeLibrary.cancelCreate")}
 											</Button>
@@ -606,7 +624,9 @@ export function LibraryPanel({
 												size="sm"
 												className="h-9 flex-1 text-xs"
 												disabled={
-													!publishSlug.trim() || submitMutation.isPending
+													!publishSlug.trim() ||
+													!licenseAccepted ||
+													submitMutation.isPending
 												}
 												onClick={handlePublish}
 											>
@@ -716,7 +736,12 @@ export function LibraryPanel({
 									key={entry.slug}
 									className="rounded-lg border border-border/60 bg-background/40 p-2.5"
 								>
-									<p className="text-sm font-medium">{entry.name}</p>
+									<div className="flex items-center justify-between gap-2">
+										<p className="text-sm font-medium">{entry.name}</p>
+										<span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+											{entry.license}
+										</span>
+									</div>
 									{entry.description && (
 										<p className="mt-1 text-[11px] text-muted-foreground">
 											{entry.description}

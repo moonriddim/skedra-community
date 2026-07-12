@@ -52,10 +52,12 @@ export function createSkedraAppViteConfig(options: {
 	/** Verzeichnis der vite.config.ts (üblicherweise `import.meta.dirname`). */
 	appRoot: string;
 	port: number;
+	publicDir?: UserConfig["publicDir"];
 	proxy?: UserConfig["server"] extends { proxy?: infer P } ? P : never;
 }): UserConfig {
 	return defineConfig({
 		base: process.env.VITE_BASE_PATH || "/",
+		publicDir: options.publicDir,
 		plugins: [react(), tailwindcss()],
 		resolve: {
 			alias: {

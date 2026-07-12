@@ -4,6 +4,7 @@
 
 import { personalShapeLibraries } from "@skedra/db";
 import {
+	SKEDRA_LIBRARY_LICENSE,
 	SKEDRA_LIB_TYPE,
 	SKEDRA_LIB_VERSION,
 	type SkedraLibraryFile,
@@ -150,6 +151,7 @@ export const shapeLibraryRouter = router({
 				slug: z.string().min(3).max(64),
 				name: z.string().min(1).max(120),
 				description: z.string().max(500).optional(),
+				licenseAccepted: z.literal(true),
 				items: z.array(libraryItemSchema).min(1),
 			}),
 		)
@@ -159,6 +161,7 @@ export const shapeLibraryRouter = router({
 				version: SKEDRA_LIB_VERSION,
 				name: input.name,
 				description: input.description,
+				license: SKEDRA_LIBRARY_LICENSE,
 				author: ctx.user.name,
 				source: "skedra",
 				items: input.items,
@@ -181,6 +184,7 @@ export const shapeLibraryRouter = router({
 					slug: input.slug,
 					name: input.name,
 					description: input.description,
+					licenseAccepted: input.licenseAccepted,
 					file: parsed.data,
 				});
 

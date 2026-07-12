@@ -8,6 +8,7 @@ import {
 	publishedShapeLibraries,
 } from "@skedra/db";
 import {
+	SKEDRA_LIBRARY_LICENSE,
 	SKEDRA_LIB_TYPE,
 	type SkedraLibraryFile,
 	isValidLibrarySlug,
@@ -29,6 +30,7 @@ export interface PublicShapeLibraryEntry {
 	createdAt: Date | string;
 	updatedAt: Date | string;
 	itemCount: number;
+	license: typeof SKEDRA_LIBRARY_LICENSE;
 }
 
 function trimUrl(value?: string | null) {
@@ -99,6 +101,7 @@ function buildLibraryContent(input: {
 		name: input.name,
 		description: input.description,
 		author: input.authorName,
+		license: SKEDRA_LIBRARY_LICENSE,
 		source: "skedra",
 	});
 }
@@ -121,6 +124,7 @@ export async function listPublicShapeLibraries(
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 			itemCount: countLibraryItems(row.content),
+			license: SKEDRA_LIBRARY_LICENSE,
 		};
 	});
 }
@@ -201,11 +205,16 @@ export async function getConfiguredPublishedLibraryFile(
 		if (!parsed.success || parsed.data.type !== SKEDRA_LIB_TYPE) {
 			throw new Error("INVALID_LIBRARY_CONTENT");
 		}
-		return parsed.data;
+		return { ...parsed.data, license: SKEDRA_LIBRARY_LICENSE };
 	}
 
 	const row = await getPublishedLibraryBySlug(db, normalized);
-	return row ? parseLibraryContent(row.content) : null;
+	return row
+		? {
+				...parseLibraryContent(row.content),
+				license: SKEDRA_LIBRARY_LICENSE,
+			}
+		: null;
 }
 
 export async function submitShapeLibraryForReview(
@@ -219,6 +228,7 @@ export async function submitShapeLibraryForReview(
 		slug: string;
 		name: string;
 		description?: string;
+		licenseAccepted: true;
 		file: SkedraLibraryFile;
 	},
 ) {
@@ -298,6 +308,7 @@ export async function submitConfiguredShapeLibraryForReview(
 		slug: string;
 		name: string;
 		description?: string;
+		licenseAccepted: true;
 		file: SkedraLibraryFile;
 	},
 ) {
@@ -322,6 +333,7 @@ export async function submitConfiguredShapeLibraryForReview(
 			submitterName: input.submitterName ?? input.authorName,
 			submitterEmail: input.submitterEmail,
 			sourceInstanceUrl: trimUrl(env.APP_URL),
+			licenseAccepted: true,
 			file: input.file,
 		}),
 	});
@@ -390,6 +402,10 @@ export async function approveLibrarySubmission(
 	const slug = normalizeLibrarySlug(submission.slug);
 	const existing = await getPublishedLibraryBySlug(db, slug);
 	const now = new Date();
+	const licensedContent = JSON.stringify({
+		...parseLibraryContent(submission.content),
+		license: SKEDRA_LIBRARY_LICENSE,
+	});
 
 	if (existing) {
 		if (!submission.userId || existing.userId !== submission.userId)
@@ -401,7 +417,7 @@ export async function approveLibrarySubmission(
 				name: submission.name,
 				description: submission.description,
 				author: submission.author,
-				content: submission.content,
+				content: licensedContent,
 				updatedAt: now,
 			})
 			.where(eq(publishedShapeLibraries.id, existing.id));
@@ -412,7 +428,7 @@ export async function approveLibrarySubmission(
 			name: submission.name,
 			description: submission.description,
 			author: submission.author,
-			content: submission.content,
+			content: licensedContent,
 			updatedAt: now,
 		});
 	}

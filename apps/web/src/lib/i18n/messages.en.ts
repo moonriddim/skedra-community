@@ -2321,6 +2321,8 @@ export const enMessages = {
 		publishDescriptionPlaceholder: "Short description (optional)",
 		publishHint:
 			"Admins review the submission before it appears in the community catalog.",
+		mitLicenseConsent:
+			"I confirm that I may publish this library under the MIT License and that it does not infringe third-party rights.",
 		publishSubmit: "Submit for review",
 		publishLoginHint: "Sign in to submit libraries for review.",
 		publishedSuccess: "Library submitted",

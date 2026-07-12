@@ -10,6 +10,9 @@ const messages = {
 		subtitle: "Öffentliche Shape-Pakete für dein Whiteboard",
 		intro:
 			"Verzeichnis aller auf Skedra veröffentlichten Bibliotheken. „In Skedra öffnen“ installiert das Paket direkt im Canvas.",
+		licenseNotice:
+			"Alle veröffentlichten Bibliotheken stehen unter der MIT-Lizenz. Einreichende bestätigen, dass sie die nötigen Rechte besitzen.",
+		licenseLabel: "MIT-Lizenz",
 		searchPlaceholder: "Bibliotheken durchsuchen …",
 		sortLabel: "Sortierung",
 		sortDefault: "Standard",
@@ -28,7 +31,7 @@ const messages = {
 			"Noch keine freigegebenen Bibliotheken. Reiche die erste zur Review ein!",
 		noResults: "Keine Treffer für deine Suche.",
 		loadError: "Katalog konnte nicht geladen werden.",
-		footer: "Pakete von der Community · Format .skedralib",
+		footer: "Community-Pakete · MIT-Lizenz · Format .skedralib",
 		langToggle: "EN",
 	},
 	en: {
@@ -36,6 +39,9 @@ const messages = {
 		subtitle: "Public shape packages for your whiteboard",
 		intro:
 			"Directory of libraries published on Skedra. “Open in Skedra” installs the package in your canvas.",
+		licenseNotice:
+			"All published libraries are available under the MIT License. Submitters confirm that they hold the necessary rights.",
+		licenseLabel: "MIT License",
 		searchPlaceholder: "Search libraries …",
 		sortLabel: "Sort by",
 		sortDefault: "Default",
@@ -53,7 +59,7 @@ const messages = {
 		empty: "No approved libraries yet. Submit the first one for review!",
 		noResults: "No matches for your search.",
 		loadError: "Could not load the catalog.",
-		footer: "Community packages · .skedralib format",
+		footer: "Community packages · MIT License · .skedralib format",
 		langToggle: "DE",
 	},
 } as const;

@@ -102,6 +102,7 @@ const publicLibrarySubmissionSchema = z.object({
 	submitterName: z.string().max(120).optional(),
 	submitterEmail: z.string().email().max(320).optional(),
 	sourceInstanceUrl: z.string().url().max(500).optional(),
+	licenseAccepted: z.literal(true),
 	file: skedraLibrarySchema,
 });
 
@@ -586,6 +587,7 @@ app.post("/api/libraries/submissions", async (c) => {
 			slug: parsed.data.slug,
 			name: parsed.data.name,
 			description: parsed.data.description,
+			licenseAccepted: parsed.data.licenseAccepted,
 			file: parsed.data.file,
 		});
 

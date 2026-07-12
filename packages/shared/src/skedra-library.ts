@@ -4,6 +4,7 @@ import { z } from "zod";
 export const SKEDRA_LIB_TYPE = "skedralib" as const;
 
 export const SKEDRA_LIB_VERSION = 1;
+export const SKEDRA_LIBRARY_LICENSE = "MIT" as const;
 
 export const skedraLibraryItemSchema = z.object({
 	id: z.string(),
@@ -18,6 +19,8 @@ export const skedraLibrarySchema = z.object({
 	source: z.string().optional(),
 	author: z.string().optional(),
 	description: z.string().optional(),
+	/** Public catalog packages are published under the MIT License. */
+	license: z.literal(SKEDRA_LIBRARY_LICENSE).optional(),
 	items: z.array(skedraLibraryItemSchema),
 });
 
@@ -41,6 +44,7 @@ export const installedShapeLibrarySchema = z.object({
 	description: z.string().optional(),
 	author: z.string().optional(),
 	source: z.string().optional(),
+	license: z.literal(SKEDRA_LIBRARY_LICENSE).optional(),
 	items: z.array(skedraLibraryItemSchema),
 	installedAt: z.number(),
 });
