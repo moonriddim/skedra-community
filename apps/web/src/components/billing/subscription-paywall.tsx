@@ -178,16 +178,16 @@ export function SubscriptionPaywall({
 				</p>
 				<div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
 					<Link className="hover:text-foreground hover:underline" to="/pricing">
-						Preise
+						{t("publicSite.pricing")}
 					</Link>
 					<Link className="hover:text-foreground hover:underline" to="/privacy">
-						Datenschutz
+						{t("publicSite.privacy")}
 					</Link>
 					<Link className="hover:text-foreground hover:underline" to="/terms">
-						AGB
+						{t("publicSite.terms")}
 					</Link>
 					<Link className="hover:text-foreground hover:underline" to="/imprint">
-						Impressum
+						{t("publicSite.imprint")}
 					</Link>
 				</div>
 			</div>

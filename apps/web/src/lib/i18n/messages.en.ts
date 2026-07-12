@@ -169,6 +169,100 @@ export const enMessages = {
 		switchToGerman: "Switch to German",
 		switchToEnglish: "Switch to English",
 	},
+	publicSite: {
+		navigationLabel: "Main navigation",
+		pricing: "Pricing",
+		openSource: "Open Source",
+		existingCloudAccount: "Cloud sign-in",
+		freeWhiteboard: "Free Whiteboard",
+		openMenu: "Open menu",
+		closeMenu: "Close menu",
+		footerDescription:
+			"The free whiteboard for quick ideas – with optional, encrypted cloud collaboration.",
+		product: "Product",
+		legal: "Legal",
+		privacy: "Privacy",
+		terms: "Terms",
+		imprint: "Imprint",
+		copyright: "© {year} Skedra. All rights reserved.",
+	},
+	pricingPage: {
+		badge: "Start simply. Pay only when you need the cloud.",
+		title: "Your ideas are free.",
+		titleAccent: "Your cloud is optional.",
+		description:
+			"Draw for free without an account. Move to Skedra Cloud when you want to keep boards permanently, organize work with a team, and collaborate securely.",
+		monthly: "Monthly",
+		yearly: "Yearly",
+		savingsShort: "−17%",
+		freeEyebrow: "Local and account-free",
+		freePeriod: "forever",
+		freeDescription:
+			"The complete editor for quick ideas, sketches, and local files.",
+		drawNow: "Start drawing",
+		cloudEyebrow: "For lasting work",
+		cloudYearlyPeriod: "per year / person",
+		cloudMonthlyPeriod: "per month / person",
+		cloudDescription:
+			"Encrypted cloud boards, collaboration, and team management.",
+		subscribe: "Subscribe to Skedra Cloud",
+		recommended: "Recommended",
+		existingSubscription: "Already have an active subscription?",
+		existingSubscriptionAction: "Sign in with an existing cloud account",
+		comparisonTitle: "Free or Cloud? You decide.",
+		comparisonDescription:
+			"The editor stays free. You only pay for hosting, synchronization, and collaboration.",
+		feature: "Feature",
+		faqTitle: "Frequently asked questions",
+		freeFeatures: {
+			one: "Complete infinite-canvas editor",
+			two: "Local storage in your browser",
+			three: "PNG, SVG, PDF, PPTX, and Skedra export",
+			four: "Templates and public libraries",
+			five: "No account required",
+		},
+		cloudFeatures: {
+			one: "Everything in Free",
+			two: "Unlimited cloud boards and folders",
+			three: "End-to-end or server-side encryption",
+			four: "Live collaboration, comments, and presentations",
+			five: "Teams, roles, and sharing permissions",
+			six: "Cloud storage, API keys, and MCP",
+		},
+		comparison: {
+			one: "Infinite canvas and editor",
+			two: "Local browser storage",
+			three: "File and image export",
+			four: "Cloud synchronization",
+			five: "Unlimited saved boards",
+			six: "Live collaboration and comments",
+			seven: "Teams, roles, and access management",
+			eight: "Presentations and read-only links",
+		},
+		faq: {
+			oneQuestion: "Do I need an account for the Free Whiteboard?",
+			oneAnswer:
+				"No. The free whiteboard runs directly in your browser and stores data locally on your device.",
+			twoQuestion: "What happens to my local drawings?",
+			twoAnswer:
+				"They stay in your browser. You can also export them as a Skedra file. Browser data can be deleted, so permanent cloud storage requires Skedra Cloud.",
+			threeQuestion: "Can I cancel monthly?",
+			threeAnswer:
+				"Yes. The monthly plan can be canceled each month. Annual access remains active until the end of the paid period.",
+			fourQuestion: "Does every team member need a subscription?",
+			fourAnswer:
+				"Yes. Every registered Skedra Cloud user needs their own active access. Public views remain available to guests.",
+			fiveQuestion: "Can I self-host Skedra?",
+			fiveAnswer:
+				"Yes. The Community Edition can run on your own infrastructure and has no Skedra Cloud paywall.",
+		},
+	},
+	legalPage: {
+		eyebrow: "Legal",
+		lastUpdated: "Last updated: {date}",
+		draftWarning:
+			"Draft: the highlighted operator details must be completed before launch and the complete text must receive legal review.",
+	},
 	guestCanvas: {
 		menu: "Menu",
 		share: "Share",
@@ -266,6 +360,8 @@ export const enMessages = {
 		login: {
 			title: "Welcome back",
 			description: "Sign in to your Skedra account",
+			managedDescription:
+				"Sign in with an existing Skedra Cloud account. Cloud features are only unlocked with an active subscription.",
 			email: "Email",
 			emailPlaceholder: "name@example.com",
 			password: "Password",
@@ -274,6 +370,8 @@ export const enMessages = {
 			submit: "Sign in",
 			noAccount: "Don't have an account yet?",
 			register: "Register",
+			choosePlanFirst: "New to Skedra Cloud?",
+			choosePlanAction: "Choose a plan first",
 			failed: "Sign-in failed",
 			unexpected: "An unexpected error occurred",
 		},
@@ -340,6 +438,11 @@ export const enMessages = {
 			login: "Sign in",
 			failed: "Registration failed",
 			unexpected: "An unexpected error occurred",
+			legalPrefix: "I accept the",
+			terms: "Terms",
+			legalAnd: "and have read the",
+			privacy: "Privacy Policy",
+			legalSuffix: ".",
 		},
 	},
 	subscriptionWall: {
@@ -2283,6 +2386,13 @@ export const enMessages = {
 			orange: "Orange",
 			purple: "Purple",
 		},
+	},
+	adminLibraries: {
+		eyebrow: "Managed administration",
+		title: "Library review",
+		description:
+			"Review MIT-licensed community submissions before they appear in the public catalog.",
+		back: "Back to library",
 	},
 	shapeLibrary: {
 		title: "Library",

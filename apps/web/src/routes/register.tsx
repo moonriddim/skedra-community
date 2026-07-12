@@ -174,23 +174,23 @@ export function RegisterPage() {
 						className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
 					/>
 					<span>
-						Ich akzeptiere die{" "}
+						{t("auth.register.legalPrefix")}{" "}
 						<Link
 							className="text-primary hover:underline"
 							to="/terms"
 							target="_blank"
 						>
-							AGB
+							{t("auth.register.terms")}
 						</Link>{" "}
-						und habe die{" "}
+						{t("auth.register.legalAnd")}{" "}
 						<Link
 							className="text-primary hover:underline"
 							to="/privacy"
 							target="_blank"
 						>
-							Datenschutzerklärung
+							{t("auth.register.privacy")}
 						</Link>{" "}
-						gelesen.
+						{t("auth.register.legalSuffix")}
 					</span>
 				</label>
 			)}

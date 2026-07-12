@@ -1,4 +1,5 @@
 import { PublicSiteLayout } from "@/components/public/public-site-layout";
+import { useI18n } from "@/lib/i18n";
 import { legalDraft, legalLastUpdated } from "@/lib/legal";
 import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
@@ -12,11 +13,14 @@ export function LegalPage({
 	intro: string;
 	children: ReactNode;
 }) {
+	const { t } = useI18n();
 	return (
 		<PublicSiteLayout>
 			<section className="px-4 py-14 sm:px-6 sm:py-20">
 				<div className="mx-auto max-w-3xl">
-					<p className="text-sm font-semibold text-primary">Rechtliches</p>
+					<p className="text-sm font-semibold text-primary">
+						{t("legalPage.eyebrow")}
+					</p>
 					<h1 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">
 						{title}
 					</h1>
@@ -24,17 +28,13 @@ export function LegalPage({
 						{intro}
 					</p>
 					<p className="mt-3 text-sm text-muted-foreground">
-						Stand: {legalLastUpdated}
+						{t("legalPage.lastUpdated", { date: legalLastUpdated })}
 					</p>
 
 					{legalDraft && (
 						<div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 text-sm leading-6">
 							<AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-							<p>
-								Entwurf: Die markierten Betreiberangaben müssen vor der
-								Produktivschaltung ergänzt und der gesamte Text rechtlich
-								geprüft werden.
-							</p>
+							<p>{t("legalPage.draftWarning")}</p>
 						</div>
 					)}
 

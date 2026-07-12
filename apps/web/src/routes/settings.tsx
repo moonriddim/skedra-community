@@ -1,5 +1,4 @@
 import { BillingSettings } from "@/components/settings/billing-settings";
-import { LibraryReviewSettings } from "@/components/settings/library-review-settings";
 import { ProfileAccountSecurity } from "@/components/settings/profile-account-security";
 import { SystemCallSettings } from "@/components/settings/system-call-settings";
 import { SystemObjectStorageSettings } from "@/components/settings/system-object-storage-settings";
@@ -910,7 +909,6 @@ export function ApiKeysSettingsPage() {
 							<SystemSmtpSettings />
 							<SystemObjectStorageSettings />
 							<SystemCallSettings />
-							<LibraryReviewSettings />
 						</div>
 					)}
 

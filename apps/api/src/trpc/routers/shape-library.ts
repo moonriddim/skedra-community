@@ -14,7 +14,8 @@ import {
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { requireInstanceAdmin } from "../../lib/instance-settings";
+import { env } from "../../env";
+import { isFounderAccount } from "../../lib/instance-settings";
 import {
 	approveLibrarySubmission,
 	deletePublishedShapeLibrary,
@@ -25,7 +26,12 @@ import {
 	rejectLibrarySubmission,
 	submitConfiguredShapeLibraryForReview,
 } from "../../lib/shape-libraries";
-import { protectedProcedure, publicProcedure, router } from "../init";
+import {
+	authenticatedProcedure,
+	protectedProcedure,
+	publicProcedure,
+	router,
+} from "../init";
 
 const libraryItemSchema = z.object({
 	id: z.string(),
@@ -33,16 +39,17 @@ const libraryItemSchema = z.object({
 	elements: z.array(z.record(z.unknown())),
 });
 
-async function assertInstanceAdmin(
-	db: Parameters<typeof requireInstanceAdmin>[0],
-	userId: string,
-) {
-	try {
-		await requireInstanceAdmin(db, userId);
-	} catch {
+function assertManagedFounder(email: string | null | undefined) {
+	if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Library-Review ist nur im Managed-Modus verfügbar",
+		});
+	}
+	if (!isFounderAccount(email)) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "Kein Zugriff auf die Instanz-Einstellungen",
+			message: "Library-Review ist ausschließlich für den Founder verfügbar",
 		});
 	}
 }
@@ -199,15 +206,15 @@ export const shapeLibraryRouter = router({
 			}
 		}),
 
-	listReviewQueue: protectedProcedure.query(async ({ ctx }) => {
-		await assertInstanceAdmin(ctx.db, ctx.user.id);
+	listReviewQueue: authenticatedProcedure.query(async ({ ctx }) => {
+		assertManagedFounder(ctx.user.email);
 		return listPendingLibrarySubmissions(ctx.db);
 	}),
 
-	approveSubmission: protectedProcedure
+	approveSubmission: authenticatedProcedure
 		.input(z.object({ id: z.string().uuid() }))
 		.mutation(async ({ ctx, input }) => {
-			await assertInstanceAdmin(ctx.db, ctx.user.id);
+			assertManagedFounder(ctx.user.email);
 			try {
 				await approveLibrarySubmission(ctx.db, {
 					id: input.id,
@@ -238,7 +245,7 @@ export const shapeLibraryRouter = router({
 			}
 		}),
 
-	rejectSubmission: protectedProcedure
+	rejectSubmission: authenticatedProcedure
 		.input(
 			z.object({
 				id: z.string().uuid(),
@@ -246,7 +253,7 @@ export const shapeLibraryRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			await assertInstanceAdmin(ctx.db, ctx.user.id);
+			assertManagedFounder(ctx.user.email);
 			try {
 				await rejectLibrarySubmission(ctx.db, {
 					id: input.id,

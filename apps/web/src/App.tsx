@@ -1,6 +1,6 @@
 import { I18nProvider } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
-import { AuthLayout } from "@/routes/layout";
+import { AdminLayout, AuthLayout } from "@/routes/layout";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { Loader2 } from "lucide-react";
@@ -60,6 +60,11 @@ const ApiKeysSettingsPage = lazy(() =>
 );
 const BoardPage = lazy(() =>
 	import("@/routes/board").then((m) => ({ default: m.BoardPage })),
+);
+const AdminLibrariesPage = lazy(() =>
+	import("@/routes/admin-libraries").then((m) => ({
+		default: m.AdminLibrariesPage,
+	})),
 );
 
 function PageLoader() {
@@ -230,6 +235,17 @@ export function App() {
 									element={
 										<Suspense fallback={<PageLoader />}>
 											<BoardPage />
+										</Suspense>
+									}
+								/>
+							</Route>
+
+							<Route element={<AdminLayout />}>
+								<Route
+									path="/admin/libraries"
+									element={
+										<Suspense fallback={<PageLoader />}>
+											<AdminLibrariesPage />
 										</Suspense>
 									}
 								/>

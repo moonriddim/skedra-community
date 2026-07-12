@@ -25,16 +25,26 @@ export const publicProcedure = t.procedure;
 
 const subscriptionGateAllowlist = ["billing.", "userE2ee."];
 
-export const protectedProcedure = t.procedure.use(
-	async ({ ctx, next, path }) => {
-		if (!ctx.user || !ctx.session) {
-			throw createAppError({
-				code: "UNAUTHORIZED",
-				appErrorCode: appErrorCodes.unauthorized,
-				message: "Nicht authentifiziert",
-			});
-		}
+export const authenticatedProcedure = t.procedure.use(async ({ ctx, next }) => {
+	if (!ctx.user || !ctx.session) {
+		throw createAppError({
+			code: "UNAUTHORIZED",
+			appErrorCode: appErrorCodes.unauthorized,
+			message: "Nicht authentifiziert",
+		});
+	}
 
+	return next({
+		ctx: {
+			...ctx,
+			user: ctx.user,
+			session: ctx.session,
+		},
+	});
+});
+
+export const protectedProcedure = authenticatedProcedure.use(
+	async ({ ctx, next, path }) => {
 		if (
 			env.SKEDRA_DEPLOYMENT_MODE === "managed" &&
 			!subscriptionGateAllowlist.some((prefix) => path.startsWith(prefix))
@@ -49,11 +59,7 @@ export const protectedProcedure = t.procedure.use(
 		}
 
 		return next({
-			ctx: {
-				...ctx,
-				user: ctx.user,
-				session: ctx.session,
-			},
+			ctx,
 		});
 	},
 );

@@ -22,6 +22,10 @@ const optionalUrl = z.preprocess(
 	emptyStringToUndefined,
 	z.string().url().optional(),
 );
+const optionalEmail = z.preprocess(
+	emptyStringToUndefined,
+	z.string().email().optional(),
+);
 const optionalString = z.preprocess(
 	emptyStringToUndefined,
 	z.string().min(1).optional(),
@@ -41,6 +45,7 @@ const envSchema = z
 			.default("change-me-to-a-random-secret-min-32-chars"),
 		DATA_ENCRYPTION_SECRET: z.string().min(32).optional(),
 		SKEDRA_DEPLOYMENT_MODE: z.enum(["selfhost", "managed"]).default("selfhost"),
+		SKEDRA_FOUNDER_EMAIL: optionalEmail,
 		APP_URL: z.string().default("http://localhost:5174"),
 		/** Öffentlicher Katalog (apps/libraries), z. B. http://localhost:5175 */
 		LIBRARIES_URL: z.string().default("http://localhost:5175"),

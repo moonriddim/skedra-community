@@ -563,7 +563,10 @@ app.get("/api/libraries", async (c) => {
 });
 
 app.post("/api/libraries/submissions", async (c) => {
-	if (env.SKEDRA_LIBRARY_CATALOG_MODE !== "local") {
+	if (
+		env.SKEDRA_DEPLOYMENT_MODE !== "managed" ||
+		env.SKEDRA_LIBRARY_CATALOG_MODE !== "local"
+	) {
 		return c.json({ error: "Einreichungen werden zentral verwaltet" }, 404);
 	}
 

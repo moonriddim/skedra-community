@@ -1,6 +1,7 @@
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n";
 import { Github, Menu, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
@@ -9,6 +10,7 @@ const GITHUB_URL = "https://github.com/moonriddim/skedra-community";
 
 export function PublicSiteLayout({ children }: { children: ReactNode }) {
 	const [menuOpen, setMenuOpen] = useState(false);
+	const { t } = useI18n();
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
@@ -20,15 +22,15 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 
 					<nav
 						className="hidden items-center gap-1 md:flex"
-						aria-label="Hauptnavigation"
+						aria-label={t("publicSite.navigationLabel")}
 					>
 						<Button asChild variant="ghost" size="sm">
-							<Link to="/pricing">Preise</Link>
+							<Link to="/pricing">{t("publicSite.pricing")}</Link>
 						</Button>
 						<Button asChild variant="ghost" size="sm">
 							<a href={GITHUB_URL} target="_blank" rel="noreferrer">
 								<Github className="h-4 w-4" />
-								Open Source
+								{t("publicSite.openSource")}
 							</a>
 						</Button>
 					</nav>
@@ -36,10 +38,10 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<div className="hidden items-center gap-2 md:flex">
 						<ThemePicker labelSet="guest" />
 						<Button asChild variant="ghost" size="sm">
-							<Link to="/login">Anmelden</Link>
+							<Link to="/login">{t("publicSite.existingCloudAccount")}</Link>
 						</Button>
 						<Button asChild size="sm">
-							<Link to="/">Free Whiteboard</Link>
+							<Link to="/">{t("publicSite.freeWhiteboard")}</Link>
 						</Button>
 					</div>
 
@@ -48,7 +50,9 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 						size="icon"
 						className="md:hidden"
 						onClick={() => setMenuOpen((open) => !open)}
-						aria-label={menuOpen ? "Menü schließen" : "Menü öffnen"}
+						aria-label={
+							menuOpen ? t("publicSite.closeMenu") : t("publicSite.openMenu")
+						}
 						aria-expanded={menuOpen}
 					>
 						{menuOpen ? (
@@ -64,17 +68,17 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 						<div className="mx-auto grid max-w-6xl gap-2">
 							<Button asChild variant="ghost" className="justify-start">
 								<Link to="/pricing" onClick={() => setMenuOpen(false)}>
-									Preise
+									{t("publicSite.pricing")}
 								</Link>
 							</Button>
 							<Button asChild variant="ghost" className="justify-start">
 								<Link to="/login" onClick={() => setMenuOpen(false)}>
-									Anmelden
+									{t("publicSite.existingCloudAccount")}
 								</Link>
 							</Button>
 							<Button asChild className="justify-start">
 								<Link to="/" onClick={() => setMenuOpen(false)}>
-									Free Whiteboard
+									{t("publicSite.freeWhiteboard")}
 								</Link>
 							</Button>
 						</div>
@@ -89,18 +93,17 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<div>
 						<BrandLogo markClassName="h-9 w-9" wordmarkClassName="text-lg" />
 						<p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
-							Das freie Whiteboard für schnelle Ideen – mit optionaler,
-							verschlüsselter Cloud-Zusammenarbeit.
+							{t("publicSite.footerDescription")}
 						</p>
 					</div>
 					<div>
-						<h2 className="text-sm font-semibold">Produkt</h2>
+						<h2 className="text-sm font-semibold">{t("publicSite.product")}</h2>
 						<div className="mt-3 grid gap-2 text-sm text-muted-foreground">
 							<Link className="hover:text-foreground" to="/">
-								Free Whiteboard
+								{t("publicSite.freeWhiteboard")}
 							</Link>
 							<Link className="hover:text-foreground" to="/pricing">
-								Preise
+								{t("publicSite.pricing")}
 							</Link>
 							<a
 								className="hover:text-foreground"
@@ -113,22 +116,22 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 						</div>
 					</div>
 					<div>
-						<h2 className="text-sm font-semibold">Rechtliches</h2>
+						<h2 className="text-sm font-semibold">{t("publicSite.legal")}</h2>
 						<div className="mt-3 grid gap-2 text-sm text-muted-foreground">
 							<Link className="hover:text-foreground" to="/privacy">
-								Datenschutz
+								{t("publicSite.privacy")}
 							</Link>
 							<Link className="hover:text-foreground" to="/terms">
-								AGB
+								{t("publicSite.terms")}
 							</Link>
 							<Link className="hover:text-foreground" to="/imprint">
-								Impressum
+								{t("publicSite.imprint")}
 							</Link>
 						</div>
 					</div>
 				</div>
 				<div className="border-t border-border/70 px-4 py-5 text-center text-xs text-muted-foreground">
-					© {new Date().getFullYear()} Skedra. Alle Rechte vorbehalten.
+					{t("publicSite.copyright", { year: new Date().getFullYear() })}
 				</div>
 			</footer>
 		</div>

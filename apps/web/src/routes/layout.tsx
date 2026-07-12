@@ -56,3 +56,41 @@ export function AuthLayout() {
 		</div>
 	);
 }
+
+export function AdminLayout() {
+	const { data: session, isPending } = authClient.useSession();
+	const location = useLocation();
+	const access = trpc.instance.getFounderAccess.useQuery(undefined, {
+		enabled: Boolean(session?.user),
+		retry: false,
+	});
+
+	if (isPending || (session?.user && access.isPending)) {
+		return (
+			<div className="flex h-screen items-center justify-center bg-background">
+				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+			</div>
+		);
+	}
+
+	if (!session?.user) {
+		const redirect = encodeURIComponent(
+			`${location.pathname}${location.search}${location.hash}`,
+		);
+		return <Navigate to={`/login?redirect=${redirect}`} replace />;
+	}
+
+	if (
+		access.isError ||
+		!access.data?.managedDeployment ||
+		!access.data.isFounder
+	) {
+		return <Navigate to="/library" replace />;
+	}
+
+	return (
+		<div className="min-h-screen bg-background">
+			<Outlet />
+		</div>
+	);
+}

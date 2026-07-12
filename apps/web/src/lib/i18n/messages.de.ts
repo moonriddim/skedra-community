@@ -173,6 +173,100 @@ export const deMessages = {
 		switchToGerman: "Auf Deutsch umstellen",
 		switchToEnglish: "Switch to English",
 	},
+	publicSite: {
+		navigationLabel: "Hauptnavigation",
+		pricing: "Preise",
+		openSource: "Open Source",
+		existingCloudAccount: "Cloud-Anmeldung",
+		freeWhiteboard: "Free Whiteboard",
+		openMenu: "Menü öffnen",
+		closeMenu: "Menü schließen",
+		footerDescription:
+			"Das freie Whiteboard für schnelle Ideen – mit optionaler, verschlüsselter Cloud-Zusammenarbeit.",
+		product: "Produkt",
+		legal: "Rechtliches",
+		privacy: "Datenschutz",
+		terms: "AGB",
+		imprint: "Impressum",
+		copyright: "© {year} Skedra. Alle Rechte vorbehalten.",
+	},
+	pricingPage: {
+		badge: "Einfach starten. Erst für die Cloud zahlen.",
+		title: "Deine Ideen sind frei.",
+		titleAccent: "Deine Cloud ist optional.",
+		description:
+			"Zeichne kostenlos ohne Konto. Wechsle zu Skedra Cloud, wenn du Boards dauerhaft speichern, im Team organisieren und sicher zusammenarbeiten möchtest.",
+		monthly: "Monatlich",
+		yearly: "Jährlich",
+		savingsShort: "−17%",
+		freeEyebrow: "Lokal und ohne Konto",
+		freePeriod: "für immer",
+		freeDescription:
+			"Der komplette Editor für schnelle Ideen, Skizzen und lokale Dateien.",
+		drawNow: "Jetzt zeichnen",
+		cloudEyebrow: "Für dauerhafte Arbeit",
+		cloudYearlyPeriod: "pro Jahr / Person",
+		cloudMonthlyPeriod: "pro Monat / Person",
+		cloudDescription:
+			"Verschlüsselte Cloud-Boards, Zusammenarbeit und Teamverwaltung.",
+		subscribe: "Skedra Cloud abonnieren",
+		recommended: "Empfohlen",
+		existingSubscription: "Du hast bereits ein aktives Abo?",
+		existingSubscriptionAction: "Mit bestehendem Cloud-Konto anmelden",
+		comparisonTitle: "Free oder Cloud? Du entscheidest.",
+		comparisonDescription:
+			"Der Editor bleibt frei. Bezahlt werden nur Hosting, Synchronisierung und Zusammenarbeit.",
+		feature: "Funktion",
+		faqTitle: "Häufige Fragen",
+		freeFeatures: {
+			one: "Vollständiger Infinite-Canvas-Editor",
+			two: "Lokale Speicherung im Browser",
+			three: "PNG-, SVG-, PDF-, PPTX- und Skedra-Export",
+			four: "Vorlagen und öffentliche Bibliotheken",
+			five: "Ohne Konto nutzbar",
+		},
+		cloudFeatures: {
+			one: "Alles aus Free",
+			two: "Unbegrenzte Cloud-Boards und Ordner",
+			three: "Ende-zu-Ende- oder serverseitige Verschlüsselung",
+			four: "Live-Zusammenarbeit, Kommentare und Präsentationen",
+			five: "Teams, Rollen und Freigaberechte",
+			six: "Cloud-Speicher, API Keys und MCP",
+		},
+		comparison: {
+			one: "Infinite Canvas und Editor",
+			two: "Lokale Browser-Speicherung",
+			three: "Datei- und Bildexport",
+			four: "Cloud-Synchronisierung",
+			five: "Unbegrenzte gespeicherte Boards",
+			six: "Live-Zusammenarbeit und Kommentare",
+			seven: "Teams, Rollen und Zugriffsverwaltung",
+			eight: "Präsentationen und Read-only-Links",
+		},
+		faq: {
+			oneQuestion: "Brauche ich für das Free Whiteboard ein Konto?",
+			oneAnswer:
+				"Nein. Das freie Whiteboard funktioniert direkt im Browser und speichert lokal auf deinem Gerät.",
+			twoQuestion: "Was passiert mit meinen lokalen Zeichnungen?",
+			twoAnswer:
+				"Sie bleiben im Browser gespeichert. Du kannst sie zusätzlich als Skedra-Datei exportieren. Browserdaten können gelöscht werden – für dauerhafte Cloud-Speicherung brauchst du Skedra Cloud.",
+			threeQuestion: "Kann ich monatlich kündigen?",
+			threeAnswer:
+				"Ja. Das Monatsabo ist monatlich kündbar. Beim Jahresabo bleibt der Zugang bis zum Ende des bezahlten Zeitraums aktiv.",
+			fourQuestion: "Benötigt jedes Teammitglied ein Abo?",
+			fourAnswer:
+				"Ja. In Skedra Cloud benötigt jede registrierte Person einen eigenen aktiven Zugang. Öffentliche Ansichten bleiben für Gäste zugänglich.",
+			fiveQuestion: "Kann ich Skedra selbst hosten?",
+			fiveAnswer:
+				"Ja. Die Community Edition kann auf eigener Infrastruktur betrieben werden und hat keine Skedra-Cloud-Paywall.",
+		},
+	},
+	legalPage: {
+		eyebrow: "Rechtliches",
+		lastUpdated: "Stand: {date}",
+		draftWarning:
+			"Entwurf: Die markierten Betreiberangaben müssen vor der Produktivschaltung ergänzt und der gesamte Text rechtlich geprüft werden.",
+	},
 	guestCanvas: {
 		menu: "Menü",
 		share: "Teilen",
@@ -271,6 +365,8 @@ export const deMessages = {
 		login: {
 			title: "Willkommen zurück",
 			description: "Melde dich bei deinem Skedra-Konto an",
+			managedDescription:
+				"Melde dich mit einem bestehenden Skedra-Cloud-Konto an. Cloud-Funktionen werden nur mit aktivem Abo freigeschaltet.",
 			email: "E-Mail",
 			emailPlaceholder: "name@beispiel.de",
 			password: "Passwort",
@@ -279,6 +375,8 @@ export const deMessages = {
 			submit: "Anmelden",
 			noAccount: "Noch kein Konto?",
 			register: "Registrieren",
+			choosePlanFirst: "Neu bei Skedra Cloud?",
+			choosePlanAction: "Zuerst Abo auswählen",
 			failed: "Anmeldung fehlgeschlagen",
 			unexpected: "Ein unerwarteter Fehler ist aufgetreten",
 		},
@@ -346,6 +444,11 @@ export const deMessages = {
 			login: "Anmelden",
 			failed: "Registrierung fehlgeschlagen",
 			unexpected: "Ein unerwarteter Fehler ist aufgetreten",
+			legalPrefix: "Ich akzeptiere die",
+			terms: "AGB",
+			legalAnd: "und habe die",
+			privacy: "Datenschutzerklärung",
+			legalSuffix: "gelesen.",
 		},
 	},
 	subscriptionWall: {
@@ -2314,6 +2417,13 @@ export const deMessages = {
 			orange: "Orange",
 			purple: "Lila",
 		},
+	},
+	adminLibraries: {
+		eyebrow: "Managed Administration",
+		title: "Library-Review",
+		description:
+			"Prüfe MIT-lizenzierte Community-Einreichungen, bevor sie im öffentlichen Katalog erscheinen.",
+		back: "Zur Mediathek",
 	},
 	shapeLibrary: {
 		title: "Bibliothek",

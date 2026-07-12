@@ -54,7 +54,10 @@ export function getLibraryCatalogConfig() {
 
 	return {
 		mode: env.SKEDRA_LIBRARY_CATALOG_MODE as LibraryCatalogMode,
-		canSubmit: env.SKEDRA_LIBRARY_CATALOG_MODE === "local" || !!remoteBaseUrl,
+		canSubmit:
+			(env.SKEDRA_DEPLOYMENT_MODE === "managed" &&
+				env.SKEDRA_LIBRARY_CATALOG_MODE === "local") ||
+			!!remoteBaseUrl,
 		submitUrl,
 	};
 }
@@ -313,6 +316,9 @@ export async function submitConfiguredShapeLibraryForReview(
 	},
 ) {
 	if (env.SKEDRA_LIBRARY_CATALOG_MODE !== "remote") {
+		if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") {
+			throw new Error("REMOTE_CATALOG_NOT_CONFIGURED");
+		}
 		return submitShapeLibraryForReview(db, input);
 	}
 

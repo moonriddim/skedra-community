@@ -1,5 +1,6 @@
 import { PublicSiteLayout } from "@/components/public/public-site-layout";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n";
 import {
 	BadgeCheck,
 	Check,
@@ -14,54 +15,39 @@ import { Link, useSearchParams } from "react-router";
 type BillingPeriod = "monthly" | "yearly";
 
 const freeFeatures = [
-	"Vollständiger Infinite-Canvas-Editor",
-	"Lokale Speicherung im Browser",
-	"PNG-, SVG-, PDF-, PPTX- und Skedra-Export",
-	"Vorlagen und öffentliche Bibliotheken",
-	"Ohne Konto nutzbar",
+	"pricingPage.freeFeatures.one",
+	"pricingPage.freeFeatures.two",
+	"pricingPage.freeFeatures.three",
+	"pricingPage.freeFeatures.four",
+	"pricingPage.freeFeatures.five",
 ];
 
 const cloudFeatures = [
-	"Alles aus Free",
-	"Unbegrenzte Cloud-Boards und Ordner",
-	"Ende-zu-Ende- oder serverseitige Verschlüsselung",
-	"Live-Zusammenarbeit, Kommentare und Präsentationen",
-	"Teams, Rollen und Freigaberechte",
-	"Cloud-Speicher, API Keys und MCP",
+	"pricingPage.cloudFeatures.one",
+	"pricingPage.cloudFeatures.two",
+	"pricingPage.cloudFeatures.three",
+	"pricingPage.cloudFeatures.four",
+	"pricingPage.cloudFeatures.five",
+	"pricingPage.cloudFeatures.six",
 ];
 
 const comparison = [
-	["Infinite Canvas und Editor", true, true],
-	["Lokale Browser-Speicherung", true, true],
-	["Datei- und Bildexport", true, true],
-	["Cloud-Synchronisierung", false, true],
-	["Unbegrenzte gespeicherte Boards", false, true],
-	["Live-Zusammenarbeit und Kommentare", false, true],
-	["Teams, Rollen und Zugriffsverwaltung", false, true],
-	["Präsentationen und Read-only-Links", false, true],
+	["pricingPage.comparison.one", true, true],
+	["pricingPage.comparison.two", true, true],
+	["pricingPage.comparison.three", true, true],
+	["pricingPage.comparison.four", false, true],
+	["pricingPage.comparison.five", false, true],
+	["pricingPage.comparison.six", false, true],
+	["pricingPage.comparison.seven", false, true],
+	["pricingPage.comparison.eight", false, true],
 ] as const;
 
 const faqs = [
-	[
-		"Brauche ich für das Free Whiteboard ein Konto?",
-		"Nein. Das freie Whiteboard funktioniert direkt im Browser und speichert lokal auf deinem Gerät.",
-	],
-	[
-		"Was passiert mit meinen lokalen Zeichnungen?",
-		"Sie bleiben im Browser gespeichert. Du kannst sie zusätzlich als Skedra-Datei exportieren. Browserdaten können gelöscht werden – für dauerhafte Cloud-Speicherung brauchst du Skedra Cloud.",
-	],
-	[
-		"Kann ich monatlich kündigen?",
-		"Ja. Das Monatsabo ist monatlich kündbar. Beim Jahresabo bleibt der Zugang bis zum Ende des bezahlten Zeitraums aktiv.",
-	],
-	[
-		"Benötigt jedes Teammitglied ein Abo?",
-		"Ja. In Skedra Cloud benötigt jede registrierte Person einen eigenen aktiven Zugang. Öffentliche Ansichten bleiben für Gäste zugänglich.",
-	],
-	[
-		"Kann ich Skedra selbst hosten?",
-		"Ja. Die Community Edition kann auf eigener Infrastruktur betrieben werden und hat keine Skedra-Cloud-Paywall.",
-	],
+	["pricingPage.faq.oneQuestion", "pricingPage.faq.oneAnswer"],
+	["pricingPage.faq.twoQuestion", "pricingPage.faq.twoAnswer"],
+	["pricingPage.faq.threeQuestion", "pricingPage.faq.threeAnswer"],
+	["pricingPage.faq.fourQuestion", "pricingPage.faq.fourAnswer"],
+	["pricingPage.faq.fiveQuestion", "pricingPage.faq.fiveAnswer"],
 ] as const;
 
 function safeRedirect(value: string | null) {
@@ -73,6 +59,7 @@ function safeRedirect(value: string | null) {
 }
 
 export function PricingPage() {
+	const { t } = useI18n();
 	const [period, setPeriod] = useState<BillingPeriod>("yearly");
 	const [searchParams] = useSearchParams();
 	const redirect = safeRedirect(searchParams.get("redirect"));
@@ -87,16 +74,14 @@ export function PricingPage() {
 				<div className="relative mx-auto max-w-4xl text-center">
 					<div className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-sm font-medium text-primary">
 						<Sparkles className="h-4 w-4" />
-						Einfach starten. Erst für die Cloud zahlen.
+						{t("pricingPage.badge")}
 					</div>
 					<h1 className="font-display text-balance text-4xl font-bold tracking-tight sm:text-6xl">
-						Deine Ideen sind frei.{" "}
-						<span className="text-primary">Deine Cloud ist optional.</span>
+						{t("pricingPage.title")}{" "}
+						<span className="text-primary">{t("pricingPage.titleAccent")}</span>
 					</h1>
 					<p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-8 text-muted-foreground">
-						Zeichne kostenlos ohne Konto. Wechsle zu Skedra Cloud, wenn du
-						Boards dauerhaft speichern, im Team organisieren und sicher
-						zusammenarbeiten möchtest.
+						{t("pricingPage.description")}
 					</p>
 				</div>
 			</section>
@@ -110,14 +95,17 @@ export function PricingPage() {
 								onClick={() => setPeriod("monthly")}
 								className={`rounded-full px-4 py-2 text-sm font-medium transition ${period === "monthly" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
 							>
-								Monatlich
+								{t("pricingPage.monthly")}
 							</button>
 							<button
 								type="button"
 								onClick={() => setPeriod("yearly")}
 								className={`rounded-full px-4 py-2 text-sm font-medium transition ${period === "yearly" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
 							>
-								Jährlich <span className="ml-1 text-primary">−17%</span>
+								{t("pricingPage.yearly")}{" "}
+								<span className="ml-1 text-primary">
+									{t("pricingPage.savingsShort")}
+								</span>
 							</button>
 						</div>
 					</div>
@@ -126,14 +114,14 @@ export function PricingPage() {
 						<PricingCard
 							icon={<HardDrive className="h-6 w-6" />}
 							title="Free"
-							eyebrow="Lokal und ohne Konto"
+							eyebrow={t("pricingPage.freeEyebrow")}
 							price="CHF 0"
-							period="für immer"
-							description="Der komplette Editor für schnelle Ideen, Skizzen und lokale Dateien."
-							features={freeFeatures}
+							period={t("pricingPage.freePeriod")}
+							description={t("pricingPage.freeDescription")}
+							features={freeFeatures.map((key) => t(key))}
 							action={
 								<Button asChild variant="outline" size="lg" className="w-full">
-									<Link to="/">Jetzt zeichnen</Link>
+									<Link to="/">{t("pricingPage.drawNow")}</Link>
 								</Button>
 							}
 						/>
@@ -141,27 +129,30 @@ export function PricingPage() {
 							highlight
 							icon={<Cloud className="h-6 w-6" />}
 							title="Skedra Cloud"
-							eyebrow="Für dauerhafte Arbeit"
+							eyebrow={t("pricingPage.cloudEyebrow")}
 							price={period === "yearly" ? "CHF 49" : "CHF 4.90"}
 							period={
-								period === "yearly" ? "pro Jahr / Person" : "pro Monat / Person"
+								period === "yearly"
+									? t("pricingPage.cloudYearlyPeriod")
+									: t("pricingPage.cloudMonthlyPeriod")
 							}
-							description="Verschlüsselte Cloud-Boards, Zusammenarbeit und Teamverwaltung."
-							features={cloudFeatures}
+							description={t("pricingPage.cloudDescription")}
+							features={cloudFeatures.map((key) => t(key))}
+							recommendedLabel={t("pricingPage.recommended")}
 							action={
 								<Button asChild size="lg" className="w-full">
-									<Link to={registerUrl}>Skedra Cloud abonnieren</Link>
+									<Link to={registerUrl}>{t("pricingPage.subscribe")}</Link>
 								</Button>
 							}
 						/>
 					</div>
 					<p className="mt-7 text-center text-sm text-muted-foreground">
-						Du hast bereits ein Abo?{" "}
+						{t("pricingPage.existingSubscription")}{" "}
 						<Link
 							className="font-medium text-primary hover:underline"
 							to={`/login?redirect=${encodeURIComponent(loginReturn)}`}
 						>
-							Mit bestehendem Konto anmelden
+							{t("pricingPage.existingSubscriptionAction")}
 						</Link>
 					</p>
 				</div>
@@ -172,16 +163,15 @@ export function PricingPage() {
 					<div className="text-center">
 						<LockKeyhole className="mx-auto h-8 w-8 text-primary" />
 						<h2 className="mt-4 font-display text-3xl font-bold sm:text-4xl">
-							Free oder Cloud? Du entscheidest.
+							{t("pricingPage.comparisonTitle")}
 						</h2>
 						<p className="mt-3 text-muted-foreground">
-							Der Editor bleibt frei. Bezahlt werden nur Hosting,
-							Synchronisierung und Zusammenarbeit.
+							{t("pricingPage.comparisonDescription")}
 						</p>
 					</div>
 					<div className="mt-10 overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
 						<div className="grid grid-cols-[1fr_72px_72px] border-b border-border bg-muted/45 px-4 py-3 text-sm font-semibold sm:grid-cols-[1fr_140px_140px] sm:px-6">
-							<span>Funktion</span>
+							<span>{t("pricingPage.feature")}</span>
 							<span className="text-center">Free</span>
 							<span className="text-center text-primary">Cloud</span>
 						</div>
@@ -190,7 +180,7 @@ export function PricingPage() {
 								key={label}
 								className="grid grid-cols-[1fr_72px_72px] items-center border-b border-border/70 px-4 py-3.5 text-sm last:border-0 sm:grid-cols-[1fr_140px_140px] sm:px-6"
 							>
-								<span>{label}</span>
+								<span>{t(label)}</span>
 								<span className="flex justify-center">
 									{free ? (
 										<Check className="h-5 w-5 text-primary" />
@@ -216,20 +206,20 @@ export function PricingPage() {
 					<div className="text-center">
 						<BadgeCheck className="mx-auto h-8 w-8 text-primary" />
 						<h2 className="mt-4 font-display text-3xl font-bold sm:text-4xl">
-							Häufige Fragen
+							{t("pricingPage.faqTitle")}
 						</h2>
 					</div>
 					<div className="mt-10 divide-y divide-border rounded-2xl border border-border bg-card px-5 sm:px-7">
 						{faqs.map(([question, answer]) => (
 							<details key={question} className="group py-5">
 								<summary className="cursor-pointer list-none pr-8 font-semibold marker:hidden">
-									{question}
+									{t(question)}
 									<span className="float-right text-primary transition group-open:rotate-45">
 										+
 									</span>
 								</summary>
 								<p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-									{answer}
+									{t(answer)}
 								</p>
 							</details>
 						))}
@@ -249,6 +239,7 @@ function PricingCard({
 	description,
 	features,
 	action,
+	recommendedLabel,
 	highlight = false,
 }: {
 	icon: React.ReactNode;
@@ -259,6 +250,7 @@ function PricingCard({
 	description: string;
 	features: readonly string[];
 	action: React.ReactNode;
+	recommendedLabel?: string;
 	highlight?: boolean;
 }) {
 	return (
@@ -267,7 +259,7 @@ function PricingCard({
 		>
 			{highlight && (
 				<span className="absolute -top-3 right-6 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-					Empfohlen
+					{recommendedLabel}
 				</span>
 			)}
 			<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">

@@ -3,6 +3,7 @@ import type { Database } from "@skedra/db";
 import { decryptText, encryptText } from "@skedra/shared/server-crypto";
 import { eq } from "drizzle-orm";
 import { env } from "../env";
+import { hasFounderAccess } from "./founder-access";
 
 const SINGLETON_ID = "default";
 
@@ -166,6 +167,14 @@ export function getEnvLiveKitConfigStatus() {
 export async function isInstanceAdmin(db: Database, userId: string) {
 	const settings = await getOrCreateInstanceSettings(db);
 	return !settings.adminUserId || settings.adminUserId === userId;
+}
+
+export function isFounderAccount(email: string | null | undefined) {
+	return hasFounderAccess({
+		deploymentMode: env.SKEDRA_DEPLOYMENT_MODE,
+		founderEmail: env.SKEDRA_FOUNDER_EMAIL,
+		accountEmail: email,
+	});
 }
 
 export async function requireInstanceAdmin(db: Database, userId: string) {
