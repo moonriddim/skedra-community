@@ -22,7 +22,6 @@ import {
 	createRegistrationInvite,
 	normalizeInviteEmail,
 } from "../../lib/registration-invites";
-import { syncWorkspaceSubscriptionSeats } from "../../lib/stripe-billing";
 import { isValidTeamRoleColor, requireTeamRole } from "../../lib/team-roles";
 import { requireManagedWorkspace } from "../../lib/workspace";
 import { protectedProcedure, router } from "../init";
@@ -393,7 +392,6 @@ export const teamRouter = router({
 					roleId: input.roleId ?? null,
 					workspaceRole: input.workspaceRole,
 				});
-				await syncWorkspaceSubscriptionSeats(ctx.db, team);
 			}
 
 			return { success: true, pendingRegistration: false };
@@ -495,7 +493,6 @@ export const teamRouter = router({
 						eq(teamMembers.userId, input.userId),
 					),
 				);
-			await syncWorkspaceSubscriptionSeats(ctx.db, team);
 
 			return { success: true };
 		}),

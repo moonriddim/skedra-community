@@ -46,6 +46,7 @@ import {
 	or,
 } from "drizzle-orm";
 import { z } from "zod";
+import { env } from "../../env";
 import {
 	findArchivedBoardsForUser,
 	listBoardActivities,
@@ -57,6 +58,7 @@ import {
 	deleteAssetObjects,
 	deleteWhiteboardAndCollectAssetObjects,
 } from "../../lib/assets";
+import { userHasProductAccess } from "../../lib/billing-entitlement";
 import { publishBoardLive } from "../../lib/board-live-bus";
 import { membershipValuesFromTeamRole } from "../../lib/board-member-access";
 import {
@@ -216,6 +218,13 @@ async function requireE2eeUpdateAccess(
 			code: "UNAUTHORIZED",
 			appErrorCode: appErrorCodes.unauthorized,
 			message: "Nicht authentifiziert",
+		});
+	}
+	if (!(await userHasProductAccess(ctx.db, ctx.user.id))) {
+		throw createAppError({
+			code: "FORBIDDEN",
+			appErrorCode: appErrorCodes.subscriptionRequired,
+			message: "Ein aktives Skedra-Cloud-Abo ist erforderlich.",
 		});
 	}
 
@@ -1078,7 +1087,10 @@ export const whiteboardRouter = router({
 			return {
 				enabled: access.whiteboard.collabShareEnabled,
 				shareToken: access.whiteboard.collabShareToken,
-				accessLevel: access.whiteboard.collabShareAccessLevel,
+				accessLevel:
+					env.SKEDRA_DEPLOYMENT_MODE === "managed"
+						? ("view" as const)
+						: access.whiteboard.collabShareAccessLevel,
 			};
 		}),
 
@@ -1107,7 +1119,11 @@ export const whiteboardRouter = router({
 				.set({
 					collabShareEnabled: input.enabled,
 					collabShareAccessLevel:
-						input.accessLevel ?? existing?.collabShareAccessLevel ?? "edit",
+						env.SKEDRA_DEPLOYMENT_MODE === "managed"
+							? "view"
+							: (input.accessLevel ??
+								existing?.collabShareAccessLevel ??
+								"edit"),
 					collabShareToken: input.enabled
 						? (existing?.collabShareToken ?? createCollabShareToken())
 						: (existing?.collabShareToken ?? null),
@@ -1141,7 +1157,7 @@ export const whiteboardRouter = router({
 					whiteboardName: access.whiteboard.name,
 					encryptionMode: access.whiteboard.encryptionMode,
 					canWrite: access.canWrite,
-					accessLevel: access.whiteboard.collabShareAccessLevel,
+					accessLevel: access.canWrite ? "edit" : "view",
 				};
 			} catch {
 				throw createAppError({

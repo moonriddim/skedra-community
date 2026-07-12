@@ -1,3 +1,4 @@
+import { authClient } from "@/lib/auth-client";
 import { I18nProvider } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { AuthLayout } from "@/routes/layout";
@@ -53,6 +54,18 @@ function PageLoader() {
 			<Loader2 className="h-8 w-8 animate-spin text-primary" />
 		</div>
 	);
+}
+
+function RootPage() {
+	const { data: session, isPending: sessionPending } = authClient.useSession();
+	const { data: config, isPending: configPending } =
+		trpc.billing.getPublicConfig.useQuery();
+
+	if (sessionPending || configPending) return <PageLoader />;
+	if (config?.managed) {
+		return <Navigate to={session?.user ? "/library" : "/login"} replace />;
+	}
+	return <GuestCanvasPage />;
 }
 
 export function App() {
@@ -144,7 +157,7 @@ export function App() {
 								path="/"
 								element={
 									<Suspense fallback={<PageLoader />}>
-										<GuestCanvasPage />
+										<RootPage />
 									</Suspense>
 								}
 							/>

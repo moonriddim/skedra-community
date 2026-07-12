@@ -25,7 +25,7 @@ export function LoginPage() {
 		retry: false,
 	});
 	const saveIdentity = trpc.userE2ee.saveIdentity.useMutation();
-	const baseRedirectTo = searchParams.get("redirect") || "/";
+	const baseRedirectTo = searchParams.get("redirect") || "/library";
 	const e2eeKeyFromHash = readE2eeKeyFromHash();
 	const redirectTo = e2eeKeyFromHash
 		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)

@@ -4,6 +4,8 @@
 
 import { type Database, whiteboards } from "@skedra/db";
 import { eq } from "drizzle-orm";
+import { env } from "../env";
+import { guestCanWriteCollabShare } from "./access-policy";
 import { createPresentationShareToken } from "./presentation";
 
 export {
@@ -28,7 +30,10 @@ export async function getCollabShareAccess(db: Database, shareToken: string) {
 		throw new Error("collab-share-not-found");
 	}
 
-	const canWrite = whiteboard.collabShareAccessLevel === "edit";
+	const canWrite = guestCanWriteCollabShare(
+		env.SKEDRA_DEPLOYMENT_MODE,
+		whiteboard.collabShareAccessLevel,
+	);
 
 	return { whiteboard, canWrite };
 }

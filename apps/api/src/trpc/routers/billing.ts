@@ -1,6 +1,8 @@
-import { workspaceSubscriptions } from "@skedra/db";
+import { userSubscriptions } from "@skedra/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { env } from "../../env";
+import { getUserSubscriptionEntitlement } from "../../lib/billing-entitlement";
 import {
 	getBillingSettingsUrl,
 	getStripeClient,
@@ -8,14 +10,9 @@ import {
 	isStripeBillingConfigured,
 	stripePlanCodes,
 } from "../../lib/stripe";
-import { getWorkspaceSeatCount } from "../../lib/stripe-billing";
-import {
-	getManagedWorkspace,
-	requireManagedWorkspace,
-} from "../../lib/workspace";
-import { protectedProcedure, router } from "../init";
+import { protectedProcedure, publicProcedure, router } from "../init";
 
-const activeSubscriptionStatuses = new Set([
+const existingSubscriptionStatuses = new Set([
 	"active",
 	"trialing",
 	"past_due",
@@ -24,78 +21,72 @@ const activeSubscriptionStatuses = new Set([
 ]);
 
 function assertStripeBillingConfigured() {
-	if (!isStripeBillingConfigured()) {
-		throw new Error("Stripe Billing ist für diese Instanz nicht aktiviert.");
+	if (
+		env.SKEDRA_DEPLOYMENT_MODE !== "managed" ||
+		!isStripeBillingConfigured()
+	) {
+		throw new Error("Stripe Billing ist fuer diese Instanz nicht aktiviert.");
 	}
 }
 
 async function getOrCreateStripeCustomer(input: {
-	db: Parameters<typeof getManagedWorkspace>[0];
-	team: { id: string; name: string };
+	db: Parameters<typeof getUserSubscriptionEntitlement>[0];
 	user: { id: string; name: string; email: string };
 }) {
-	const existing = await input.db.query.workspaceSubscriptions.findFirst({
-		where: eq(workspaceSubscriptions.teamId, input.team.id),
+	const existing = await input.db.query.userSubscriptions.findFirst({
+		where: eq(userSubscriptions.userId, input.user.id),
 	});
 	if (existing) return existing;
 
-	const stripe = getStripeClient();
-	const customer = await stripe.customers.create(
+	const customer = await getStripeClient().customers.create(
 		{
-			name: input.team.name,
+			name: input.user.name,
 			email: input.user.email,
-			metadata: {
-				skedra_workspace_id: input.team.id,
-				skedra_owner_id: input.user.id,
-			},
+			metadata: { skedra_user_id: input.user.id },
 		},
-		{ idempotencyKey: `skedra-customer-${input.team.id}` },
+		{ idempotencyKey: `skedra-customer-user-${input.user.id}` },
 	);
 
 	await input.db
-		.insert(workspaceSubscriptions)
-		.values({ teamId: input.team.id, stripeCustomerId: customer.id })
+		.insert(userSubscriptions)
+		.values({ userId: input.user.id, stripeCustomerId: customer.id })
 		.onConflictDoNothing();
 
-	const saved = await input.db.query.workspaceSubscriptions.findFirst({
-		where: eq(workspaceSubscriptions.teamId, input.team.id),
+	const saved = await input.db.query.userSubscriptions.findFirst({
+		where: eq(userSubscriptions.userId, input.user.id),
 	});
 	if (!saved) throw new Error("Stripe-Kunde konnte nicht gespeichert werden.");
 	return saved;
 }
 
 export const billingRouter = router({
+	getPublicConfig: publicProcedure.query(() => ({
+		managed: env.SKEDRA_DEPLOYMENT_MODE === "managed",
+	})),
+
 	getStatus: protectedProcedure.query(async ({ ctx }) => {
-		if (!isStripeBillingConfigured()) {
+		if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") {
 			return {
 				available: false,
-				configured: false,
-				canManageWorkspace: false,
+				configured: true,
+				accessGranted: true,
+				canManageWorkspace: true,
 				workspaceName: null,
 				subscription: null,
 			};
 		}
 
-		const workspace = await getManagedWorkspace(ctx.db, ctx.user.id);
-		if (!workspace) {
-			return {
-				available: true,
-				configured: isStripeBillingConfigured(),
-				canManageWorkspace: false,
-				workspaceName: null,
-				subscription: null,
-			};
-		}
-
-		const subscription = await ctx.db.query.workspaceSubscriptions.findFirst({
-			where: eq(workspaceSubscriptions.teamId, workspace.team.id),
-		});
+		const entitlement = await getUserSubscriptionEntitlement(
+			ctx.db,
+			ctx.user.id,
+		);
 		return {
 			available: true,
 			configured: isStripeBillingConfigured(),
-			canManageWorkspace: workspace.canManageWorkspace,
-			workspaceName: workspace.team.name,
-			subscription,
+			accessGranted: entitlement.accessGranted,
+			canManageWorkspace: true,
+			workspaceName: ctx.user.name,
+			subscription: entitlement.subscription,
 		};
 	}),
 
@@ -103,73 +94,59 @@ export const billingRouter = router({
 		.input(z.object({ plan: z.enum(stripePlanCodes) }))
 		.mutation(async ({ ctx, input }) => {
 			assertStripeBillingConfigured();
-
-			const workspace = await requireManagedWorkspace(ctx.db, ctx.user.id);
-			const subscription = await getOrCreateStripeCustomer({
+			const stored = await getOrCreateStripeCustomer({
 				db: ctx.db,
-				team: workspace.team,
 				user: ctx.user,
 			});
 			if (
-				subscription.stripeSubscriptionId &&
-				activeSubscriptionStatuses.has(subscription.status)
+				stored.stripeSubscriptionId &&
+				existingSubscriptionStatuses.has(stored.status)
 			) {
 				throw new Error(
-					"Dieses Workspace-Abo wird bereits verwaltet. Öffne stattdessen das Kundenportal.",
+					"Dieses Abo wird bereits verwaltet. Oeffne stattdessen das Kundenportal.",
 				);
 			}
 
-			const stripe = getStripeClient();
 			const plan = getStripePlan(input.plan);
-			const seatCount = await getWorkspaceSeatCount(ctx.db, workspace.team);
-			const session = await stripe.checkout.sessions.create(
-				{
-					mode: "subscription",
-					customer: subscription.stripeCustomerId,
-					line_items: [{ price: plan.priceId, quantity: seatCount }],
-					automatic_tax: { enabled: true },
-					tax_id_collection: { enabled: true },
-					billing_address_collection: "auto",
-					customer_update: { address: "auto", name: "auto" },
+			const session = await getStripeClient().checkout.sessions.create({
+				mode: "subscription",
+				customer: stored.stripeCustomerId,
+				line_items: [{ price: plan.priceId, quantity: 1 }],
+				automatic_tax: { enabled: true },
+				tax_id_collection: { enabled: true },
+				billing_address_collection: "auto",
+				customer_update: { address: "auto", name: "auto" },
+				metadata: {
+					skedra_user_id: ctx.user.id,
+					skedra_plan: plan.code,
+				},
+				subscription_data: {
 					metadata: {
-						skedra_workspace_id: workspace.team.id,
-						skedra_owner_id: ctx.user.id,
+						skedra_user_id: ctx.user.id,
 						skedra_plan: plan.code,
 					},
-					subscription_data: {
-						metadata: {
-							skedra_workspace_id: workspace.team.id,
-							skedra_owner_id: ctx.user.id,
-							skedra_plan: plan.code,
-						},
-					},
-					success_url: `${getBillingSettingsUrl("success")}&session_id={CHECKOUT_SESSION_ID}`,
-					cancel_url: getBillingSettingsUrl("canceled"),
 				},
-				{
-					idempotencyKey: `skedra-checkout-${workspace.team.id}-${plan.priceId}-${subscription.stripeSubscriptionId ?? "new"}`,
-				},
-			);
+				success_url: `${getBillingSettingsUrl("success")}&session_id={CHECKOUT_SESSION_ID}`,
+				cancel_url: getBillingSettingsUrl("canceled"),
+			});
 			if (!session.url)
-				throw new Error("Stripe hat keine Checkout-URL zurückgegeben.");
+				throw new Error("Stripe hat keine Checkout-URL zurueckgegeben.");
 			return { url: session.url };
 		}),
 
 	createPortalSession: protectedProcedure.mutation(async ({ ctx }) => {
 		assertStripeBillingConfigured();
-
-		const workspace = await requireManagedWorkspace(ctx.db, ctx.user.id);
-		const subscription = await ctx.db.query.workspaceSubscriptions.findFirst({
-			where: eq(workspaceSubscriptions.teamId, workspace.team.id),
+		const stored = await ctx.db.query.userSubscriptions.findFirst({
+			where: eq(userSubscriptions.userId, ctx.user.id),
 		});
-		if (!subscription) {
+		if (!stored) {
 			throw new Error(
-				"Für diesen Workspace gibt es noch kein Stripe-Kundenkonto.",
+				"Fuer dieses Konto gibt es noch kein Stripe-Kundenkonto.",
 			);
 		}
 
 		const session = await getStripeClient().billingPortal.sessions.create({
-			customer: subscription.stripeCustomerId,
+			customer: stored.stripeCustomerId,
 			return_url: getBillingSettingsUrl(),
 			locale: "de",
 		});

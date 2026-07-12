@@ -66,7 +66,7 @@ export function BillingSettings() {
 							Abrechnung
 						</h2>
 						<p className="text-sm text-muted-foreground">
-							Abos und Zahlungsmethoden für deinen Workspace verwalten.
+							Dein persönliches Abo und deine Zahlungsmethode verwalten.
 						</p>
 					</div>
 				</div>
@@ -92,7 +92,7 @@ export function BillingSettings() {
 
 			{!billing?.canManageWorkspace ? (
 				<div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm">
-					Nur Workspace-Admins können die Abrechnung verwalten.
+					Die Abrechnung für dieses Konto kann nicht verwaltet werden.
 				</div>
 			) : !billing.configured ? (
 				<div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 shadow-sm">

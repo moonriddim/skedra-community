@@ -1,72 +1,11 @@
 import {
 	type Database,
 	stripeWebhookEvents,
-	teamMembers,
-	teams,
-	workspaceSubscriptions,
+	userSubscriptions,
+	users,
 } from "@skedra/db";
-import { and, count, eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
-import { getStripeClient, isStripeBillingConfigured } from "./stripe";
-
-const billableSubscriptionStatuses = new Set([
-	"active",
-	"trialing",
-	"past_due",
-	"unpaid",
-	"incomplete",
-]);
-
-type BillingWorkspace = { id: string; ownerId: string };
-
-export async function getWorkspaceSeatCount(
-	db: Database,
-	workspace: BillingWorkspace,
-) {
-	const [result] = await db
-		.select({ memberCount: count() })
-		.from(teamMembers)
-		.where(
-			and(
-				eq(teamMembers.teamId, workspace.id),
-				ne(teamMembers.userId, workspace.ownerId),
-			),
-		);
-	return (result?.memberCount ?? 0) + 1;
-}
-
-/** Keep a per-editor Stripe subscription quantity in sync with workspace access. */
-export async function syncWorkspaceSubscriptionSeats(
-	db: Database,
-	workspace: BillingWorkspace,
-) {
-	if (!isStripeBillingConfigured()) return;
-
-	const stored = await db.query.workspaceSubscriptions.findFirst({
-		where: eq(workspaceSubscriptions.teamId, workspace.id),
-	});
-	if (
-		!stored?.stripeSubscriptionId ||
-		!billableSubscriptionStatuses.has(stored.status)
-	) {
-		return;
-	}
-
-	const stripe = getStripeClient();
-	const subscription = await stripe.subscriptions.retrieve(
-		stored.stripeSubscriptionId,
-	);
-	const item = subscription.items.data[0];
-	if (!item) return;
-
-	const seatCount = await getWorkspaceSeatCount(db, workspace);
-	if (item.quantity === seatCount) return;
-
-	await stripe.subscriptions.update(subscription.id, {
-		items: [{ id: item.id, quantity: seatCount }],
-		proration_behavior: "create_prorations",
-	});
-}
 
 function stripeObjectId(
 	value: string | { id: string } | null | undefined,
@@ -75,29 +14,23 @@ function stripeObjectId(
 	return typeof value === "string" ? value : value.id;
 }
 
-function workspaceIdFromMetadata(metadata: Stripe.Metadata) {
-	const workspaceId = metadata.skedra_workspace_id;
-	return workspaceId?.trim() || null;
+function userIdFromMetadata(metadata: Stripe.Metadata) {
+	return metadata.skedra_user_id?.trim() || null;
 }
 
 async function syncCheckoutSession(
 	db: Database,
 	session: Stripe.Checkout.Session,
 ) {
-	const teamId = workspaceIdFromMetadata(session.metadata ?? {});
+	const userId = userIdFromMetadata(session.metadata ?? {});
 	const stripeCustomerId = stripeObjectId(session.customer);
 	const stripeSubscriptionId = stripeObjectId(session.subscription);
-	if (!teamId || !stripeCustomerId) return;
-
-	const current = await db.query.workspaceSubscriptions.findFirst({
-		where: eq(workspaceSubscriptions.teamId, teamId),
-	});
-	if (current?.stripeSubscriptionId || !stripeSubscriptionId) return;
+	if (!userId || !stripeCustomerId || !stripeSubscriptionId) return;
 
 	await db
-		.update(workspaceSubscriptions)
+		.update(userSubscriptions)
 		.set({ stripeSubscriptionId, updatedAt: new Date() })
-		.where(eq(workspaceSubscriptions.teamId, teamId));
+		.where(eq(userSubscriptions.userId, userId));
 }
 
 async function syncSubscription(
@@ -108,22 +41,23 @@ async function syncSubscription(
 	const stripeCustomerId = stripeObjectId(subscription.customer);
 	if (!stripeCustomerId) return;
 
-	const metadataTeamId = workspaceIdFromMetadata(subscription.metadata);
-	const byCustomer = metadataTeamId
+	const metadataUserId = userIdFromMetadata(subscription.metadata);
+	const byCustomer = metadataUserId
 		? null
-		: await db.query.workspaceSubscriptions.findFirst({
-				where: eq(workspaceSubscriptions.stripeCustomerId, stripeCustomerId),
+		: await db.query.userSubscriptions.findFirst({
+				where: eq(userSubscriptions.stripeCustomerId, stripeCustomerId),
 			});
-	const teamId = metadataTeamId ?? byCustomer?.teamId;
-	if (!teamId) return;
-	const workspace = await db.query.teams.findFirst({
-		where: eq(teams.id, teamId),
-		columns: { id: true, ownerId: true },
-	});
-	if (!workspace) return;
+	const userId = metadataUserId ?? byCustomer?.userId;
+	if (!userId) return;
 
-	const current = await db.query.workspaceSubscriptions.findFirst({
-		where: eq(workspaceSubscriptions.teamId, teamId),
+	const user = await db.query.users.findFirst({
+		where: eq(users.id, userId),
+		columns: { id: true },
+	});
+	if (!user) return;
+
+	const current = await db.query.userSubscriptions.findFirst({
+		where: eq(userSubscriptions.userId, userId),
 	});
 	if (
 		current?.lastStripeEventCreatedAt &&
@@ -138,9 +72,9 @@ async function syncSubscription(
 		: null;
 
 	await db
-		.insert(workspaceSubscriptions)
+		.insert(userSubscriptions)
 		.values({
-			teamId,
+			userId,
 			stripeCustomerId,
 			stripeSubscriptionId: subscription.id,
 			stripePriceId: firstItem?.price.id ?? null,
@@ -151,7 +85,7 @@ async function syncSubscription(
 			updatedAt: new Date(),
 		})
 		.onConflictDoUpdate({
-			target: workspaceSubscriptions.teamId,
+			target: userSubscriptions.userId,
 			set: {
 				stripeCustomerId,
 				stripeSubscriptionId: subscription.id,
@@ -184,18 +118,13 @@ async function processStripeEvent(db: Database, event: Stripe.Event) {
 			return;
 		case "invoice.paid":
 		case "invoice.payment_failed":
-			// The accompanying subscription event sets the authoritative access state.
-			// Recording this event still keeps the delivery observable and idempotent.
 			return;
 		default:
 			return;
 	}
 }
 
-/**
- * Stripe retries webhooks, so claim each event ID once. If processing fails,
- * release the claim and return an error so Stripe retries the delivery.
- */
+/** Stripe retries webhooks, so claim each event ID exactly once. */
 export async function processStripeWebhookEvent(
 	db: Database,
 	event: Stripe.Event,

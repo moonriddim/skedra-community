@@ -16,7 +16,7 @@ export function RegisterPage() {
 	const { data: session, isPending } = authClient.useSession();
 	const { t } = useI18n();
 	const [searchParams] = useSearchParams();
-	const baseRedirectTo = searchParams.get("redirect") || "/";
+	const baseRedirectTo = searchParams.get("redirect") || "/library";
 	const e2eeKeyFromHash = readE2eeKeyFromHash();
 	const redirectTo = e2eeKeyFromHash
 		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)

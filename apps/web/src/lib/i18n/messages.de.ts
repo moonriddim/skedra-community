@@ -348,6 +348,41 @@ export const deMessages = {
 			unexpected: "Ein unerwarteter Fehler ist aufgetreten",
 		},
 	},
+	subscriptionWall: {
+		title: "Skedra Cloud braucht ein aktives Abo",
+		description:
+			"Jede registrierte Person benötigt einen eigenen Zugang. Wähle dein Abo, um Boards, Teams und Cloud-Funktionen zu verwenden.",
+		signOut: "Abmelden",
+		monthly: "Monatlich",
+		yearly: "Jährlich",
+		perMonth: "pro Monat",
+		perYear: "pro Jahr",
+		monthlyDescription:
+			"Flexibel monatlich kündbar. Der Preis gilt für deinen persönlichen Nutzerzugang.",
+		yearlyDescription:
+			"Ein Jahr Skedra Cloud zum günstigeren Jahrespreis für deinen persönlichen Zugang.",
+		chooseMonthly: "Monatlich abonnieren",
+		chooseYearly: "Jährlich abonnieren",
+		savings: "17% sparen",
+		personalAccess: "Ein persönlicher Skedra-Cloud-Zugang",
+		cloudFeatures: "Boards, Teams, Präsentationen und Cloud-Speicher",
+		manage: "Abo und Zahlung verwalten",
+		paymentAttentionTitle: "Dein bestehendes Abo braucht Aufmerksamkeit",
+		paymentAttentionDescription:
+			"Öffne das Stripe-Kundenportal, um die Zahlung abzuschließen oder deine Zahlungsmethode zu aktualisieren.",
+		canceled: "Checkout abgebrochen – es wurde nichts belastet.",
+		activating:
+			"Zahlung abgeschlossen. Dein Zugang wird nach der Stripe-Bestätigung aktiviert.",
+		unavailableTitle: "Cloud-Abrechnung ist vorübergehend nicht verfügbar",
+		unavailableDescription:
+			"Bitte versuche es später erneut oder nutze Skedra als selbst gehostete Installation.",
+		selfhostTitle: "Lieber selbst hosten?",
+		selfhostDescription:
+			"Skedra kann auf deiner eigenen Infrastruktur betrieben werden. Im Selfhost-Modus gibt es keine Skedra-Cloud-Paywall; Betrieb, Updates und Daten liegen bei dir.",
+		selfhostAction: "Selfhost-Anleitung",
+		guestNote:
+			"Öffentliche Präsentations- und Freigabelinks können ohne Abo angesehen werden. Gäste erhalten im SaaS-Modus ausschließlich Lesezugriff.",
+	},
 	settings: {
 		apiKeys: {
 			nav: "API Keys",

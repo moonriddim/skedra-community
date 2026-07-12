@@ -5,7 +5,6 @@ import {
 	registrationInvites,
 	teamMembers,
 	teamRoles,
-	teams,
 	users,
 	whiteboardMembers,
 } from "@skedra/db";
@@ -13,7 +12,6 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { env } from "../env";
 import { membershipValuesFromTeamRole } from "./board-member-access";
 import { getOrCreateInstanceSettings } from "./instance-settings";
-import { syncWorkspaceSubscriptionSeats } from "./stripe-billing";
 
 const INVITE_TTL_DAYS = 7;
 
@@ -184,14 +182,6 @@ export async function completeRegistrationInvite(
 		.set({ acceptedAt: new Date() })
 		.where(eq(registrationInvites.id, invite.id))
 		.returning();
-
-	if (accepted?.teamId) {
-		const workspace = await db.query.teams.findFirst({
-			where: eq(teams.id, accepted.teamId),
-			columns: { id: true, ownerId: true },
-		});
-		if (workspace) await syncWorkspaceSubscriptionSeats(db, workspace);
-	}
 
 	return accepted;
 }

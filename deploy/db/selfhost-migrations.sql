@@ -579,6 +579,22 @@ CREATE TABLE IF NOT EXISTS "workspace_subscriptions" (
 CREATE INDEX IF NOT EXISTS "workspace_subscriptions_status_idx"
 	ON "workspace_subscriptions" ("status");
 
+CREATE TABLE IF NOT EXISTS "user_subscriptions" (
+	"user_id" text PRIMARY KEY NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+	"stripe_customer_id" text UNIQUE NOT NULL,
+	"stripe_subscription_id" text UNIQUE,
+	"stripe_price_id" text,
+	"status" text DEFAULT 'inactive' NOT NULL,
+	"cancel_at_period_end" boolean DEFAULT false NOT NULL,
+	"current_period_end" timestamp,
+	"last_stripe_event_created_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "user_subscriptions_status_idx"
+	ON "user_subscriptions" ("status");
+
 CREATE TABLE IF NOT EXISTS "stripe_webhook_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,

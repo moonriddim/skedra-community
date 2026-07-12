@@ -19,6 +19,7 @@ import {
 	readAssetObject,
 } from "./lib/assets";
 import { auth } from "./lib/auth";
+import { userHasProductAccess } from "./lib/billing-entitlement";
 import { subscribeBoardLive } from "./lib/board-live-bus";
 import {
 	type PresenceMember,
@@ -213,6 +214,9 @@ async function authorizeAssetUpload(input: {
 	}
 
 	if (!input.user) throw new AssetAccessError("Nicht authentifiziert", 401);
+	if (!(await userHasProductAccess(db, input.user.id))) {
+		throw new AssetAccessError("Aktives Abo erforderlich", 403);
+	}
 	const access = await getBoardAccess(
 		{ db, user: input.user },
 		input.whiteboardId,
@@ -269,11 +273,16 @@ async function authorizeAssetRead(input: {
 	embedShareToken: string;
 }) {
 	if (input.user) {
-		try {
-			await getBoardAccess({ db, user: input.user }, input.asset.whiteboardId);
-			return;
-		} catch {
-			// Share tokens below may still grant access.
+		if (await userHasProductAccess(db, input.user.id)) {
+			try {
+				await getBoardAccess(
+					{ db, user: input.user },
+					input.asset.whiteboardId,
+				);
+				return;
+			} catch {
+				// Share tokens below may still grant access.
+			}
 		}
 	}
 	if (
@@ -638,6 +647,9 @@ app.get("/api/boards/:id/live", async (c) => {
 
 	const session = await auth.api.getSession({ headers: c.req.raw.headers });
 	if (!session?.user) return c.json({ error: "Nicht authentifiziert" }, 401);
+	if (!(await userHasProductAccess(db, session.user.id))) {
+		return c.json({ error: "Aktives Abo erforderlich" }, 402);
+	}
 
 	try {
 		await getBoardAccess(
@@ -709,7 +721,7 @@ app.get(
 
 		if (boardId) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
-			if (session?.user) {
+			if (session?.user && (await userHasProductAccess(db, session.user.id))) {
 				try {
 					await getBoardAccess(
 						{

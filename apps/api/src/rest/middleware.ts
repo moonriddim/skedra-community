@@ -6,6 +6,7 @@ import { type SkedraApiKeyScope, apiKeyHasScope } from "@skedra/shared";
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { type ApiKeyUser, authenticateApiKey } from "../lib/api-keys";
+import { userHasProductAccess } from "../lib/billing-entitlement";
 import { db } from "../lib/db";
 
 export type ApiAuthVariables = {
@@ -28,6 +29,12 @@ export const apiKeyAuth = createMiddleware<{ Variables: ApiAuthVariables }>(
 		const auth = await authenticateApiKey(db, token);
 		if (!auth) {
 			return c.json({ error: "Ungueltiger oder abgelaufener API Key" }, 401);
+		}
+		if (!(await userHasProductAccess(db, auth.user.id))) {
+			return c.json(
+				{ error: "Ein aktives Skedra-Cloud-Abo ist erforderlich." },
+				402,
+			);
 		}
 
 		c.set("apiUser", auth.user);

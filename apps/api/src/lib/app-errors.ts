@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 
 export const appErrorCodes = {
 	unauthorized: "UNAUTHORIZED",
+	subscriptionRequired: "SUBSCRIPTION_REQUIRED",
 	whiteboardNotFound: "WHITEBOARD_NOT_FOUND",
 	whiteboardAccessDenied: "WHITEBOARD_ACCESS_DENIED",
 	whiteboardArchived: "WHITEBOARD_ARCHIVED",

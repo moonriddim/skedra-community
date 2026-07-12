@@ -342,6 +342,41 @@ export const enMessages = {
 			unexpected: "An unexpected error occurred",
 		},
 	},
+	subscriptionWall: {
+		title: "Skedra Cloud requires an active subscription",
+		description:
+			"Every registered person needs their own access. Choose a plan to use boards, teams, and cloud features.",
+		signOut: "Sign out",
+		monthly: "Monthly",
+		yearly: "Yearly",
+		perMonth: "per month",
+		perYear: "per year",
+		monthlyDescription:
+			"Flexible monthly billing. The price covers your personal user access.",
+		yearlyDescription:
+			"One year of Skedra Cloud at the lower annual price for your personal access.",
+		chooseMonthly: "Subscribe monthly",
+		chooseYearly: "Subscribe yearly",
+		savings: "Save 17%",
+		personalAccess: "One personal Skedra Cloud account",
+		cloudFeatures: "Boards, teams, presentations, and cloud storage",
+		manage: "Manage subscription and payment",
+		paymentAttentionTitle: "Your existing subscription needs attention",
+		paymentAttentionDescription:
+			"Open the Stripe customer portal to complete payment or update your payment method.",
+		canceled: "Checkout canceled — nothing was charged.",
+		activating:
+			"Payment completed. Your access will activate after Stripe confirms it.",
+		unavailableTitle: "Cloud billing is temporarily unavailable",
+		unavailableDescription:
+			"Please try again later or run Skedra as a self-hosted installation.",
+		selfhostTitle: "Prefer to self-host?",
+		selfhostDescription:
+			"Skedra can run on your own infrastructure. Self-hosted mode has no Skedra Cloud paywall; operations, updates, and data remain under your control.",
+		selfhostAction: "Self-hosting guide",
+		guestNote:
+			"Public presentation and share links can be viewed without a subscription. SaaS guests always have read-only access.",
+	},
 	settings: {
 		apiKeys: {
 			nav: "API Keys",

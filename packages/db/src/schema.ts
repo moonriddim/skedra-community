@@ -601,6 +601,26 @@ export const workspaceSubscriptions = pgTable(
 	(table) => [index("workspace_subscriptions_status_idx").on(table.status)],
 );
 
+/** Every registered SaaS user owns and pays for their own cloud entitlement. */
+export const userSubscriptions = pgTable(
+	"user_subscriptions",
+	{
+		userId: text("user_id")
+			.primaryKey()
+			.references(() => users.id, { onDelete: "cascade" }),
+		stripeCustomerId: text("stripe_customer_id").notNull().unique(),
+		stripeSubscriptionId: text("stripe_subscription_id").unique(),
+		stripePriceId: text("stripe_price_id"),
+		status: text("status").notNull().default("inactive"),
+		cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+		currentPeriodEnd: timestamp("current_period_end"),
+		lastStripeEventCreatedAt: timestamp("last_stripe_event_created_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [index("user_subscriptions_status_idx").on(table.status)],
+);
+
 /** Webhook event IDs make Stripe's at-least-once delivery safe to retry. */
 export const stripeWebhookEvents = pgTable("stripe_webhook_events", {
 	id: text("id").primaryKey(),
@@ -668,6 +688,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	sessions: many(sessions),
 	accounts: many(accounts),
 	preferences: one(userPreferences),
+	subscription: one(userSubscriptions),
 }));
 
 export const instanceSettingsRelations = relations(
@@ -965,6 +986,16 @@ export const workspaceSubscriptionsRelations = relations(
 		team: one(teams, {
 			fields: [workspaceSubscriptions.teamId],
 			references: [teams.id],
+		}),
+	}),
+);
+
+export const userSubscriptionsRelations = relations(
+	userSubscriptions,
+	({ one }) => ({
+		user: one(users, {
+			fields: [userSubscriptions.userId],
+			references: [users.id],
 		}),
 	}),
 );
