@@ -3,10 +3,16 @@ import {
 	teamMembers,
 	teams,
 	whiteboardMembers,
-	whiteboardRoles,
+	whiteboardTeamRoleAccess,
 	whiteboards,
 } from "@skedra/db";
-import { type RealtimeRole, parseTeamRolePermissions } from "@skedra/shared";
+import {
+	type CanvasRole,
+	TEAM_ROLE_PERMISSION_KEYS,
+	type TeamRolePermissions,
+	accessLevelFromPermissions,
+	parseTeamRolePermissions,
+} from "@skedra/shared";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { isBoardArchived } from "./activity";
 import { appErrorCodes, createAppError } from "./app-errors";
@@ -35,7 +41,7 @@ type BoardListAccess = "owner" | "edit" | "view";
 
 export type BoardAccessResult = {
 	whiteboard: typeof whiteboards.$inferSelect;
-	role: RealtimeRole;
+	role: CanvasRole;
 	canWrite: boolean;
 	canComment: boolean;
 	canResolveComments: boolean;
@@ -51,6 +57,65 @@ export type BoardAccessResult = {
 	roleName: string | null;
 	roleColor: string | null;
 };
+
+async function hasTeamRoleBoardAccess(
+	db: Database,
+	whiteboardId: string,
+	roleId: string | null | undefined,
+) {
+	if (!roleId) return false;
+	const grant = await db.query.whiteboardTeamRoleAccess.findFirst({
+		where: and(
+			eq(whiteboardTeamRoleAccess.whiteboardId, whiteboardId),
+			eq(whiteboardTeamRoleAccess.teamRoleId, roleId),
+		),
+		columns: { id: true },
+	});
+	return !!grant;
+}
+
+function mergeBoardAccess(
+	accesses: Array<ResolvedBoardAccess | null | undefined>,
+): ResolvedBoardAccess | null {
+	const available = accesses.filter(
+		(access): access is ResolvedBoardAccess => !!access,
+	);
+	if (available.length === 0) return null;
+	if (available.length === 1) return available[0];
+
+	const permissions = { ...available[0].permissions };
+	for (const key of TEAM_ROLE_PERMISSION_KEYS) {
+		permissions[key] = available.some((access) => access.permissions[key]);
+	}
+
+	const canWrite = available.some((access) => access.canWrite);
+	const strongest = available.reduce((best, access) => {
+		const bestScore =
+			(best.permissions.admin ? 4 : 0) +
+			(best.canManageMembers ? 2 : 0) +
+			(best.canWrite ? 1 : 0);
+		const accessScore =
+			(access.permissions.admin ? 4 : 0) +
+			(access.canManageMembers ? 2 : 0) +
+			(access.canWrite ? 1 : 0);
+		return accessScore > bestScore ? access : best;
+	}, available[0]);
+
+	return {
+		...strongest,
+		permissions,
+		canWrite,
+		canComment: available.some((access) => access.canComment),
+		canResolveComments: available.some((access) => access.canResolveComments),
+		canInvite: available.some((access) => access.canInvite),
+		canManageShare: available.some((access) => access.canManageShare),
+		canManageMembers: available.some((access) => access.canManageMembers),
+		canViewActivity: available.some((access) => access.canViewActivity),
+		canUseAi: available.some((access) => access.canUseAi),
+		canManage: available.some((access) => access.canManage),
+		accessLevel: canWrite ? "edit" : "view",
+	};
+}
 
 export async function getBoardAccess(
 	ctx: Ctx,
@@ -93,12 +158,20 @@ export async function getBoardAccess(
 		),
 	});
 
-	const workspaceMembership =
-		!isOwner && !membership
-			? await getWorkspaceMembership(ctx.db, ctx.user.id, whiteboard.teamId)
-			: null;
+	const workspaceMembership = !isOwner
+		? await getWorkspaceMembership(ctx.db, ctx.user.id, whiteboard.teamId)
+		: null;
+	const workspaceAccessAllowed =
+		!!workspaceMembership &&
+		(workspaceMembership.isOwner ||
+			workspaceMembership.workspaceRole === "admin" ||
+			(await hasTeamRoleBoardAccess(
+				ctx.db,
+				whiteboardId,
+				workspaceMembership.memberRole?.id,
+			)));
 
-	if (!isOwner && !membership && !workspaceMembership) {
+	if (!isOwner && !membership && !workspaceAccessAllowed) {
 		throw createAppError({
 			code: "FORBIDDEN",
 			appErrorCode: appErrorCodes.whiteboardAccessDenied,
@@ -110,16 +183,28 @@ export async function getBoardAccess(
 	if (isOwner) {
 		resolved = resolveOwnerBoardAccess();
 	} else {
-		resolved = membership
+		const memberAccess = membership
 			? await resolveMemberBoardAccess(ctx.db, whiteboardId, membership)
-			: resolveWorkspaceBoardAccess({
+			: null;
+		const workspaceAccess = workspaceAccessAllowed
+			? resolveWorkspaceBoardAccess({
 					isWorkspaceOwner: workspaceMembership?.isOwner ?? false,
 					workspaceRole: workspaceMembership?.workspaceRole ?? "member",
 					memberRole: workspaceMembership?.memberRole ?? null,
-				});
+				})
+			: null;
+		const merged = mergeBoardAccess([memberAccess, workspaceAccess]);
+		if (!merged) {
+			throw createAppError({
+				code: "FORBIDDEN",
+				appErrorCode: appErrorCodes.whiteboardAccessDenied,
+				message: "Kein Zugriff auf dieses Board",
+			});
+		}
+		resolved = merged;
 	}
 
-	const realtimeRole: RealtimeRole = isOwner
+	const canvasRole: CanvasRole = isOwner
 		? "owner"
 		: resolved.canWrite
 			? "editor"
@@ -127,7 +212,7 @@ export async function getBoardAccess(
 
 	return {
 		whiteboard,
-		role: realtimeRole,
+		role: canvasRole,
 		canWrite: resolved.canWrite,
 		canComment: resolved.canComment,
 		canResolveComments: resolved.canResolveComments,
@@ -283,6 +368,49 @@ export async function requireBoardManageMembers(
 	return access;
 }
 
+export async function requireBoardViewActivity(ctx: Ctx, whiteboardId: string) {
+	const access = await getBoardAccess(ctx, whiteboardId);
+	if (!access.canViewActivity) {
+		throw createAppError({
+			code: "FORBIDDEN",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "Keine Berechtigung fuer Aktivitaeten",
+		});
+	}
+	return access;
+}
+
+export function canGrantTeamRolePermissions(
+	granter: TeamRolePermissions,
+	target: TeamRolePermissions,
+) {
+	return TEAM_ROLE_PERMISSION_KEYS.every((key) => {
+		if (!target[key]) return true;
+		if (key === "manageWorkspaceAdmins") {
+			return granter.manageWorkspaceAdmins;
+		}
+		return granter.admin || granter[key];
+	});
+}
+
+export function assertCanAssignTeamRoleForBoard(
+	access: BoardAccessResult,
+	targetPermissions: TeamRolePermissions,
+) {
+	if (access.canManage) return;
+	if (
+		(access.canManageMembers || access.canInvite) &&
+		canGrantTeamRolePermissions(access.permissions, targetPermissions)
+	) {
+		return;
+	}
+	throw createAppError({
+		code: "FORBIDDEN",
+		appErrorCode: appErrorCodes.whiteboardAccessDenied,
+		message: "Du darfst keine Rolle mit hoeheren Rechten vergeben",
+	});
+}
+
 /** Bibliothek: eigene Boards + explizit geteilte. */
 export async function findBoardsForUser(db: Database, userId: string) {
 	const owned = await db.query.whiteboards.findMany({
@@ -296,7 +424,6 @@ export async function findBoardsForUser(db: Database, userId: string) {
 			presentationShareEnabled: true,
 			collabShareEnabled: true,
 			embedShareEnabled: true,
-			e2eeEnabled: true,
 			createdAt: true,
 			updatedAt: true,
 		},
@@ -315,13 +442,12 @@ export async function findBoardsForUser(db: Database, userId: string) {
 					presentationShareEnabled: true,
 					collabShareEnabled: true,
 					embedShareEnabled: true,
-					e2eeEnabled: true,
 					archivedAt: true,
 					createdAt: true,
 					updatedAt: true,
 				},
 			},
-			role: true,
+			teamRole: true,
 		},
 	});
 
@@ -332,6 +458,15 @@ export async function findBoardsForUser(db: Database, userId: string) {
 	};
 
 	const byId = new Map<string, BoardRow>();
+	const setBoardListAccess = (row: BoardRow) => {
+		const existing = byId.get(row.id);
+		if (
+			!existing ||
+			(existing.libraryAccess === "view" && row.libraryAccess !== "view")
+		) {
+			byId.set(row.id, row);
+		}
+	};
 
 	for (const board of owned) {
 		byId.set(board.id, { ...board, libraryAccess: "owner" });
@@ -339,12 +474,16 @@ export async function findBoardsForUser(db: Database, userId: string) {
 
 	for (const entry of memberEntries) {
 		if (!entry.whiteboard || entry.whiteboard.archivedAt) continue;
+		if (!entry.teamRole) continue;
 		const { archivedAt: _, ...board } = entry.whiteboard;
-		byId.set(board.id, {
+		const explicitPermissions = parseTeamRolePermissions(
+			entry.teamRole.permissions,
+		);
+		setBoardListAccess({
 			...board,
-			libraryAccess: entry.accessLevel === "view" ? "view" : "edit",
-			roleName: entry.role?.name ?? null,
-			roleColor: entry.role?.color ?? null,
+			libraryAccess: accessLevelFromPermissions(explicitPermissions),
+			roleName: entry.teamRole.name,
+			roleColor: entry.teamRole.color,
 		});
 	}
 
@@ -360,6 +499,19 @@ export async function findBoardsForUser(db: Database, userId: string) {
 		...ownedTeams.map((team) => team.id),
 		...workspaceMemberships.map((member) => member.teamId),
 	];
+	const workspaceRoleIds = workspaceMemberships
+		.map((member) => member.roleId)
+		.filter((roleId): roleId is string => !!roleId);
+	const roleGrantKeys = new Set<string>();
+	if (workspaceRoleIds.length > 0) {
+		const grants = await db.query.whiteboardTeamRoleAccess.findMany({
+			where: inArray(whiteboardTeamRoleAccess.teamRoleId, workspaceRoleIds),
+			columns: { whiteboardId: true, teamRoleId: true },
+		});
+		for (const grant of grants) {
+			roleGrantKeys.add(`${grant.whiteboardId}:${grant.teamRoleId}`);
+		}
+	}
 
 	if (workspaceTeamIds.length > 0) {
 		const workspaceBoards = await db.query.whiteboards.findMany({
@@ -376,7 +528,6 @@ export async function findBoardsForUser(db: Database, userId: string) {
 				presentationShareEnabled: true,
 				collabShareEnabled: true,
 				embedShareEnabled: true,
-				e2eeEnabled: true,
 				createdAt: true,
 				updatedAt: true,
 			},
@@ -387,18 +538,29 @@ export async function findBoardsForUser(db: Database, userId: string) {
 		const ownedTeamIds = new Set(ownedTeams.map((team) => team.id));
 
 		for (const board of workspaceBoards) {
-			if (byId.has(board.id)) continue;
+			if (byId.get(board.id)?.libraryAccess === "owner") continue;
 			const member =
 				board.teamId != null ? membershipByTeam.get(board.teamId) : undefined;
 			const ownedWorkspace =
 				board.teamId != null && ownedTeamIds.has(board.teamId);
+			const roleGranted =
+				!!member?.roleId && roleGrantKeys.has(`${board.id}:${member.roleId}`);
+			if (
+				!ownedWorkspace &&
+				member?.workspaceRole !== "admin" &&
+				!roleGranted
+			) {
+				continue;
+			}
 			const canEdit =
 				ownedWorkspace ||
 				member?.workspaceRole === "admin" ||
 				(member?.role
-					? parseTeamRolePermissions(member.role.permissions).editCanvas
-					: true);
-			byId.set(board.id, {
+					? accessLevelFromPermissions(
+							parseTeamRolePermissions(member.role.permissions),
+						) === "edit"
+					: false);
+			setBoardListAccess({
 				...board,
 				libraryAccess: canEdit ? "edit" : "view",
 				roleName: ownedWorkspace
@@ -440,7 +602,7 @@ export async function getBoardCollaborators(
 			members: {
 				with: {
 					user: { columns: { id: true, name: true, image: true } },
-					role: true,
+					teamRole: true,
 				},
 			},
 		},
@@ -465,10 +627,49 @@ export async function getBoardCollaborators(
 		},
 	];
 
+	const roleGrants = await db.query.whiteboardTeamRoleAccess.findMany({
+		where: eq(whiteboardTeamRoleAccess.whiteboardId, whiteboardId),
+		orderBy: asc(whiteboardTeamRoleAccess.createdAt),
+		with: { teamRole: true },
+	});
+	const grantedRoleIds = roleGrants
+		.map((grant) => grant.teamRoleId)
+		.filter((roleId): roleId is string => !!roleId);
+	const grantedRoleIdSet = new Set(grantedRoleIds);
+
+	const resolveGrantedWorkspaceAccess = async (userId: string) => {
+		if (!whiteboard.teamId) return null;
+		const workspaceMembership = await getWorkspaceMembership(
+			db,
+			userId,
+			whiteboard.teamId,
+		);
+		if (!workspaceMembership) return null;
+		const workspaceAccessAllowed =
+			workspaceMembership.isOwner ||
+			workspaceMembership.workspaceRole === "admin" ||
+			(!!workspaceMembership.memberRole?.id &&
+				grantedRoleIdSet.has(workspaceMembership.memberRole.id));
+		if (!workspaceAccessAllowed) return null;
+
+		return resolveWorkspaceBoardAccess({
+			isWorkspaceOwner: workspaceMembership.isOwner,
+			workspaceRole: workspaceMembership.workspaceRole,
+			memberRole: workspaceMembership.memberRole,
+		});
+	};
+
 	for (const entry of whiteboard.members.filter(
 		(member) => member.user.id !== whiteboard.ownerId,
 	)) {
-		const resolved = await resolveMemberBoardAccess(db, whiteboardId, entry);
+		const memberAccess = await resolveMemberBoardAccess(
+			db,
+			whiteboardId,
+			entry,
+		);
+		const workspaceAccess = await resolveGrantedWorkspaceAccess(entry.user.id);
+		const resolved =
+			mergeBoardAccess([memberAccess, workspaceAccess]) ?? memberAccess;
 		members.push({
 			id: entry.user.id,
 			membershipId: entry.id,
@@ -483,15 +684,85 @@ export async function getBoardCollaborators(
 		});
 	}
 
-	const roles = await db.query.whiteboardRoles.findMany({
-		where: eq(whiteboardRoles.whiteboardId, whiteboardId),
-		orderBy: asc(whiteboardRoles.createdAt),
-	});
-	const roleOptions = roles.map((role) => ({
-		id: role.id,
-		name: role.name,
-		color: role.color,
-	}));
+	const explicitMemberIds = new Set(members.map((member) => member.id));
+
+	if (whiteboard.teamId && grantedRoleIds.length > 0) {
+		const roleMembers = await db.query.teamMembers.findMany({
+			where: and(
+				eq(teamMembers.teamId, whiteboard.teamId),
+				inArray(teamMembers.roleId, grantedRoleIds),
+			),
+			with: {
+				user: { columns: { id: true, name: true, image: true } },
+				role: true,
+			},
+		});
+
+		for (const member of roleMembers) {
+			if (explicitMemberIds.has(member.user.id)) continue;
+			const resolved = resolveWorkspaceBoardAccess({
+				isWorkspaceOwner: false,
+				workspaceRole: member.workspaceRole,
+				memberRole: member.role,
+			});
+			members.push({
+				id: member.user.id,
+				membershipId: null,
+				name: member.user.name,
+				image: member.user.image,
+				isOwner: false,
+				accessLevel: resolved.accessLevel,
+				roleId: resolved.roleId,
+				roleName: resolved.roleName,
+				roleColor: resolved.roleColor,
+				permissions: resolved.permissions,
+			});
+			explicitMemberIds.add(member.user.id);
+		}
+	}
+
+	if (whiteboard.teamId) {
+		const workspaceAdmins = await db.query.teamMembers.findMany({
+			where: and(
+				eq(teamMembers.teamId, whiteboard.teamId),
+				eq(teamMembers.workspaceRole, "admin"),
+			),
+			with: {
+				user: { columns: { id: true, name: true, image: true } },
+				role: true,
+			},
+		});
+
+		for (const member of workspaceAdmins) {
+			if (explicitMemberIds.has(member.user.id)) continue;
+			const resolved = resolveWorkspaceBoardAccess({
+				isWorkspaceOwner: false,
+				workspaceRole: member.workspaceRole,
+				memberRole: member.role,
+			});
+			members.push({
+				id: member.user.id,
+				membershipId: null,
+				name: member.user.name,
+				image: member.user.image,
+				isOwner: false,
+				accessLevel: resolved.accessLevel,
+				roleId: resolved.roleId,
+				roleName: resolved.roleName,
+				roleColor: resolved.roleColor,
+				permissions: resolved.permissions,
+			});
+			explicitMemberIds.add(member.user.id);
+		}
+	}
+
+	const roleOptions = roleGrants
+		.filter((grant) => !!grant.teamRole)
+		.map((grant) => ({
+			id: grant.teamRole.id,
+			name: grant.teamRole.name,
+			color: grant.teamRole.color,
+		}));
 
 	return { members, roles: roleOptions, groups: roleOptions };
 }

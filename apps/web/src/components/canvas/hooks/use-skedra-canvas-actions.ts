@@ -3,6 +3,7 @@
  */
 
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
+import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { pickAndBuildImageElements } from "@/lib/canvas/insert-image";
 import { useThemeStore } from "@/stores/theme";
 import {
@@ -36,6 +37,7 @@ interface UseSkedraCanvasActionsOptions {
 	localMode: boolean;
 	localClearCanvas?: () => void;
 	onRequestClearCanvas?: () => void;
+	imageUploadOptions?: ImageUploadOptions;
 	deleteElementsWithKanbanReflow: (ids: string[]) => void;
 	fitViewportToBounds: (
 		bounds: { x: number; y: number; width: number; height: number },
@@ -51,6 +53,7 @@ export function useSkedraCanvasActions({
 	localMode,
 	localClearCanvas,
 	onRequestClearCanvas,
+	imageUploadOptions,
 	deleteElementsWithKanbanReflow,
 	fitViewportToBounds,
 	addFlowchartStep,
@@ -85,13 +88,15 @@ export function useSkedraCanvasActions({
 	}, [fitViewportToBounds, store.selectedIds, sync.scene]);
 
 	const handleInsertImage = useCallback(async () => {
-		const elementsToAdd = await pickAndBuildImageElements(getViewportCenter(), {
-			resolvedTheme,
-		});
+		const elementsToAdd = await pickAndBuildImageElements(
+			getViewportCenter(),
+			{ resolvedTheme },
+			imageUploadOptions,
+		);
 		if (elementsToAdd.length === 0) return;
 		for (const el of elementsToAdd) sync.createElement(el);
 		store.setSelectedIds(new Set([elementsToAdd[0].id]));
-	}, [getViewportCenter, resolvedTheme, store, sync]);
+	}, [getViewportCenter, imageUploadOptions, resolvedTheme, store, sync]);
 
 	const handlePastePlainText = useCallback(
 		(text: string) => {

@@ -180,19 +180,8 @@ export const useCanvasLibraryStore = create<CanvasLibraryState>()(
 		{
 			name: "skedra-shape-libraries",
 			version: 2,
-			migrate: (persisted, version) => {
+			migrate: (persisted) => {
 				const state = persisted as Record<string, unknown>;
-				if (version < 2 && Array.isArray(state.personalItems)) {
-					const legacyItems = state.personalItems as SkedraLibraryItem[];
-					const pkg = createDefaultPackage("Meine Bibliothek");
-					pkg.items = legacyItems;
-					return {
-						...state,
-						ownPackages: [pkg],
-						activePackageId: pkg.id,
-						personalItems: undefined,
-					};
-				}
 				const ownPackages = state.ownPackages;
 				if (!Array.isArray(ownPackages) || ownPackages.length === 0) {
 					const pkg = createDefaultPackage("Meine Bibliothek");

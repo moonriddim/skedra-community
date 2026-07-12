@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type {
 	LocalCanvasPresence,
 	RemoteCanvasPresence,
-} from "@/hooks/use-canvas-sync";
+} from "@/hooks/canvas-sync-types";
 import { getUserInitials } from "@/lib/user-initials";
 import { useEffect, useState } from "react";
 

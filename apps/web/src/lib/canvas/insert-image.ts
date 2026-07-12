@@ -8,7 +8,11 @@ import {
 } from "@skedra/canvas-core";
 import type { CanvasThemeState } from "./canvas-defaults";
 import { getCanvasElementFactoryDefaults } from "./canvas-factory-defaults";
-import { fitImageSize, pickImageFile } from "./image-utils";
+import {
+	type ImageUploadOptions,
+	fitImageSize,
+	pickImageFile,
+} from "./image-utils";
 
 export async function pickAndBuildImageElements(
 	center: {
@@ -16,19 +20,29 @@ export async function pickAndBuildImageElements(
 		y: number;
 	},
 	theme?: CanvasThemeState,
+	uploadOptions?: ImageUploadOptions,
 ): Promise<CanvasElement[]> {
-	const picked = await pickImageFile();
+	const picked = await pickImageFile(uploadOptions);
 	if (!picked) return [];
 
 	const fitted = fitImageSize(picked.width, picked.height, 480, 360);
-	return [
-		createImageCanvasElement(getCanvasElementFactoryDefaults(theme), {
+	const element = createImageCanvasElement(
+		getCanvasElementFactoryDefaults(theme),
+		{
 			x: center.x - fitted.width / 2,
 			y: center.y - fitted.height / 2,
 			src: picked.src,
 			width: fitted.width,
 			height: fitted.height,
 			alt: picked.name,
-		}),
-	];
+		},
+	);
+	if (picked.assetId) {
+		element.customData = {
+			...(element.customData ?? {}),
+			assetId: picked.assetId,
+		};
+	}
+
+	return [element];
 }

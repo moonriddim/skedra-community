@@ -2,7 +2,13 @@
  * tRPC Router fuer die Team/Workspace-Verwaltung inkl. Rollen mit Farben.
  */
 
-import { teamMembers, teamRoles, teams, users } from "@skedra/db";
+import {
+	teamMembers,
+	teamRoles,
+	teams,
+	users,
+	whiteboardMembers,
+} from "@skedra/db";
 import {
 	parseTeamRolePermissions,
 	serializeTeamRolePermissions,
@@ -16,6 +22,7 @@ import {
 	createRegistrationInvite,
 	normalizeInviteEmail,
 } from "../../lib/registration-invites";
+import { syncWorkspaceSubscriptionSeats } from "../../lib/stripe-billing";
 import { isValidTeamRoleColor, requireTeamRole } from "../../lib/team-roles";
 import { requireManagedWorkspace } from "../../lib/workspace";
 import { protectedProcedure, router } from "../init";
@@ -23,6 +30,19 @@ import { protectedProcedure, router } from "../init";
 const roleColorSchema = z
 	.string()
 	.regex(/^#[0-9A-Fa-f]{6}$/, "Ungültige Hex-Farbe (#RRGGBB)");
+
+function roleCanManageWorkspaceAdmins(role: typeof teamRoles.$inferSelect) {
+	return parseTeamRolePermissions(role.permissions).manageWorkspaceAdmins;
+}
+
+function assertCanManageWorkspaceAdmins(
+	canManageWorkspaceAdmins: boolean,
+	message: string,
+) {
+	if (!canManageWorkspaceAdmins) {
+		throw new Error(message);
+	}
+}
 
 export const teamRouter = router({
 	/** Holt das Team des Users inkl. Mitglieder und Rollen */
@@ -130,8 +150,15 @@ export const teamRouter = router({
 		const currentMembership = team.members.find(
 			(member) => member.userId === ctx.user.id,
 		);
+		const currentRolePermissions = currentMembership?.role
+			? parseTeamRolePermissions(currentMembership.role.permissions)
+			: null;
 		const canManageWorkspace =
 			isOwner || currentMembership?.workspaceRole === "admin";
+		const canManageWorkspaceAdmins =
+			isOwner ||
+			(currentMembership?.workspaceRole === "admin" &&
+				(currentRolePermissions?.manageWorkspaceAdmins ?? false));
 
 		return {
 			...team,
@@ -140,9 +167,19 @@ export const teamRouter = router({
 				? ("admin" as const)
 				: (currentMembership?.workspaceRole ?? null),
 			canManageWorkspace,
+			canManageWorkspaceAdmins,
 			roles: team.roles.map((role) => ({
 				...role,
 				permissions: parseTeamRolePermissions(role.permissions),
+			})),
+			members: team.members.map((member) => ({
+				...member,
+				role: member.role
+					? {
+							...member.role,
+							permissions: parseTeamRolePermissions(member.role.permissions),
+						}
+					: null,
 			})),
 		};
 	}),
@@ -168,10 +205,20 @@ export const teamRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { team } = await requireManagedWorkspace(ctx.db, ctx.user.id);
+			const { team, canManageWorkspaceAdmins } = await requireManagedWorkspace(
+				ctx.db,
+				ctx.user.id,
+			);
 
 			if (!isValidTeamRoleColor(input.color)) {
 				throw new Error("Ungültige Farbe");
+			}
+
+			if (input.permissions.manageWorkspaceAdmins) {
+				assertCanManageWorkspaceAdmins(
+					canManageWorkspaceAdmins,
+					"Keine Berechtigung, Workspace-Admin-Rechte zu vergeben.",
+				);
 			}
 
 			const [role] = await ctx.db
@@ -200,8 +247,20 @@ export const teamRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { team } = await requireManagedWorkspace(ctx.db, ctx.user.id);
-			await requireTeamRole(ctx.db, team.id, input.roleId);
+			const { team, canManageWorkspaceAdmins } = await requireManagedWorkspace(
+				ctx.db,
+				ctx.user.id,
+			);
+			const existingRole = await requireTeamRole(ctx.db, team.id, input.roleId);
+			if (
+				roleCanManageWorkspaceAdmins(existingRole) ||
+				input.permissions?.manageWorkspaceAdmins
+			) {
+				assertCanManageWorkspaceAdmins(
+					canManageWorkspaceAdmins,
+					"Keine Berechtigung, Workspace-Admin-Rechte zu verwalten.",
+				);
+			}
 
 			const updates: { name?: string; color?: string; permissions?: string } =
 				{};
@@ -231,9 +290,21 @@ export const teamRouter = router({
 	deleteRole: protectedProcedure
 		.input(z.object({ roleId: z.string().uuid() }))
 		.mutation(async ({ ctx, input }) => {
-			const { team } = await requireManagedWorkspace(ctx.db, ctx.user.id);
-			await requireTeamRole(ctx.db, team.id, input.roleId);
+			const { team, canManageWorkspaceAdmins } = await requireManagedWorkspace(
+				ctx.db,
+				ctx.user.id,
+			);
+			const role = await requireTeamRole(ctx.db, team.id, input.roleId);
+			if (roleCanManageWorkspaceAdmins(role)) {
+				assertCanManageWorkspaceAdmins(
+					canManageWorkspaceAdmins,
+					"Keine Berechtigung, Rollen mit Workspace-Admin-Rechten zu loeschen.",
+				);
+			}
 
+			await ctx.db
+				.delete(whiteboardMembers)
+				.where(eq(whiteboardMembers.teamRoleId, input.roleId));
 			await ctx.db.delete(teamRoles).where(eq(teamRoles.id, input.roleId));
 			return { success: true };
 		}),
@@ -248,9 +319,18 @@ export const teamRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { team } = await requireManagedWorkspace(ctx.db, ctx.user.id);
+			const { team, canManageWorkspaceAdmins } = await requireManagedWorkspace(
+				ctx.db,
+				ctx.user.id,
+			);
 			if (input.roleId) {
 				await requireTeamRole(ctx.db, team.id, input.roleId);
+			}
+			if (input.workspaceRole === "admin") {
+				assertCanManageWorkspaceAdmins(
+					canManageWorkspaceAdmins,
+					"Keine Berechtigung, Workspace-Admins einzuladen.",
+				);
 			}
 
 			const email = normalizeInviteEmail(input.email);
@@ -313,6 +393,7 @@ export const teamRouter = router({
 					roleId: input.roleId ?? null,
 					workspaceRole: input.workspaceRole,
 				});
+				await syncWorkspaceSubscriptionSeats(ctx.db, team);
 			}
 
 			return { success: true, pendingRegistration: false };
@@ -327,7 +408,7 @@ export const teamRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { team, isOwner } = await requireManagedWorkspace(
+			const { team, canManageWorkspaceAdmins } = await requireManagedWorkspace(
 				ctx.db,
 				ctx.user.id,
 			);
@@ -347,8 +428,14 @@ export const teamRouter = router({
 			if (!targetMember) {
 				throw new Error("Mitglied nicht gefunden.");
 			}
-			if (!isOwner && targetMember.workspaceRole === "admin") {
-				throw new Error("Admins können keine anderen Admins verwalten.");
+			if (
+				targetMember.workspaceRole === "admin" ||
+				input.workspaceRole === "admin"
+			) {
+				assertCanManageWorkspaceAdmins(
+					canManageWorkspaceAdmins,
+					"Keine Berechtigung, Workspace-Admins zu verwalten.",
+				);
 			}
 
 			const [updated] = await ctx.db
@@ -376,7 +463,7 @@ export const teamRouter = router({
 	removeMember: protectedProcedure
 		.input(z.object({ userId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const { team, isOwner } = await requireManagedWorkspace(
+			const { team, canManageWorkspaceAdmins } = await requireManagedWorkspace(
 				ctx.db,
 				ctx.user.id,
 			);
@@ -393,8 +480,11 @@ export const teamRouter = router({
 			if (!targetMember) {
 				throw new Error("Mitglied nicht gefunden.");
 			}
-			if (!isOwner && targetMember.workspaceRole === "admin") {
-				throw new Error("Admins können keine anderen Admins entfernen.");
+			if (targetMember.workspaceRole === "admin") {
+				assertCanManageWorkspaceAdmins(
+					canManageWorkspaceAdmins,
+					"Keine Berechtigung, Workspace-Admins zu entfernen.",
+				);
 			}
 
 			await ctx.db
@@ -405,6 +495,7 @@ export const teamRouter = router({
 						eq(teamMembers.userId, input.userId),
 					),
 				);
+			await syncWorkspaceSubscriptionSeats(ctx.db, team);
 
 			return { success: true };
 		}),

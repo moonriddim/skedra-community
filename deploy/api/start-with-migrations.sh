@@ -2,7 +2,7 @@
 set -eu
 
 if [ "${SKEDRA_RUN_MIGRATIONS:-true}" = "false" ] || [ "${SKEDRA_RUN_MIGRATIONS:-true}" = "0" ]; then
-	exec node index.js
+	exec node index.cjs
 fi
 
 if [ -z "${DATABASE_URL:-}" ]; then
@@ -21,4 +21,4 @@ fi
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /app/selfhost-migrations.sql
 
 echo "[skedra] Database migrations complete."
-exec node index.js
+exec node index.cjs

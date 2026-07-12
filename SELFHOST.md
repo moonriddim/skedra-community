@@ -9,13 +9,13 @@ the open-source Skedra codebase.
 Skedra uses a clear Community/Core license split:
 
 - Skedra Community is open source and includes the workspace app, accounts,
-  teams, stored boards, database schema, realtime collaboration, comments, and
+  teams, stored boards, database schema, encrypted collaboration, comments, and
   self-host deployment.
 - Skedra Core is the MIT-licensed editor/canvas layer in
   `packages/canvas-core` and `packages/react`.
 
-The full Community source lives in this public OSS repository. The reusable
-editor packages remain MIT licensed inside `packages/canvas-core` and
+The full Community source is mirrored into the public OSS repository. The
+reusable editor packages remain MIT licensed inside `packages/canvas-core` and
 `packages/react`.
 
 ## Requirements
@@ -53,8 +53,8 @@ Open:
 http://localhost:3000
 ```
 
-The standalone image includes embedded PostgreSQL, the API, realtime
-collaboration, the web app, and the library catalog. Data and generated secrets
+The standalone image includes embedded PostgreSQL, the API, the web app, and
+the library catalog. Data and generated secrets
 are stored in `/data`, so keep the volume.
 
 For a production domain, set the public URL:
@@ -68,8 +68,8 @@ docker run -d \
   ghcr.io/your-github-user/skedra-standalone:latest
 ```
 
-AI, SMTP, and LiveKit calls still need provider configuration through
-environment variables or the app's system settings.
+AI, SMTP, and LiveKit calls still need provider configuration through environment
+variables or the app's system settings.
 
 ## Compose Install
 
@@ -93,7 +93,6 @@ SKEDRA_IMAGE_TAG=latest
 SKEDRA_PUBLIC_APP_URL=http://localhost:5174
 SKEDRA_PUBLIC_LIBRARIES_URL=http://localhost:5175
 SKEDRA_PUBLIC_API_URL=http://localhost:5174
-SKEDRA_PUBLIC_REALTIME_URL=ws://localhost:5174/realtime
 ```
 
 For a production domain:
@@ -102,7 +101,6 @@ For a production domain:
 SKEDRA_PUBLIC_APP_URL=https://skedra.example.com
 SKEDRA_PUBLIC_LIBRARIES_URL=https://libraries.example.com
 SKEDRA_PUBLIC_API_URL=https://skedra.example.com
-SKEDRA_PUBLIC_REALTIME_URL=wss://skedra.example.com/realtime
 ```
 
 Registration defaults to invite-only after the first account:
@@ -140,9 +138,9 @@ the moderation queue stays behind the protected Skedra admin settings on the mai
 
 ## Calls With LiveKit
 
-Skedra can use LiveKit for voice, camera, and screen sharing. Skedra does not proxy or store
+Skedra can use LiveKit for board-scoped voice hangouts. Skedra does not proxy or store
 call media. The API checks board permissions, creates a short-lived LiveKit token for the board
-room, and the browser connects directly to LiveKit.
+room, and the browser connects directly to LiveKit with microphone-only publishing.
 
 Preferred setup: sign in as the instance admin and configure LiveKit under
 `Settings -> System -> Calls`. The LiveKit API secret is stored encrypted and is never sent
@@ -180,6 +178,40 @@ docker compose --env-file .env -f docker-compose.yml -f docker-compose.livekit.y
 The overlay runs LiveKit in dev mode with `devkey` / `secret` and exposes `ws://localhost:7880`.
 For internet-facing production, prefer LiveKit Cloud or the official LiveKit self-host generator,
 because production WebRTC needs HTTPS/WSS, TURN, UDP ports, and correct public IP handling.
+
+## Image Object Storage (S3 / R2)
+
+New image assets can be stored outside PostgreSQL in any S3-compatible object store. Sign in as
+the instance admin and open `Settings -> System -> Object Storage`, or configure the server
+environment directly:
+
+```env
+SKEDRA_OBJECT_STORAGE_PROVIDER=s3
+SKEDRA_OBJECT_STORAGE_PRESET=r2
+SKEDRA_OBJECT_STORAGE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+SKEDRA_OBJECT_STORAGE_REGION=auto
+SKEDRA_OBJECT_STORAGE_BUCKET=skedra-assets
+SKEDRA_OBJECT_STORAGE_ACCESS_KEY_ID=replace-me
+SKEDRA_OBJECT_STORAGE_SECRET_ACCESS_KEY=replace-me
+SKEDRA_OBJECT_STORAGE_PUBLIC_BASE_URL=https://files.example.com
+SKEDRA_OBJECT_STORAGE_FORCE_PATH_STYLE=false
+SKEDRA_ASSET_MAX_IMAGE_BYTES=8388608
+```
+
+For AWS S3, use `SKEDRA_OBJECT_STORAGE_PRESET=aws`; the endpoint may be left empty. MinIO and
+other compatible services use the `custom` preset and may require path-style URLs.
+
+Image bytes are encrypted in the browser before upload. E2EE boards derive the asset key from
+the board key; server-encrypted boards use a random per-asset key stored inside the protected
+board state. PostgreSQL stores only small object metadata and references.
+
+When `SKEDRA_OBJECT_STORAGE_PUBLIC_BASE_URL` is set, configure the bucket or custom domain to
+allow CORS `GET` requests from the Skedra app origin. Without a public base URL, Skedra keeps the
+bucket private and streams encrypted object bytes through its authenticated asset endpoint.
+
+Managed/SaaS mode requires `SKEDRA_OBJECT_STORAGE_PROVIDER=s3` so image bytes cannot silently
+fall back into PostgreSQL. Self-hosted installations may leave the provider as `inline` or choose
+external storage for larger deployments.
 
 Generate strong secrets:
 
@@ -267,9 +299,6 @@ Point your reverse proxy to:
 The app container internally proxies:
 
 - `/api` to the API service
-- `/realtime` to the realtime WebSocket service
-
-Make sure WebSocket upgrades are enabled for `/realtime`.
 
 ## License
 

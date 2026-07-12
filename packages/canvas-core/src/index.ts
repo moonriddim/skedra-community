@@ -19,3 +19,4 @@ export * from "./selection";
 export * from "./snap";
 export * from "./viewport";
 export * from "./flowchart-navigation";
+export * from "./encrypted-assets";

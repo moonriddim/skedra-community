@@ -36,13 +36,13 @@ import type {
 } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
 import type { SkedraFile } from "@skedra/shared";
-import type { RealtimeRole } from "@skedra/shared";
+import type { CanvasRole } from "@skedra/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import type {
 	LocalCanvasPresence,
 	RemoteCanvasPresence,
-} from "./use-canvas-sync";
+} from "./canvas-sync-types";
 
 const LOCAL_SAVE_DEBOUNCE_MS = 400;
 
@@ -221,7 +221,7 @@ export function useLocalCanvasSync(enabled = true) {
 	return {
 		isConnected: enabled ? isConnected : false,
 		isReadonly: false,
-		role: "editor" as RealtimeRole,
+		role: "editor" as CanvasRole,
 		scene,
 		elements,
 		views,

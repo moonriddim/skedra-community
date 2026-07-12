@@ -11,6 +11,7 @@
 		"./align": "./src/align.ts",
 		"./corner-radius": "./src/corner-radius.ts",
 		"./element-factory": "./src/element-factory.ts",
+		"./encrypted-assets": "./src/encrypted-assets.ts",
 		"./excalidraw-import": "./src/excalidraw-import.ts",
 		"./flowchart": "./src/flowchart.ts",
 		"./flowchart-navigation": "./src/flowchart-navigation.ts",

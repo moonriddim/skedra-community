@@ -12,3 +12,4 @@ data/
 !.env.example
 !.env.docker.example
 !.env.selfhost.example
+!.env.managed.example

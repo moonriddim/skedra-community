@@ -33,11 +33,7 @@ function createManualChunk(id: string): string | undefined {
 		return "vendor-react";
 	}
 	if (normalizedId.includes("@radix-ui")) return "vendor-radix";
-	if (
-		normalizedId.includes("/yjs/") ||
-		normalizedId.includes("@hocuspocus") ||
-		normalizedId.includes("lib0")
-	) {
+	if (normalizedId.includes("/yjs/") || normalizedId.includes("lib0")) {
 		return "vendor-collaboration";
 	}
 	if (

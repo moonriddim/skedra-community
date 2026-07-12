@@ -5,10 +5,6 @@ import type { CanvasHistoryEntry } from "@skedra/canvas-core";
 export const CANVAS_HISTORY_STORAGE_VERSION = 3;
 
 const HISTORY_KEY_PREFIX = "skedra-canvas-history-v3:";
-const LEGACY_HISTORY_KEY_PREFIXES = [
-	"skedra-canvas-history-v2:",
-	"skedra-canvas-history-v1:",
-];
 const HISTORY_BLOB_KEY_PREFIX = "skedra-canvas-history-blob-v1:";
 const HISTORY_BLOB_REF_KEY = "__skedraHistoryBlobRef";
 const HISTORY_BLOB_REF_VERSION_KEY = "__skedraHistoryBlobRefVersion";
@@ -40,10 +36,6 @@ function historyStorageKey(scopeKey: string) {
 	return `${HISTORY_KEY_PREFIX}${scopeKey}`;
 }
 
-function legacyHistoryStorageKey(scopeKey: string, prefix: string) {
-	return `${prefix}${scopeKey}`;
-}
-
 function historyBlobStorageKey(scopeKey: string, blobId: string) {
 	return `${HISTORY_BLOB_KEY_PREFIX}${scopeKey}:${blobId}`;
 }
@@ -59,14 +51,6 @@ export function loadPersistedCanvasHistory(
 		const raw = localStorage.getItem(historyStorageKey(scopeKey));
 		if (raw) {
 			return inflateStoredHistory(scopeKey, JSON.parse(raw));
-		}
-
-		for (const prefix of LEGACY_HISTORY_KEY_PREFIXES) {
-			const legacyRaw = localStorage.getItem(
-				legacyHistoryStorageKey(scopeKey, prefix),
-			);
-			if (!legacyRaw) continue;
-			return normalizeLegacyHistory(JSON.parse(legacyRaw));
 		}
 
 		return null;
@@ -104,38 +88,12 @@ export function savePersistedCanvasHistory(
 export function clearPersistedCanvasHistory(scopeKey: string) {
 	try {
 		localStorage.removeItem(historyStorageKey(scopeKey));
-		for (const prefix of LEGACY_HISTORY_KEY_PREFIXES) {
-			localStorage.removeItem(legacyHistoryStorageKey(scopeKey, prefix));
-		}
 		for (const key of collectBlobKeys(scopeKey)) {
 			localStorage.removeItem(key);
 		}
 	} catch {
 		// ignore
 	}
-}
-
-export function clearLegacyPersistedCanvasHistory(scopeKey: string) {
-	try {
-		for (const prefix of LEGACY_HISTORY_KEY_PREFIXES) {
-			localStorage.removeItem(legacyHistoryStorageKey(scopeKey, prefix));
-		}
-	} catch {
-		// ignore
-	}
-}
-
-function normalizeLegacyHistory(value: unknown): PersistedCanvasHistory | null {
-	if (!isRecord(value)) return null;
-	if (!Array.isArray(value.undoStack) || !Array.isArray(value.redoStack)) {
-		return null;
-	}
-	return {
-		version: CANVAS_HISTORY_STORAGE_VERSION,
-		undoStack: value.undoStack as CanvasHistoryEntry[],
-		redoStack: value.redoStack as CanvasHistoryEntry[],
-		index: typeof value.index === "number" ? value.index : -1,
-	};
 }
 
 function inflateStoredHistory(

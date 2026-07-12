@@ -30,6 +30,8 @@ export interface ResolvedLiveKitConfig {
 }
 
 function getEncryptionOptions(purpose = "smtp-password") {
+	// Fix A3: Fallback auf AUTH_SECRET nur für Selfhost gedacht (keine Schlüssel-
+	// trennung). Im Managed-Modus wird DATA_ENCRYPTION_SECRET per env.ts erzwungen (A2).
 	return {
 		secret: env.DATA_ENCRYPTION_SECRET ?? env.AUTH_SECRET,
 		purpose,

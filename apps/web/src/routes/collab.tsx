@@ -33,9 +33,9 @@ export function CollabPage() {
 		);
 
 	useEffect(() => {
-		if (!data?.whiteboardId) return;
+		if (!data?.whiteboardId || data.encryptionMode !== "e2ee") return;
 		setE2eeKey(getKnownE2eeKey(data.whiteboardId));
-	}, [data?.whiteboardId]);
+	}, [data?.encryptionMode, data?.whiteboardId]);
 
 	if (!shareToken) return null;
 	if (isLoading) return <ShareTokenLoadingScreen />;
@@ -59,8 +59,8 @@ export function CollabPage() {
 		<ShareTokenCanvasFrame>
 			<SkedraCanvas
 				whiteboardId={data.whiteboardId}
+				encryptionMode={data.encryptionMode}
 				collabShareToken={shareToken}
-				e2eeEnabled={data.e2eeEnabled}
 				e2eeKey={e2eeKey}
 				forceReadonly={!data.canWrite}
 				audienceBoardName={data.whiteboardName}

@@ -32,10 +32,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import {
+	type UnlockedUserE2eeIdentity,
 	base64ToBytes,
+	createE2eeKeyHash,
+	encryptBoardKeyForRecipient,
 	encryptYjsUpdate,
 	generateE2eeKey,
+	readUnlockedUserE2eeIdentity,
 	storeE2eeKey,
+	unlockOrCreateUserE2eeIdentity,
 	withE2eeKeyFragmentPath,
 } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
@@ -49,6 +54,7 @@ import {
 	Check,
 	ChevronDown,
 	Clock,
+	Cloud,
 	FileDown,
 	FileUp,
 	FolderPlus,
@@ -57,6 +63,7 @@ import {
 	LayoutGrid,
 	List,
 	Loader2,
+	LockKeyhole,
 	LogOut,
 	PenLine,
 	Plus,
@@ -79,6 +86,10 @@ type SortOption = "updatedAt" | "createdAt" | "name";
 // Darstellungsmodi
 type ViewMode = "grid" | "list";
 type FolderFilter = "all" | "unfiled" | string;
+type PendingCreateAction =
+	| { type: "blank" }
+	| { type: "template"; templateId: string; templateTitleKey: string };
+type BoardEncryptionMode = "server" | "e2ee";
 
 export function HomePage() {
 	const { t } = useI18n();
@@ -104,6 +115,16 @@ export function HomePage() {
 	// --- NEUER CANVAS-ZUSTAND (SCHNELLSTART) ---
 	const [newName, setNewName] = useState("");
 	const [newFolderName, setNewFolderName] = useState("");
+	const [pendingCreateAction, setPendingCreateAction] =
+		useState<PendingCreateAction | null>(null);
+	const [encryptionChoiceOpen, setEncryptionChoiceOpen] = useState(false);
+	const [selectedEncryptionMode, setSelectedEncryptionMode] =
+		useState<BoardEncryptionMode | null>(null);
+	const [createEncryptionError, setCreateEncryptionError] = useState("");
+	const [e2eeUnlockOpen, setE2eeUnlockOpen] = useState(false);
+	const [e2eeUnlockPassword, setE2eeUnlockPassword] = useState("");
+	const [e2eeUnlockError, setE2eeUnlockError] = useState("");
+	const [e2eeUnlockLoading, setE2eeUnlockLoading] = useState(false);
 
 	// --- TRPC QUERIES ---
 	// Aktive Boards abrufen
@@ -116,6 +137,10 @@ export function HomePage() {
 			enabled: tab === "archive",
 		});
 	const { data: folders = [] } = trpc.whiteboard.listFolders.useQuery();
+	const identityQuery = trpc.userE2ee.getIdentity.useQuery(undefined, {
+		enabled: false,
+		retry: false,
+	});
 
 	// --- TRPC MUTATIONS ---
 	// Normales neues Board anlegen (blanko)
@@ -150,6 +175,7 @@ export function HomePage() {
 			void utils.whiteboard.listFolders.invalidate();
 		},
 	});
+	const saveIdentity = trpc.userE2ee.saveIdentity.useMutation();
 
 	// Board ins Archiv verschieben (Papierkorb)
 	const archiveBoard = trpc.whiteboard.archive.useMutation({
@@ -185,48 +211,216 @@ export function HomePage() {
 		navigate(withE2eeKeyFragmentPath(`/board/${boardId}`, key));
 	};
 
-	const handleCreate = async () => {
+	const createOwnEncryptedBoardKey = async ({
+		boardId,
+		key,
+		keyHash,
+		identity,
+	}: {
+		boardId: string;
+		key: string;
+		keyHash: string;
+		identity: UnlockedUserE2eeIdentity;
+	}) => {
+		if (!session?.user?.id) {
+			throw new Error("User session missing for E2EE identity");
+		}
+		return encryptBoardKeyForRecipient({
+			boardKey: key,
+			recipientPublicKey: identity.publicKey,
+			boardId,
+			recipientUserId: session.user.id,
+			keyHash,
+		});
+	};
+
+	const createBlankBoard = async (
+		mode: BoardEncryptionMode,
+		identity?: UnlockedUserE2eeIdentity,
+	) => {
+		const boardId = crypto.randomUUID();
 		const name = newName.trim() || t("project.newCanvas");
+		const folderId =
+			folderFilter !== "all" && folderFilter !== "unfiled"
+				? folderFilter
+				: undefined;
+		if (mode === "server") {
+			const board = await createBoard.mutateAsync({
+				id: boardId,
+				name,
+				encryptionMode: "server",
+				folderId,
+			});
+			navigate(`/board/${board.id}`);
+			setNewName("");
+			return;
+		}
+		if (!identity) throw new Error("E2EE identity missing");
 		const key = generateE2eeKey();
+		const e2eeKeyHash = await createE2eeKeyHash(key);
+		const ownEncryptedBoardKey = await createOwnEncryptedBoardKey({
+			boardId,
+			key,
+			keyHash: e2eeKeyHash,
+			identity,
+		});
 		const board = await createBoard.mutateAsync({
+			id: boardId,
 			name,
-			folderId:
-				folderFilter !== "all" && folderFilter !== "unfiled"
-					? folderFilter
-					: undefined,
+			encryptionMode: "e2ee",
+			e2eeKeyHash,
+			ownEncryptedBoardKey,
+			folderId,
 		});
 		openEncryptedBoard(board.id, key);
 		setNewName("");
 	};
 
 	// Ein Board über eine Schnellstart-Vorlage erstellen
-	const handleCreateFromTemplate = async (
-		templateId: string,
-		templateTitleKey: string,
+	const createBoardFromTemplate = async (
+		action: Extract<PendingCreateAction, { type: "template" }>,
+		mode: BoardEncryptionMode,
+		identity?: UnlockedUserE2eeIdentity,
 	) => {
-		const template = TEMPLATES.find((t) => t.id === templateId);
+		const template = TEMPLATES.find((t) => t.id === action.templateId);
 		if (!template) return;
 
 		// 0,0 ist das Zentrum für die Vorlagen-Initalisierung
 		const elements = template.create(0, 0, { resolvedTheme });
 		const stateBase64 = createBase64StateFromElements(elements);
-		const templateName = t(templateTitleKey) || template.name;
+		const templateName = t(action.templateTitleKey) || template.name;
+		const boardId = crypto.randomUUID();
+		const folderId =
+			folderFilter !== "all" && folderFilter !== "unfiled"
+				? folderFilter
+				: undefined;
+		if (mode === "server") {
+			const board = await createBoardWithState.mutateAsync({
+				id: boardId,
+				name: templateName,
+				encryptionMode: "server",
+				stateBase64,
+				folderId,
+			});
+			navigate(`/board/${board.id}`);
+			return;
+		}
+		if (!identity) throw new Error("E2EE identity missing");
 		const key = generateE2eeKey();
+		const e2eeKeyHash = await createE2eeKeyHash(key);
 		const e2eeInitialUpdate = await encryptYjsUpdate(
 			base64ToBytes(stateBase64),
 			key,
 		);
+		const ownEncryptedBoardKey = await createOwnEncryptedBoardKey({
+			boardId,
+			key,
+			keyHash: e2eeKeyHash,
+			identity,
+		});
 
 		const board = await createBoardWithState.mutateAsync({
+			id: boardId,
 			name: templateName,
+			encryptionMode: "e2ee",
 			e2eeInitialUpdate,
 			e2eeKeyHint: `created-${new Date().toISOString().slice(0, 10)}`,
-			folderId:
-				folderFilter !== "all" && folderFilter !== "unfiled"
-					? folderFilter
-					: undefined,
+			e2eeKeyHash,
+			ownEncryptedBoardKey,
+			folderId,
 		});
 		openEncryptedBoard(board.id, key);
+	};
+
+	const runCreateAction = async (
+		action: PendingCreateAction,
+		mode: BoardEncryptionMode,
+		identity?: UnlockedUserE2eeIdentity,
+	) => {
+		if (action.type === "template") {
+			await createBoardFromTemplate(action, mode, identity);
+			return;
+		}
+		await createBlankBoard(mode, identity);
+	};
+
+	const startCreateAction = (action: PendingCreateAction) => {
+		setPendingCreateAction(action);
+		setSelectedEncryptionMode(null);
+		setCreateEncryptionError("");
+		setEncryptionChoiceOpen(true);
+	};
+
+	const handleConfirmEncryptionMode = async () => {
+		if (!pendingCreateAction || !selectedEncryptionMode) return;
+		const action = pendingCreateAction;
+		setCreateEncryptionError("");
+		try {
+			if (selectedEncryptionMode === "server") {
+				await runCreateAction(action, "server");
+				setEncryptionChoiceOpen(false);
+				setPendingCreateAction(null);
+				return;
+			}
+
+			const identity = readUnlockedUserE2eeIdentity(session?.user?.email);
+			if (identity) {
+				await runCreateAction(action, "e2ee", identity);
+				setEncryptionChoiceOpen(false);
+				setPendingCreateAction(null);
+				return;
+			}
+
+			setEncryptionChoiceOpen(false);
+			setE2eeUnlockPassword("");
+			setE2eeUnlockError("");
+			setE2eeUnlockOpen(true);
+		} catch (error) {
+			setCreateEncryptionError(
+				error instanceof Error
+					? error.message
+					: t("apiErrors.common.badRequest"),
+			);
+		}
+	};
+
+	const handleUnlockIdentityAndCreate = async (event: React.FormEvent) => {
+		event.preventDefault();
+		if (!session?.user?.email || !pendingCreateAction) return;
+		setE2eeUnlockLoading(true);
+		setE2eeUnlockError("");
+		try {
+			const identityResult = await identityQuery.refetch();
+			const identity = await unlockOrCreateUserE2eeIdentity({
+				email: session.user.email,
+				password: e2eeUnlockPassword,
+				existingIdentity: identityResult.data ?? null,
+				saveIdentity: saveIdentity.mutateAsync,
+			});
+			const action = pendingCreateAction;
+			setPendingCreateAction(null);
+			setE2eeUnlockOpen(false);
+			setE2eeUnlockPassword("");
+			await runCreateAction(action, "e2ee", identity);
+		} catch (error) {
+			console.error("E2EE identity unlock failed", error);
+			setE2eeUnlockError(
+				"Die E2EE-Identity konnte nicht entsperrt werden. Pruefe dein Konto-Passwort.",
+			);
+		} finally {
+			setE2eeUnlockLoading(false);
+		}
+	};
+
+	const handleCreate = () => {
+		startCreateAction({ type: "blank" });
+	};
+
+	const handleCreateFromTemplate = (
+		templateId: string,
+		templateTitleKey: string,
+	) => {
+		startCreateAction({ type: "template", templateId, templateTitleKey });
 	};
 
 	const handleCreateFolder = () => {
@@ -428,9 +622,7 @@ export function HomePage() {
 								{/* Karte 5: Leeres Board */}
 								<button
 									type="button"
-									onClick={() =>
-										handleCreateFromTemplate("blank", "project.newCanvas")
-									}
+									onClick={handleCreate}
 									disabled={
 										createBoard.isPending || createBoardWithState.isPending
 									}
@@ -886,6 +1078,170 @@ export function HomePage() {
 			</div>
 
 			{/* --- DIALOGE --- */}
+
+			<Dialog
+				open={encryptionChoiceOpen}
+				onOpenChange={(open) => {
+					setEncryptionChoiceOpen(open);
+					if (!open) {
+						setSelectedEncryptionMode(null);
+						if (!e2eeUnlockOpen) setPendingCreateAction(null);
+					}
+				}}
+			>
+				<DialogContent className="max-w-2xl rounded-2xl">
+					<DialogHeader>
+						<DialogTitle>{t("boardCreation.title")}</DialogTitle>
+						<DialogDescription>
+							{t("boardCreation.description")}
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="grid gap-3 py-2 sm:grid-cols-2">
+						<button
+							type="button"
+							aria-pressed={selectedEncryptionMode === "server"}
+							onClick={() => setSelectedEncryptionMode("server")}
+							className={`rounded-2xl border p-4 text-left transition-all ${
+								selectedEncryptionMode === "server"
+									? "border-primary bg-primary/10 ring-2 ring-primary/20"
+									: "border-border bg-card hover:border-primary/50 hover:bg-accent/40"
+							}`}
+						>
+							<div className="flex items-start justify-between gap-3">
+								<div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500">
+									<Cloud className="h-5 w-5" />
+								</div>
+								{selectedEncryptionMode === "server" ? (
+									<div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+										<Check className="h-4 w-4" />
+									</div>
+								) : null}
+							</div>
+							<h3 className="mt-4 font-semibold">
+								{t("boardCreation.serverTitle")}
+							</h3>
+							<p className="mt-1 text-sm text-muted-foreground">
+								{t("boardCreation.serverDescription")}
+							</p>
+							<div className="mt-4 rounded-xl bg-background/70 p-3 text-xs text-muted-foreground">
+								{t("boardCreation.serverDetails")}
+							</div>
+						</button>
+
+						<button
+							type="button"
+							aria-pressed={selectedEncryptionMode === "e2ee"}
+							onClick={() => setSelectedEncryptionMode("e2ee")}
+							className={`rounded-2xl border p-4 text-left transition-all ${
+								selectedEncryptionMode === "e2ee"
+									? "border-primary bg-primary/10 ring-2 ring-primary/20"
+									: "border-border bg-card hover:border-primary/50 hover:bg-accent/40"
+							}`}
+						>
+							<div className="flex items-start justify-between gap-3">
+								<div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+									<LockKeyhole className="h-5 w-5" />
+								</div>
+								{selectedEncryptionMode === "e2ee" ? (
+									<div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+										<Check className="h-4 w-4" />
+									</div>
+								) : null}
+							</div>
+							<h3 className="mt-4 font-semibold">
+								{t("boardCreation.e2eeTitle")}
+							</h3>
+							<p className="mt-1 text-sm text-muted-foreground">
+								{t("boardCreation.e2eeDescription")}
+							</p>
+							<div className="mt-4 rounded-xl bg-background/70 p-3 text-xs text-muted-foreground">
+								{t("boardCreation.e2eeDetails")}
+							</div>
+						</button>
+					</div>
+
+					<p className="text-xs text-muted-foreground">
+						{t("boardCreation.permanentHint")}
+					</p>
+					{createEncryptionError ? (
+						<p className="text-sm text-destructive">{createEncryptionError}</p>
+					) : null}
+					<DialogFooter className="gap-2">
+						<DialogClose asChild>
+							<Button variant="outline" type="button">
+								{t("common.cancel")}
+							</Button>
+						</DialogClose>
+						<Button
+							type="button"
+							disabled={
+								!selectedEncryptionMode ||
+								createBoard.isPending ||
+								createBoardWithState.isPending
+							}
+							onClick={() => void handleConfirmEncryptionMode()}
+						>
+							{createBoard.isPending || createBoardWithState.isPending ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : null}
+							{t("boardCreation.continue")}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={e2eeUnlockOpen}
+				onOpenChange={(open) => {
+					setE2eeUnlockOpen(open);
+					if (!open) {
+						setPendingCreateAction(null);
+						setE2eeUnlockPassword("");
+						setE2eeUnlockError("");
+					}
+				}}
+			>
+				<DialogContent className="max-w-md rounded-2xl">
+					<DialogHeader>
+						<DialogTitle>E2EE-Identity entsperren</DialogTitle>
+						<DialogDescription>
+							Entsperre deine User-Identity mit deinem Konto-Passwort, damit
+							Skedra den Board-Schluessel als Recovery-Umschlag fuer dich
+							speichern kann.
+						</DialogDescription>
+					</DialogHeader>
+					<form className="space-y-4" onSubmit={handleUnlockIdentityAndCreate}>
+						<Input
+							type="password"
+							value={e2eeUnlockPassword}
+							onChange={(event) => setE2eeUnlockPassword(event.target.value)}
+							placeholder="Konto-Passwort"
+							autoFocus
+							required
+						/>
+						{e2eeUnlockError ? (
+							<p className="text-sm text-destructive">{e2eeUnlockError}</p>
+						) : null}
+						<DialogFooter className="gap-2">
+							<DialogClose asChild>
+								<Button variant="outline" type="button">
+									Abbrechen
+								</Button>
+							</DialogClose>
+							<Button
+								type="submit"
+								disabled={e2eeUnlockLoading || !e2eeUnlockPassword}
+							>
+								{e2eeUnlockLoading ? (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								) : null}
+								Entsperren
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
 
 			{/* 1. UMBENENNEN-DIALOG */}
 			<Dialog

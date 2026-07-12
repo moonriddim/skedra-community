@@ -4,14 +4,18 @@
 
 import {
 	type Database,
+	teamMembers,
+	teams,
 	whiteboardActivities,
 	whiteboardMembers,
+	whiteboardTeamRoleAccess,
 	whiteboards,
 } from "@skedra/db";
 import type {
 	WhiteboardActivityMetadata,
 	WhiteboardActivityType,
 } from "@skedra/shared";
+import { parseTeamRolePermissions } from "@skedra/shared";
 import { and, desc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 
 /** Schreibt einen Activity-Eintrag in die Datenbank. */
@@ -45,18 +49,89 @@ async function findBoardIdsForActivityFeed(db: Database, userId: string) {
 			whiteboard: {
 				columns: { id: true, archivedAt: true },
 			},
+			teamRole: true,
 		},
 	});
 
 	const ids = new Set<string>();
 	for (const board of owned) ids.add(board.id);
 	for (const entry of memberEntries) {
-		if (entry.whiteboard && !entry.whiteboard.archivedAt) {
+		if (
+			entry.whiteboard &&
+			!entry.whiteboard.archivedAt &&
+			canMembershipViewActivity(entry)
+		) {
 			ids.add(entry.whiteboard.id);
 		}
 	}
 
+	const [ownedTeams, workspaceMemberships] = await Promise.all([
+		db.query.teams.findMany({
+			where: eq(teams.ownerId, userId),
+			columns: { id: true },
+		}),
+		db.query.teamMembers.findMany({
+			where: eq(teamMembers.userId, userId),
+			with: { role: true },
+		}),
+	]);
+
+	const adminTeamIds = workspaceMemberships
+		.filter((member) => member.workspaceRole === "admin")
+		.map((member) => member.teamId);
+	const managementTeamIds = [
+		...new Set([...ownedTeams.map((team) => team.id), ...adminTeamIds]),
+	];
+	if (managementTeamIds.length > 0) {
+		const workspaceBoards = await db.query.whiteboards.findMany({
+			where: and(
+				inArray(whiteboards.teamId, managementTeamIds),
+				isNull(whiteboards.archivedAt),
+			),
+			columns: { id: true },
+		});
+		for (const board of workspaceBoards) ids.add(board.id);
+	}
+
+	const activityRoleIds = workspaceMemberships
+		.filter((member) =>
+			member.role ? canRoleViewActivity(member.role.permissions) : false,
+		)
+		.map((member) => member.roleId)
+		.filter((roleId): roleId is string => !!roleId);
+	if (activityRoleIds.length > 0) {
+		const grants = await db.query.whiteboardTeamRoleAccess.findMany({
+			where: inArray(whiteboardTeamRoleAccess.teamRoleId, activityRoleIds),
+			with: {
+				whiteboard: {
+					columns: { id: true, archivedAt: true },
+				},
+			},
+		});
+		for (const grant of grants) {
+			if (grant.whiteboard && !grant.whiteboard.archivedAt) {
+				ids.add(grant.whiteboard.id);
+			}
+		}
+	}
+
 	return [...ids];
+}
+
+function canMembershipViewActivity(
+	entry: typeof whiteboardMembers.$inferSelect & {
+		teamRole?: { permissions: string } | null;
+	},
+) {
+	if (entry.teamRole) {
+		return canRoleViewActivity(entry.teamRole.permissions);
+	}
+	return false;
+}
+
+function canRoleViewActivity(rawPermissions: string) {
+	const permissions = parseTeamRolePermissions(rawPermissions);
+	return permissions.admin || permissions.viewActivity;
 }
 
 export async function listRecentActivities(

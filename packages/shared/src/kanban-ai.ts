@@ -129,7 +129,6 @@ function buildKanbanCardElement(input: {
 			dueDate: input.dueDate,
 			dueComplete: false,
 			coverImage: null,
-			imageSrc: null,
 			checklist: input.checklist,
 			attachments: [],
 		},

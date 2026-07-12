@@ -18,13 +18,17 @@ import type { PendingCommentPlacement } from "@/components/whiteboard/canvas-com
 import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard-comment-types";
 import { WhiteboardCommentsPanel } from "@/components/whiteboard/whiteboard-comments-panel";
 import { authClient } from "@/lib/auth-client";
-import { toUint8Array } from "@/lib/canvas/preview";
 import {
-	encryptYjsUpdate,
-	generateE2eeKey,
+	type UnlockedUserE2eeIdentity,
+	createE2eeKeyHash,
+	decryptBoardKeyFromRecipientEnvelope,
+	encryptBoardKeyForRecipient,
 	getKnownE2eeKey,
 	putE2eeKeyInCurrentUrl,
+	readE2eeKeyFromHash,
+	readUnlockedUserE2eeIdentity,
 	storeE2eeKey,
+	unlockOrCreateUserE2eeIdentity,
 	withE2eeKeyFragment,
 } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
@@ -60,6 +64,8 @@ const SkedraCanvas = lazy(() =>
 	})),
 );
 
+type InviteKeyDelivery = "none" | "fragment" | "recipient";
+
 export function BoardPage() {
 	const { boardId } = useParams();
 	const [searchParams] = useSearchParams();
@@ -74,15 +80,22 @@ export function BoardPage() {
 	const [inviteEmail, setInviteEmail] = useState("");
 	const [inviteRoleId, setInviteRoleId] = useState("");
 	const [inviteLink, setInviteLink] = useState("");
+	const [inviteKeyDelivery, setInviteKeyDelivery] =
+		useState<InviteKeyDelivery>("none");
 	const [inviteCopied, setInviteCopied] = useState(false);
 	const [collabCopied, setCollabCopied] = useState(false);
 	const [embedCopied, setEmbedCopied] = useState(false);
 	const [embedCodeCopied, setEmbedCodeCopied] = useState(false);
+	const [mcpKeyCopied, setMcpKeyCopied] = useState(false);
 	const [notionCopied, setNotionCopied] = useState(false);
 	const [obsidianCopied, setObsidianCopied] = useState(false);
 	const [e2eeKey, setE2eeKey] = useState<string | null>(null);
 	const [e2eeKeyDraft, setE2eeKeyDraft] = useState("");
-	const [e2eeCopied, setE2eeCopied] = useState(false);
+	const [shouldRefreshOwnKeyRecipient, setShouldRefreshOwnKeyRecipient] =
+		useState(false);
+	const [identityUnlockPassword, setIdentityUnlockPassword] = useState("");
+	const [identityUnlockError, setIdentityUnlockError] = useState("");
+	const [identityUnlockLoading, setIdentityUnlockLoading] = useState(false);
 	const [notionPageId, setNotionPageId] = useState("");
 	const [notionToken, setNotionToken] = useState("");
 	const [obsidianEndpoint, setObsidianEndpoint] = useState(
@@ -104,25 +117,33 @@ export function BoardPage() {
 		null,
 	);
 	const e2eeStateRef = useRef<(() => Uint8Array | null) | null>(null);
-	const legacyE2eeMigrationStartedRef = useRef(false);
+	const ownKeyRecipientWriteRef = useRef<string | null>(null);
 
 	const { data: board, isLoading } = trpc.whiteboard.getById.useQuery(
 		{ id: boardId ?? "" },
 		{ enabled: !!boardId },
 	);
+	const { data: ownKeyRecipient } = trpc.whiteboard.getOwnKeyRecipient.useQuery(
+		{ id: boardId ?? "" },
+		{
+			enabled: !!boardId && !!session?.user && board?.encryptionMode === "e2ee",
+		},
+	);
+	const identityQuery = trpc.userE2ee.getIdentity.useQuery(undefined, {
+		enabled: false,
+		retry: false,
+	});
 	const { data: callsConfig } = trpc.calls.getConfig.useQuery(undefined, {
 		enabled: !!boardId,
 	});
 
 	const canManage = board?.canManage ?? false;
+	const isE2eeBoard = board?.encryptionMode !== "server";
 	const canInvite = board?.canInvite ?? canManage;
 	const canManageShare = board?.canManageShare ?? canManage;
 	const canManageMembers = board?.canManageMembers ?? canManage;
 	const canViewActivity = board?.canViewActivity ?? true;
 	const canResolveComments = board?.canResolveComments ?? canManage;
-	const legacyE2eeMigrationEnabled =
-		!!boardId && board?.e2eeEnabled === false && canManage;
-
 	const { data: inviteRoles } = trpc.whiteboard.listInviteRoles.useQuery(
 		{ id: boardId ?? "" },
 		{ enabled: !!boardId },
@@ -144,12 +165,6 @@ export function BoardPage() {
 		trpc.whiteboard.getEmbedShareSettings.useQuery(
 			{ id: boardId ?? "" },
 			{ enabled: !!boardId && canManageShare },
-		);
-
-	const { data: legacyE2eePreviewState } =
-		trpc.whiteboard.getPreviewState.useQuery(
-			{ id: boardId ?? "" },
-			{ enabled: legacyE2eeMigrationEnabled },
 		);
 
 	const { data: integrations = [] } = trpc.integrations.listBoard.useQuery(
@@ -236,12 +251,24 @@ export function BoardPage() {
 			}),
 	});
 
-	const enableE2ee = trpc.whiteboard.enableE2ee.useMutation({
+	const registerE2eeKeyHash = trpc.whiteboard.registerE2eeKeyHash.useMutation({
 		onSuccess: () => {
 			void utils.whiteboard.getById.invalidate({ id: boardId ?? "" });
-			void utils.whiteboard.getE2eeSettings.invalidate({ id: boardId ?? "" });
 		},
 	});
+
+	const upsertOwnKeyRecipient =
+		trpc.whiteboard.upsertOwnKeyRecipient.useMutation({
+			onSuccess: () => {
+				void utils.whiteboard.getOwnKeyRecipient.invalidate({
+					id: boardId ?? "",
+				});
+			},
+		});
+
+	const upsertMemberKeyRecipient =
+		trpc.whiteboard.upsertMemberKeyRecipient.useMutation();
+	const saveIdentity = trpc.userE2ee.saveIdentity.useMutation();
 
 	const saveNotionIntegration = trpc.integrations.saveNotion.useMutation({
 		onSuccess: () =>
@@ -273,13 +300,71 @@ export function BoardPage() {
 		});
 
 	const inviteMember = trpc.whiteboard.inviteByEmail.useMutation({
-		onSuccess: (result) => {
+		onSuccess: async (result) => {
 			setInviteEmail("");
-			setInviteLink("inviteUrl" in result ? result.inviteUrl : "");
+			const fallbackBoardUrl = boardId
+				? `${window.location.origin}/board/${boardId}`
+				: "";
+			const nextInviteUrl =
+				"inviteUrl" in result ? result.inviteUrl : fallbackBoardUrl;
+			const recipient = "recipient" in result ? result.recipient : null;
+			let recipientEnvelopeStored = false;
+			if (boardId && e2eeKey && recipient?.publicKey) {
+				try {
+					const keyHash = await createE2eeKeyHash(e2eeKey);
+					const encryptedBoardKey = await encryptBoardKeyForRecipient({
+						boardKey: e2eeKey,
+						recipientPublicKey: recipient.publicKey,
+						boardId,
+						recipientUserId: recipient.userId,
+						keyHash,
+					});
+					const storedResult = await upsertMemberKeyRecipient.mutateAsync({
+						id: boardId,
+						userId: recipient.userId,
+						keyHash,
+						encryptedBoardKey,
+					});
+					recipientEnvelopeStored = storedResult.stored;
+				} catch (error) {
+					console.error("E2EE invite key wrapping failed", error);
+				}
+			}
+			if (nextInviteUrl) {
+				const includeKeyFragment = !!e2eeKey && !recipientEnvelopeStored;
+				setInviteLink(
+					withE2eeKeyFragment(
+						nextInviteUrl,
+						includeKeyFragment ? e2eeKey : null,
+					),
+				);
+				setInviteKeyDelivery(
+					recipientEnvelopeStored
+						? "recipient"
+						: includeKeyFragment
+							? "fragment"
+							: "none",
+				);
+			} else {
+				setInviteLink("");
+				setInviteKeyDelivery("none");
+			}
 			void utils.whiteboard.getAssignmentOptions.invalidate({
 				id: boardId ?? "",
 			});
 			void utils.whiteboard.listMembers.invalidate({ id: boardId ?? "" });
+			void utils.whiteboard.list.invalidate();
+		},
+	});
+
+	const setTeamRoleAccess = trpc.whiteboard.setTeamRoleAccess.useMutation({
+		onSuccess: () => {
+			void utils.whiteboard.listInviteRoles.invalidate({ id: boardId ?? "" });
+			void utils.whiteboard.getAssignmentOptions.invalidate({
+				id: boardId ?? "",
+			});
+			void utils.whiteboard.listMembers.invalidate({ id: boardId ?? "" });
+			void utils.whiteboard.list.invalidate();
 		},
 	});
 
@@ -353,6 +438,48 @@ export function BoardPage() {
 		[inviteRoleId, inviteRoles],
 	);
 
+	const storeOwnBoardKeyWithIdentity = useCallback(
+		async (identity: UnlockedUserE2eeIdentity, boardKey: string) => {
+			if (!boardId || !session?.user?.id) return;
+			const keyHash = await createE2eeKeyHash(boardKey);
+			const encryptedBoardKey = await encryptBoardKeyForRecipient({
+				boardKey,
+				recipientPublicKey: identity.publicKey,
+				boardId,
+				recipientUserId: session.user.id,
+				keyHash,
+			});
+			await upsertOwnKeyRecipient.mutateAsync({
+				id: boardId,
+				keyHash,
+				encryptedBoardKey,
+			});
+			storeE2eeKey(boardId, boardKey);
+			setE2eeKey(boardKey);
+			setE2eeKeyDraft(boardKey);
+			setShouldRefreshOwnKeyRecipient(false);
+			setIdentityUnlockError("");
+		},
+		[boardId, session?.user?.id, upsertOwnKeyRecipient.mutateAsync],
+	);
+
+	const recoverBoardKeyWithIdentity = useCallback(
+		async (identity: UnlockedUserE2eeIdentity, encryptedBoardKey: string) => {
+			if (!boardId || !session?.user?.id) return;
+			const recoveredKey = await decryptBoardKeyFromRecipientEnvelope(
+				encryptedBoardKey,
+				identity,
+				{
+					boardId,
+					recipientUserId: session.user.id,
+					allowLegacy: true,
+				},
+			);
+			await storeOwnBoardKeyWithIdentity(identity, recoveredKey);
+		},
+		[boardId, session?.user?.id, storeOwnBoardKeyWithIdentity],
+	);
+
 	useEffect(() => {
 		if (!inviteRoles?.length) return;
 		if (
@@ -364,68 +491,116 @@ export function BoardPage() {
 	}, [inviteRoleId, inviteRoles]);
 
 	useEffect(() => {
-		if (!boardId) return;
+		if (!boardId || !isE2eeBoard) return;
+		const keyFromHash = readE2eeKeyFromHash();
 		const known = getKnownE2eeKey(boardId);
 		if (known) {
 			setE2eeKey(known);
 			setE2eeKeyDraft(known);
 		}
-	}, [boardId]);
+		setShouldRefreshOwnKeyRecipient(!!keyFromHash);
+	}, [boardId, isE2eeBoard]);
+
+	useEffect(() => {
+		if (!boardId || e2eeKey || !ownKeyRecipient?.encryptedBoardKey) return;
+		const identity = readUnlockedUserE2eeIdentity(session?.user?.email);
+		if (!identity) return;
+
+		let cancelled = false;
+		const unlockFromRecipientEnvelope = async () => {
+			try {
+				await recoverBoardKeyWithIdentity(
+					identity,
+					ownKeyRecipient.encryptedBoardKey,
+				);
+				if (cancelled) return;
+			} catch (error) {
+				if (!cancelled) setShouldRefreshOwnKeyRecipient(true);
+				console.error("E2EE board key recovery failed", error);
+			}
+		};
+
+		void unlockFromRecipientEnvelope();
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		boardId,
+		e2eeKey,
+		ownKeyRecipient?.encryptedBoardKey,
+		recoverBoardKeyWithIdentity,
+		session?.user?.email,
+	]);
 
 	useEffect(() => {
 		if (
 			!boardId ||
-			!board ||
-			board.e2eeEnabled ||
-			!board.canManage ||
-			legacyE2eePreviewState === undefined ||
-			legacyE2eeMigrationStartedRef.current
+			!e2eeKey ||
+			(ownKeyRecipient?.encryptedBoardKey && !shouldRefreshOwnKeyRecipient) ||
+			!session?.user?.id
+		)
+			return;
+		const identity = readUnlockedUserE2eeIdentity(session?.user?.email);
+		if (!identity) return;
+		const writeKey = `${boardId}:${e2eeKey}`;
+		if (ownKeyRecipientWriteRef.current === writeKey) return;
+		ownKeyRecipientWriteRef.current = writeKey;
+
+		const storeOwnRecipientEnvelope = async () => {
+			try {
+				await storeOwnBoardKeyWithIdentity(identity, e2eeKey);
+			} catch (error) {
+				ownKeyRecipientWriteRef.current = null;
+				console.error("E2EE own board key wrapping failed", error);
+			}
+		};
+
+		void storeOwnRecipientEnvelope();
+	}, [
+		boardId,
+		e2eeKey,
+		ownKeyRecipient?.encryptedBoardKey,
+		session?.user?.id,
+		session?.user?.email,
+		shouldRefreshOwnKeyRecipient,
+		storeOwnBoardKeyWithIdentity,
+	]);
+
+	const e2eeHasKeyHash = board?.e2eeHasKeyHash ?? false;
+
+	useEffect(() => {
+		if (
+			!boardId ||
+			e2eeHasKeyHash ||
+			!canManage ||
+			!e2eeKey ||
+			registerE2eeKeyHash.isPending
 		) {
 			return;
 		}
 
-		legacyE2eeMigrationStartedRef.current = true;
-		const migrateLegacyBoard = async () => {
+		let cancelled = false;
+		const registerHash = async () => {
 			try {
-				const key = generateE2eeKey();
-				const legacyState = toUint8Array(legacyE2eePreviewState.yjsState);
-				if (
-					legacyE2eePreviewState.hasState &&
-					(!legacyState || legacyState.length === 0)
-				) {
-					legacyE2eeMigrationStartedRef.current = false;
-					console.error("Legacy E2EE migration skipped: state unavailable");
-					return;
-				}
-				const initialUpdate =
-					legacyState && legacyState.length > 0
-						? await encryptYjsUpdate(legacyState, key)
-						: undefined;
-
-				storeE2eeKey(boardId, key);
-				putE2eeKeyInCurrentUrl(key);
-				setE2eeKey(key);
-				setE2eeKeyDraft(key);
-
-				await enableE2ee.mutateAsync({
-					id: boardId,
-					keyHint: `created-${new Date().toISOString().slice(0, 10)}`,
-					initialUpdate,
-				});
-				await utils.whiteboard.getById.invalidate({ id: boardId });
+				const keyHash = await createE2eeKeyHash(e2eeKey);
+				if (cancelled) return;
+				await registerE2eeKeyHash.mutateAsync({ id: boardId, keyHash });
 			} catch (error) {
-				legacyE2eeMigrationStartedRef.current = false;
-				console.error("Legacy E2EE migration failed", error);
+				console.error("E2EE key verifier registration failed", error);
 			}
 		};
 
-		void migrateLegacyBoard();
+		void registerHash();
+		return () => {
+			cancelled = true;
+		};
 	}, [
-		board,
 		boardId,
-		enableE2ee.mutateAsync,
-		legacyE2eePreviewState,
-		utils.whiteboard.getById,
+		canManage,
+		e2eeKey,
+		e2eeHasKeyHash,
+		registerE2eeKeyHash.isPending,
+		registerE2eeKeyHash.mutateAsync,
 	]);
 
 	const notionIntegration = integrations.find(
@@ -539,6 +714,13 @@ export function BoardPage() {
 		setTimeout(() => setEmbedCodeCopied(false), 2000);
 	};
 
+	const handleCopyMcpKey = async () => {
+		if (!e2eeKey) return;
+		await navigator.clipboard.writeText(e2eeKey);
+		setMcpKeyCopied(true);
+		setTimeout(() => setMcpKeyCopied(false), 2000);
+	};
+
 	const handleCopyNotionLink = async () => {
 		if (!integrationUrl) return;
 		await navigator.clipboard.writeText(integrationUrl);
@@ -561,16 +743,45 @@ export function BoardPage() {
 		setE2eeKey(key);
 	};
 
-	const handleCopyE2eeBoardLink = async () => {
-		if (!boardId || !e2eeKey) return;
-		await navigator.clipboard.writeText(
-			withE2eeKeyFragment(
-				`${window.location.origin}/board/${boardId}`,
-				e2eeKey,
-			),
-		);
-		setE2eeCopied(true);
-		setTimeout(() => setE2eeCopied(false), 2000);
+	const handleUnlockIdentityForBoard = async (event: React.FormEvent) => {
+		event.preventDefault();
+		if (
+			!session?.user?.email ||
+			!identityUnlockPassword ||
+			(!ownKeyRecipient?.encryptedBoardKey && !e2eeKey)
+		) {
+			return;
+		}
+		setIdentityUnlockLoading(true);
+		setIdentityUnlockError("");
+		try {
+			const identityResult = await identityQuery.refetch();
+			const identity = await unlockOrCreateUserE2eeIdentity({
+				email: session.user.email,
+				password: identityUnlockPassword,
+				existingIdentity: identityResult.data ?? null,
+				saveIdentity: saveIdentity.mutateAsync,
+			});
+			if (!e2eeKey && ownKeyRecipient?.encryptedBoardKey) {
+				await recoverBoardKeyWithIdentity(
+					identity,
+					ownKeyRecipient.encryptedBoardKey,
+				);
+			} else if (
+				e2eeKey &&
+				(!ownKeyRecipient?.encryptedBoardKey || shouldRefreshOwnKeyRecipient)
+			) {
+				await storeOwnBoardKeyWithIdentity(identity, e2eeKey);
+			}
+			setIdentityUnlockPassword("");
+		} catch (error) {
+			console.error("E2EE identity unlock failed", error);
+			setIdentityUnlockError(
+				"Die E2EE-Identity konnte nicht entsperrt oder gespeichert werden. Pruefe dein Konto-Passwort.",
+			);
+		} finally {
+			setIdentityUnlockLoading(false);
+		}
 	};
 
 	const handleSaveNotionIntegration = () => {
@@ -601,6 +812,19 @@ export function BoardPage() {
 		addCommentReply.isPending ||
 		setCommentThreadResolved.isPending ||
 		deleteCommentThread.isPending;
+	const canUnlockBoardWithIdentity =
+		!!session?.user?.email && !e2eeKey && !!ownKeyRecipient?.encryptedBoardKey;
+	const canSaveBoardRecoveryWithIdentity =
+		!!session?.user?.email &&
+		!!e2eeKey &&
+		(ownKeyRecipient === null || shouldRefreshOwnKeyRecipient);
+	const inviteE2eeHint = !isE2eeBoard
+		? t("whiteboardPage.share.inviteServerHint")
+		: inviteKeyDelivery === "fragment"
+			? t("whiteboardPage.share.inviteE2eeHint")
+			: inviteKeyDelivery === "recipient"
+				? t("whiteboardPage.share.inviteE2eeRecipientEnvelopeHint")
+				: t("whiteboardPage.share.inviteE2eeMissingKeyHint");
 
 	return (
 		<div className="relative h-screen overflow-hidden">
@@ -714,11 +938,100 @@ export function BoardPage() {
 							</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
+							<div className="rounded-md border border-border/60 p-3">
+								<p className="flex items-center gap-2 text-sm font-medium">
+									<Code2 className="h-4 w-4 text-muted-foreground" />
+									{t("whiteboardPage.share.mcpKeyTitle")}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{!isE2eeBoard
+										? t("whiteboardPage.share.mcpServerHint")
+										: e2eeKey
+											? t("whiteboardPage.share.mcpKeyHint")
+											: t("whiteboardPage.share.mcpKeyUnavailable")}
+								</p>
+								{isE2eeBoard ? (
+									<Button
+										className="mt-3"
+										disabled={!e2eeKey}
+										onClick={handleCopyMcpKey}
+										variant="outline"
+									>
+										{mcpKeyCopied ? (
+											<Check className="mr-2 h-4 w-4" />
+										) : (
+											<Copy className="mr-2 h-4 w-4" />
+										)}
+										{mcpKeyCopied
+											? t("whiteboardPage.share.mcpKeyCopied")
+											: t("whiteboardPage.share.copyMcpKey")}
+									</Button>
+								) : null}
+							</div>
+
 							<BoardShareMembersList
 								boardId={board.id}
 								canManage={canManageMembers}
 								inviteRoles={canManageMembers ? inviteRoles : undefined}
 							/>
+							{canManageMembers ? (
+								<div className="border-t pt-4 space-y-3">
+									<div>
+										<p className="text-sm font-medium">
+											{t("whiteboardPage.share.teamRoleAccessTitle")}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{t("whiteboardPage.share.teamRoleAccessHint")}
+										</p>
+									</div>
+									{(inviteRoles?.length ?? 0) === 0 ? (
+										<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
+											<p>{t("whiteboardPage.share.teamRolesEmptyInvite")}</p>
+											<Button
+												variant="outline"
+												size="sm"
+												className="mt-3"
+												asChild
+											>
+												<Link to="/settings?tab=team">
+													{t("whiteboardPage.share.manageRolesAction")}
+												</Link>
+											</Button>
+										</div>
+									) : (
+										<ul className="space-y-2">
+											{inviteRoles?.map((role) => (
+												<li
+													key={role.id}
+													className="rounded-lg border border-border/70 bg-muted/15 p-3"
+												>
+													<label className="flex cursor-pointer items-start gap-3">
+														<input
+															type="checkbox"
+															className="mt-1"
+															checked={role.granted}
+															disabled={setTeamRoleAccess.isPending}
+															onChange={(event) =>
+																setTeamRoleAccess.mutate({
+																	id: board.id,
+																	roleId: role.id,
+																	enabled: event.target.checked,
+																})
+															}
+														/>
+														<span className="min-w-0 flex-1 space-y-2">
+															<RoleBadge name={role.name} color={role.color} />
+															<RolePermissionsSummary
+																permissions={role.permissions}
+															/>
+														</span>
+													</label>
+												</li>
+											))}
+										</ul>
+									)}
+								</div>
+							) : null}
 							{canManageShare ? (
 								<>
 									<label className="flex items-center gap-2 text-sm">
@@ -830,60 +1143,6 @@ export function BoardPage() {
 													</div>
 												)}
 											</>
-										)}
-									</div>
-									<div className="border-t pt-4 space-y-3">
-										<p className="flex items-center gap-2 text-sm font-medium">
-											<ShieldCheck className="h-4 w-4 text-muted-foreground" />
-											Browserseitiges E2EE
-										</p>
-										<p className="text-xs text-muted-foreground">
-											Der Board-Inhalt wird im Browser verschlüsselt. Der Server
-											speichert nur verschlüsselte Yjs-Updates; der Schlüssel
-											bleibt im URL-Fragment oder lokal im Browser.
-										</p>
-										{board.e2eeEnabled ? (
-											<div className="space-y-2">
-												<div className="flex gap-2">
-													<Input
-														value={e2eeKeyDraft}
-														onChange={(event) =>
-															setE2eeKeyDraft(event.target.value)
-														}
-														placeholder="E2EE-Schlüssel"
-														type="password"
-													/>
-													<Button variant="outline" onClick={handleUseE2eeKey}>
-														<Check className="h-4 w-4" />
-													</Button>
-												</div>
-												<Button
-													variant="outline"
-													size="sm"
-													disabled={!e2eeKey}
-													onClick={handleCopyE2eeBoardLink}
-												>
-													{e2eeCopied ? (
-														<Check className="mr-2 h-4 w-4" />
-													) : (
-														<Copy className="mr-2 h-4 w-4" />
-													)}
-													Sicheren Board-Link kopieren
-												</Button>
-											</div>
-										) : (
-											<div className="flex items-center gap-2 text-xs text-muted-foreground">
-												{board.canManage ? (
-													<Loader2 className="h-4 w-4 animate-spin" />
-												) : (
-													<ShieldCheck className="h-4 w-4" />
-												)}
-												<span>
-													{board.canManage
-														? "E2EE wird automatisch eingerichtet..."
-														: "Dieses Legacy-Board wird automatisch verschluesselt, sobald ein Admin es oeffnet."}
-												</span>
-											</div>
 										)}
 									</div>
 									<div className="border-t pt-4 space-y-3">
@@ -1120,7 +1379,7 @@ export function BoardPage() {
 									</p>
 									{(inviteRoles?.length ?? 0) === 0 ? (
 										<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
-											<p>{t("whiteboardPage.share.boardRolesEmptyInvite")}</p>
+											<p>{t("whiteboardPage.share.teamRolesEmptyInvite")}</p>
 											{canManage ? (
 												<Button
 													variant="outline"
@@ -1128,9 +1387,7 @@ export function BoardPage() {
 													className="mt-3"
 													asChild
 												>
-													<Link
-														to={`/settings?tab=canvas-roles&boardId=${board.id}`}
-													>
+													<Link to="/settings?tab=team">
 														{t("whiteboardPage.share.manageRolesAction")}
 													</Link>
 												</Button>
@@ -1146,6 +1403,7 @@ export function BoardPage() {
 													onChange={(e) => {
 														setInviteEmail(e.target.value);
 														setInviteLink("");
+														setInviteKeyDelivery("none");
 													}}
 													className="flex-1"
 												/>
@@ -1188,30 +1446,35 @@ export function BoardPage() {
 												</Button>
 											</div>
 											{inviteLink ? (
-												<div className="flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 sm:flex-row">
-													<Input
-														readOnly
-														value={inviteLink}
-														className="text-xs"
-													/>
-													<Button
-														variant="outline"
-														type="button"
-														onClick={async () => {
-															await navigator.clipboard.writeText(inviteLink);
-															setInviteCopied(true);
-															setTimeout(() => setInviteCopied(false), 2000);
-														}}
-													>
-														{inviteCopied ? (
-															<Check className="h-4 w-4" />
-														) : (
-															<Copy className="h-4 w-4" />
-														)}
-														{inviteCopied
-															? t("common.copied")
-															: t("common.copy")}
-													</Button>
+												<div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+													<div className="flex flex-col gap-2 sm:flex-row">
+														<Input
+															readOnly
+															value={inviteLink}
+															className="text-xs"
+														/>
+														<Button
+															variant="outline"
+															type="button"
+															onClick={async () => {
+																await navigator.clipboard.writeText(inviteLink);
+																setInviteCopied(true);
+																setTimeout(() => setInviteCopied(false), 2000);
+															}}
+														>
+															{inviteCopied ? (
+																<Check className="h-4 w-4" />
+															) : (
+																<Copy className="h-4 w-4" />
+															)}
+															{inviteCopied
+																? t("common.copied")
+																: t("common.copy")}
+														</Button>
+													</div>
+													<p className="mt-2 text-xs text-muted-foreground">
+														{inviteE2eeHint}
+													</p>
 												</div>
 											) : null}
 											{selectedInviteRole ? (
@@ -1264,7 +1527,7 @@ export function BoardPage() {
 				)}
 			</div>
 
-			{board.e2eeEnabled && !e2eeKey ? (
+			{isE2eeBoard && !e2eeKey ? (
 				<div className="absolute inset-x-4 top-20 z-[60] mx-auto max-w-md rounded-md border border-border bg-card/95 p-4 shadow-lg backdrop-blur">
 					<div className="mb-3 flex items-center gap-2">
 						<ShieldCheck className="h-4 w-4 text-primary" />
@@ -1285,6 +1548,85 @@ export function BoardPage() {
 							<Check className="h-4 w-4" />
 						</Button>
 					</div>
+					{canUnlockBoardWithIdentity ? (
+						<form
+							className="mt-4 border-t border-border/70 pt-4"
+							onSubmit={handleUnlockIdentityForBoard}
+						>
+							<p className="mb-2 text-xs text-muted-foreground">
+								Oder entsperre deine User-Identity mit deinem Konto-Passwort, um
+								den gespeicherten Board-Key-Umschlag zu oeffnen.
+							</p>
+							<div className="flex gap-2">
+								<Input
+									type="password"
+									value={identityUnlockPassword}
+									onChange={(event) =>
+										setIdentityUnlockPassword(event.target.value)
+									}
+									placeholder="Konto-Passwort"
+								/>
+								<Button
+									type="submit"
+									disabled={identityUnlockLoading || !identityUnlockPassword}
+								>
+									{identityUnlockLoading ? (
+										<Loader2 className="h-4 w-4 animate-spin" />
+									) : (
+										<ShieldCheck className="h-4 w-4" />
+									)}
+								</Button>
+							</div>
+							{identityUnlockError ? (
+								<p className="mt-2 text-xs text-destructive">
+									{identityUnlockError}
+								</p>
+							) : null}
+						</form>
+					) : null}
+				</div>
+			) : null}
+
+			{canSaveBoardRecoveryWithIdentity ? (
+				<div className="absolute inset-x-4 top-20 z-[60] mx-auto max-w-md rounded-md border border-border bg-card/95 p-4 shadow-lg backdrop-blur">
+					<div className="mb-3 flex items-center gap-2">
+						<ShieldCheck className="h-4 w-4 text-primary" />
+						<p className="text-sm font-medium">
+							E2EE-Recovery fuer dieses Board speichern
+						</p>
+					</div>
+					<p className="mb-3 text-xs text-muted-foreground">
+						Entsperre deine User-Identity mit deinem Konto-Passwort, damit
+						Skedra den Board-Schluessel als Recovery-Umschlag fuer dich
+						speichern oder aktualisieren kann.
+					</p>
+					<form onSubmit={handleUnlockIdentityForBoard}>
+						<div className="flex gap-2">
+							<Input
+								type="password"
+								value={identityUnlockPassword}
+								onChange={(event) =>
+									setIdentityUnlockPassword(event.target.value)
+								}
+								placeholder="Konto-Passwort"
+							/>
+							<Button
+								type="submit"
+								disabled={identityUnlockLoading || !identityUnlockPassword}
+							>
+								{identityUnlockLoading ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<ShieldCheck className="h-4 w-4" />
+								)}
+							</Button>
+						</div>
+						{identityUnlockError ? (
+							<p className="mt-2 text-xs text-destructive">
+								{identityUnlockError}
+							</p>
+						) : null}
+					</form>
 				</div>
 			) : null}
 
@@ -1297,8 +1639,8 @@ export function BoardPage() {
 			>
 				<SkedraCanvas
 					whiteboardId={boardId}
+					encryptionMode={board.encryptionMode}
 					canUseAi={board?.canUseAi ?? true}
-					e2eeEnabled={board.e2eeEnabled}
 					e2eeKey={e2eeKey}
 					e2eeStateRef={e2eeStateRef}
 					forceReadonly={!canWrite}

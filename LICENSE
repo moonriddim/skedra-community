@@ -17,7 +17,7 @@ Open-source MIT components:
 
 Community workspace components covered by the AGPL include, among other files:
 
-- `apps/web`, `apps/api`, `apps/realtime`, `apps/libraries`, and `apps/mcp`.
+- `apps/web`, `apps/api`, `apps/libraries`, and `apps/mcp`.
 - `packages/db` and `packages/shared`.
 - Self-host Dockerfiles, Compose files, migrations, and standalone image build
   scripts.

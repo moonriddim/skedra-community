@@ -17,6 +17,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
+import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { pickAndBuildImageElements } from "@/lib/canvas/insert-image";
 import { useI18n } from "@/lib/i18n";
 import { createFlowchartTemplate } from "@/lib/templates/flowchart";
@@ -65,6 +66,7 @@ interface CanvasToolbarProps {
 	onExportSkedra?: () => void;
 	onExportEncryptedSkedra?: () => void;
 	onImportSkedra?: () => void;
+	imageUploadOptions?: ImageUploadOptions;
 }
 
 interface ToolDef {
@@ -152,6 +154,7 @@ export function CanvasToolbar({
 	onExportSkedra,
 	onExportEncryptedSkedra,
 	onImportSkedra,
+	imageUploadOptions,
 }: CanvasToolbarProps) {
 	const store = useCanvasStore(
 		useShallow((state) => ({
@@ -253,6 +256,7 @@ export function CanvasToolbar({
 						const elementsToAdd = await pickAndBuildImageElements(
 							getViewportCenter(),
 							{ resolvedTheme },
+							imageUploadOptions,
 						);
 						if (elementsToAdd.length > 0) addElements(elementsToAdd);
 					}}

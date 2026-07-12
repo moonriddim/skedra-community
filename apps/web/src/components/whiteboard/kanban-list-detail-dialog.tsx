@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { pickImageFile } from "@/lib/canvas/image-utils";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -30,6 +31,8 @@ interface KanbanListDetailDialogProps {
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
 	onAddCard: (id: string) => void;
+	imageUploadOptions?: ImageUploadOptions;
+	resolveAssetUrl?: (src: string) => string;
 }
 
 export function KanbanListDetailDialog({
@@ -39,6 +42,8 @@ export function KanbanListDetailDialog({
 	onUpdate,
 	onUpdateElements,
 	onAddCard,
+	imageUploadOptions,
+	resolveAssetUrl,
 }: KanbanListDetailDialogProps) {
 	const [title, setTitle] = useState("");
 	const [headerImageSrc, setHeaderImageSrc] = useState("");
@@ -66,12 +71,13 @@ export function KanbanListDetailDialog({
 	}, [element]);
 
 	if (!element) return null;
-
+	const resolvedHeaderImageSrc = headerImageSrc
+		? (resolveAssetUrl?.(headerImageSrc) ?? headerImageSrc)
+		: "";
 	const handleSave = () => {
 		const changes: Partial<CanvasElement> = {
 			frameLabel: title.trim() || t("kanbanListDialog.defaultListName"),
 			customData: {
-				...(element.customData ?? {}),
 				skedraType: "kanban-list",
 				headerImageSrc: headerImageSrc || null,
 				headerImageFocus,
@@ -101,7 +107,7 @@ export function KanbanListDetailDialog({
 	};
 
 	const handlePickImage = async () => {
-		const picked = await pickImageFile();
+		const picked = await pickImageFile(imageUploadOptions);
 		if (!picked) return;
 		setHeaderImageSrc(picked.src);
 		setHeaderImageFocus({ x: 0.5, y: 0.5 });
@@ -209,7 +215,7 @@ export function KanbanListDetailDialog({
 								onPointerCancel={endHeaderImageDrag}
 							>
 								<img
-									src={headerImageSrc}
+									src={resolvedHeaderImageSrc}
 									alt={t("kanbanListDialog.imageAlt")}
 									className="h-full w-full object-cover"
 									style={{

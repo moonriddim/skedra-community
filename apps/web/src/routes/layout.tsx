@@ -21,7 +21,7 @@ export function AuthLayout() {
 
 	if (!isPending && !session?.user) {
 		const redirect = encodeURIComponent(
-			`${location.pathname}${location.search}`,
+			`${location.pathname}${location.search}${location.hash}`,
 		);
 		return <Navigate to={`/login?redirect=${redirect}`} replace />;
 	}

@@ -5,10 +5,7 @@ import {
 	isMindmapNode,
 } from "@skedra/canvas-core";
 import {
-	CANVAS_HAND_FONT,
 	type CanvasThemeState,
-	KANBAN_FONT_FAMILY,
-	LEGACY_TOOL_FONT_DEFAULTS,
 	THEME_FILL_DEFAULTS,
 	THEME_MINDMAP_BORDER_DEFAULTS,
 	THEME_MINDMAP_CHILD_TEXT_DEFAULTS,
@@ -33,34 +30,12 @@ function isThemeDefault(
 	return value != null && (alternatives as readonly string[]).includes(value);
 }
 
-function isHandwritingToolElement(skedraType: unknown): boolean {
-	return skedraType === "mindmap-node" || skedraType === "flowchart-node";
-}
-
-function isKanbanElement(skedraType: unknown): boolean {
-	return skedraType === "kanban-card" || skedraType === "kanban-list";
-}
-
 /** Berechnet Theme-Patches fuer ein einzelnes Canvas-Element */
 function getThemeElementPatch(
 	element: CanvasElement,
 	theme?: CanvasThemeState,
 ): Partial<CanvasElement> | null {
 	const changes: Partial<CanvasElement> = {};
-	const skedraType = element.customData?.skedraType;
-
-	if (isHandwritingToolElement(skedraType)) {
-		if (
-			isThemeDefault(element.fontFamily, LEGACY_TOOL_FONT_DEFAULTS) &&
-			element.fontFamily !== CANVAS_HAND_FONT
-		) {
-			changes.fontFamily = CANVAS_HAND_FONT;
-		}
-	}
-
-	if (isKanbanElement(skedraType) && element.fontFamily === CANVAS_HAND_FONT) {
-		changes.fontFamily = KANBAN_FONT_FAMILY;
-	}
 
 	if (isMindmapNode(element)) {
 		const meta = getMindmapNodeMeta(element);

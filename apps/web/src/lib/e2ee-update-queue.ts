@@ -1,0 +1,109 @@
+const DB_NAME = "skedra-e2ee-update-queue";
+const DB_VERSION = 1;
+const STORE_NAME = "pending-updates";
+const WHITEBOARD_INDEX = "whiteboardId";
+
+export interface PendingE2eeUpdate {
+	id: string;
+	whiteboardId: string;
+	clientId: string;
+	keyHash: string;
+	update: string;
+	createdAt: number;
+}
+
+function createPendingId() {
+	if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+	const bytes = new Uint8Array(16);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+		"",
+	);
+}
+
+function requestToPromise<T>(request: IDBRequest<T>) {
+	return new Promise<T>((resolve, reject) => {
+		request.onsuccess = () => resolve(request.result);
+		request.onerror = () =>
+			reject(request.error ?? new Error("IndexedDB request failed"));
+	});
+}
+
+function transactionDone(transaction: IDBTransaction) {
+	return new Promise<void>((resolve, reject) => {
+		transaction.oncomplete = () => resolve();
+		transaction.onerror = () =>
+			reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+		transaction.onabort = () =>
+			reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+	});
+}
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function openQueueDb() {
+	if (!("indexedDB" in window)) {
+		return Promise.reject(new Error("IndexedDB is not available"));
+	}
+
+	dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
+		const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+		request.onupgradeneeded = () => {
+			const db = request.result;
+			const store = db.objectStoreNames.contains(STORE_NAME)
+				? request.transaction?.objectStore(STORE_NAME)
+				: db.createObjectStore(STORE_NAME, { keyPath: "id" });
+
+			if (store && !store.indexNames.contains(WHITEBOARD_INDEX)) {
+				store.createIndex(WHITEBOARD_INDEX, "whiteboardId", {
+					unique: false,
+				});
+			}
+		};
+
+		request.onsuccess = () => resolve(request.result);
+		request.onerror = () => {
+			dbPromise = null;
+			reject(request.error ?? new Error("IndexedDB open failed"));
+		};
+		request.onblocked = () => {
+			dbPromise = null;
+			reject(new Error("IndexedDB open was blocked"));
+		};
+	});
+
+	return dbPromise;
+}
+
+export async function enqueuePendingE2eeUpdate(
+	input: Omit<PendingE2eeUpdate, "id" | "createdAt">,
+) {
+	const db = await openQueueDb();
+	const record: PendingE2eeUpdate = {
+		...input,
+		id: createPendingId(),
+		createdAt: Date.now(),
+	};
+	const transaction = db.transaction(STORE_NAME, "readwrite");
+	transaction.objectStore(STORE_NAME).add(record);
+	await transactionDone(transaction);
+	return record;
+}
+
+export async function listPendingE2eeUpdates(whiteboardId: string) {
+	const db = await openQueueDb();
+	const transaction = db.transaction(STORE_NAME, "readonly");
+	const store = transaction.objectStore(STORE_NAME);
+	const request = store.index(WHITEBOARD_INDEX).getAll(whiteboardId);
+	const records = (await requestToPromise(request)) as PendingE2eeUpdate[];
+	await transactionDone(transaction);
+	return records.sort((left, right) => left.createdAt - right.createdAt);
+}
+
+export async function deletePendingE2eeUpdate(id: string) {
+	const db = await openQueueDb();
+	const transaction = db.transaction(STORE_NAME, "readwrite");
+	transaction.objectStore(STORE_NAME).delete(id);
+	await transactionDone(transaction);
+}

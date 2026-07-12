@@ -1,4 +1,4 @@
-import type { RemoteCanvasPresence } from "@/hooks/use-canvas-sync";
+import type { RemoteCanvasPresence } from "@/hooks/canvas-sync-types";
 import { getCombinedBBox } from "@skedra/canvas-core";
 import type { CanvasElement, Viewport } from "@skedra/canvas-core";
 

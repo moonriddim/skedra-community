@@ -34,11 +34,10 @@ chmod 600 "$SECRETS_FILE"
 : "${SKEDRA_PUBLIC_APP_URL:=http://localhost:3000}"
 : "${SKEDRA_PUBLIC_LIBRARIES_URL:=$SKEDRA_PUBLIC_APP_URL/libraries}"
 : "${SKEDRA_PUBLIC_API_URL:=$SKEDRA_PUBLIC_APP_URL}"
-: "${SKEDRA_PUBLIC_REALTIME_URL:=$(printf '%s' "$SKEDRA_PUBLIC_APP_URL" | sed 's|^https:|wss:|; s|^http:|ws:|')/realtime}"
+: "${SKEDRA_DEPLOYMENT_MODE:=selfhost}"
 : "${SKEDRA_REGISTRATION_MODE:=invite}"
 : "${SKEDRA_LIBRARY_CATALOG_MODE:=local}"
 : "${SKEDRA_RUN_MIGRATIONS:=true}"
-: "${REALTIME_PORT:=1235}"
 
 export DATABASE_URL="${DATABASE_URL:-postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@127.0.0.1:5432/$POSTGRES_DB}"
 export AUTH_SECRET="$SKEDRA_AUTH_SECRET"
@@ -46,10 +45,9 @@ export DATA_ENCRYPTION_SECRET="$SKEDRA_DATA_ENCRYPTION_SECRET"
 export APP_URL="$SKEDRA_PUBLIC_APP_URL"
 export API_URL="$SKEDRA_PUBLIC_API_URL"
 export LIBRARIES_URL="$SKEDRA_PUBLIC_LIBRARIES_URL"
-export REALTIME_URL="$SKEDRA_PUBLIC_REALTIME_URL"
+export SKEDRA_DEPLOYMENT_MODE
 export SKEDRA_REGISTRATION_MODE
 export SKEDRA_LIBRARY_CATALOG_MODE
-export REALTIME_PORT
 
 write_config() {
 	config_file="$1"
@@ -57,8 +55,7 @@ write_config() {
 window.__SKEDRA_CONFIG__ = {
   API_URL: "${SKEDRA_PUBLIC_FRONTEND_API_URL:-}",
   APP_URL: "$SKEDRA_PUBLIC_APP_URL",
-  LIBRARIES_URL: "$SKEDRA_PUBLIC_LIBRARIES_URL",
-  REALTIME_URL: "${SKEDRA_PUBLIC_FRONTEND_REALTIME_URL:-}"
+  LIBRARIES_URL: "$SKEDRA_PUBLIC_LIBRARIES_URL"
 };
 EOF
 }
@@ -99,21 +96,19 @@ if [ "$SKEDRA_RUN_MIGRATIONS" != "false" ] && [ "$SKEDRA_RUN_MIGRATIONS" != "0" 
 	psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /app/api/selfhost-migrations.sql
 fi
 
-node /app/api/index.js &
+node /app/api/index.cjs &
 api_pid="$!"
-node /app/realtime/index.js &
-realtime_pid="$!"
 nginx -g "daemon off;" &
 nginx_pid="$!"
 
 shutdown() {
-	kill "$api_pid" "$realtime_pid" "$nginx_pid" 2>/dev/null || true
+	kill "$api_pid" "$nginx_pid" 2>/dev/null || true
 	su-exec postgres pg_ctl -D "$PGDATA" -m fast -w stop 2>/dev/null || true
 }
 trap shutdown INT TERM
 
 while true; do
-	for pid in "$api_pid" "$realtime_pid" "$nginx_pid"; do
+	for pid in "$api_pid" "$nginx_pid"; do
 		if ! kill -0 "$pid" 2>/dev/null; then
 			shutdown
 			exit 1

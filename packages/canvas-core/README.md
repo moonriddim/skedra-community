@@ -7,7 +7,7 @@ types, geometry, hit testing, ordering, selection, snapping, scene helpers,
 path rendering, and import utilities.
 
 It is part of the open-source Skedra Core surface. Workspace features such as
-accounts, teams, comments, realtime servers, AI backends, voice/screen-share
+accounts, teams, comments, collaboration transports, AI backends, voice/screen-share
 providers, deployment images, and cloud dashboards should stay outside this
 package so the canvas domain model remains reusable and app-agnostic.
 

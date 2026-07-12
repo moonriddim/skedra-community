@@ -10,9 +10,9 @@ workspace needed by individuals and teams:
 
 - Workspace web app and authenticated app shell.
 - Accounts, login, invite-based registration, and basic user settings.
-- Workspaces, teams, board membership, board-level roles, and permissions.
+- Workspaces, teams, board membership, team roles, and board access grants.
 - Persisted boards, database schema, migrations, activity history, and exports.
-- Realtime collaboration backend for shared canvas editing.
+- Encrypted collaboration backend for shared canvas editing.
 - Comments, mentions, comment resolution, and board activity.
 - Shape libraries, local/self-hosted library workflows, and community catalog
   integration.
@@ -34,9 +34,9 @@ file or directory has its own license.
 
 ## Public Repository And Images
 
-This public OSS repository contains the Skedra Community edition:
+The public Skedra source repository contains the Community edition:
 
-- `apps/web`, `apps/api`, `apps/realtime`, `apps/libraries`, and `apps/mcp`.
+- `apps/web`, `apps/api`, `apps/libraries`, and `apps/mcp`.
 - `packages/db`, `packages/shared`, `packages/canvas-core`, and
   `packages/react`.
 - Dockerfiles, Compose files, standalone image scripts, migrations, and release

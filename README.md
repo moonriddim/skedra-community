@@ -4,7 +4,7 @@ Skedra is an open-source collaborative whiteboard. The Community edition is
 meant to be a serious self-hosted workspace, not just a small editor demo.
 
 - Skedra Community is open source and includes the workspace app, accounts,
-  teams, stored boards, database schema, realtime collaboration, comments,
+  teams, stored boards, database schema, encrypted collaboration, comments,
   library workflows, and self-host Docker images.
 - Skedra Core is the MIT-licensed reusable editor layer in
   `packages/canvas-core` and `packages/react`.
@@ -19,14 +19,14 @@ See [PRODUCT_BOUNDARY.md](PRODUCT_BOUNDARY.md) for the exact Community scope.
 
 ## Community Workspace Features
 
-- Real-time collaboration powered by Y.js and Hocuspocus
+- Encrypted collaboration powered by client-side Y.js update logs
 - User accounts, invite-only self-host registration, private boards, shared boards, and guest collaboration links
 - Presentation mode with share links and audience-friendly views
-- Comments, mentions, activity tracking, and board-level roles
+- Comments, mentions, activity tracking, and team-role-based board access
 - Private shape libraries, `.skedralib` imports, and reviewed community catalog submissions
 - Optional AI-assisted generation for diagrams, sticky notes, boards, and structured canvas content
 - Self-hostable PostgreSQL-backed deployment
-- Optional LiveKit-backed voice, camera, and screen sharing
+- Optional LiveKit-backed voice hangouts
 
 ## Architecture
 
@@ -39,7 +39,6 @@ Open Community Workspace
 apps/web              React workspace app
 apps/libraries        Public shape library catalog app
 apps/api              Hono + tRPC + auth + REST API
-apps/realtime         Hocuspocus WebSocket collaboration server
 apps/mcp              Skedra MCP integration server
 packages/db           Drizzle schema and database utilities
 packages/shared       Internal shared server/app helpers
@@ -65,7 +64,6 @@ Default development ports:
 | Web app | 5174 |
 | Library catalog | 5175 |
 | API | 3001 |
-| Realtime | 1235 |
 | PostgreSQL | 5434 |
 
 Open `http://localhost:5174` to start using the app.
@@ -100,7 +98,7 @@ Point your reverse proxy to:
 - `https://skedra.example.com` -> Compose port `5174`
 - `https://libraries.example.com` -> Compose port `5175`
 
-The internal nginx containers proxy `/api` and `/realtime` to the API and realtime services.
+The internal nginx containers proxy `/api` to the API service.
 
 Calls are optional and are configured under `Settings -> System -> Calls`.
 The server environment can also provide a fallback:
@@ -143,7 +141,6 @@ pushes the open Community images:
 
 ```text
 ghcr.io/<github-user>/skedra-api
-ghcr.io/<github-user>/skedra-realtime
 ghcr.io/<github-user>/skedra-web
 ghcr.io/<github-user>/skedra-libraries
 ghcr.io/<github-user>/skedra-standalone
@@ -174,8 +171,8 @@ docker run -d \
   ghcr.io/<github-user>/skedra-standalone:v0.1.0
 ```
 
-That single container starts embedded PostgreSQL, API, realtime collaboration,
-the web app, and the library catalog. It is convenient for small teams, NAS
+That single container starts embedded PostgreSQL, the API, the web app, and
+the library catalog. It is convenient for small teams, NAS
 installs, trials, and simple self-hosting. For larger or stricter production
 deployments, use the Compose stack so the database and app services are
 separate.
@@ -190,8 +187,38 @@ docker compose --env-file .env up -d
 For TrueNAS, Dockge, Portainer, or a plain Docker host, use the release `docker-compose.yml` and configure `.env` with your domain, storage path, database password, and secrets.
 
 This full self-host stack includes accounts, teams, stored boards, database
-migrations, realtime collaboration, comments, library workflows, optional BYOK
+migrations, encrypted collaboration, comments, library workflows, optional BYOK
 or local AI, and optional LiveKit-backed calls.
+
+## Managed / SaaS (Cloud) Mode
+
+Skedra Cloud runs the **same codebase** as self-hosting, only with different
+operational config (`SKEDRA_DEPLOYMENT_MODE=managed`). There is no second
+backend: infrastructure is swapped via environment variables, so object storage,
+database, and billing point at managed services instead of local containers.
+
+The managed stack is defined in `docker-compose.managed.yml` and differs from
+self-hosting in three ways:
+
+- **No Postgres container.** The database is external (Neon, serverless Postgres);
+  `DATABASE_URL` is a full connection string.
+- **Object storage is required** (Cloudflare R2, S3-compatible), kept private and
+  served only through signed URLs.
+- **Stripe billing is active** (managed only) and TLS/routing runs through
+  Cloudflare, optionally via a Cloudflare Tunnel (`--profile tunnel`).
+
+```bash
+cp .env.managed.example .env      # fill in Neon, R2, Stripe, secrets
+docker compose -f docker-compose.managed.yml pull
+docker compose -f docker-compose.managed.yml --profile tunnel up -d
+```
+
+Presence runs in-memory in the single API process, which is ideal on one VPS.
+Horizontal scaling (multiple API instances) would additionally need Redis
+pub/sub, Durable Objects, or PartyKit — not before.
+
+Full production runbook (secrets, Neon, R2, Cloudflare, backups, monitoring,
+Stripe webhook): [`deploy/managed/RUNBOOK.md`](deploy/managed/RUNBOOK.md).
 
 ## Release Notes
 

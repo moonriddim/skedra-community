@@ -122,16 +122,6 @@ export function buildTemplateSectionLayoutSyncUpdates(
 		}
 	}
 
-	if (
-		updates.length === 0 ||
-		!updates.some((update) => {
-			const element = nextElements.get(update.id);
-			return getTemplateSectionMeta(element)?.templateTool === "swot";
-		})
-	) {
-		updates.push(...buildLegacySwotBoardLayoutUpdates(nextElements));
-	}
-
 	return updates;
 }
 
@@ -406,43 +396,6 @@ function buildSwotBoardLayoutUpdates(
 	}
 
 	return updates;
-}
-
-function buildLegacySwotBoardLayoutUpdates(
-	elements: Map<string, CanvasElement>,
-): Array<{ id: string; changes: Partial<CanvasElement> }> {
-	const swotSections = Array.from(elements.values()).filter((element) => {
-		const meta = getTemplateSectionMeta(element);
-		return meta?.templateTool === "swot";
-	});
-	if (swotSections.length !== 4) return [];
-
-	const byId = new Map(
-		swotSections.map((section) => [
-			getTemplateSectionMeta(section)?.templateSectionId ?? "",
-			section,
-		]),
-	);
-	const strengths = byId.get("strengths");
-	const weaknesses = byId.get("weaknesses");
-	const opportunities = byId.get("opportunities");
-	const threats = byId.get("threats");
-	if (!strengths || !weaknesses || !opportunities || !threats) return [];
-
-	const fakeGroup = [
-		strengths,
-		weaknesses,
-		opportunities,
-		threats,
-		...Array.from(elements.values()).filter((element) => {
-			if (element.type === "arrow") return true;
-			if (element.type !== "text") return false;
-			if (element.y < strengths.y) return true;
-			return element.x < strengths.x && element.width <= 140;
-		}),
-	];
-
-	return buildSwotBoardLayoutUpdates(fakeGroup, elements);
 }
 
 function buildRetrospectiveBoardLayoutUpdates(

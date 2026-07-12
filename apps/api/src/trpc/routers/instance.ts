@@ -1,8 +1,10 @@
 /** Instanz-Einstellungen (SMTP, Admin) für Self-Hosting. */
 
 import { instanceSettings } from "@skedra/db";
+import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { env } from "../../env";
 import {
 	encryptLiveKitApiSecret,
 	encryptSmtpPassword,
@@ -17,7 +19,14 @@ import {
 	getMailDeliveryStatus,
 	sendAppEmail,
 } from "../../lib/mail";
-import { protectedProcedure, publicProcedure, router } from "../init";
+import {
+	ObjectStorageConfigChangeError,
+	getEnvObjectStorageStatus,
+	getObjectStorageStatus,
+	isManagedDeployment,
+	updateObjectStorageSettings,
+} from "../../lib/object-storage";
+import { protectedProcedure, router } from "../init";
 
 const smtpInputSchema = z.object({
 	useCustomSmtp: z.boolean(),
@@ -42,6 +51,20 @@ const callsInputSchema = z.object({
 	tokenTtlSeconds: z.number().int().min(60).max(86_400).optional(),
 });
 
+const objectStorageInputSchema = z.object({
+	useCustomObjectStorage: z.boolean(),
+	provider: z.enum(["inline", "s3"]),
+	preset: z.enum(["custom", "r2", "ovh", "aws"]),
+	endpoint: z.string().url().optional(),
+	region: z.string().max(80).optional(),
+	bucket: z.string().max(255).optional(),
+	accessKeyId: z.string().max(255).optional(),
+	secretAccessKey: z.string().max(500).optional(),
+	clearSecretAccessKey: z.boolean().optional(),
+	publicBaseUrl: z.string().url().optional(),
+	forcePathStyle: z.boolean().optional(),
+});
+
 export const instanceRouter = router({
 	getMailStatus: protectedProcedure.query(async ({ ctx }) => {
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
@@ -52,6 +75,7 @@ export const instanceRouter = router({
 			...delivery,
 			adminUserId: settings.adminUserId,
 			isAdmin: await isInstanceAdmin(ctx.db, ctx.user.id),
+			managedDeployment: env.SKEDRA_DEPLOYMENT_MODE === "managed",
 			useCustomSmtp: settings.useCustomSmtp,
 			smtpHost: settings.smtpHost,
 			smtpPort: settings.smtpPort,
@@ -172,6 +196,139 @@ export const instanceRouter = router({
 			return { success: true };
 		}),
 
+	getObjectStorageStatus: protectedProcedure.query(async ({ ctx }) => {
+		await requireInstanceAdmin(ctx.db, ctx.user.id);
+		const managedDeployment = isManagedDeployment();
+		const resolved = await getObjectStorageStatus(ctx.db);
+		if (managedDeployment) {
+			return {
+				...resolved,
+				endpoint: null,
+				region: null,
+				bucket: null,
+				publicBaseUrl: null,
+				forcePathStyle: false,
+				hasAccessKeyId: false,
+				hasSecretAccessKey: false,
+				isAdmin: true,
+				objectStorageSettingsEditable: false,
+				useCustomObjectStorage: false,
+				objectStorageProvider: resolved.provider,
+				objectStoragePreset: resolved.preset,
+				objectStorageEndpoint: null,
+				objectStorageRegion: null,
+				objectStorageBucket: null,
+				objectStorageAccessKeyId: null,
+				hasStoredSecretAccessKey: false,
+				objectStoragePublicBaseUrl: null,
+				objectStorageForcePathStyle: false,
+				envConfigured: resolved.configured,
+				envProvider: resolved.provider,
+				envPreset: resolved.preset,
+				envBucket: null,
+				envPublicBaseUrl: null,
+			};
+		}
+
+		const settings = await getOrCreateInstanceSettings(ctx.db);
+		const envStatus = getEnvObjectStorageStatus();
+		const storedPreset = settings.objectStoragePreset;
+		return {
+			...resolved,
+			isAdmin: true,
+			objectStorageSettingsEditable: true,
+			useCustomObjectStorage: settings.useCustomObjectStorage,
+			objectStorageProvider:
+				settings.objectStorageProvider === "s3"
+					? ("s3" as const)
+					: envStatus.provider,
+			objectStoragePreset:
+				storedPreset === "r2" ||
+				storedPreset === "ovh" ||
+				storedPreset === "aws"
+					? storedPreset
+					: envStatus.preset,
+			objectStorageEndpoint:
+				settings.objectStorageEndpoint ?? envStatus.endpoint,
+			objectStorageRegion: settings.objectStorageRegion ?? envStatus.region,
+			objectStorageBucket: settings.objectStorageBucket ?? envStatus.bucket,
+			objectStorageAccessKeyId: settings.objectStorageAccessKeyId ?? null,
+			hasStoredSecretAccessKey:
+				!!settings.encryptedObjectStorageSecretAccessKey,
+			objectStoragePublicBaseUrl:
+				settings.objectStoragePublicBaseUrl ?? envStatus.publicBaseUrl,
+			objectStorageForcePathStyle:
+				settings.objectStorageForcePathStyle ?? envStatus.forcePathStyle,
+			envConfigured: envStatus.configured,
+			envProvider: envStatus.provider,
+			envPreset: envStatus.preset,
+			envBucket: envStatus.bucket,
+			envPublicBaseUrl: envStatus.publicBaseUrl,
+		};
+	}),
+
+	updateObjectStorage: protectedProcedure
+		.input(objectStorageInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			await requireInstanceAdmin(ctx.db, ctx.user.id);
+			if (isManagedDeployment()) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message:
+						"Object Storage wird in dieser Skedra-Instanz per Umgebung verwaltet.",
+				});
+			}
+			const settings = await getOrCreateInstanceSettings(ctx.db);
+			const endpoint = input.endpoint?.trim() || null;
+			const region = input.region?.trim() || null;
+			const bucket = input.bucket?.trim() || null;
+			const accessKeyId = input.accessKeyId?.trim() || null;
+			const publicBaseUrl = input.publicBaseUrl?.trim() || null;
+			const hasStoredSecret =
+				!!settings.encryptedObjectStorageSecretAccessKey &&
+				!input.clearSecretAccessKey;
+			const hasNextSecret = hasStoredSecret || !!input.secretAccessKey?.trim();
+
+			if (
+				input.useCustomObjectStorage &&
+				input.provider === "s3" &&
+				(!bucket ||
+					!accessKeyId ||
+					!hasNextSecret ||
+					(input.preset !== "aws" && !endpoint))
+			) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"Bucket, Access Key, Secret und Endpoint sind fuer S3-kompatiblen Storage erforderlich.",
+				});
+			}
+
+			try {
+				await updateObjectStorageSettings(ctx.db, {
+					useCustomObjectStorage: input.useCustomObjectStorage,
+					provider: input.provider,
+					preset: input.preset,
+					endpoint,
+					region,
+					bucket,
+					accessKeyId,
+					secretAccessKey: input.secretAccessKey,
+					clearSecretAccessKey: input.clearSecretAccessKey,
+					publicBaseUrl,
+					forcePathStyle: input.forcePathStyle,
+					adminUserId: settings.adminUserId ?? ctx.user.id,
+				});
+			} catch (error) {
+				if (error instanceof ObjectStorageConfigChangeError) {
+					throw new TRPCError({ code: "CONFLICT", message: error.message });
+				}
+				throw error;
+			}
+
+			return { success: true };
+		}),
+
 	sendTestEmail: protectedProcedure.mutation(async ({ ctx }) => {
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 
@@ -188,10 +345,18 @@ export const instanceRouter = router({
 		return { success: true, email: ctx.user.email };
 	}),
 
-	/** Liefert einen lokalen Reset-Link, falls der Mailversand fehlgeschlagen ist. */
-	peekPasswordResetLink: publicProcedure
+	/**
+	 * Liefert einen lokalen Reset-Link, falls der Mailversand fehlgeschlagen ist.
+	 *
+	 * Fix A1: War zuvor ein `publicProcedure` — dadurch konnte JEDER anonym den
+	 * Reset-Link eines fremden Kontos allein anhand der E-Mail abrufen und so das
+	 * Konto übernehmen. Jetzt nur noch für angemeldete Instanz-Admins zugänglich;
+	 * der Admin ruft den Link ab und übergibt ihn dem betroffenen Nutzer manuell.
+	 */
+	peekPasswordResetLink: protectedProcedure
 		.input(z.object({ email: z.string().email() }))
-		.query(({ input }) => {
+		.query(async ({ ctx, input }) => {
+			await requireInstanceAdmin(ctx.db, ctx.user.id);
 			const url = consumePasswordResetLink(input.email);
 			return { url };
 		}),

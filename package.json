@@ -12,7 +12,7 @@
 		"analyze:fix": "fallow fix --yes",
 		"format": "biome format --write .",
 		"db:push": "turbo db:push",
-		"db:migrate": "node packages/db/scripts/apply-team-roles-migration.mjs && node packages/db/scripts/apply-excalidraw-perms-migration.mjs && node packages/db/scripts/apply-comments-instance-migration.mjs && node packages/db/scripts/apply-board-roles-migration.mjs && node packages/db/scripts/apply-plus-features-migration.mjs",
+		"db:migrate": "turbo db:push",
 		"db:studio": "turbo db:studio"
 	},
 	"devDependencies": {

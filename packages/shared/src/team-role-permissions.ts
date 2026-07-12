@@ -1,7 +1,11 @@
 import { z } from "zod";
 
-/** Rechte einer Board-Rolle — gelten nur auf dem jeweiligen Canvas. */
-export const boardRolePermissionsSchema = z.object({
+/** Rechte einer zentralen Team-Rolle im Board-, Canvas- und Workspace-Kontext. */
+export const teamRolePermissionsSchema = z.object({
+	/** Board-Admin: schaltet alle granularen Board-Rechte frei */
+	admin: z.boolean(),
+	/** Workspace-Admins ernennen, bearbeiten oder entfernen */
+	manageWorkspaceAdmins: z.boolean(),
 	/** Canvas zeichnen / Elemente bearbeiten */
 	editCanvas: z.boolean(),
 	/** Kommentar-Threads erstellen und beantworten */
@@ -12,7 +16,7 @@ export const boardRolePermissionsSchema = z.object({
 	inviteOthers: z.boolean(),
 	/** Präsentations- und Kollaborations-Links verwalten */
 	manageShare: z.boolean(),
-	/** Rollen anderer Mitglieder auf diesem Board ändern / entfernen */
+	/** Team-Rollen anderer Mitglieder auf diesem Board ändern / entfernen */
 	manageMembers: z.boolean(),
 	/** Aktivitätsverlauf auf dem Board ansehen */
 	viewActivity: z.boolean(),
@@ -20,13 +24,11 @@ export const boardRolePermissionsSchema = z.object({
 	useAi: z.boolean(),
 });
 
-/** @deprecated Alias — nutze boardRolePermissionsSchema */
-export const teamRolePermissionsSchema = boardRolePermissionsSchema;
+export type TeamRolePermissions = z.infer<typeof teamRolePermissionsSchema>;
 
-export type BoardRolePermissions = z.infer<typeof boardRolePermissionsSchema>;
-export type TeamRolePermissions = BoardRolePermissions;
-
-export const BOARD_ROLE_PERMISSION_KEYS = [
+export const TEAM_ROLE_PERMISSION_KEYS = [
+	"admin",
+	"manageWorkspaceAdmins",
 	"editCanvas",
 	"comment",
 	"resolveComments",
@@ -35,11 +37,11 @@ export const BOARD_ROLE_PERMISSION_KEYS = [
 	"manageMembers",
 	"viewActivity",
 	"useAi",
-] as const satisfies readonly (keyof BoardRolePermissions)[];
+] as const satisfies readonly (keyof TeamRolePermissions)[];
 
-export const TEAM_ROLE_PERMISSION_KEYS = BOARD_ROLE_PERMISSION_KEYS;
-
-const BOARD_ROLE_PERMISSION_DEFAULTS: BoardRolePermissions = {
+const TEAM_ROLE_PERMISSION_DEFAULTS: TeamRolePermissions = {
+	admin: false,
+	manageWorkspaceAdmins: false,
 	editCanvas: false,
 	comment: false,
 	resolveComments: false,
@@ -51,8 +53,8 @@ const BOARD_ROLE_PERMISSION_DEFAULTS: BoardRolePermissions = {
 };
 
 /** Vollzugriff-Kollaborateur (Standard „Designer“). */
-export const DEFAULT_EDITOR_ROLE_PERMISSIONS: BoardRolePermissions = {
-	...BOARD_ROLE_PERMISSION_DEFAULTS,
+export const DEFAULT_EDITOR_ROLE_PERMISSIONS: TeamRolePermissions = {
+	...TEAM_ROLE_PERMISSION_DEFAULTS,
 	editCanvas: true,
 	comment: true,
 	resolveComments: true,
@@ -61,63 +63,68 @@ export const DEFAULT_EDITOR_ROLE_PERMISSIONS: BoardRolePermissions = {
 };
 
 /** Nur lesen. */
-export const DEFAULT_VIEWER_ROLE_PERMISSIONS: BoardRolePermissions = {
-	...BOARD_ROLE_PERMISSION_DEFAULTS,
+export const DEFAULT_VIEWER_ROLE_PERMISSIONS: TeamRolePermissions = {
+	...TEAM_ROLE_PERMISSION_DEFAULTS,
 	viewActivity: true,
 };
 
 /** Reviewer: kommentieren, nicht zeichnen. */
-export const DEFAULT_REVIEWER_ROLE_PERMISSIONS: BoardRolePermissions = {
-	...BOARD_ROLE_PERMISSION_DEFAULTS,
+export const DEFAULT_REVIEWER_ROLE_PERMISSIONS: TeamRolePermissions = {
+	...TEAM_ROLE_PERMISSION_DEFAULTS,
 	comment: true,
 	resolveComments: true,
 	viewActivity: true,
 };
 
-export function normalizeBoardRolePermissions(
-	partial: Partial<BoardRolePermissions> | Record<string, unknown>,
-): BoardRolePermissions {
-	const merged = { ...BOARD_ROLE_PERMISSION_DEFAULTS };
-	for (const key of BOARD_ROLE_PERMISSION_KEYS) {
+/** Board-Admin: alle Board-Rechte; Workspace-Admin-Verwaltung bleibt separat. */
+export const DEFAULT_ADMIN_ROLE_PERMISSIONS: TeamRolePermissions = {
+	...TEAM_ROLE_PERMISSION_DEFAULTS,
+	admin: true,
+	editCanvas: true,
+	comment: true,
+	resolveComments: true,
+	inviteOthers: true,
+	manageShare: true,
+	manageMembers: true,
+	viewActivity: true,
+	useAi: true,
+};
+
+export function normalizeTeamRolePermissions(
+	partial: Partial<TeamRolePermissions> | Record<string, unknown>,
+): TeamRolePermissions {
+	const merged = { ...TEAM_ROLE_PERMISSION_DEFAULTS };
+	for (const key of TEAM_ROLE_PERMISSION_KEYS) {
 		if (typeof partial[key] === "boolean") {
 			merged[key] = partial[key];
 		}
 	}
-	return boardRolePermissionsSchema.parse(merged);
+	return teamRolePermissionsSchema.parse(merged);
 }
 
 export function parseTeamRolePermissions(
 	raw: string | null | undefined,
-): BoardRolePermissions {
+): TeamRolePermissions {
 	if (!raw?.trim()) {
-		return { ...DEFAULT_EDITOR_ROLE_PERMISSIONS };
+		return { ...TEAM_ROLE_PERMISSION_DEFAULTS };
 	}
 	try {
-		return normalizeBoardRolePermissions(
+		return normalizeTeamRolePermissions(
 			JSON.parse(raw) as Record<string, unknown>,
 		);
 	} catch {
-		return { ...DEFAULT_EDITOR_ROLE_PERMISSIONS };
+		return { ...TEAM_ROLE_PERMISSION_DEFAULTS };
 	}
 }
 
 export function serializeTeamRolePermissions(
-	permissions: BoardRolePermissions,
+	permissions: TeamRolePermissions,
 ): string {
-	return JSON.stringify(boardRolePermissionsSchema.parse(permissions));
+	return JSON.stringify(teamRolePermissionsSchema.parse(permissions));
 }
 
-/** Legacy access_level für Realtime — edit nur wenn Canvas bearbeitbar. */
 export function accessLevelFromPermissions(
 	permissions: TeamRolePermissions,
 ): "view" | "edit" {
-	return permissions.editCanvas ? "edit" : "view";
-}
-
-export function permissionsFromLegacyAccessLevel(
-	level: "view" | "edit",
-): TeamRolePermissions {
-	return level === "edit"
-		? { ...DEFAULT_EDITOR_ROLE_PERMISSIONS }
-		: { ...DEFAULT_VIEWER_ROLE_PERMISSIONS };
+	return permissions.admin || permissions.editCanvas ? "edit" : "view";
 }

@@ -25,9 +25,11 @@ import { StickyNoteShape } from "./sticky-note-shape";
 export const ElementShape = memo(function ElementShape({
 	element: el,
 	isEditingText,
+	resolveAssetUrl,
 }: {
 	element: CanvasElement;
 	isEditingText: boolean;
+	resolveAssetUrl?: (src: string) => string;
 }) {
 	const commonProps = {
 		"data-element-id": el.id,
@@ -60,6 +62,7 @@ export const ElementShape = memo(function ElementShape({
 						el={el}
 						transform={transform}
 						commonProps={commonProps}
+						resolveAssetUrl={resolveAssetUrl}
 					/>
 				);
 			}
@@ -176,6 +179,7 @@ export const ElementShape = memo(function ElementShape({
 		case "image": {
 			const geometry = getImageRenderGeometry(el);
 			if (!geometry.src) return null;
+			const imageSrc = resolveAssetUrl?.(geometry.src) ?? geometry.src;
 			return (
 				<g transform={transform} {...commonProps}>
 					{geometry.clipId && geometry.clipRect && (
@@ -201,7 +205,7 @@ export const ElementShape = memo(function ElementShape({
 						rx={8}
 					/>
 					<image
-						href={geometry.src}
+						href={imageSrc}
 						x={geometry.imageX}
 						y={geometry.imageY}
 						width={Math.max(1, geometry.imageWidth)}
@@ -289,6 +293,7 @@ export const ElementShape = memo(function ElementShape({
 					transform={transform}
 					commonProps={commonProps}
 					isEditingText={isEditingText}
+					resolveAssetUrl={resolveAssetUrl}
 				/>
 			);
 

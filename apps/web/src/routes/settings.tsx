@@ -1,7 +1,8 @@
-import { CanvasRolesSettings } from "@/components/settings/canvas-roles-settings";
+import { BillingSettings } from "@/components/settings/billing-settings";
 import { LibraryReviewSettings } from "@/components/settings/library-review-settings";
 import { ProfileAccountSecurity } from "@/components/settings/profile-account-security";
 import { SystemCallSettings } from "@/components/settings/system-call-settings";
+import { SystemObjectStorageSettings } from "@/components/settings/system-object-storage-settings";
 import { SystemSmtpSettings } from "@/components/settings/system-smtp-settings";
 import { UserPreferencesCard } from "@/components/settings/user-preferences-card";
 import { TeamRolesSettings } from "@/components/team/team-roles-settings";
@@ -39,6 +40,7 @@ import {
 	Code2,
 	Copy,
 	Cpu,
+	CreditCard,
 	KeyRound,
 	Loader2,
 	LockKeyhole,
@@ -47,7 +49,6 @@ import {
 	RefreshCw,
 	Server,
 	Settings,
-	Shield,
 	Sparkles,
 	Terminal,
 	Trash2,
@@ -61,7 +62,7 @@ import { Link, useSearchParams } from "react-router";
 type SettingsTab =
 	| "profile"
 	| "team"
-	| "canvas-roles"
+	| "billing"
 	| "api-keys"
 	| "ai"
 	| "system";
@@ -81,20 +82,22 @@ export function ApiKeysSettingsPage() {
 	const { data: aiSettings, isLoading: aiLoading } =
 		trpc.ai.getSettings.useQuery();
 	const { data: team, isLoading: teamLoading } = trpc.team.get.useQuery();
+	const { data: billingStatus } = trpc.billing.getStatus.useQuery();
 	const { data: mailStatus } = trpc.instance.getMailStatus.useQuery(undefined, {
 		retry: false,
 	});
 
 	const showSystemTab = mailStatus?.isAdmin ?? false;
 	const showTeamTab = team?.canManageWorkspace ?? false;
+	const showBillingTab = billingStatus?.available === true;
 	const [searchParams] = useSearchParams();
 
 	const tabFromUrl = searchParams.get("tab");
 	const initialTab: SettingsTab =
-		tabFromUrl === "team" && showTeamTab
+		(tabFromUrl === "team" || tabFromUrl === "canvas-roles") && showTeamTab
 			? "team"
-			: tabFromUrl === "canvas-roles"
-				? "canvas-roles"
+			: tabFromUrl === "billing"
+				? "billing"
 				: tabFromUrl === "api-keys"
 					? "api-keys"
 					: tabFromUrl === "ai"
@@ -106,7 +109,10 @@ export function ApiKeysSettingsPage() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
 	useEffect(() => {
-		if (tabFromUrl === "team" && showTeamTab) {
+		if (
+			(tabFromUrl === "team" || tabFromUrl === "canvas-roles") &&
+			showTeamTab
+		) {
 			setActiveTab("team");
 			requestAnimationFrame(() => {
 				document
@@ -114,15 +120,17 @@ export function ApiKeysSettingsPage() {
 					?.scrollIntoView({ behavior: "smooth" });
 			});
 		}
-		if (tabFromUrl === "canvas-roles") {
-			setActiveTab("canvas-roles");
-		}
 	}, [tabFromUrl, showTeamTab]);
 
 	useEffect(() => {
 		if (activeTab === "system" && !showSystemTab) setActiveTab("profile");
 		if (activeTab === "team" && !showTeamTab) setActiveTab("profile");
-	}, [activeTab, showSystemTab, showTeamTab]);
+		if (activeTab === "billing" && !showBillingTab) setActiveTab("profile");
+	}, [activeTab, showBillingTab, showSystemTab, showTeamTab]);
+
+	useEffect(() => {
+		if (tabFromUrl === "billing" && showBillingTab) setActiveTab("billing");
+	}, [showBillingTab, tabFromUrl]);
 	const [newKeyName, setNewKeyName] = useState("");
 	const [selectedScopes, setSelectedScopes] = useState<SkedraApiKeyScope[]>([
 		...SKEDRA_API_KEY_DEFAULT_SCOPES,
@@ -318,18 +326,20 @@ export function ApiKeysSettingsPage() {
 					</div>
 
 					<nav className="flex flex-row gap-1 border-b border-border pb-2 lg:flex-col lg:border-none lg:pb-0 overflow-x-auto">
-						<button
-							type="button"
-							onClick={() => setActiveTab("profile")}
-							className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
-								activeTab === "profile"
-									? "bg-primary/10 text-primary"
-									: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-							}`}
-						>
-							<User className="h-4 w-4" />
-							<span>Mein Profil</span>
-						</button>
+						{showBillingTab ? (
+							<button
+								type="button"
+								onClick={() => setActiveTab("profile")}
+								className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
+									activeTab === "profile"
+										? "bg-primary/10 text-primary"
+										: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+								}`}
+							>
+								<User className="h-4 w-4" />
+								<span>Mein Profil</span>
+							</button>
+						) : null}
 						{showTeamTab ? (
 							<button
 								type="button"
@@ -346,15 +356,15 @@ export function ApiKeysSettingsPage() {
 						) : null}
 						<button
 							type="button"
-							onClick={() => setActiveTab("canvas-roles")}
+							onClick={() => setActiveTab("billing")}
 							className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
-								activeTab === "canvas-roles"
+								activeTab === "billing"
 									? "bg-primary/10 text-primary"
 									: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
 							}`}
 						>
-							<Shield className="h-4 w-4" />
-							<span>{t("settings.canvasRoles.nav")}</span>
+							<CreditCard className="h-4 w-4" />
+							<span>Abrechnung</span>
 						</button>
 						<button
 							type="button"
@@ -494,8 +504,6 @@ export function ApiKeysSettingsPage() {
 						</div>
 					)}
 
-					{activeTab === "canvas-roles" && <CanvasRolesSettings />}
-
 					{activeTab === "team" && (
 						<div className="space-y-6 animate-in fade-in-50 duration-200">
 							{/* Team Overview Card */}
@@ -573,6 +581,8 @@ export function ApiKeysSettingsPage() {
 							) : null}
 						</div>
 					)}
+
+					{activeTab === "billing" && showBillingTab && <BillingSettings />}
 
 					{activeTab === "api-keys" && (
 						<div className="space-y-6 animate-in fade-in-50 duration-200">
@@ -898,6 +908,7 @@ export function ApiKeysSettingsPage() {
 					{activeTab === "system" && (
 						<div className="space-y-6 animate-in fade-in-50 duration-200">
 							<SystemSmtpSettings />
+							<SystemObjectStorageSettings />
 							<SystemCallSettings />
 							<LibraryReviewSettings />
 						</div>

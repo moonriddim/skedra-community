@@ -4,15 +4,16 @@ import {
 	instanceSettings,
 	registrationInvites,
 	teamMembers,
+	teamRoles,
+	teams,
 	users,
 	whiteboardMembers,
-	whiteboardRoles,
 } from "@skedra/db";
-import { parseTeamRolePermissions } from "@skedra/shared";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { env } from "../env";
-import { membershipValuesFromRole } from "./board-member-access";
+import { membershipValuesFromTeamRole } from "./board-member-access";
 import { getOrCreateInstanceSettings } from "./instance-settings";
+import { syncWorkspaceSubscriptionSeats } from "./stripe-billing";
 
 const INVITE_TTL_DAYS = 7;
 
@@ -51,8 +52,7 @@ export async function createRegistrationInvite(
 		teamRoleId?: string | null;
 		workspaceRole?: "member" | "admin";
 		whiteboardId?: string;
-		whiteboardRoleId?: string | null;
-		boardAccessLevel?: "view" | "edit" | null;
+		whiteboardTeamRoleId?: string | null;
 	},
 ) {
 	const email = normalizeInviteEmail(input.email);
@@ -72,8 +72,7 @@ export async function createRegistrationInvite(
 			teamRoleId: input.teamRoleId ?? null,
 			workspaceRole: input.workspaceRole ?? "member",
 			whiteboardId: input.whiteboardId,
-			whiteboardRoleId: input.whiteboardRoleId ?? null,
-			boardAccessLevel: input.boardAccessLevel ?? null,
+			whiteboardTeamRoleId: input.whiteboardTeamRoleId ?? null,
 			expiresAt,
 		})
 		.returning();
@@ -130,55 +129,54 @@ export async function completeRegistrationInvite(
 	if (!user) return null;
 
 	if (invite.teamId) {
-		await db
-			.insert(teamMembers)
-			.values({
-				teamId: invite.teamId,
-				userId: user.id,
-				roleId: invite.teamRoleId,
-				workspaceRole: invite.workspaceRole,
-			})
-			.onConflictDoUpdate({
-				target: [teamMembers.teamId, teamMembers.userId],
-				set: {
-					roleId: invite.teamRoleId,
-					workspaceRole: invite.workspaceRole,
-				},
-			});
+		const memberValues = {
+			teamId: invite.teamId,
+			userId: user.id,
+			roleId: invite.teamRoleId,
+			workspaceRole: invite.workspaceRole,
+		};
+
+		if (invite.purpose === "board") {
+			await db.insert(teamMembers).values(memberValues).onConflictDoNothing();
+		} else {
+			await db
+				.insert(teamMembers)
+				.values(memberValues)
+				.onConflictDoUpdate({
+					target: [teamMembers.teamId, teamMembers.userId],
+					set: {
+						roleId: invite.teamRoleId,
+						workspaceRole: invite.workspaceRole,
+					},
+				});
+		}
 	}
 
 	if (invite.whiteboardId) {
-		let memberValues: {
-			roleId?: string | null;
-			accessLevel: "view" | "edit";
-		} = {
-			roleId: invite.whiteboardRoleId,
-			accessLevel: invite.boardAccessLevel ?? "edit",
-		};
+		let memberValues: { teamRoleId: string } | null = null;
 
-		if (invite.whiteboardRoleId) {
-			const role = await db.query.whiteboardRoles.findFirst({
-				where: eq(whiteboardRoles.id, invite.whiteboardRoleId),
+		if (invite.whiteboardTeamRoleId) {
+			const role = await db.query.teamRoles.findFirst({
+				where: eq(teamRoles.id, invite.whiteboardTeamRoleId),
 			});
 			if (role) {
-				memberValues = membershipValuesFromRole(
-					role.id,
-					parseTeamRolePermissions(role.permissions),
-				);
+				memberValues = membershipValuesFromTeamRole(role.id);
 			}
 		}
 
-		await db
-			.insert(whiteboardMembers)
-			.values({
-				whiteboardId: invite.whiteboardId,
-				userId: user.id,
-				...memberValues,
-			})
-			.onConflictDoUpdate({
-				target: [whiteboardMembers.whiteboardId, whiteboardMembers.userId],
-				set: memberValues,
-			});
+		if (memberValues) {
+			await db
+				.insert(whiteboardMembers)
+				.values({
+					whiteboardId: invite.whiteboardId,
+					userId: user.id,
+					...memberValues,
+				})
+				.onConflictDoUpdate({
+					target: [whiteboardMembers.whiteboardId, whiteboardMembers.userId],
+					set: memberValues,
+				});
+		}
 	}
 
 	const [accepted] = await db
@@ -186,6 +184,14 @@ export async function completeRegistrationInvite(
 		.set({ acceptedAt: new Date() })
 		.where(eq(registrationInvites.id, invite.id))
 		.returning();
+
+	if (accepted?.teamId) {
+		const workspace = await db.query.teams.findFirst({
+			where: eq(teams.id, accepted.teamId),
+			columns: { id: true, ownerId: true },
+		});
+		if (workspace) await syncWorkspaceSubscriptionSeats(db, workspace);
+	}
 
 	return accepted;
 }

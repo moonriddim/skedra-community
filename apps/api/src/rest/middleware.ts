@@ -82,6 +82,7 @@ export function serializeBoard(board: {
 	updatedAt: Date;
 	archivedAt?: Date | null;
 	presentationShareEnabled?: boolean;
+	encryptionMode?: "server" | "e2ee";
 }) {
 	return {
 		id: board.id,
@@ -90,6 +91,9 @@ export function serializeBoard(board: {
 		createdAt: board.createdAt.toISOString(),
 		updatedAt: board.updatedAt.toISOString(),
 		archivedAt: board.archivedAt?.toISOString() ?? null,
+		...(board.encryptionMode !== undefined
+			? { encryptionMode: board.encryptionMode }
+			: {}),
 		...(board.presentationShareEnabled !== undefined
 			? { presentationShareEnabled: board.presentationShareEnabled }
 			: {}),

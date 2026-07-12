@@ -15,6 +15,7 @@ interface SavedViewTileProps {
 	onStopEdit: () => void;
 	onDelete: (id: string) => void;
 	onRename: (id: string, name: string) => void;
+	resolveAssetUrl?: (src: string) => string;
 	editLabel: string;
 	finishEditLabel: string;
 	deleteLabel: string;
@@ -42,6 +43,7 @@ export function SavedViewTile({
 	onStopEdit,
 	onDelete,
 	onRename,
+	resolveAssetUrl,
 	editLabel,
 	finishEditLabel,
 	deleteLabel,
@@ -131,6 +133,7 @@ export function SavedViewTile({
 							<CanvasRenderer
 								scene={previewScene}
 								selectedIds={EMPTY_SELECTED_IDS}
+								resolveAssetUrl={resolveAssetUrl}
 							/>
 						</svg>
 						<div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />

@@ -29,9 +29,9 @@ export function PresentationPage() {
 		);
 
 	useEffect(() => {
-		if (!data?.whiteboardId) return;
+		if (!data?.whiteboardId || data.encryptionMode !== "e2ee") return;
 		setE2eeKey(getKnownE2eeKey(data.whiteboardId));
-	}, [data?.whiteboardId]);
+	}, [data?.encryptionMode, data?.whiteboardId]);
 
 	if (!shareToken) return null;
 	if (isLoading) return <ShareTokenLoadingScreen />;
@@ -55,9 +55,9 @@ export function PresentationPage() {
 		<ShareTokenCanvasFrame>
 			<SkedraCanvas
 				whiteboardId={data.whiteboardId}
+				encryptionMode={data.encryptionMode}
 				presentationMode
 				presentationShareToken={shareToken}
-				e2eeEnabled={data.e2eeEnabled}
 				e2eeKey={e2eeKey}
 				forceReadonly
 				presenceEnabled={data.presenceEnabled}

@@ -8,12 +8,15 @@
 		"skedra-mcp": "./dist/index.js"
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js",
+		"test": "node --import tsx --test \"src/*.test.ts\"",
 		"start": "node --env-file=../../.env dist/index.js",
 		"stdio": "tsx --env-file=../../.env src/index.ts"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.12.1",
+		"@skedra/canvas-core": "workspace:*",
+		"yjs": "^13.6.29",
 		"zod": "^3.24.0"
 	},
 	"devDependencies": {

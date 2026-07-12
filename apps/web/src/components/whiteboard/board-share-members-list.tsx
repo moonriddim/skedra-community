@@ -70,7 +70,9 @@ export function BoardShareMembersList({
 		onSuccess: invalidate,
 	});
 
-	const members = data?.members ?? [];
+	const members = (data?.members ?? []).filter(
+		(member: BoardMember) => member.isOwner || member.membershipId,
+	);
 
 	return (
 		<div className="space-y-3">
@@ -123,7 +125,10 @@ export function BoardShareMembersList({
 										<RolePermissionsSummary permissions={member.permissions} />
 									) : member.roleName && member.roleColor ? (
 										<>
-											{canManage && inviteRoles && inviteRoles.length > 0 ? (
+											{canManage &&
+											member.membershipId &&
+											inviteRoles &&
+											inviteRoles.length > 0 ? (
 												<select
 													className="w-full max-w-xs rounded-md border border-border bg-background px-2 py-1.5 text-sm"
 													value={member.roleId ?? ""}
@@ -140,7 +145,7 @@ export function BoardShareMembersList({
 												>
 													{!member.roleId ? (
 														<option value="" disabled>
-															{t("whiteboardPage.share.legacyAccessLabel")}
+															{t("whiteboardPage.share.selectTeamRole")}
 														</option>
 													) : null}
 													{inviteRoles.map((role) => (
@@ -161,14 +166,12 @@ export function BoardShareMembersList({
 										</>
 									) : (
 										<p className="text-xs text-muted-foreground">
-											{member.accessLevel === "view"
-												? t("whiteboardPage.share.legacyViewOnly")
-												: t("whiteboardPage.share.legacyEditOnly")}
+											{t("whiteboardPage.share.missingTeamRole")}
 										</p>
 									)}
 								</div>
 
-								{canManage && !member.isOwner ? (
+								{canManage && !member.isOwner && member.membershipId ? (
 									<Button
 										type="button"
 										variant="ghost"

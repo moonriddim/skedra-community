@@ -2,7 +2,6 @@
 
 import {
 	CANVAS_HISTORY_STORAGE_VERSION,
-	clearLegacyPersistedCanvasHistory,
 	clearPersistedCanvasHistory,
 	loadPersistedCanvasHistory,
 	savePersistedCanvasHistory,
@@ -106,7 +105,6 @@ export function useCanvasHistory({
 
 	const initializeHistory = useCallback(() => {
 		const persisted = loadPersistedCanvasHistory(scopeKeyRef.current);
-		clearLegacyPersistedCanvasHistory(scopeKeyRef.current);
 		if (persisted) {
 			undoStackRef.current = persisted.undoStack.slice(-MAX_HISTORY_ENTRIES);
 			redoStackRef.current = persisted.redoStack.slice(-MAX_HISTORY_ENTRIES);

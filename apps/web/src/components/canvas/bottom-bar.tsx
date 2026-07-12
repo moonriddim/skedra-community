@@ -31,6 +31,7 @@ interface BottomBarProps {
 	onStopEditView: () => void;
 	onDeleteView: (id: string) => void;
 	onRenameView: (id: string, name: string) => void;
+	resolveAssetUrl?: (src: string) => string;
 }
 
 export function BottomBar({
@@ -53,6 +54,7 @@ export function BottomBar({
 	onStopEditView,
 	onDeleteView,
 	onRenameView,
+	resolveAssetUrl,
 }: BottomBarProps) {
 	const viewportControls = useCanvasStore(
 		useShallow((state) => ({
@@ -98,6 +100,7 @@ export function BottomBar({
 					onStopEditView={onStopEditView}
 					onDeleteView={onDeleteView}
 					onRenameView={onRenameView}
+					resolveAssetUrl={resolveAssetUrl}
 					{...viewTileLabels}
 				/>
 
@@ -177,6 +180,7 @@ export function BottomBar({
 					onStopEditView={onStopEditView}
 					onDeleteView={onDeleteView}
 					onRenameView={onRenameView}
+					resolveAssetUrl={resolveAssetUrl}
 					{...viewTileLabels}
 				/>
 			</div>
@@ -197,6 +201,7 @@ function SavedViewsRail({
 	onStopEditView,
 	onDeleteView,
 	onRenameView,
+	resolveAssetUrl,
 	editLabel,
 	finishEditLabel,
 	deleteLabel,
@@ -213,6 +218,7 @@ function SavedViewsRail({
 	onStopEditView: () => void;
 	onDeleteView: (id: string) => void;
 	onRenameView: (id: string, name: string) => void;
+	resolveAssetUrl?: (src: string) => string;
 	editLabel: string;
 	finishEditLabel: string;
 	deleteLabel: string;
@@ -243,6 +249,7 @@ function SavedViewsRail({
 						onStopEdit={onStopEditView}
 						onDelete={onDeleteView}
 						onRename={onRenameView}
+						resolveAssetUrl={resolveAssetUrl}
 						editLabel={editLabel}
 						finishEditLabel={finishEditLabel}
 						deleteLabel={deleteLabel}

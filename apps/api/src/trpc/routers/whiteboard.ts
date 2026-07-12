@@ -2,32 +2,49 @@
  * Whiteboard/Board-Router – Excalidraw-ähnlich: flache Boards pro User.
  */
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import {
 	type Database,
 	teamMembers,
+	teamRoles,
 	teams,
+	userE2eeIdentities,
 	users,
 	whiteboardCommentMessages,
 	whiteboardCommentThreads,
 	whiteboardE2eeUpdates,
 	whiteboardFolders,
+	whiteboardKeyRecipients,
 	whiteboardMembers,
-	whiteboardRoles,
+	whiteboardTeamRoleAccess,
 	whiteboards,
 } from "@skedra/db";
 import {
 	createWhiteboardSchema,
 	createWhiteboardWithStateSchema,
+	e2eeKeyHashSchema,
+	encryptedBoardKeyEnvelopeSchema,
 	updateWhiteboardSchema,
 	whiteboardPresentationAccessModeSchema,
 } from "@skedra/shared";
 import {
-	boardRolePermissionsSchema,
+	accessLevelFromPermissions,
 	parseTeamRolePermissions,
 } from "@skedra/shared";
-import { decryptBytes } from "@skedra/shared/server-crypto";
+import { decryptText, encryptText } from "@skedra/shared/server-crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNull,
+	lt,
+	lte,
+	or,
+} from "drizzle-orm";
 import { z } from "zod";
 import {
 	findArchivedBoardsForUser,
@@ -37,9 +54,11 @@ import {
 } from "../../lib/activity";
 import { appErrorCodes, createAppError } from "../../lib/app-errors";
 import {
-	membershipValuesFromRole,
-	requireWhiteboardRole,
-} from "../../lib/board-member-access";
+	deleteAssetObjects,
+	deleteWhiteboardAndCollectAssetObjects,
+} from "../../lib/assets";
+import { publishBoardLive } from "../../lib/board-live-bus";
+import { membershipValuesFromTeamRole } from "../../lib/board-member-access";
 import {
 	createCollabShareToken,
 	createEmbedShareToken,
@@ -47,8 +66,9 @@ import {
 	getCollabShareAccess as resolveCollabShareAccess,
 } from "../../lib/collab-share";
 import { notifyMentionedUsers } from "../../lib/comment-notifications";
-import { sendRegistrationInviteEmail } from "../../lib/mail";
 import {
+	assertCanAssignTeamRoleForBoard,
+	canGrantTeamRolePermissions,
 	findBoardsForUser,
 	getBoardCollaborators,
 	requireArchivedBoardOwner,
@@ -59,6 +79,7 @@ import {
 	requireBoardMember,
 	requireBoardOwner,
 	requireBoardResolveComments,
+	requireBoardViewActivity,
 } from "../../lib/permissions";
 import {
 	createPresentationShareToken,
@@ -71,6 +92,7 @@ import {
 	createRegistrationInvite,
 	normalizeInviteEmail,
 } from "../../lib/registration-invites";
+import { requireTeamRole } from "../../lib/team-roles";
 import { ensureOwnedWorkspace } from "../../lib/workspace";
 import { getYjsEncryptionOptions } from "../../lib/yjs-encryption";
 import { protectedProcedure, publicProcedure, router } from "../init";
@@ -208,6 +230,151 @@ async function requireE2eeUpdateAccess(
 	};
 }
 
+type E2eeUpdateAccess = Awaited<ReturnType<typeof requireE2eeUpdateAccess>>;
+
+function assertBoardEncryptionMode(
+	access: E2eeUpdateAccess,
+	mode: "server" | "e2ee",
+) {
+	if (access.whiteboard.encryptionMode !== mode) {
+		throw createAppError({
+			code: "BAD_REQUEST",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message:
+				mode === "e2ee"
+					? "Dieses Board verwendet serververwaltete Verschluesselung"
+					: "Dieses Board ist Ende-zu-Ende verschluesselt",
+		});
+	}
+}
+
+const serverUpdateSchema = z.string().min(1).max(4_000_000);
+
+function encryptServerUpdate(update: string) {
+	return encryptText(update, getYjsEncryptionOptions());
+}
+
+function decryptServerUpdate(update: string) {
+	return decryptText(update, getYjsEncryptionOptions());
+}
+
+/**
+ * Vergleicht zwei E2EE-Key-Verifier (SHA-256-Hex, 64 Zeichen) in konstanter Zeit.
+ *
+ * Der Key-Hash ist der serverseitige Nachweis, dass ein Schreibender den echten
+ * E2EE-Schluessel besitzt. Ein normaler String-Vergleich (`===`/`!==`) bricht beim
+ * ersten abweichenden Zeichen ab und verraet ueber die Antwortzeit, wie viele
+ * Zeichen stimmen (Timing-Seitenkanal). `timingSafeEqual` vergleicht immer die
+ * komplette Laenge und schliesst diesen Seitenkanal aus.
+ */
+function keyHashesEqual(
+	a: string | null | undefined,
+	b: string | null | undefined,
+) {
+	// Fehlende Werte oder Laengenunterschiede vorab abfangen – timingSafeEqual
+	// wirft bei unterschiedlich langen Buffern und wuerde selbst wieder Timing leaken.
+	if (!a || !b || a.length !== b.length) return false;
+	return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function assertE2eeKeyHashMatches(
+	whiteboard: typeof whiteboards.$inferSelect,
+	keyHash: string,
+) {
+	if (!whiteboard.e2eeKeyHash) {
+		throw createAppError({
+			code: "BAD_REQUEST",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "E2EE-Key-Verifier fehlt fuer dieses Board",
+		});
+	}
+	if (!keyHashesEqual(keyHash, whiteboard.e2eeKeyHash)) {
+		throw createAppError({
+			code: "FORBIDDEN",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "E2EE-Key passt nicht zu diesem Board",
+		});
+	}
+}
+
+function assertCanWriteE2eeUpdate(access: E2eeUpdateAccess, keyHash: string) {
+	assertE2eeKeyHashMatches(access.whiteboard, keyHash);
+	if (!access.canWrite) {
+		throw createAppError({
+			code: "FORBIDDEN",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "Keine Schreibrechte fuer dieses Board",
+		});
+	}
+}
+
+function createUserE2eePublicKeyHash(publicKey: string) {
+	return createHash("sha256").update(publicKey, "utf8").digest("hex");
+}
+
+async function requireUserE2eePublicKeyHash(db: Database, userId: string) {
+	const identity = await db.query.userE2eeIdentities.findFirst({
+		where: eq(userE2eeIdentities.userId, userId),
+		columns: { publicKey: true },
+	});
+	if (!identity) {
+		throw createAppError({
+			code: "BAD_REQUEST",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "E2EE-Identity fehlt fuer diesen Empfaenger",
+		});
+	}
+	return createUserE2eePublicKeyHash(identity.publicKey);
+}
+
+function assertBoardKeyEnvelopeMetadata(
+	encryptedBoardKey: string,
+	expected: {
+		whiteboardId: string;
+		userId: string;
+		keyHash: string;
+		recipientPublicKeyHash: string;
+	},
+) {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(encryptedBoardKey);
+	} catch {
+		throw createAppError({
+			code: "BAD_REQUEST",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "E2EE-Key-Umschlag ist ungueltig",
+		});
+	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+		throw createAppError({
+			code: "BAD_REQUEST",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "E2EE-Key-Umschlag ist ungueltig",
+		});
+	}
+	const envelope = parsed as Record<string, unknown>;
+	if (
+		envelope.v !== 1 ||
+		envelope.alg !== "ECDH-P256-AES-GCM-256" ||
+		envelope.boardId !== expected.whiteboardId ||
+		envelope.recipientUserId !== expected.userId ||
+		envelope.keyHash !== expected.keyHash ||
+		envelope.recipientPublicKeyHash !== expected.recipientPublicKeyHash ||
+		typeof envelope.iv !== "string" ||
+		typeof envelope.data !== "string" ||
+		!envelope.epk ||
+		typeof envelope.epk !== "object" ||
+		Array.isArray(envelope.epk)
+	) {
+		throw createAppError({
+			code: "BAD_REQUEST",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "E2EE-Key-Umschlag passt nicht zu Board oder Empfaenger",
+		});
+	}
+}
+
 export const whiteboardRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		return findBoardsForUser(ctx.db, ctx.user.id);
@@ -330,35 +497,6 @@ export const whiteboardRouter = router({
 		return findArchivedBoardsForUser(ctx.db, ctx.user.id);
 	}),
 
-	/** Y.js-State fuer Library-Thumbnails — einzeln statt in der Liste. */
-	getPreviewState: protectedProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ ctx, input }) => {
-			const access = await requireBoardMember(ctx, input.id);
-			if (access.whiteboard.e2eeEnabled) {
-				return { yjsState: null as Uint8Array | null, hasState: false };
-			}
-
-			const full = await ctx.db.query.whiteboards.findFirst({
-				where: eq(whiteboards.id, access.whiteboard.id),
-				columns: { yjsState: true },
-			});
-
-			if (!full?.yjsState || full.yjsState.length === 0) {
-				return { yjsState: null as Uint8Array | null, hasState: false };
-			}
-
-			try {
-				return {
-					yjsState: decryptBytes(full.yjsState, getYjsEncryptionOptions()),
-					hasState: true,
-				};
-			} catch (error) {
-				console.error("Failed to decrypt board yjsState for preview", error);
-				return { yjsState: null as Uint8Array | null, hasState: true };
-			}
-		}),
-
 	listActivity: protectedProcedure
 		.input(
 			z.object({ limit: z.number().min(1).max(100).optional() }).optional(),
@@ -375,7 +513,7 @@ export const whiteboardRouter = router({
 			}),
 		)
 		.query(async ({ ctx, input }) => {
-			await requireBoardMember(ctx, input.whiteboardId);
+			await requireBoardViewActivity(ctx, input.whiteboardId);
 			return listBoardActivities(ctx.db, input.whiteboardId, input.limit ?? 50);
 		}),
 
@@ -404,160 +542,163 @@ export const whiteboardRouter = router({
 				permissions: access.permissions,
 				roleName: access.roleName,
 				roleColor: access.roleColor,
-				e2eeEnabled: access.whiteboard.e2eeEnabled,
 				e2eeKeyHint: access.whiteboard.e2eeKeyHint,
+				e2eeHasKeyHash: !!access.whiteboard.e2eeKeyHash,
 				e2eeCreatedAt: access.whiteboard.e2eeCreatedAt,
+				encryptionMode: access.whiteboard.encryptionMode,
 			};
 		}),
 
 	listInviteRoles: protectedProcedure
 		.input(z.object({ id: z.string().uuid() }))
 		.query(async ({ ctx, input }) => {
-			await requireBoardMember(ctx, input.id);
-			const roles = await ctx.db.query.whiteboardRoles.findMany({
-				where: eq(whiteboardRoles.whiteboardId, input.id),
-				orderBy: asc(whiteboardRoles.createdAt),
-			});
-			return roles.map((role) => ({
-				id: role.id,
-				name: role.name,
-				color: role.color,
-				permissions: parseTeamRolePermissions(role.permissions),
-			}));
+			const access = await requireBoardMember(ctx, input.id);
+			if (!access.whiteboard.teamId) return [];
+
+			const [roles, grants] = await Promise.all([
+				ctx.db.query.teamRoles.findMany({
+					where: eq(teamRoles.teamId, access.whiteboard.teamId),
+					orderBy: asc(teamRoles.createdAt),
+				}),
+				ctx.db.query.whiteboardTeamRoleAccess.findMany({
+					where: eq(whiteboardTeamRoleAccess.whiteboardId, input.id),
+					columns: { teamRoleId: true },
+				}),
+			]);
+			const grantedRoleIds = new Set(grants.map((grant) => grant.teamRoleId));
+			return roles
+				.map((role) => ({
+					id: role.id,
+					name: role.name,
+					color: role.color,
+					permissions: parseTeamRolePermissions(role.permissions),
+					granted: grantedRoleIds.has(role.id),
+				}))
+				.filter(
+					(role) =>
+						role.granted ||
+						access.canManage ||
+						canGrantTeamRolePermissions(access.permissions, role.permissions),
+				);
 		}),
 
-	createBoardRole: protectedProcedure
-		.input(
-			z.object({
-				id: z.string().uuid(),
-				name: z.string().min(1).max(64),
-				color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
-				permissions: boardRolePermissionsSchema,
-			}),
-		)
-		.mutation(async ({ ctx, input }) => {
-			await requireBoardOwner(ctx, input.id);
-			const [created] = await ctx.db
-				.insert(whiteboardRoles)
-				.values({
-					whiteboardId: input.id,
-					name: input.name.trim(),
-					color: input.color,
-					permissions: JSON.stringify(input.permissions),
-				})
-				.returning();
-			return {
-				...created,
-				permissions: parseTeamRolePermissions(created.permissions),
-			};
-		}),
-
-	updateBoardRole: protectedProcedure
+	setTeamRoleAccess: protectedProcedure
 		.input(
 			z.object({
 				id: z.string().uuid(),
 				roleId: z.string().uuid(),
-				name: z.string().min(1).max(64).optional(),
-				color: z
-					.string()
-					.regex(/^#[0-9A-Fa-f]{6}$/)
-					.optional(),
-				permissions: boardRolePermissionsSchema.optional(),
+				enabled: z.boolean(),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			await requireBoardOwner(ctx, input.id);
-			await requireWhiteboardRole(ctx.db, input.id, input.roleId);
-
-			const updates: { name?: string; color?: string; permissions?: string } =
-				{};
-			if (input.name) updates.name = input.name.trim();
-			if (input.color) updates.color = input.color;
-
-			let parsedPermissions:
-				| ReturnType<typeof parseTeamRolePermissions>
-				| undefined;
-			if (input.permissions) {
-				updates.permissions = JSON.stringify(input.permissions);
-				parsedPermissions = input.permissions;
-			}
-
-			const [role] = await ctx.db
-				.update(whiteboardRoles)
-				.set(updates)
-				.where(
-					and(
-						eq(whiteboardRoles.id, input.roleId),
-						eq(whiteboardRoles.whiteboardId, input.id),
-					),
-				)
-				.returning();
-
-			if (!role) {
+			const access = await requireBoardManageMembers(ctx, input.id);
+			if (!access.whiteboard.teamId) {
 				throw createAppError({
-					code: "NOT_FOUND",
-					appErrorCode: appErrorCodes.whiteboardNotFound,
-					message: "Rolle nicht gefunden",
+					code: "BAD_REQUEST",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Board gehoert zu keinem Workspace",
 				});
 			}
 
-			if (parsedPermissions) {
-				const memberValues = membershipValuesFromRole(
-					role.id,
-					parsedPermissions,
+			const role = await requireTeamRole(
+				ctx.db,
+				access.whiteboard.teamId,
+				input.roleId,
+			);
+			if (input.enabled) {
+				assertCanAssignTeamRoleForBoard(
+					access,
+					parseTeamRolePermissions(role.permissions),
 				);
+			}
+
+			if (input.enabled) {
 				await ctx.db
-					.update(whiteboardMembers)
-					.set(memberValues)
+					.insert(whiteboardTeamRoleAccess)
+					.values({ whiteboardId: input.id, teamRoleId: input.roleId })
+					.onConflictDoNothing();
+			} else {
+				await ctx.db
+					.delete(whiteboardTeamRoleAccess)
 					.where(
 						and(
-							eq(whiteboardMembers.whiteboardId, input.id),
-							eq(whiteboardMembers.roleId, input.roleId),
+							eq(whiteboardTeamRoleAccess.whiteboardId, input.id),
+							eq(whiteboardTeamRoleAccess.teamRoleId, input.roleId),
 						),
 					);
 			}
 
-			return {
-				...role,
-				permissions: parseTeamRolePermissions(role.permissions),
-			};
-		}),
-
-	deleteBoardRole: protectedProcedure
-		.input(z.object({ id: z.string().uuid(), roleId: z.string().uuid() }))
-		.mutation(async ({ ctx, input }) => {
-			await requireBoardOwner(ctx, input.id);
-			await ctx.db
-				.delete(whiteboardRoles)
-				.where(
-					and(
-						eq(whiteboardRoles.id, input.roleId),
-						eq(whiteboardRoles.whiteboardId, input.id),
-					),
-				);
 			return { success: true };
 		}),
 
 	create: protectedProcedure
 		.input(createWhiteboardSchema)
 		.mutation(async ({ ctx, input }) => {
+			if (
+				input.encryptionMode === "e2ee" &&
+				input.ownEncryptedBoardKey &&
+				!input.id
+			) {
+				throw createAppError({
+					code: "BAD_REQUEST",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Board-ID fehlt fuer gebundenen E2EE-Key-Umschlag",
+				});
+			}
+			if (input.encryptionMode === "e2ee" && input.ownEncryptedBoardKey) {
+				const recipientPublicKeyHash = await requireUserE2eePublicKeyHash(
+					ctx.db,
+					ctx.user.id,
+				);
+				assertBoardKeyEnvelopeMetadata(input.ownEncryptedBoardKey, {
+					whiteboardId: input.id as string,
+					userId: ctx.user.id,
+					keyHash: input.e2eeKeyHash,
+					recipientPublicKeyHash,
+				});
+			}
 			const workspace = await ensureOwnedWorkspace(ctx.db, ctx.user);
 			const folder = await requireFolderInOwnedWorkspace(
 				ctx,
 				workspace.id,
 				input.folderId,
 			);
-			const [created] = await ctx.db
-				.insert(whiteboards)
-				.values({
-					name: input.name,
-					ownerId: ctx.user.id,
-					teamId: workspace.id,
-					folderId: folder?.id ?? null,
-					e2eeEnabled: true,
-					e2eeCreatedAt: new Date(),
-				})
-				.returning();
+			const created = await ctx.db.transaction(async (tx) => {
+				const [board] = await tx
+					.insert(whiteboards)
+					.values({
+						...(input.id ? { id: input.id } : {}),
+						name: input.name,
+						ownerId: ctx.user.id,
+						teamId: workspace.id,
+						folderId: folder?.id ?? null,
+						encryptionMode: input.encryptionMode,
+						...(input.encryptionMode === "e2ee"
+							? {
+									e2eeKeyHash: input.e2eeKeyHash,
+									e2eeCreatedAt: new Date(),
+								}
+							: {}),
+					})
+					.returning();
+
+				if (!board) {
+					throw new TRPCError({
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Board konnte nicht erstellt werden",
+					});
+				}
+
+				if (input.encryptionMode === "e2ee" && input.ownEncryptedBoardKey) {
+					await tx.insert(whiteboardKeyRecipients).values({
+						whiteboardId: board.id,
+						userId: ctx.user.id,
+						encryptedBoardKey: input.ownEncryptedBoardKey,
+					});
+				}
+
+				return board;
+			});
 
 			await logWhiteboardActivity(ctx.db, {
 				whiteboardId: created.id,
@@ -573,6 +714,29 @@ export const whiteboardRouter = router({
 	createWithState: protectedProcedure
 		.input(createWhiteboardWithStateSchema)
 		.mutation(async ({ ctx, input }) => {
+			if (
+				input.encryptionMode === "e2ee" &&
+				input.ownEncryptedBoardKey &&
+				!input.id
+			) {
+				throw createAppError({
+					code: "BAD_REQUEST",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Board-ID fehlt fuer gebundenen E2EE-Key-Umschlag",
+				});
+			}
+			if (input.encryptionMode === "e2ee" && input.ownEncryptedBoardKey) {
+				const recipientPublicKeyHash = await requireUserE2eePublicKeyHash(
+					ctx.db,
+					ctx.user.id,
+				);
+				assertBoardKeyEnvelopeMetadata(input.ownEncryptedBoardKey, {
+					whiteboardId: input.id as string,
+					userId: ctx.user.id,
+					keyHash: input.e2eeKeyHash,
+					recipientPublicKeyHash,
+				});
+			}
 			const workspace = await ensureOwnedWorkspace(ctx.db, ctx.user);
 			const folder = await requireFolderInOwnedWorkspace(
 				ctx,
@@ -583,14 +747,19 @@ export const whiteboardRouter = router({
 				const [board] = await tx
 					.insert(whiteboards)
 					.values({
+						...(input.id ? { id: input.id } : {}),
 						name: input.name,
 						ownerId: ctx.user.id,
 						teamId: workspace.id,
 						folderId: folder?.id ?? null,
-						e2eeEnabled: true,
-						e2eeKeyHint: input.e2eeKeyHint?.trim() || null,
-						e2eeCreatedAt: new Date(),
-						yjsState: null,
+						encryptionMode: input.encryptionMode,
+						...(input.encryptionMode === "e2ee"
+							? {
+									e2eeKeyHint: input.e2eeKeyHint?.trim() || null,
+									e2eeKeyHash: input.e2eeKeyHash,
+									e2eeCreatedAt: new Date(),
+								}
+							: {}),
 					})
 					.returning();
 
@@ -605,8 +774,19 @@ export const whiteboardRouter = router({
 					whiteboardId: board.id,
 					userId: ctx.user.id,
 					clientId: `initial-${Date.now()}`,
-					update: input.e2eeInitialUpdate,
+					update:
+						input.encryptionMode === "e2ee"
+							? input.e2eeInitialUpdate
+							: encryptServerUpdate(input.stateBase64),
 				});
+
+				if (input.encryptionMode === "e2ee" && input.ownEncryptedBoardKey) {
+					await tx.insert(whiteboardKeyRecipients).values({
+						whiteboardId: board.id,
+						userId: ctx.user.id,
+						encryptedBoardKey: input.ownEncryptedBoardKey,
+					});
+				}
 
 				return board;
 			});
@@ -720,7 +900,15 @@ export const whiteboardRouter = router({
 				metadata: { name: whiteboard.name },
 			});
 
-			await ctx.db.delete(whiteboards).where(eq(whiteboards.id, input.id));
+			const assetObjects = await deleteWhiteboardAndCollectAssetObjects({
+				db: ctx.db,
+				whiteboardId: input.id,
+			});
+			await deleteAssetObjects({
+				db: ctx.db,
+				objects: assetObjects,
+				whiteboardId: input.id,
+			});
 			return { success: true };
 		}),
 
@@ -787,7 +975,7 @@ export const whiteboardRouter = router({
 				return {
 					whiteboardId: access.whiteboard.id,
 					whiteboardName: access.whiteboard.name,
-					e2eeEnabled: access.whiteboard.e2eeEnabled,
+					encryptionMode: access.whiteboard.encryptionMode,
 					presentationModeDefault: "edit" as const,
 					presenceEnabled: access.shareSettings.presenceEnabled,
 					accessMode: access.shareSettings.accessMode,
@@ -951,9 +1139,9 @@ export const whiteboardRouter = router({
 				return {
 					whiteboardId: access.whiteboard.id,
 					whiteboardName: access.whiteboard.name,
+					encryptionMode: access.whiteboard.encryptionMode,
 					canWrite: access.canWrite,
 					accessLevel: access.whiteboard.collabShareAccessLevel,
-					e2eeEnabled: access.whiteboard.e2eeEnabled,
 				};
 			} catch {
 				throw createAppError({
@@ -974,77 +1162,162 @@ export const whiteboardRouter = router({
 			};
 		}),
 
-	getE2eeSettings: protectedProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ ctx, input }) => {
-			const access = await requireBoardMember(ctx, input.id);
-			return {
-				enabled: access.whiteboard.e2eeEnabled,
-				keyHint: access.whiteboard.e2eeKeyHint,
-				createdAt: access.whiteboard.e2eeCreatedAt,
-			};
-		}),
-
-	enableE2ee: protectedProcedure
-		.input(
-			z.object({
-				id: z.string().uuid(),
-				keyHint: z.string().max(120).optional(),
-				initialUpdate: z.string().min(1).max(4_000_000).optional(),
-			}),
-		)
+	registerE2eeKeyHash: protectedProcedure
+		.input(z.object({ id: z.string().uuid(), keyHash: e2eeKeyHashSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const access = await requireBoardOwner(ctx, input.id);
-			if (
-				!input.initialUpdate &&
-				!access.whiteboard.e2eeEnabled &&
-				access.whiteboard.yjsState &&
-				access.whiteboard.yjsState.length > 0
-			) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Initiales E2EE-Update fehlt",
+			if (access.whiteboard.e2eeKeyHash) {
+				// Konstanter-Zeit-Vergleich, siehe keyHashesEqual().
+				if (keyHashesEqual(access.whiteboard.e2eeKeyHash, input.keyHash)) {
+					return { hasKeyHash: true };
+				}
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "E2EE-Key-Verifier ist bereits gesetzt",
 				});
 			}
 
-			const updated = await ctx.db.transaction(async (tx) => {
-				const [board] = await tx
-					.update(whiteboards)
-					.set({
-						e2eeEnabled: true,
-						e2eeKeyHint: input.keyHint?.trim() || null,
-						e2eeCreatedAt: access.whiteboard.e2eeCreatedAt ?? new Date(),
-						yjsState: null,
-						updatedAt: new Date(),
-					})
-					.where(eq(whiteboards.id, input.id))
-					.returning({
-						enabled: whiteboards.e2eeEnabled,
-						keyHint: whiteboards.e2eeKeyHint,
-						createdAt: whiteboards.e2eeCreatedAt,
-					});
+			const [updated] = await ctx.db
+				.update(whiteboards)
+				.set({ e2eeKeyHash: input.keyHash, updatedAt: new Date() })
+				.where(
+					and(eq(whiteboards.id, input.id), isNull(whiteboards.e2eeKeyHash)),
+				)
+				.returning({ hasKeyHash: whiteboards.e2eeKeyHash });
 
-				if (!board) {
-					throw createAppError({
-						code: "NOT_FOUND",
-						appErrorCode: appErrorCodes.whiteboardNotFound,
-						message: "Board nicht gefunden",
-					});
-				}
+			if (!updated) {
+				throw createAppError({
+					code: "NOT_FOUND",
+					appErrorCode: appErrorCodes.whiteboardNotFound,
+					message: "Board nicht gefunden",
+				});
+			}
 
-				if (input.initialUpdate) {
-					await tx.insert(whiteboardE2eeUpdates).values({
-						whiteboardId: input.id,
-						userId: ctx.user.id,
-						clientId: `migration-${Date.now()}`,
-						update: input.initialUpdate,
-					});
-				}
+			return { hasKeyHash: !!updated.hasKeyHash };
+		}),
 
-				return board;
+	getOwnKeyRecipient: protectedProcedure
+		.input(z.object({ id: z.string().uuid() }))
+		.query(async ({ ctx, input }) => {
+			await requireBoardMember(ctx, input.id);
+			const recipient = await ctx.db.query.whiteboardKeyRecipients.findFirst({
+				where: and(
+					eq(whiteboardKeyRecipients.whiteboardId, input.id),
+					eq(whiteboardKeyRecipients.userId, ctx.user.id),
+				),
+				columns: {
+					encryptedBoardKey: true,
+					updatedAt: true,
+				},
 			});
 
-			return updated;
+			return recipient ?? null;
+		}),
+
+	upsertOwnKeyRecipient: protectedProcedure
+		.input(
+			z.object({
+				id: z.string().uuid(),
+				keyHash: e2eeKeyHashSchema,
+				encryptedBoardKey: encryptedBoardKeyEnvelopeSchema,
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireBoardMember(ctx, input.id);
+			assertE2eeKeyHashMatches(access.whiteboard, input.keyHash);
+			const recipientPublicKeyHash = await requireUserE2eePublicKeyHash(
+				ctx.db,
+				ctx.user.id,
+			);
+			assertBoardKeyEnvelopeMetadata(input.encryptedBoardKey, {
+				whiteboardId: input.id,
+				userId: ctx.user.id,
+				keyHash: input.keyHash,
+				recipientPublicKeyHash,
+			});
+
+			await ctx.db
+				.insert(whiteboardKeyRecipients)
+				.values({
+					whiteboardId: input.id,
+					userId: ctx.user.id,
+					encryptedBoardKey: input.encryptedBoardKey,
+				})
+				.onConflictDoUpdate({
+					target: [
+						whiteboardKeyRecipients.whiteboardId,
+						whiteboardKeyRecipients.userId,
+					],
+					set: {
+						encryptedBoardKey: input.encryptedBoardKey,
+						updatedAt: new Date(),
+					},
+				});
+
+			return { success: true };
+		}),
+
+	upsertMemberKeyRecipient: protectedProcedure
+		.input(
+			z.object({
+				id: z.string().uuid(),
+				userId: z.string(),
+				keyHash: e2eeKeyHashSchema,
+				encryptedBoardKey: encryptedBoardKeyEnvelopeSchema,
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireBoardInvite(ctx, input.id);
+			assertE2eeKeyHashMatches(access.whiteboard, input.keyHash);
+
+			const targetHasBoardAccess =
+				input.userId === access.whiteboard.ownerId ||
+				!!(await ctx.db.query.whiteboardMembers.findFirst({
+					where: and(
+						eq(whiteboardMembers.whiteboardId, input.id),
+						eq(whiteboardMembers.userId, input.userId),
+					),
+					columns: { id: true },
+				}));
+
+			if (!targetHasBoardAccess) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Empfaenger hat keinen Zugriff auf dieses Board",
+				});
+			}
+
+			const recipientPublicKeyHash = await requireUserE2eePublicKeyHash(
+				ctx.db,
+				input.userId,
+			);
+			assertBoardKeyEnvelopeMetadata(input.encryptedBoardKey, {
+				whiteboardId: input.id,
+				userId: input.userId,
+				keyHash: input.keyHash,
+				recipientPublicKeyHash,
+			});
+
+			const [created] = await ctx.db
+				.insert(whiteboardKeyRecipients)
+				.values({
+					whiteboardId: input.id,
+					userId: input.userId,
+					encryptedBoardKey: input.encryptedBoardKey,
+				})
+				.onConflictDoNothing({
+					target: [
+						whiteboardKeyRecipients.whiteboardId,
+						whiteboardKeyRecipients.userId,
+					],
+				})
+				.returning({
+					id: whiteboardKeyRecipients.id,
+				});
+
+			return { success: true, stored: !!created };
 		}),
 
 	updateEmbedShare: protectedProcedure
@@ -1102,24 +1375,45 @@ export const whiteboardRouter = router({
 			return {
 				whiteboardId: board.id,
 				whiteboardName: board.name,
-				e2eeEnabled: board.e2eeEnabled,
+				encryptionMode: board.encryptionMode,
 			};
 		}),
 
 	listE2eeUpdates: publicProcedure
 		.input(
 			e2eeAccessInputSchema.extend({
-				limit: z.number().min(1).max(2000).optional(),
+				afterId: z.string().uuid().optional(),
+				afterCreatedAt: z.string().datetime().optional(),
+				limit: z.number().min(1).max(1000).default(500),
 			}),
 		)
 		.query(async ({ ctx, input }) => {
 			const access = await requireE2eeUpdateAccess(ctx, input);
-			if (!access.whiteboard.e2eeEnabled) return [];
+			assertBoardEncryptionMode(access, "e2ee");
+			const afterCreatedAt = input.afterCreatedAt
+				? new Date(input.afterCreatedAt)
+				: null;
+			const where =
+				afterCreatedAt && input.afterId
+					? and(
+							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
+							or(
+								gt(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
+								and(
+									eq(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
+									gt(whiteboardE2eeUpdates.id, input.afterId),
+								),
+							),
+						)
+					: eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId);
 
 			return ctx.db.query.whiteboardE2eeUpdates.findMany({
-				where: eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
-				orderBy: asc(whiteboardE2eeUpdates.createdAt),
-				...(input.limit ? { limit: input.limit } : {}),
+				where,
+				orderBy: [
+					asc(whiteboardE2eeUpdates.createdAt),
+					asc(whiteboardE2eeUpdates.id),
+				],
+				limit: input.limit,
 				columns: {
 					id: true,
 					clientId: true,
@@ -1133,18 +1427,192 @@ export const whiteboardRouter = router({
 		.input(
 			e2eeAccessInputSchema.extend({
 				clientId: z.string().min(8).max(120),
+				keyHash: e2eeKeyHashSchema,
 				update: z.string().min(1).max(4_000_000),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
 			const access = await requireE2eeUpdateAccess(ctx, input);
-			if (!access.whiteboard.e2eeEnabled) {
-				throw createAppError({
-					code: "BAD_REQUEST",
-					appErrorCode: appErrorCodes.whiteboardAccessDenied,
-					message: "E2EE ist fuer dieses Board nicht aktiviert",
-				});
-			}
+			assertBoardEncryptionMode(access, "e2ee");
+			assertCanWriteE2eeUpdate(access, input.keyHash);
+
+			const created = await ctx.db.transaction(async (tx) => {
+				const [update] = await tx
+					.insert(whiteboardE2eeUpdates)
+					.values({
+						whiteboardId: input.whiteboardId,
+						userId: access.userId,
+						clientId: input.clientId,
+						update: input.update,
+					})
+					.returning({
+						id: whiteboardE2eeUpdates.id,
+						createdAt: whiteboardE2eeUpdates.createdAt,
+					});
+
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: new Date() })
+					.where(eq(whiteboards.id, input.whiteboardId));
+
+				return update;
+			});
+
+			// Realtime: verbundene Clients sofort benachrichtigen (nur Metadaten,
+			// kein Klartext). Der Ciphertext wird weiter über listE2eeUpdates geholt.
+			publishBoardLive({
+				type: "update",
+				whiteboardId: input.whiteboardId,
+				id: created.id,
+				createdAt: created.createdAt.toISOString(),
+			});
+
+			return created;
+		}),
+
+	compactE2eeUpdates: publicProcedure
+		.input(
+			e2eeAccessInputSchema.extend({
+				clientId: z.string().min(8).max(120),
+				keyHash: e2eeKeyHashSchema,
+				update: z.string().min(1).max(4_000_000),
+				upToId: z.string().uuid(),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireE2eeUpdateAccess(ctx, input);
+			assertBoardEncryptionMode(access, "e2ee");
+			assertCanWriteE2eeUpdate(access, input.keyHash);
+
+			const created = await ctx.db.transaction(async (tx) => {
+				const [cutoff] = await tx
+					.select({
+						id: whiteboardE2eeUpdates.id,
+						createdAt: whiteboardE2eeUpdates.createdAt,
+					})
+					.from(whiteboardE2eeUpdates)
+					.where(
+						and(
+							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
+							eq(whiteboardE2eeUpdates.id, input.upToId),
+						),
+					)
+					.limit(1);
+
+				if (!cutoff) {
+					throw createAppError({
+						code: "BAD_REQUEST",
+						appErrorCode: appErrorCodes.whiteboardAccessDenied,
+						message: "E2EE-Compaction-Cursor ist ungueltig",
+					});
+				}
+
+				await tx
+					.delete(whiteboardE2eeUpdates)
+					.where(
+						and(
+							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
+							or(
+								lt(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+								and(
+									eq(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+									lte(whiteboardE2eeUpdates.id, input.upToId),
+								),
+							),
+						),
+					);
+
+				const [snapshot] = await tx
+					.insert(whiteboardE2eeUpdates)
+					.values({
+						whiteboardId: input.whiteboardId,
+						userId: access.userId,
+						clientId: input.clientId,
+						update: input.update,
+					})
+					.returning({
+						id: whiteboardE2eeUpdates.id,
+						createdAt: whiteboardE2eeUpdates.createdAt,
+					});
+
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: new Date() })
+					.where(eq(whiteboards.id, input.whiteboardId));
+
+				return snapshot;
+			});
+
+			// Realtime: Snapshot/Compaction ebenfalls live signalisieren.
+			publishBoardLive({
+				type: "compact",
+				whiteboardId: input.whiteboardId,
+				id: created.id,
+				createdAt: created.createdAt.toISOString(),
+			});
+
+			return created;
+		}),
+
+	listServerUpdates: publicProcedure
+		.input(
+			e2eeAccessInputSchema.extend({
+				afterId: z.string().uuid().optional(),
+				afterCreatedAt: z.string().datetime().optional(),
+				limit: z.number().min(1).max(1000).default(500),
+			}),
+		)
+		.query(async ({ ctx, input }) => {
+			const access = await requireE2eeUpdateAccess(ctx, input);
+			assertBoardEncryptionMode(access, "server");
+			const afterCreatedAt = input.afterCreatedAt
+				? new Date(input.afterCreatedAt)
+				: null;
+			const where =
+				afterCreatedAt && input.afterId
+					? and(
+							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
+							or(
+								gt(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
+								and(
+									eq(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
+									gt(whiteboardE2eeUpdates.id, input.afterId),
+								),
+							),
+						)
+					: eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId);
+
+			const rows = await ctx.db.query.whiteboardE2eeUpdates.findMany({
+				where,
+				orderBy: [
+					asc(whiteboardE2eeUpdates.createdAt),
+					asc(whiteboardE2eeUpdates.id),
+				],
+				limit: input.limit,
+				columns: {
+					id: true,
+					clientId: true,
+					update: true,
+					createdAt: true,
+				},
+			});
+
+			return rows.map((row) => ({
+				...row,
+				update: decryptServerUpdate(row.update),
+			}));
+		}),
+
+	appendServerUpdate: publicProcedure
+		.input(
+			e2eeAccessInputSchema.extend({
+				clientId: z.string().min(8).max(120),
+				update: serverUpdateSchema,
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireE2eeUpdateAccess(ctx, input);
+			assertBoardEncryptionMode(access, "server");
 			if (!access.canWrite) {
 				throw createAppError({
 					code: "FORBIDDEN",
@@ -1153,19 +1621,118 @@ export const whiteboardRouter = router({
 				});
 			}
 
-			const [created] = await ctx.db
-				.insert(whiteboardE2eeUpdates)
-				.values({
-					whiteboardId: input.whiteboardId,
-					userId: access.userId,
-					clientId: input.clientId,
-					update: input.update,
-				})
-				.returning({
-					id: whiteboardE2eeUpdates.id,
-					createdAt: whiteboardE2eeUpdates.createdAt,
-				});
+			const created = await ctx.db.transaction(async (tx) => {
+				const [update] = await tx
+					.insert(whiteboardE2eeUpdates)
+					.values({
+						whiteboardId: input.whiteboardId,
+						userId: access.userId,
+						clientId: input.clientId,
+						update: encryptServerUpdate(input.update),
+					})
+					.returning({
+						id: whiteboardE2eeUpdates.id,
+						createdAt: whiteboardE2eeUpdates.createdAt,
+					});
 
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: new Date() })
+					.where(eq(whiteboards.id, input.whiteboardId));
+				return update;
+			});
+
+			publishBoardLive({
+				type: "update",
+				whiteboardId: input.whiteboardId,
+				id: created.id,
+				createdAt: created.createdAt.toISOString(),
+			});
+			return created;
+		}),
+
+	compactServerUpdates: publicProcedure
+		.input(
+			e2eeAccessInputSchema.extend({
+				clientId: z.string().min(8).max(120),
+				update: serverUpdateSchema,
+				upToId: z.string().uuid(),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireE2eeUpdateAccess(ctx, input);
+			assertBoardEncryptionMode(access, "server");
+			if (!access.canWrite) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Keine Schreibrechte fuer dieses Board",
+				});
+			}
+
+			const created = await ctx.db.transaction(async (tx) => {
+				const [cutoff] = await tx
+					.select({
+						id: whiteboardE2eeUpdates.id,
+						createdAt: whiteboardE2eeUpdates.createdAt,
+					})
+					.from(whiteboardE2eeUpdates)
+					.where(
+						and(
+							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
+							eq(whiteboardE2eeUpdates.id, input.upToId),
+						),
+					)
+					.limit(1);
+				if (!cutoff) {
+					throw createAppError({
+						code: "BAD_REQUEST",
+						appErrorCode: appErrorCodes.whiteboardAccessDenied,
+						message: "Server-Compaction-Cursor ist ungueltig",
+					});
+				}
+
+				await tx
+					.delete(whiteboardE2eeUpdates)
+					.where(
+						and(
+							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
+							or(
+								lt(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+								and(
+									eq(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+									lte(whiteboardE2eeUpdates.id, input.upToId),
+								),
+							),
+						),
+					);
+
+				const [snapshot] = await tx
+					.insert(whiteboardE2eeUpdates)
+					.values({
+						whiteboardId: input.whiteboardId,
+						userId: access.userId,
+						clientId: input.clientId,
+						update: encryptServerUpdate(input.update),
+					})
+					.returning({
+						id: whiteboardE2eeUpdates.id,
+						createdAt: whiteboardE2eeUpdates.createdAt,
+					});
+
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: new Date() })
+					.where(eq(whiteboards.id, input.whiteboardId));
+				return snapshot;
+			});
+
+			publishBoardLive({
+				type: "compact",
+				whiteboardId: input.whiteboardId,
+				id: created.id,
+				createdAt: created.createdAt.toISOString(),
+			});
 			return created;
 		}),
 
@@ -1453,7 +2020,7 @@ export const whiteboardRouter = router({
 
 			await requireBoardMember(ctx, input.whiteboardId);
 			if (message.authorId !== ctx.user.id) {
-				await requireBoardOwner(ctx, input.whiteboardId);
+				await requireBoardResolveComments(ctx, input.whiteboardId);
 			}
 
 			await ctx.db
@@ -1478,13 +2045,30 @@ export const whiteboardRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const access = await requireBoardInvite(ctx, input.id);
-			const role = await requireWhiteboardRole(ctx.db, input.id, input.roleId);
+			if (!access.whiteboard.teamId) {
+				throw createAppError({
+					code: "BAD_REQUEST",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Board gehoert zu keinem Workspace",
+				});
+			}
+			const role = await requireTeamRole(
+				ctx.db,
+				access.whiteboard.teamId,
+				input.roleId,
+			);
 			const permissions = parseTeamRolePermissions(role.permissions);
-			const memberValues = membershipValuesFromRole(role.id, permissions);
+			assertCanAssignTeamRoleForBoard(access, permissions);
+			const memberValues = membershipValuesFromTeamRole(role.id);
+			const assignedAccessLevel = accessLevelFromPermissions(permissions);
 
 			const email = normalizeInviteEmail(input.email);
 			const user = await ctx.db.query.users.findFirst({
 				where: eq(users.email, email),
+			});
+			const workspace = await ctx.db.query.teams.findFirst({
+				where: eq(teams.id, access.whiteboard.teamId),
+				columns: { ownerId: true },
 			});
 
 			if (!user) {
@@ -1492,29 +2076,24 @@ export const whiteboardRouter = router({
 					email,
 					invitedById: ctx.user.id,
 					purpose: "board",
+					teamId: access.whiteboard.teamId,
+					teamRoleId: role.id,
+					workspaceRole: "member",
 					whiteboardId: input.id,
-					whiteboardRoleId: role.id,
-					boardAccessLevel: memberValues.accessLevel,
+					whiteboardTeamRoleId: role.id,
 				});
 				const inviteUrl = buildRegistrationInviteUrl({
 					token: invite.token,
 					email,
 					redirect: `/board/${input.id}`,
 				});
-				const delivery = await sendRegistrationInviteEmail(ctx.db, {
-					email,
-					url: inviteUrl,
-					inviterName: ctx.user.name,
-					context: access.whiteboard.name,
-				});
-
 				await logWhiteboardActivity(ctx.db, {
 					whiteboardId: input.id,
 					userId: ctx.user.id,
 					type: "member_invited",
 					metadata: {
 						email,
-						accessLevel: memberValues.accessLevel,
+						accessLevel: assignedAccessLevel,
 						roleName: role.name,
 						pendingRegistration: true,
 					},
@@ -1523,7 +2102,7 @@ export const whiteboardRouter = router({
 				return {
 					success: true,
 					pendingRegistration: true,
-					emailDelivered: delivery.delivered,
+					emailDelivered: false,
 					inviteUrl,
 				};
 			}
@@ -1534,6 +2113,18 @@ export const whiteboardRouter = router({
 					appErrorCode: appErrorCodes.whiteboardAccessDenied,
 					message: "Du bist bereits der Besitzer",
 				});
+			}
+
+			if (workspace?.ownerId !== user.id) {
+				await ctx.db
+					.insert(teamMembers)
+					.values({
+						teamId: access.whiteboard.teamId,
+						userId: user.id,
+						roleId: role.id,
+						workspaceRole: "member",
+					})
+					.onConflictDoNothing();
 			}
 
 			await ctx.db
@@ -1554,12 +2145,26 @@ export const whiteboardRouter = router({
 				type: "member_invited",
 				metadata: {
 					email: user.email,
-					accessLevel: memberValues.accessLevel,
+					accessLevel: assignedAccessLevel,
 					roleName: role.name,
 				},
 			});
 
-			return { success: true, pendingRegistration: false };
+			const recipientIdentity = await ctx.db.query.userE2eeIdentities.findFirst(
+				{
+					where: eq(userE2eeIdentities.userId, user.id),
+					columns: { publicKey: true },
+				},
+			);
+
+			return {
+				success: true,
+				pendingRegistration: false,
+				recipient: {
+					userId: user.id,
+					publicKey: recipientIdentity?.publicKey ?? null,
+				},
+			};
 		}),
 
 	listMembers: protectedProcedure
@@ -1588,9 +2193,39 @@ export const whiteboardRouter = router({
 				});
 			}
 
-			const role = await requireWhiteboardRole(ctx.db, input.id, input.roleId);
-			const permissions = parseTeamRolePermissions(role.permissions);
-			const memberValues = membershipValuesFromRole(role.id, permissions);
+			if (!access.whiteboard.teamId) {
+				throw createAppError({
+					code: "BAD_REQUEST",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Board gehoert zu keinem Workspace",
+				});
+			}
+			const role = await requireTeamRole(
+				ctx.db,
+				access.whiteboard.teamId,
+				input.roleId,
+			);
+			assertCanAssignTeamRoleForBoard(
+				access,
+				parseTeamRolePermissions(role.permissions),
+			);
+			const memberValues = membershipValuesFromTeamRole(role.id);
+			const workspace = await ctx.db.query.teams.findFirst({
+				where: eq(teams.id, access.whiteboard.teamId),
+				columns: { ownerId: true },
+			});
+
+			if (workspace?.ownerId !== input.userId) {
+				await ctx.db
+					.insert(teamMembers)
+					.values({
+						teamId: access.whiteboard.teamId,
+						userId: input.userId,
+						roleId: role.id,
+						workspaceRole: "member",
+					})
+					.onConflictDoNothing();
+			}
 
 			const [updated] = await ctx.db
 				.update(whiteboardMembers)
@@ -1627,14 +2262,25 @@ export const whiteboardRouter = router({
 				});
 			}
 
-			await ctx.db
-				.delete(whiteboardMembers)
-				.where(
-					and(
-						eq(whiteboardMembers.whiteboardId, input.id),
-						eq(whiteboardMembers.userId, input.userId),
-					),
-				);
+			await ctx.db.transaction(async (tx) => {
+				await tx
+					.delete(whiteboardMembers)
+					.where(
+						and(
+							eq(whiteboardMembers.whiteboardId, input.id),
+							eq(whiteboardMembers.userId, input.userId),
+						),
+					);
+
+				await tx
+					.delete(whiteboardKeyRecipients)
+					.where(
+						and(
+							eq(whiteboardKeyRecipients.whiteboardId, input.id),
+							eq(whiteboardKeyRecipients.userId, input.userId),
+						),
+					);
+			});
 
 			return { success: true };
 		}),

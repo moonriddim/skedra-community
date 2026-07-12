@@ -29,6 +29,24 @@ export const enMessages = {
 		workspaceSettings: "Workspace settings",
 		loading: "Loading...",
 	},
+	boardCreation: {
+		title: "How should your board be encrypted?",
+		description:
+			"Both options store your board on your Skedra instance and synchronize changes in real time. Choose the protection that fits your work.",
+		serverTitle: "Server-side encryption",
+		serverDescription:
+			"Your Skedra instance encrypts the data and provides automatic access to authorized users and the MCP.",
+		serverDetails:
+			"The API encrypts all canvas data before storage. The server can decrypt it for authorized access; no separate board key is required.",
+		e2eeTitle: "End-to-end encrypted",
+		e2eeDescription:
+			"Maximum confidentiality: only clients holding the board key can read its contents.",
+		e2eeDetails:
+			"The server never sees plaintext. Your E2EE identity is unlocked for recovery, and the MCP needs the separate board key.",
+		permanentHint:
+			"The encryption mode applies to this board and cannot be changed later without migrating its data.",
+		continue: "Confirm selection",
+	},
 	apiErrors: {
 		common: {
 			badRequest: "The request could not be processed.",
@@ -286,6 +304,11 @@ export const enMessages = {
 			invalidToken: "The reset link is invalid or has expired.",
 			passwordTooShort: "The new password must be at least 8 characters long",
 			passwordMismatch: "The password confirmation does not match",
+			e2eeWarningTitle: "I understand the E2EE recovery impact",
+			e2eeWarningDescription:
+				"Password resets cannot rewrap your existing private E2EE identity because the old password is unavailable. Boards may require an existing key fragment or a new invite.",
+			e2eeWarningRequired:
+				"Confirm the E2EE recovery warning before resetting the password",
 			backToLogin: "Back to sign in",
 		},
 		twoFactor: {
@@ -388,15 +411,6 @@ export const enMessages = {
 				"Skedra AI (platform fallback) is active when you have no own key configured.",
 			hint: "Cloud keys are stored encrypted. Local LLMs run via your own server.",
 		},
-		canvasRoles: {
-			nav: "Canvas roles",
-			title: "Roles & permissions per canvas",
-			intro:
-				"Each board has its own roles. When sharing, you pick a role — people do not automatically see all your boards.",
-			boardLabel: "Select canvas",
-			noOwnedBoards:
-				"You do not own any boards yet. Create a canvas in the library first.",
-		},
 	},
 	workspaceSetup: {
 		title: "Create workspace",
@@ -427,12 +441,24 @@ export const enMessages = {
 			member: "Member",
 		},
 		workspaceInviteHint:
-			"Workspace members can open boards in this workspace according to their workspace role. Fine-grained canvas permissions are managed per board.",
+			"Team roles carry canvas permissions. Each board decides which team roles have access.",
 		workspaceRoleLabel: "Workspace role",
 		workspaceRoleMember: "Member",
 		workspaceRoleAdmin: "Admin",
+		teamRoleLabel: "Team role",
+		workspaceAdminToggle: "Manage workspace",
 		rolePermissions: {
 			none: "No permissions set",
+			admin: {
+				label: "Board admin",
+				short: "Admin",
+				hint: "All board permissions including sharing, members, and activity",
+			},
+			manageWorkspaceAdmins: {
+				label: "Manage workspace admins",
+				short: "Workspace admins",
+				hint: "Promote, edit, or remove workspace admins",
+			},
 			editCanvas: {
 				label: "Edit canvas",
 				short: "Edit",
@@ -475,19 +501,27 @@ export const enMessages = {
 			},
 		},
 		teamTabIntro:
-			"Workspace team controls who can discover boards in this workspace. Fine-grained canvas permissions are managed per board under Share.",
-		boardRolesInfoTitle: "Permissions per canvas",
-		boardRolesInfoBody:
-			"Create roles under Settings → Canvas roles (pick the canvas there).",
+			"Team roles define canvas permissions. On each board, you enable the roles that should have access.",
 		teamInviteTitle: "Invite workspace member",
 		teamInviteHint:
-			"Grants access to your workspace and its boards according to the workspace role.",
+			"Grants access to the workspace. The person only sees boards where their team role is enabled or where they were invited directly.",
 		teamInviteAction: "Invite",
 		teamMembersListTitle: "Workspace members",
 		teamMembersEmpty: "No additional workspace members yet.",
+		teamRolesEmpty: "No team roles yet.",
+		newTeamRoleTitle: "New team role",
+		editTeamRoleTitle: "Edit team role",
+		teamRoleNameLabel: "Role name",
+		teamRoleNamePlaceholder: "e.g. Designer, Reviewer, Guest",
+		teamRoleColorLabel: "Color",
+		editTeamRole: "Edit team role",
+		saveTeamRole: "Save changes",
+		cancelEditTeamRole: "Cancel",
+		deleteTeamRole: "Delete team role",
+		createTeamRole: "Create team role",
 		rolesSectionTitle: "Roles & permissions",
 		rolesCardHint:
-			"Roles apply only on that board. Guest links still use view or edit only.",
+			"These roles apply workspace-wide. Each board decides which roles get access.",
 		openRolesSettings: "Open roles in settings",
 		workspaceCard: {
 			title: "Workspace",
@@ -720,6 +754,43 @@ export const enMessages = {
 				none: "Not configured",
 			},
 		},
+		objectStorageCard: {
+			title: "Object storage",
+			description:
+				"Store new canvas images in S3-compatible object storage instead of PostgreSQL.",
+			statusTitle: "Active image storage",
+			activeSource: "Active source",
+			useCustomConfig: "Manage object storage in the app",
+			useCustomConfigHint:
+				"When disabled, Skedra uses the server environment or stores images inline in the board state.",
+			managedHint:
+				"This SaaS instance manages object storage through secure server environment variables. Credentials are not displayed or editable here.",
+			provider: "Storage mode",
+			preset: "Provider",
+			endpoint: "Endpoint",
+			region: "Region",
+			bucket: "Bucket",
+			accessKeyId: "Access key ID",
+			secretAccessKey: "Secret access key",
+			secretPlaceholder: "Only enter a value to replace the secret",
+			secretConfigured: "A secret is already stored.",
+			secretNotConfigured: "No secret is currently stored.",
+			clearSecret: "Clear stored secret",
+			publicBaseUrl: "Public base URL (optional)",
+			forcePathStyle: "Force path-style URLs",
+			e2eeHint:
+				"Images are encrypted in the browser before upload. Direct R2/S3 URLs require GET CORS for your app domain; without a base URL Skedra serves ciphertext through the protected API.",
+			sources: {
+				database: "Stored in the app",
+				env: "Server environment",
+				inline: "Inline in board state",
+			},
+			providers: {
+				inline: "Inline in board state",
+				s3: "S3-compatible object storage",
+			},
+			presets: { custom: "Custom S3" },
+		},
 		accessCard: {
 			title: "Instance access",
 			description:
@@ -749,6 +820,8 @@ export const enMessages = {
 			saveFailed: "Could not save SMTP settings.",
 			callsSaved: "Call settings saved.",
 			callsSaveFailed: "Could not save call settings.",
+			objectStorageSaved: "Object storage settings saved.",
+			objectStorageSaveFailed: "Could not save object storage settings.",
 			testSent: ({ email }: TranslationParams) =>
 				`Test email sent to ${email}.`,
 			testFailed: "The test email could not be sent.",
@@ -1480,10 +1553,11 @@ export const enMessages = {
 		},
 		canvasSettings: {
 			title: "Canvas settings",
-			description: "Roles and permissions for this board only.",
-			descriptionNamed: "Roles for “{name}” — apply only on this canvas.",
+			description: "Team roles and direct grants for this board.",
+			descriptionNamed:
+				"Access for “{name}” — team roles are central, grants apply here only.",
 			menuLabel: "Canvas menu",
-			menuRoles: "Roles & permissions",
+			menuRoles: "Access & roles",
 			menuRolesInSettings: "Open in settings",
 		},
 		share: {
@@ -1527,43 +1601,46 @@ export const enMessages = {
 				"Use this iframe URL in docs, portals, Notion, or Obsidian. Viewers cannot edit the board.",
 			enableEmbedLink: "Enable embed link",
 			copyEmbedCode: "Copy embed code",
+			mcpKeyTitle: "MCP access",
+			mcpKeyHint:
+				"Copy the E2EE key and give it only to an MCP or agent you allow to access this board.",
+			mcpServerHint:
+				"This board uses server-side encryption on your Skedra instance. The MCP gets access automatically through its API key and board permissions.",
+			mcpKeyUnavailable:
+				"Unlock this board first to copy its E2EE key for the MCP.",
+			copyMcpKey: "Copy MCP key",
+			mcpKeyCopied: "MCP key copied",
 			integrationsTitle: "Notion & Obsidian",
 			integrationsHint:
 				"Copy the embed URL for Notion or a markdown snippet for Obsidian.",
 			copyNotionLink: "Copy Notion link",
 			copyObsidianMarkdown: "Copy Obsidian snippet",
-			inviteCollaborator: "Invite by email",
+			inviteCollaborator: "Invite person directly",
 			invite: "Invite",
-			inviteRoleLabel: "Role with permissions",
-			inviteRoleHint: "Create roles under Settings → Canvas roles.",
-			manageRolesAction: "Open canvas roles",
-			boardRolesTitle: "Roles on this canvas",
-			boardRolesHint:
-				"Permissions apply only here — other boards stay private until you share them separately.",
-			boardRolesEmpty: "No roles on this board yet.",
-			boardRolesEmptyInvite:
-				"Create at least one role under Settings → Canvas roles first.",
-			roleNameLabel: "Role name",
-			roleNamePlaceholder: "e.g. Designer, Reviewer, Guest",
-			roleColorLabel: "Color",
-			newBoardRoleTitle: "New role",
-			editBoardRoleTitle: "Edit role",
-			editBoardRole: "Edit role",
-			saveBoardRole: "Save changes",
-			cancelEditBoardRole: "Cancel",
-			deleteBoardRole: "Delete role",
-			createBoardRole: "Create role",
-			openRolesSettings: "Create roles",
-			linkAccessHint:
-				"For guests without an account — no workspace role, view or edit only.",
-			membersTitle: "People on this board",
+			inviteRoleLabel: "Team role",
+			inviteRoleHint: "Create roles centrally under Team members.",
+			inviteE2eeHint:
+				"The copied link includes the E2EE key in the URL fragment.",
+			inviteE2eeRecipientEnvelopeHint:
+				"The board key was stored as an E2EE recipient envelope for this person; the link does not include a key fragment.",
+			inviteE2eeMissingKeyHint:
+				"This board is E2EE encrypted. Share the key separately if it is not known in your browser.",
+			inviteServerHint:
+				"This board uses server-side encryption. Invited people get access through their board permissions; no separate key is required.",
+			teamRoleAccessTitle: "Team roles with access",
+			teamRoleAccessHint:
+				"Enabled roles can see this board. Edit, comment, and other permissions come from the team role.",
+			teamRolesEmptyInvite:
+				"Create at least one team role under Settings → Team members first.",
+			manageRolesAction: "Open team roles",
+			linkAccessHint: "For guests without an account — view or edit only.",
+			membersTitle: "Direct person access",
 			membersHint:
-				"Users with an account and their permissions. Guests via the collaboration link are not listed here.",
-			membersEmpty: "Only you have access to this board.",
+				"Individual people with explicit board access. Team roles with access are shown separately in this dialog.",
+			membersEmpty: "No directly invited people.",
 			memberOwner: "Board owner",
-			legacyAccessLabel: "Select role …",
-			legacyViewOnly: "Legacy: view only (no workspace role)",
-			legacyEditOnly: "Legacy: can edit (no workspace role)",
+			selectTeamRole: "Select team role …",
+			missingTeamRole: "No team role assigned.",
 			removeMember: "Remove from board",
 		},
 		access: {
@@ -1871,6 +1948,12 @@ export const enMessages = {
 				title: "Your data is protected",
 				description:
 					"Your board is transferred encrypted and stored in the cloud (AES-256). Only you and invited members can access it.",
+				serverTitle: "Server-side encrypted and synchronized",
+				serverDescription:
+					"Canvas data is synchronized on your Skedra instance in real time and encrypted server-side before storage. Authorized users and MCPs can access it.",
+				e2eeTitle: "End-to-end encrypted",
+				e2eeDescription:
+					"Canvas data is encrypted locally. Only clients holding the board key can read its contents.",
 				localTitle: "Local in this browser",
 				localDescription:
 					"This board lives only in your browser. Save to the cloud to share and sync.",

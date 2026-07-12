@@ -1,1 +1,1 @@
-export type RealtimeRole = "owner" | "editor" | "viewer";
+export type CanvasRole = "owner" | "editor" | "viewer";

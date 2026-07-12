@@ -3,7 +3,6 @@ import {
 	type CanvasElement,
 	STICKY_NOTE_TEXT_PADDING,
 } from "@skedra/canvas-core";
-import { nanoid } from "nanoid";
 import {
 	type StickyChecklistItem,
 	type StickyNoteMode,
@@ -51,11 +50,11 @@ export function isStickyNote(
 export function getStickyNoteOptionalTitlePlaceholder(): string {
 	return getCurrentLocale() === "en"
 		? "Title (optional)"
-		: "Ãœberschrift (optional)";
+		: "Ueberschrift (optional)";
 }
 
 export function getStickyNoteItemPlaceholder(): string {
-	return getCurrentLocale() === "en" ? "List itemâ€¦" : "Eintragâ€¦";
+	return getCurrentLocale() === "en" ? "List item..." : "Eintrag...";
 }
 
 export function getStickyNoteTextStyle(el: CanvasElement) {
@@ -70,58 +69,6 @@ export function getStickyNoteTextStyle(el: CanvasElement) {
 	};
 }
 
-function parseLegacyStickyText(text: string): {
-	mode: StickyNoteMode;
-	text: string;
-	checklist: StickyChecklistItem[];
-} {
-	const trimmed = text.trim();
-	if (!trimmed) {
-		return { mode: "note", text: "", checklist: [] };
-	}
-
-	const lines = text.split(/\r?\n/);
-	const firstLine = lines[0]?.trim() ?? "";
-	const bodyLines = lines
-		.slice(1)
-		.map((line) => line.trim())
-		.filter(Boolean);
-
-	if (bodyLines.length === 0) {
-		return { mode: "note", text: trimmed, checklist: [] };
-	}
-
-	const hasListSyntax = bodyLines.some(
-		(line) => /^\[( |x|X)\]\s*/.test(line) || /^[-*â€¢]\s+/.test(line),
-	);
-	if (!hasListSyntax) {
-		return { mode: "note", text: trimmed, checklist: [] };
-	}
-
-	const checklist = bodyLines.map((line) => {
-		const checkboxMatch = line.match(/^\[( |x|X)\]\s*(.*)$/);
-		if (checkboxMatch) {
-			return {
-				id: nanoid(),
-				text: checkboxMatch[2] ?? "",
-				completed: checkboxMatch[1]?.toLowerCase() === "x",
-			};
-		}
-		const bulletMatch = line.match(/^[-*â€¢]\s+(.*)$/);
-		return {
-			id: nanoid(),
-			text: bulletMatch ? (bulletMatch[1] ?? "") : line,
-			completed: false,
-		};
-	});
-
-	return {
-		mode: "checklist",
-		text: firstLine,
-		checklist: sanitizeStickyChecklistForStorage(checklist),
-	};
-}
-
 export function getStickyNoteMode(element: CanvasElement): StickyNoteMode {
 	const stored = element.customData?.stickyNoteMode;
 	if (stored === "note" || stored === "checklist") return stored;
@@ -133,11 +80,7 @@ export function getStickyNoteMode(element: CanvasElement): StickyNoteMode {
 		return "checklist";
 	}
 
-	if (element.customData?.stickyChecklist !== undefined) {
-		return "note";
-	}
-
-	return parseLegacyStickyText(element.text ?? "").mode;
+	return "note";
 }
 
 /** Liest Modus, Text und optionale Checkliste */
@@ -148,21 +91,14 @@ export function getStickyNoteContent(element: CanvasElement): {
 } {
 	const mode = getStickyNoteMode(element);
 
-	if (
-		element.customData?.stickyNoteMode !== undefined ||
-		element.customData?.stickyChecklist !== undefined
-	) {
-		return {
-			mode,
-			text: element.text ?? "",
-			checklist:
-				mode === "checklist"
-					? normalizeStickyChecklist(element.customData?.stickyChecklist)
-					: [],
-		};
-	}
-
-	return parseLegacyStickyText(element.text ?? "");
+	return {
+		mode,
+		text: element.text ?? "",
+		checklist:
+			mode === "checklist"
+				? normalizeStickyChecklist(element.customData?.stickyChecklist)
+				: [],
+	};
 }
 
 /** Wechsel zwischen Notiz- und Checklisten-Modus inkl. Inhalts-Migration */
@@ -198,7 +134,7 @@ export function buildStickyNoteModeChange(
 
 	const itemLines = current.checklist
 		.filter((item) => item.text.trim())
-		.map((item) => `â€¢ ${item.text.trim()}`);
+		.map((item) => `- ${item.text.trim()}`);
 	const merged = [current.text.trim(), ...itemLines].filter(Boolean).join("\n");
 
 	return {

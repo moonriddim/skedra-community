@@ -10,7 +10,9 @@
 		"start": "node dist/index.js"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1083.0",
 		"@hono/node-server": "^1.13.0",
+		"@hono/node-ws": "^1.1.0",
 		"@skedra/canvas-core": "workspace:*",
 		"@skedra/db": "workspace:*",
 		"@skedra/shared": "workspace:*",
@@ -20,6 +22,8 @@
 		"hono": "^4.6.0",
 		"livekit-server-sdk": "^2.17.0",
 		"nodemailer": "^8.0.10",
+		"postgres": "^3.4.9",
+		"stripe": "^22.3.1",
 		"yjs": "^13.6.29",
 		"zod": "^3.24.0"
 	},

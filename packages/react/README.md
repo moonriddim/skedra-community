@@ -2,10 +2,10 @@
 
 React SDK for embedding the Skedra canvas without the Skedra app shell.
 
-The package includes the full client-side canvas tooling layer: drawing tools, sticky notes, frames, Kanban boards, mindmaps, templates, local state, controlled state, and an imperative API. Auth, roles, comments, and realtime collaboration are intentionally left to the host app or optional adapters.
+The package includes the full client-side canvas tooling layer: drawing tools, sticky notes, frames, Kanban boards, mindmaps, templates, local state, controlled state, and an imperative API. Auth, roles, comments, and collaboration transport are intentionally left to the host app or optional adapters.
 
 This package is the MIT editor surface. Workspace features such as accounts,
-teams, comments, hosted realtime, AI backends, and voice/screen-share rooms live
+teams, comments, hosted collaboration, AI backends, and voice/screen-share rooms live
 in the open Skedra Community workspace or optional commercial services. The SDK
 only exports typed hooks for those integrations.
 

@@ -5,8 +5,18 @@ type JsonResponder = {
 	json: (body: unknown, status: number) => Response;
 };
 
+export class RestBadRequestError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "RestBadRequestError";
+	}
+}
+
 /** Zentrale Fehlerbehandlung fuer REST v1 Board-Routen. */
 export function handleRestRouteError(c: JsonResponder, error: unknown) {
+	if (error instanceof RestBadRequestError) {
+		return c.json({ error: error.message }, 400);
+	}
 	const appCode = getAppErrorCode(error);
 	if (
 		appCode === appErrorCodes.whiteboardNotFound ||

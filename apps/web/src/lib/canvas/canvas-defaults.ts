@@ -165,8 +165,3 @@ export const THEME_MUTED_TEXT_DEFAULTS = [
 ] as const;
 
 /** Bisherige System-Schriften der Werkzeuge (fuer Font-Migration beim Theme-Sync) */
-export const LEGACY_TOOL_FONT_DEFAULTS = [
-	'"Aptos", "Segoe UI", Arial, sans-serif',
-	'"Aptos Display", "Segoe UI", Arial, sans-serif',
-	"system-ui, sans-serif",
-] as const;

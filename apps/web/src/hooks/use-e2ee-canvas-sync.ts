@@ -10,23 +10,32 @@ import {
 	yjsUpdateView,
 } from "@/lib/canvas/yjs-canvas-mutations";
 import { readCanvasMapsFromYDoc } from "@/lib/canvas/yjs-document-helpers";
-import { decryptYjsUpdate, encryptYjsUpdate } from "@/lib/e2ee";
+import {
+	createE2eeKeyHash,
+	decryptYjsUpdate,
+	encryptYjsUpdate,
+} from "@/lib/e2ee";
+import {
+	deletePendingE2eeUpdate,
+	enqueuePendingE2eeUpdate,
+	listPendingE2eeUpdates,
+} from "@/lib/e2ee-update-queue";
 import { trpc } from "@/lib/trpc";
-import type {
-	CanvasElement,
-	SavedCanvasView,
-	Viewport,
-} from "@skedra/canvas-core";
+import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
-import type { RealtimeRole, SkedraFile } from "@skedra/shared";
+import type { CanvasRole, SkedraFile } from "@skedra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
-import type {
-	LocalCanvasPresence,
-	RemoteCanvasPresence,
-} from "./use-canvas-sync";
+import type { LocalCanvasPresence } from "./canvas-sync-types";
+import { useBoardLiveChannel } from "./use-board-live-channel";
+import { type PresenceIdentity, useBoardPresence } from "./use-board-presence";
 
 const REMOTE_E2EE_ORIGIN = "skedra-e2ee-remote";
+const PENDING_E2EE_ORIGIN = "skedra-e2ee-pending";
+const E2EE_UPDATE_PAGE_SIZE = 500;
+const E2EE_COMPACT_AFTER_UPDATES = 2000;
+
+type E2eeUpdateCursor = { id: string; createdAt: string };
 
 interface UseE2eeCanvasSyncOptions {
 	e2eeKey: string | null | undefined;
@@ -35,6 +44,11 @@ interface UseE2eeCanvasSyncOptions {
 	presentationShareToken?: string;
 	collabShareToken?: string;
 	embedShareToken?: string;
+	/**
+	 * Identität für Live-Presence (Name/Farbe/Rolle). Optional — ohne Angabe wird
+	 * eine minimale Standard-Identität verwendet, damit Cursor trotzdem funktionieren.
+	 */
+	presence?: PresenceIdentity;
 }
 
 function createClientId() {
@@ -43,6 +57,10 @@ function createClientId() {
 	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
 		"",
 	);
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+	return error instanceof Error ? error.message : fallback;
 }
 
 export function useE2eeCanvasSync(
@@ -56,17 +74,25 @@ export function useE2eeCanvasSync(
 		presentationShareToken,
 		collabShareToken,
 		embedShareToken,
+		presence,
 	} = options;
 	const ydocRef = useRef<Y.Doc | null>(null);
 	const syncFrameRef = useRef<number | null>(null);
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
+	const appliedPendingUpdateIdsRef = useRef<Set<string>>(new Set());
 	const sendQueueRef = useRef(Promise.resolve());
+	const flushQueueRef = useRef(Promise.resolve());
 	const clientIdRef = useRef(createClientId());
+	const decryptionReadyRef = useRef(false);
+	const compactionInFlightRef = useRef(false);
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
 	const [isConnected, setIsConnected] = useState(false);
 	const [connectionError, setConnectionError] = useState<string | null>(null);
+	const [updateCursor, setUpdateCursor] = useState<E2eeUpdateCursor | null>(
+		null,
+	);
 	const accessInput = useMemo(
 		() => ({
 			whiteboardId,
@@ -76,22 +102,75 @@ export function useE2eeCanvasSync(
 		}),
 		[collabShareToken, embedShareToken, presentationShareToken, whiteboardId],
 	);
+	const listInput = useMemo(
+		() => ({
+			...accessInput,
+			afterId: updateCursor?.id,
+			afterCreatedAt: updateCursor?.createdAt,
+			limit: E2EE_UPDATE_PAGE_SIZE,
+		}),
+		[accessInput, updateCursor],
+	);
 
 	const appendUpdate = trpc.whiteboard.appendE2eeUpdate.useMutation({
 		onError(error) {
 			setConnectionError(error.message);
 		},
 	});
+	const compactUpdates = trpc.whiteboard.compactE2eeUpdates.useMutation({
+		onError(error) {
+			setConnectionError(error.message);
+		},
+	});
 
-	const { data: updates } = trpc.whiteboard.listE2eeUpdates.useQuery(
-		accessInput,
-		{
+	// Realtime: Wenn der SSE-Live-Kanal verbunden ist, reicht ein langsames
+	// Fallback-Polling; ohne Live-Kanal (z. B. Gäste) bleibt es beim engen Poll.
+	const liveConnectedRef = useRef(false);
+
+	const { data: updates, refetch: refetchUpdates } =
+		trpc.whiteboard.listE2eeUpdates.useQuery(listInput, {
 			enabled: enabled && !!e2eeKey && !!whiteboardId,
-			refetchInterval: 1500,
+			refetchInterval: () => (liveConnectedRef.current ? 8000 : 1500),
 			refetchIntervalInBackground: true,
 			retry: 1,
+		});
+
+	// Nur eingeloggte Nutzer bekommen Live-Kanäle (Server-Auth = Session);
+	// Gäste über Share-Links bleiben beim Polling.
+	const isSessionUser =
+		!presentationShareToken && !collabShareToken && !embedShareToken;
+
+	// SSE: sofortiges Nachladen bei neuen verschlüsselten Updates.
+	useBoardLiveChannel(whiteboardId, {
+		enabled: enabled && !!e2eeKey && !!whiteboardId && isSessionUser,
+		onEvent: () => {
+			void refetchUpdates();
 		},
+		onConnectedChange: (connected) => {
+			liveConnectedRef.current = connected;
+		},
+	});
+
+	// WebSocket-Presence: Live-Cursor/Auswahl, verschlüsselt relayt.
+	const presenceIdentity = useMemo<PresenceIdentity>(
+		() =>
+			presence ?? {
+				id: `self-${clientIdRef.current}`,
+				name: "Ich",
+				image: null,
+				color: "#14b8a6",
+				role: readonly ? "viewer" : "editor",
+				canWrite: !readonly,
+			},
+		[presence, readonly],
 	);
+
+	const presenceApi = useBoardPresence(whiteboardId, {
+		enabled: enabled && !!e2eeKey && !!whiteboardId && isSessionUser,
+		encryptionMode: "e2ee",
+		e2eeKey,
+		identity: presenceIdentity,
+	});
 
 	const syncFromYjs = useCallback(() => {
 		const ydoc = ydocRef.current;
@@ -109,8 +188,67 @@ export function useE2eeCanvasSync(
 		});
 	}, [syncFromYjs]);
 
+	const flushPendingUpdates = useCallback(() => {
+		if (!enabled || readonly || !e2eeKey || !whiteboardId) {
+			return Promise.resolve();
+		}
+
+		const run = flushQueueRef.current
+			.catch(() => undefined)
+			.then(async () => {
+				const pending = await listPendingE2eeUpdates(whiteboardId);
+				for (const queued of pending) {
+					await appendUpdate.mutateAsync({
+						...accessInput,
+						clientId: queued.clientId,
+						keyHash: queued.keyHash,
+						update: queued.update,
+					});
+					await deletePendingE2eeUpdate(queued.id);
+				}
+				if (pending.length > 0) {
+					setConnectionError(null);
+				}
+			})
+			.catch((error) => {
+				setConnectionError(
+					getErrorMessage(
+						error,
+						"Encrypted changes are saved locally and will be retried.",
+					),
+				);
+			});
+
+		flushQueueRef.current = run;
+		return run;
+	}, [
+		accessInput,
+		appendUpdate.mutateAsync,
+		e2eeKey,
+		enabled,
+		readonly,
+		whiteboardId,
+	]);
+
+	const applyPendingQueuedUpdates = useCallback(async () => {
+		if (!e2eeKey || !ydocRef.current) return;
+		const pending = await listPendingE2eeUpdates(whiteboardId);
+		for (const queued of pending) {
+			if (appliedPendingUpdateIdsRef.current.has(queued.id)) continue;
+			const decrypted = await decryptYjsUpdate(queued.update, e2eeKey);
+			if (!ydocRef.current) return;
+			Y.applyUpdate(ydocRef.current, decrypted, PENDING_E2EE_ORIGIN);
+			appliedPendingUpdateIdsRef.current.add(queued.id);
+		}
+		if (pending.length > 0) {
+			syncFromYjs();
+		}
+	}, [e2eeKey, syncFromYjs, whiteboardId]);
+
 	useEffect(() => {
 		if (!enabled || !e2eeKey) {
+			decryptionReadyRef.current = false;
+			setUpdateCursor(null);
 			setIsConnected(false);
 			setConnectionError(
 				enabled ? "E2EE key missing for this encrypted board." : null,
@@ -121,9 +259,12 @@ export function useE2eeCanvasSync(
 		const ydoc = new Y.Doc({ gc: false });
 		ydocRef.current = ydoc;
 		appliedUpdateIdsRef.current = new Set();
+		appliedPendingUpdateIdsRef.current = new Set();
+		decryptionReadyRef.current = false;
+		setUpdateCursor(null);
 		setScene(CanvasScene.empty());
 		setViews(new Map());
-		setIsConnected(true);
+		setIsConnected(false);
 		setConnectionError(null);
 
 		const yElements = ydoc.getMap<Y.Map<unknown>>("elementsMap");
@@ -134,20 +275,46 @@ export function useE2eeCanvasSync(
 		yViews.observeDeep(deepObserver);
 
 		const updateObserver = (update: Uint8Array, origin: unknown) => {
-			if (origin === REMOTE_E2EE_ORIGIN || readonly) return;
+			if (
+				origin === REMOTE_E2EE_ORIGIN ||
+				origin === PENDING_E2EE_ORIGIN ||
+				readonly ||
+				!decryptionReadyRef.current
+			) {
+				return;
+			}
 			sendQueueRef.current = sendQueueRef.current.then(async () => {
 				try {
+					const keyHash = await createE2eeKeyHash(e2eeKey);
 					const encrypted = await encryptYjsUpdate(update, e2eeKey);
-					await appendUpdate.mutateAsync({
-						...accessInput,
+					const pending = await enqueuePendingE2eeUpdate({
+						whiteboardId,
 						clientId: clientIdRef.current,
+						keyHash,
 						update: encrypted,
 					});
+					appliedPendingUpdateIdsRef.current.add(pending.id);
+					await flushPendingUpdates();
 				} catch (error) {
+					const keyHash = await createE2eeKeyHash(e2eeKey).catch(() => null);
+					const encrypted = await encryptYjsUpdate(update, e2eeKey).catch(
+						() => null,
+					);
+					if (keyHash && encrypted) {
+						try {
+							await appendUpdate.mutateAsync({
+								...accessInput,
+								clientId: clientIdRef.current,
+								keyHash,
+								update: encrypted,
+							});
+							return;
+						} catch {
+							// Report the original queueing error below.
+						}
+					}
 					setConnectionError(
-						error instanceof Error
-							? error.message
-							: "Encrypted update could not be saved.",
+						getErrorMessage(error, "Encrypted update could not be saved."),
 					);
 				}
 			});
@@ -164,6 +331,7 @@ export function useE2eeCanvasSync(
 			yViews.unobserveDeep(deepObserver);
 			ydoc.destroy();
 			ydocRef.current = null;
+			decryptionReadyRef.current = false;
 			setIsConnected(false);
 			setScene(CanvasScene.empty());
 			setViews(new Map());
@@ -173,15 +341,69 @@ export function useE2eeCanvasSync(
 		appendUpdate.mutateAsync,
 		e2eeKey,
 		enabled,
+		flushPendingUpdates,
 		readonly,
 		scheduleSyncFromYjs,
+		whiteboardId,
 	]);
+
+	useEffect(() => {
+		if (!enabled || !e2eeKey || !whiteboardId) return;
+		let cancelled = false;
+
+		const restorePendingUpdates = async () => {
+			try {
+				await applyPendingQueuedUpdates();
+				if (!cancelled) {
+					void flushPendingUpdates();
+				}
+			} catch (error) {
+				if (cancelled) return;
+				setConnectionError(
+					getErrorMessage(
+						error,
+						"Pending encrypted updates could not be restored.",
+					),
+				);
+			}
+		};
+
+		void restorePendingUpdates();
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		applyPendingQueuedUpdates,
+		e2eeKey,
+		enabled,
+		flushPendingUpdates,
+		whiteboardId,
+	]);
+
+	useEffect(() => {
+		if (!enabled || readonly || !e2eeKey) return;
+		const retry = () => {
+			void flushPendingUpdates();
+		};
+		const retryWhenVisible = () => {
+			if (document.visibilityState === "visible") retry();
+		};
+		window.addEventListener("online", retry);
+		document.addEventListener("visibilitychange", retryWhenVisible);
+		const interval = window.setInterval(retry, 5_000);
+		return () => {
+			window.removeEventListener("online", retry);
+			document.removeEventListener("visibilitychange", retryWhenVisible);
+			window.clearInterval(interval);
+		};
+	}, [e2eeKey, enabled, flushPendingUpdates, readonly]);
 
 	useEffect(() => {
 		if (!updates || !e2eeKey || !ydocRef.current) return;
 
 		let cancelled = false;
 		const applyUpdates = async () => {
+			let lastAppliedCursor: E2eeUpdateCursor | null = null;
 			for (const update of updates) {
 				if (cancelled || appliedUpdateIdsRef.current.has(update.id)) continue;
 				try {
@@ -192,24 +414,105 @@ export function useE2eeCanvasSync(
 						REMOTE_E2EE_ORIGIN,
 					);
 					appliedUpdateIdsRef.current.add(update.id);
+					lastAppliedCursor = {
+						id: update.id,
+						createdAt: new Date(update.createdAt).toISOString(),
+					};
 				} catch {
+					decryptionReadyRef.current = false;
+					setIsConnected(false);
 					setConnectionError(
 						"Encrypted board update could not be decrypted. Check the E2EE key.",
 					);
 					return;
 				}
 			}
+			if (cancelled) return;
+			if (lastAppliedCursor) {
+				setUpdateCursor(lastAppliedCursor);
+			}
+			if (updates.length >= E2EE_UPDATE_PAGE_SIZE) {
+				decryptionReadyRef.current = false;
+				setIsConnected(false);
+				setConnectionError(null);
+				return;
+			}
+			try {
+				await applyPendingQueuedUpdates();
+			} catch (error) {
+				decryptionReadyRef.current = false;
+				setIsConnected(false);
+				setConnectionError(
+					getErrorMessage(
+						error,
+						"Pending encrypted updates could not be restored.",
+					),
+				);
+				return;
+			}
+			decryptionReadyRef.current = true;
+			setIsConnected(true);
+			setConnectionError(null);
 			syncFromYjs();
+			void flushPendingUpdates();
+
+			const compactionCursor = lastAppliedCursor ?? updateCursor;
+			if (
+				!readonly &&
+				compactionCursor &&
+				ydocRef.current &&
+				appliedUpdateIdsRef.current.size >= E2EE_COMPACT_AFTER_UPDATES &&
+				!compactionInFlightRef.current
+			) {
+				const pendingBeforeCompaction = await listPendingE2eeUpdates(
+					whiteboardId,
+				).catch(() => []);
+				if (pendingBeforeCompaction.length > 0) return;
+				compactionInFlightRef.current = true;
+				try {
+					const snapshotUpdate = Y.encodeStateAsUpdate(ydocRef.current);
+					const keyHash = await createE2eeKeyHash(e2eeKey);
+					const encrypted = await encryptYjsUpdate(snapshotUpdate, e2eeKey);
+					await compactUpdates.mutateAsync({
+						...accessInput,
+						clientId: clientIdRef.current,
+						keyHash,
+						update: encrypted,
+						upToId: compactionCursor.id,
+					});
+					appliedUpdateIdsRef.current = new Set();
+				} catch (error) {
+					setConnectionError(
+						error instanceof Error
+							? error.message
+							: "Encrypted update log could not be compacted.",
+					);
+				} finally {
+					compactionInFlightRef.current = false;
+				}
+			}
 		};
 
 		void applyUpdates();
 		return () => {
 			cancelled = true;
 		};
-	}, [e2eeKey, syncFromYjs, updates]);
+	}, [
+		accessInput,
+		applyPendingQueuedUpdates,
+		compactUpdates.mutateAsync,
+		e2eeKey,
+		flushPendingUpdates,
+		readonly,
+		syncFromYjs,
+		updateCursor,
+		updates,
+		whiteboardId,
+	]);
 
 	const guardWrite = useCallback((): Y.Doc | null => {
-		if (!ydocRef.current || readonly) return null;
+		if (!ydocRef.current || readonly || !decryptionReadyRef.current)
+			return null;
 		return ydocRef.current;
 	}, [readonly]);
 
@@ -294,17 +597,16 @@ export function useE2eeCanvasSync(
 		[guardWrite],
 	);
 
-	const noopPresence = useCallback((_value?: unknown) => {}, []);
-
 	return {
 		isConnected,
-		isReadonly: readonly,
-		role: (readonly ? "viewer" : "editor") as RealtimeRole,
+		isReadonly: readonly || !isConnected,
+		role: (readonly || !isConnected ? "viewer" : "editor") as CanvasRole,
 		scene,
 		elements,
 		views,
 		connectionError,
-		remotePresence: [] as RemoteCanvasPresence[],
+		// Realtime-Presence (ersetzt den bisherigen No-op).
+		remotePresence: presenceApi.remotePresence,
 		localPresence: null as LocalCanvasPresence | null,
 		createElement,
 		updateElement,
@@ -315,14 +617,10 @@ export function useE2eeCanvasSync(
 		updateView,
 		deleteView,
 		loadSkedraFile,
-		setPresenceSelection: noopPresence as (selection: string[]) => void,
-		setPresenceCursor: noopPresence as (
-			cursor: { x: number; y: number } | null,
-		) => void,
-		setPresenceViewport: noopPresence as (viewport: Viewport) => void,
-		setPresenceActiveView: noopPresence as (
-			activeViewId: string | null,
-		) => void,
+		setPresenceSelection: presenceApi.setPresenceSelection,
+		setPresenceCursor: presenceApi.setPresenceCursor,
+		setPresenceViewport: presenceApi.setPresenceViewport,
+		setPresenceActiveView: presenceApi.setPresenceActiveView,
 		getYDoc: () => ydocRef.current,
 	};
 }

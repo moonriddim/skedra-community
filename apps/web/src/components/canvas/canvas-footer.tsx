@@ -9,7 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import { HelpCircle, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
-type CanvasFooterEncryptionMode = "guest" | "cloud" | "local";
+type CanvasFooterEncryptionMode = "guest" | "server" | "e2ee" | "local";
 
 interface CanvasFooterProps {
 	onOpenHelp: () => void;
@@ -36,10 +36,18 @@ function encryptionKeys(mode: CanvasFooterEncryptionMode) {
 			help: "canvas.footer.help",
 		} as const;
 	}
+	if (mode === "server") {
+		return {
+			label: "canvas.footer.encryption.label",
+			title: "canvas.footer.encryption.serverTitle",
+			description: "canvas.footer.encryption.serverDescription",
+			help: "canvas.footer.help",
+		} as const;
+	}
 	return {
 		label: "canvas.footer.encryption.label",
-		title: "canvas.footer.encryption.title",
-		description: "canvas.footer.encryption.description",
+		title: "canvas.footer.encryption.e2eeTitle",
+		description: "canvas.footer.encryption.e2eeDescription",
 		help: "canvas.footer.help",
 	} as const;
 }
@@ -47,7 +55,7 @@ function encryptionKeys(mode: CanvasFooterEncryptionMode) {
 /** Unten rechts: Verschlüsselungs-Hinweis und Hilfe (Gast- und Board-Canvas). */
 export function CanvasFooter({
 	onOpenHelp,
-	encryptionMode = "cloud",
+	encryptionMode = "e2ee",
 	annotation,
 }: CanvasFooterProps) {
 	const { t } = useI18n();

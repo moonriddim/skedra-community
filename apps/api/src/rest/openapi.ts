@@ -26,6 +26,7 @@ export const openApiDocument = {
 				properties: {
 					id: { type: "string", format: "uuid" },
 					name: { type: "string" },
+					encryptionMode: { type: "string", enum: ["server", "e2ee"] },
 					ownerId: { type: "string" },
 					createdAt: { type: "string", format: "date-time" },
 					updatedAt: { type: "string", format: "date-time" },
@@ -52,8 +53,22 @@ export const openApiDocument = {
 						"application/json": {
 							schema: {
 								type: "object",
-								required: ["name"],
-								properties: { name: { type: "string", maxLength: 120 } },
+								required: ["name", "encryptionMode"],
+								properties: {
+									name: { type: "string", maxLength: 120 },
+									encryptionMode: {
+										type: "string",
+										enum: ["server", "e2ee"],
+										description:
+											"server = serverseitige Verschlüsselung auf der Skedra-Instanz; e2ee = clientseitige Ende-zu-Ende-Verschlüsselung.",
+									},
+									e2eeKeyHash: {
+										type: "string",
+										pattern: "^[a-f0-9]{64}$",
+										description:
+											"Nur für encryptionMode=e2ee: SHA-256-Verifier für den clientseitigen Board-Key.",
+									},
+								},
 							},
 						},
 					},
@@ -93,54 +108,6 @@ export const openApiDocument = {
 		"/boards/{id}/restore": {
 			post: { summary: "Board wiederherstellen", tags: ["Boards"] },
 		},
-		"/boards/{id}/elements": {
-			get: { summary: "Canvas-Elemente lesen", tags: ["Elements"] },
-			post: {
-				summary: "Canvas-Elemente hinzufuegen",
-				tags: ["Elements"],
-				requestBody: {
-					content: {
-						"application/json": {
-							schema: {
-								type: "object",
-								required: ["elements"],
-								properties: {
-									elements: {
-										type: "array",
-										items: {
-											type: "object",
-											required: ["type", "x", "y", "width", "height"],
-											properties: {
-												type: { type: "string" },
-												x: { type: "number" },
-												y: { type: "number" },
-												width: { type: "number" },
-												height: { type: "number" },
-												text: { type: "string" },
-												fill: { type: "string" },
-												stroke: { type: "string" },
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"/boards/{id}/elements/{elementId}": {
-			patch: {
-				summary: "Canvas-Element aktualisieren",
-				tags: ["Elements"],
-				description: "Erfordert Scope boards:write",
-			},
-			delete: {
-				summary: "Canvas-Element loeschen",
-				tags: ["Elements"],
-				description: "Erfordert Scope boards:write",
-			},
-		},
 		"/boards/{id}/members": {
 			get: { summary: "Mitglieder auflisten", tags: ["Members"] },
 			post: {
@@ -151,12 +118,21 @@ export const openApiDocument = {
 						"application/json": {
 							schema: {
 								type: "object",
-								required: ["email"],
-								properties: { email: { type: "string", format: "email" } },
+								required: ["email", "roleId"],
+								properties: {
+									email: { type: "string", format: "email" },
+									roleId: { type: "string", format: "uuid" },
+								},
 							},
 						},
 					},
 				},
+			},
+		},
+		"/boards/{id}/team-roles": {
+			get: {
+				summary: "Team-Rollen fuer Board-Einladungen auflisten",
+				tags: ["Members"],
 			},
 		},
 		"/boards/{id}/activity": {

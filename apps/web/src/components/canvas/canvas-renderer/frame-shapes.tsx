@@ -26,6 +26,7 @@ interface FrameShapeProps {
 	commonProps: Record<string, unknown>;
 	isEditingText: boolean;
 	label: string;
+	resolveAssetUrl?: (src: string) => string;
 }
 
 function KanbanListFrameShape({
@@ -34,9 +35,13 @@ function KanbanListFrameShape({
 	commonProps,
 	isEditingText,
 	label,
+	resolveAssetUrl,
 }: FrameShapeProps) {
 	const canvasCommands = useCanvasCommands();
 	const headerImageSrc = el.customData?.headerImageSrc as string | undefined;
+	const resolvedHeaderImageSrc = headerImageSrc
+		? (resolveAssetUrl?.(headerImageSrc) ?? headerImageSrc)
+		: "";
 	const buttonWidth = Math.max(1, el.width - KANBAN_LIST_PADDING * 2);
 	const buttonY = el.y + el.height - KANBAN_LIST_FOOTER_HEIGHT + 4;
 	const headerHeight = headerImageSrc ? getKanbanListHeaderHeight(el) : 40;
@@ -85,7 +90,7 @@ function KanbanListFrameShape({
 						}}
 					>
 						<img
-							src={headerImageSrc}
+							src={resolvedHeaderImageSrc}
 							alt={translate(
 								getCurrentLocale(),
 								"canvas.properties.listImageAlt",
@@ -363,11 +368,13 @@ export function FrameElementShape({
 	transform,
 	commonProps,
 	isEditingText,
+	resolveAssetUrl,
 }: {
 	el: CanvasElement;
 	transform?: string;
 	commonProps: Record<string, unknown>;
 	isEditingText: boolean;
+	resolveAssetUrl?: (src: string) => string;
 }) {
 	const label =
 		el.frameLabel ||
@@ -382,6 +389,7 @@ export function FrameElementShape({
 				commonProps={commonProps}
 				isEditingText={isEditingText}
 				label={label}
+				resolveAssetUrl={resolveAssetUrl}
 			/>
 		);
 	}

@@ -21,6 +21,7 @@ export function ResetPasswordPage() {
 	const token = useMemo(() => searchParams.get("token") ?? "", [searchParams]);
 	const [password, setPassword] = useState("");
 	const [confirm, setConfirm] = useState("");
+	const [acknowledgedE2eeRisk, setAcknowledgedE2eeRisk] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [done, setDone] = useState(false);
 	const [error, setError] = useState("");
@@ -39,6 +40,10 @@ export function ResetPasswordPage() {
 		}
 		if (!token) {
 			setError(t("auth.resetPassword.invalidToken"));
+			return;
+		}
+		if (!acknowledgedE2eeRisk) {
+			setError(t("auth.resetPassword.e2eeWarningRequired"));
 			return;
 		}
 
@@ -139,6 +144,24 @@ export function ResetPasswordPage() {
 								onChange={(event) => setConfirm(event.target.value)}
 							/>
 						</div>
+						<label className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+							<input
+								type="checkbox"
+								className="mt-1"
+								checked={acknowledgedE2eeRisk}
+								onChange={(event) =>
+									setAcknowledgedE2eeRisk(event.target.checked)
+								}
+							/>
+							<span>
+								<span className="block font-medium">
+									{t("auth.resetPassword.e2eeWarningTitle")}
+								</span>
+								<span className="mt-1 block text-muted-foreground">
+									{t("auth.resetPassword.e2eeWarningDescription")}
+								</span>
+							</span>
+						</label>
 					</CardContent>
 					<CardFooter className="flex flex-col gap-3">
 						<Button type="submit" className="w-full" disabled={loading}>

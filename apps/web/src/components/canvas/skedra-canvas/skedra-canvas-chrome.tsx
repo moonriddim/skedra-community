@@ -41,6 +41,7 @@ interface SkedraCanvasChromeProps {
 	presenterMode: boolean;
 	zenMode: boolean;
 	localMode: boolean;
+	encryptionMode: "server" | "e2ee";
 	whiteboardId?: string;
 	canUseAi: boolean;
 	helpGuestMode: boolean;
@@ -71,6 +72,7 @@ export function SkedraCanvasChrome({
 	presenterMode,
 	zenMode,
 	localMode,
+	encryptionMode,
 	whiteboardId,
 	canUseAi,
 	helpGuestMode,
@@ -118,7 +120,7 @@ export function SkedraCanvasChrome({
 			{!presentationMode && !presenterMode && !zenMode && (
 				<CanvasFooter
 					onOpenHelp={() => onHelpDialogOpenChange(true)}
-					encryptionMode={localMode ? "local" : "cloud"}
+					encryptionMode={localMode ? "local" : encryptionMode}
 				/>
 			)}
 

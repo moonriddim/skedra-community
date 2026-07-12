@@ -1,10 +1,10 @@
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
-import type { useCanvasSync } from "@/hooks/use-canvas-sync";
+import type { useE2eeCanvasSync } from "@/hooks/use-e2ee-canvas-sync";
 import type { useLocalCanvasSync } from "@/hooks/use-local-canvas-sync";
 import type { ToolType } from "@skedra/canvas-core";
 
 export type CanvasSync =
-	| ReturnType<typeof useCanvasSync>
+	| ReturnType<typeof useE2eeCanvasSync>
 	| ReturnType<typeof useLocalCanvasSync>;
 export type CanvasStore = CanvasStoreState;
 

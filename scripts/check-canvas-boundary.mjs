@@ -12,6 +12,7 @@ const scanRoots = [
 
 const allowedWebCanvasFiles = new Set([
 	"api-elements.ts",
+	"asset-urls.ts",
 	"canvas-codecs.ts",
 	"canvas-defaults.ts",
 	"canvas-factory-defaults.ts",

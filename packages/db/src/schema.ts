@@ -1,7 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
 	boolean,
-	customType,
 	index,
 	integer,
 	pgEnum,
@@ -13,13 +12,6 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 
-/** Binary-Typ fuer Y.js-State */
-const bytea = customType<{ data: Uint8Array }>({
-	dataType() {
-		return "bytea";
-	},
-});
-
 export const presentationShareAccessModeEnum = pgEnum(
 	"presentation_share_access_mode",
 	["always", "presentation-only"],
@@ -28,17 +20,17 @@ export const presentationShareAccessModeEnum = pgEnum(
 /** Excalidraw+: Workspace-Mitglied vs. Admin (Verwaltung, Einladungen). */
 export const workspaceRoleEnum = pgEnum("workspace_role", ["member", "admin"]);
 
-/** Excalidraw+: Zugriff auf ein Board — nur Ansicht oder Bearbeiten. */
-export const boardAccessLevelEnum = pgEnum("board_access_level", [
-	"view",
-	"edit",
-]);
-
 /** Excalidraw+: Kollaborations-Link (Gast ohne Workspace-Mitgliedschaft). */
 export const collabShareAccessLevelEnum = pgEnum("collab_share_access_level", [
 	"view",
 	"edit",
 ]);
+
+/** Wie Canvas-Inhalte eines Cloud-Boards verschluesselt werden. */
+export const whiteboardEncryptionModeEnum = pgEnum(
+	"whiteboard_encryption_mode",
+	["server", "e2ee"],
+);
 
 /** Aktivitaetstypen fuer den Board-Activity-Feed */
 export const whiteboardActivityTypeEnum = pgEnum("whiteboard_activity_type", [
@@ -134,6 +126,27 @@ export const instanceSettings = pgTable("instance_settings", {
 	livekitTokenTtlSeconds: integer("livekit_token_ttl_seconds")
 		.notNull()
 		.default(3600),
+	useCustomObjectStorage: boolean("use_custom_object_storage")
+		.notNull()
+		.default(false),
+	objectStorageProvider: text("object_storage_provider")
+		.notNull()
+		.default("inline"),
+	objectStoragePreset: text("object_storage_preset")
+		.notNull()
+		.default("custom"),
+	objectStorageEndpoint: text("object_storage_endpoint"),
+	objectStorageRegion: text("object_storage_region"),
+	objectStorageBucket: text("object_storage_bucket"),
+	objectStorageAccessKeyId: text("object_storage_access_key_id"),
+	/** Encrypted S3-compatible Secret Access Key. */
+	encryptedObjectStorageSecretAccessKey: text(
+		"encrypted_object_storage_secret_access_key",
+	),
+	objectStoragePublicBaseUrl: text("object_storage_public_base_url"),
+	objectStorageForcePathStyle: boolean("object_storage_force_path_style")
+		.notNull()
+		.default(false),
 	/** Bei Mailfehlern: log = Server-Log, link = Link in der UI anzeigen */
 	resetFallback: text("reset_fallback").notNull().default("log"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -148,6 +161,17 @@ export const userPreferences = pgTable("user_preferences", {
 	emailOnCommentReply: boolean("email_on_comment_reply")
 		.notNull()
 		.default(true),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** Client-side E2EE identity. Server stores only public key + encrypted private key. */
+export const userE2eeIdentities = pgTable("user_e2ee_identities", {
+	userId: text("user_id")
+		.primaryKey()
+		.references(() => users.id, { onDelete: "cascade" }),
+	publicKey: text("public_key").notNull(),
+	encryptedPrivateKey: text("encrypted_private_key").notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -169,6 +193,10 @@ export const whiteboards = pgTable(
 			onDelete: "set null",
 		}),
 		name: text("name").notNull(),
+		/** Bestehende Boards bleiben per Migration E2EE; neue Clients waehlen explizit. */
+		encryptionMode: whiteboardEncryptionModeEnum("encryption_mode")
+			.notNull()
+			.default("e2ee"),
 		presentationShareEnabled: boolean("presentation_share_enabled")
 			.notNull()
 			.default(false),
@@ -201,10 +229,9 @@ export const whiteboards = pgTable(
 		 * Browserseitiges E2EE: Y.js-Updates werden clientseitig verschluesselt
 		 * und als Ciphertext in whiteboard_e2ee_updates gespeichert.
 		 */
-		e2eeEnabled: boolean("e2ee_enabled").notNull().default(true),
 		e2eeKeyHint: text("e2ee_key_hint"),
+		e2eeKeyHash: text("e2ee_key_hash"),
 		e2eeCreatedAt: timestamp("e2ee_created_at"),
-		yjsState: bytea("yjs_state"),
 		/** Gesetzt wenn Board archiviert (Papierkorb) statt endgueltig geloescht */
 		archivedAt: timestamp("archived_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -237,25 +264,67 @@ export const whiteboardE2eeUpdates = pgTable(
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => [
-		index("whiteboard_e2ee_updates_board_created_idx").on(
+		index("whiteboard_e2ee_updates_board_created_id_idx").on(
 			table.whiteboardId,
 			table.createdAt,
+			table.id,
 		),
 	],
 );
 
-/** Rollen nur für dieses Board (nicht workspace-weit). */
-export const whiteboardRoles = pgTable("whiteboard_roles", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	whiteboardId: uuid("whiteboard_id")
-		.notNull()
-		.references(() => whiteboards.id, { onDelete: "cascade" }),
-	name: text("name").notNull(),
-	color: text("color").notNull(),
-	/** JSON: BoardRolePermissions */
-	permissions: text("permissions").notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+/** Client-encrypted image objects stored outside PostgreSQL. */
+export const assets = pgTable(
+	"assets",
+	{
+		id: uuid("id").primaryKey(),
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		kind: text("kind").notNull().default("image"),
+		provider: text("provider").notNull(),
+		bucket: text("bucket"),
+		key: text("key").notNull(),
+		publicUrl: text("public_url"),
+		mimeType: text("mime_type").notNull().default("application/octet-stream"),
+		sizeBytes: integer("size_bytes").notNull(),
+		checksumSha256: text("checksum_sha256"),
+		encryptionVersion: integer("encryption_version").notNull().default(1),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("assets_owner_idx").on(table.ownerId),
+		index("assets_whiteboard_idx").on(table.whiteboardId),
+		index("assets_key_idx").on(table.key),
+	],
+);
+
+export const whiteboardKeyRecipients = pgTable(
+	"whiteboard_key_recipients",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		/** Client-encrypted boardKey envelope for this recipient. */
+		encryptedBoardKey: text("encrypted_board_key").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("whiteboard_key_recipient_unique").on(
+			table.whiteboardId,
+			table.userId,
+		),
+		index("whiteboard_key_recipients_user_idx").on(table.userId),
+	],
+);
 
 export const whiteboardMembers = pgTable(
 	"whiteboard_members",
@@ -267,12 +336,12 @@ export const whiteboardMembers = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
-		/** view = nur lesen, edit = Canvas bearbeiten (aus Rolle abgeleitet) */
-		accessLevel: boardAccessLevelEnum("access_level").notNull().default("edit"),
-		/** Board-Rolle auf diesem Canvas */
-		roleId: uuid("role_id").references(() => whiteboardRoles.id, {
-			onDelete: "set null",
-		}),
+		/** Zentrale Team-Rolle fuer direkte Board-Freigaben. */
+		teamRoleId: uuid("team_role_id")
+			.notNull()
+			.references(() => teamRoles.id, {
+				onDelete: "cascade",
+			}),
 		joinedAt: timestamp("joined_at").defaultNow().notNull(),
 	},
 	(table) => [
@@ -457,10 +526,31 @@ export const teamRoles = pgTable("team_roles", {
 	name: text("name").notNull(),
 	/** Hex-Farbe, z. B. #6366f1 */
 	color: text("color").notNull(),
-	/** JSON: editCanvas, comment, inviteOthers, useAi */
+	/** JSON: admin, manageWorkspaceAdmins, editCanvas, comment, ... */
 	permissions: text("permissions").notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+/** Welche zentralen Team-Rollen auf ein Board zugreifen duerfen. */
+export const whiteboardTeamRoleAccess = pgTable(
+	"whiteboard_team_role_access",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		teamRoleId: uuid("team_role_id")
+			.notNull()
+			.references(() => teamRoles.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("whiteboard_team_role_access_unique").on(
+			table.whiteboardId,
+			table.teamRoleId,
+		),
+	],
+);
 
 export const teamMembers = pgTable(
 	"team_members",
@@ -484,6 +574,41 @@ export const teamMembers = pgTable(
 	(table) => [uniqueIndex("team_member_unique").on(table.teamId, table.userId)],
 );
 
+// ===== Managed billing (Stripe) =====
+
+/**
+ * The managed cloud workspace is the billable entity. Stripe remains the
+ * financial source of truth; this is a webhook-synchronized entitlement cache
+ * for authorizing Skedra features without calling Stripe during every request.
+ */
+export const workspaceSubscriptions = pgTable(
+	"workspace_subscriptions",
+	{
+		teamId: uuid("team_id")
+			.primaryKey()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		stripeCustomerId: text("stripe_customer_id").notNull().unique(),
+		stripeSubscriptionId: text("stripe_subscription_id").unique(),
+		stripePriceId: text("stripe_price_id"),
+		status: text("status").notNull().default("inactive"),
+		cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+		currentPeriodEnd: timestamp("current_period_end"),
+		/** Prevent out-of-order Stripe events from overwriting newer state. */
+		lastStripeEventCreatedAt: timestamp("last_stripe_event_created_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [index("workspace_subscriptions_status_idx").on(table.status)],
+);
+
+/** Webhook event IDs make Stripe's at-least-once delivery safe to retry. */
+export const stripeWebhookEvents = pgTable("stripe_webhook_events", {
+	id: text("id").primaryKey(),
+	type: text("type").notNull(),
+	livemode: boolean("livemode").notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 /** Pending Self-Host invites for users that do not have an account yet. */
 export const registrationInvites = pgTable(
 	"registration_invites",
@@ -505,13 +630,12 @@ export const registrationInvites = pgTable(
 		whiteboardId: uuid("whiteboard_id").references(() => whiteboards.id, {
 			onDelete: "cascade",
 		}),
-		whiteboardRoleId: uuid("whiteboard_role_id").references(
-			() => whiteboardRoles.id,
+		whiteboardTeamRoleId: uuid("whiteboard_team_role_id").references(
+			() => teamRoles.id,
 			{
 				onDelete: "set null",
 			},
 		),
-		boardAccessLevel: boardAccessLevelEnum("board_access_level"),
 		acceptedAt: timestamp("accepted_at"),
 		expiresAt: timestamp("expires_at").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -530,6 +654,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	activities: many(whiteboardActivities),
 	apiKeys: many(userApiKeys),
 	aiSettings: one(userAiSettings),
+	e2eeIdentity: one(userE2eeIdentities),
+	whiteboardKeyRecipients: many(whiteboardKeyRecipients),
 	personalShapeLibrary: one(personalShapeLibraries),
 	whiteboardFolders: many(whiteboardFolders),
 	ownedTeams: many(teams),
@@ -538,6 +664,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	commentThreadsCreated: many(whiteboardCommentThreads),
 	commentMessagesAuthored: many(whiteboardCommentMessages),
 	aiMessages: many(whiteboardAiMessages),
+	assets: many(assets),
 	sessions: many(sessions),
 	accounts: many(accounts),
 	preferences: one(userPreferences),
@@ -563,6 +690,16 @@ export const userPreferencesRelations = relations(
 	}),
 );
 
+export const userE2eeIdentitiesRelations = relations(
+	userE2eeIdentities,
+	({ one }) => ({
+		user: one(users, {
+			fields: [userE2eeIdentities.userId],
+			references: [users.id],
+		}),
+	}),
+);
+
 export const whiteboardsRelations = relations(whiteboards, ({ one, many }) => ({
 	owner: one(users, { fields: [whiteboards.ownerId], references: [users.id] }),
 	team: one(teams, { fields: [whiteboards.teamId], references: [teams.id] }),
@@ -571,11 +708,13 @@ export const whiteboardsRelations = relations(whiteboards, ({ one, many }) => ({
 		references: [whiteboardFolders.id],
 	}),
 	members: many(whiteboardMembers),
-	roles: many(whiteboardRoles),
+	teamRoleAccess: many(whiteboardTeamRoleAccess),
 	activities: many(whiteboardActivities),
 	commentThreads: many(whiteboardCommentThreads),
 	aiMessages: many(whiteboardAiMessages),
 	e2eeUpdates: many(whiteboardE2eeUpdates),
+	assets: many(assets),
+	keyRecipients: many(whiteboardKeyRecipients),
 	integrationSyncs: many(boardIntegrationSyncs),
 }));
 
@@ -589,14 +728,28 @@ export const whiteboardE2eeUpdatesRelations = relations(
 	}),
 );
 
-export const whiteboardRolesRelations = relations(
-	whiteboardRoles,
-	({ one, many }) => ({
+export const assetsRelations = relations(assets, ({ one }) => ({
+	owner: one(users, {
+		fields: [assets.ownerId],
+		references: [users.id],
+	}),
+	whiteboard: one(whiteboards, {
+		fields: [assets.whiteboardId],
+		references: [whiteboards.id],
+	}),
+}));
+
+export const whiteboardKeyRecipientsRelations = relations(
+	whiteboardKeyRecipients,
+	({ one }) => ({
 		whiteboard: one(whiteboards, {
-			fields: [whiteboardRoles.whiteboardId],
+			fields: [whiteboardKeyRecipients.whiteboardId],
 			references: [whiteboards.id],
 		}),
-		members: many(whiteboardMembers),
+		user: one(users, {
+			fields: [whiteboardKeyRecipients.userId],
+			references: [users.id],
+		}),
 	}),
 );
 
@@ -625,9 +778,9 @@ export const whiteboardMembersRelations = relations(
 			fields: [whiteboardMembers.userId],
 			references: [users.id],
 		}),
-		role: one(whiteboardRoles, {
-			fields: [whiteboardMembers.roleId],
-			references: [whiteboardRoles.id],
+		teamRole: one(teamRoles, {
+			fields: [whiteboardMembers.teamRoleId],
+			references: [teamRoles.id],
 		}),
 	}),
 );
@@ -803,7 +956,18 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
 	roles: many(teamRoles),
 	folders: many(whiteboardFolders),
 	whiteboards: many(whiteboards),
+	subscription: one(workspaceSubscriptions),
 }));
+
+export const workspaceSubscriptionsRelations = relations(
+	workspaceSubscriptions,
+	({ one }) => ({
+		team: one(teams, {
+			fields: [workspaceSubscriptions.teamId],
+			references: [teams.id],
+		}),
+	}),
+);
 
 export const whiteboardFoldersRelations = relations(
 	whiteboardFolders,
@@ -823,7 +987,22 @@ export const whiteboardFoldersRelations = relations(
 export const teamRolesRelations = relations(teamRoles, ({ one, many }) => ({
 	team: one(teams, { fields: [teamRoles.teamId], references: [teams.id] }),
 	members: many(teamMembers),
+	boardAccess: many(whiteboardTeamRoleAccess),
 }));
+
+export const whiteboardTeamRoleAccessRelations = relations(
+	whiteboardTeamRoleAccess,
+	({ one }) => ({
+		whiteboard: one(whiteboards, {
+			fields: [whiteboardTeamRoleAccess.whiteboardId],
+			references: [whiteboards.id],
+		}),
+		teamRole: one(teamRoles, {
+			fields: [whiteboardTeamRoleAccess.teamRoleId],
+			references: [teamRoles.id],
+		}),
+	}),
+);
 
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
 	team: one(teams, { fields: [teamMembers.teamId], references: [teams.id] }),
@@ -853,9 +1032,9 @@ export const registrationInvitesRelations = relations(
 			fields: [registrationInvites.whiteboardId],
 			references: [whiteboards.id],
 		}),
-		whiteboardRole: one(whiteboardRoles, {
-			fields: [registrationInvites.whiteboardRoleId],
-			references: [whiteboardRoles.id],
+		whiteboardTeamRole: one(teamRoles, {
+			fields: [registrationInvites.whiteboardTeamRoleId],
+			references: [teamRoles.id],
 		}),
 	}),
 );

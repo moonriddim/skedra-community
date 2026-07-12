@@ -8,6 +8,7 @@ import { PropertiesPanel } from "@/components/canvas/properties-panel";
 import type { PendingText } from "@/components/canvas/text-editor";
 import type { useCanvasKeyboard } from "@/hooks/use-canvas-keyboard";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
+import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import type { KanbanAssignmentOptions } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import { type ComponentProps, Suspense, lazy, memo } from "react";
@@ -88,6 +89,8 @@ interface SkedraCanvasToolPanelsProps {
 	onExportSkedra: () => void;
 	onExportEncryptedSkedra: () => void;
 	onImportSkedra: () => void;
+	imageUploadOptions?: ImageUploadOptions;
+	resolveAssetUrl?: (src: string) => string;
 	kanbanDetailId: string | null;
 	kanbanListDetailId: string | null;
 	setKanbanDetailId: (id: string | null) => void;
@@ -126,6 +129,8 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	onExportSkedra,
 	onExportEncryptedSkedra,
 	onImportSkedra,
+	imageUploadOptions,
+	resolveAssetUrl,
 	kanbanDetailId,
 	kanbanListDetailId,
 	setKanbanDetailId,
@@ -154,6 +159,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					onExportSkedra={onExportSkedra}
 					onExportEncryptedSkedra={onExportEncryptedSkedra}
 					onImportSkedra={onImportSkedra}
+					imageUploadOptions={imageUploadOptions}
 				/>
 			)}
 
@@ -235,6 +241,8 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 						element={sync.elements.get(kanbanDetailId) ?? null}
 						elements={sync.elements}
 						assignmentOptions={kanbanAssignmentOptions}
+						imageUploadOptions={imageUploadOptions}
+						resolveAssetUrl={resolveAssetUrl}
 						onClose={() => setKanbanDetailId(null)}
 						onUpdate={sync.updateElement}
 						onUpdateElements={sync.updateElements}
@@ -251,6 +259,8 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					<KanbanListDetailDialog
 						element={sync.elements.get(kanbanListDetailId) ?? null}
 						elements={sync.elements}
+						imageUploadOptions={imageUploadOptions}
+						resolveAssetUrl={resolveAssetUrl}
 						onClose={() => setKanbanListDetailId(null)}
 						onUpdate={sync.updateElement}
 						onUpdateElements={sync.updateElements}

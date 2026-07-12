@@ -169,7 +169,6 @@ export function createKanbanCardElement(
 			dueDate: null,
 			dueComplete: false,
 			coverImage: null,
-			imageSrc: null,
 			checklist: [],
 			attachments: [],
 		},

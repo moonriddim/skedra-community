@@ -2,7 +2,6 @@ type RuntimeConfig = {
 	API_URL?: string;
 	APP_URL?: string;
 	LIBRARIES_URL?: string;
-	REALTIME_URL?: string;
 };
 
 declare global {

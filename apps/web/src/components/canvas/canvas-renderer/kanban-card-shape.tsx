@@ -18,10 +18,12 @@ export function KanbanCardShape({
 	el,
 	transform,
 	commonProps,
+	resolveAssetUrl,
 }: {
 	el: CanvasElement;
 	transform: string | undefined;
 	commonProps: { "data-element-id": string; opacity: number };
+	resolveAssetUrl?: (src: string) => string;
 }) {
 	const canvasCommands = useCanvasCommands();
 	const priority = el.customData?.priority as
@@ -62,6 +64,9 @@ export function KanbanCardShape({
 				? el.customData.groupColor
 				: "#64748B";
 	const coverImage = normalizeKanbanCoverImage(el.customData);
+	const coverImageSrc = coverImage
+		? (resolveAssetUrl?.(coverImage.src) ?? coverImage.src)
+		: "";
 	const attachments = normalizeKanbanAttachments(el.customData);
 	const checklist = normalizeKanbanChecklist(el.customData?.checklist);
 	const checklistPreview = checklist.slice(0, 3);
@@ -169,7 +174,7 @@ export function KanbanCardShape({
 					{coverImage && (
 						<>
 							<img
-								src={coverImage.src}
+								src={coverImageSrc}
 								alt={coverImage.name}
 								style={{
 									position: "absolute",

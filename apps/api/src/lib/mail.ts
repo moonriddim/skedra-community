@@ -7,10 +7,32 @@ import {
 	resolveMailConfig,
 } from "./instance-settings";
 
+/**
+ * Escaped nutzergesteuerte Werte, bevor sie in HTML-Mails interpoliert werden.
+ * Verhindert HTML-/Attribut-Injection über z. B. Anzeigenamen (Fix E1).
+ */
+function escapeHtml(value: string) {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
 /** Kurzlebige Reset-Links wenn SMTP fehlschlägt und Fallback „link“ aktiv ist. */
 const pendingResetLinks = new Map<string, { url: string; expiresAt: number }>();
 
+/** Entfernt abgelaufene Einträge (Fix A7 — sonst wächst die Map unbegrenzt). */
+function sweepExpiredResetLinks() {
+	const now = Date.now();
+	for (const [key, entry] of pendingResetLinks) {
+		if (entry.expiresAt < now) pendingResetLinks.delete(key);
+	}
+}
+
 function stashPasswordResetLink(email: string, url: string) {
+	sweepExpiredResetLinks();
 	pendingResetLinks.set(email.toLowerCase().trim(), {
 		url,
 		expiresAt: Date.now() + 15 * 60 * 1000,
@@ -44,6 +66,9 @@ async function sendWithConfig(
 		host: config.host,
 		port: config.port,
 		secure: config.secure,
+		// Fix E3: Bei nicht-implizitem TLS (Port 587) STARTTLS erzwingen, damit
+		// Zugangsdaten niemals im Klartext übertragen werden.
+		requireTLS: !config.secure,
 		auth: config.user
 			? {
 					user: config.user,
@@ -89,10 +114,13 @@ export async function sendPasswordResetEmail(
 		"Wenn du das nicht warst, kannst du diese E-Mail ignorieren.",
 	].join("\n");
 
+	// Fix E1: nutzergesteuerte Werte (Name) und die URL werden escaped.
+	const safeName = input.userName ? ` ${escapeHtml(input.userName)}` : "";
+	const safeUrl = escapeHtml(input.url);
 	const html = `
-		<p>Hallo${input.userName ? ` ${input.userName}` : ""},</p>
+		<p>Hallo${safeName},</p>
 		<p>du hast ein neues Passwort für dein Skedra-Konto angefordert.</p>
-		<p><a href="${input.url}">Passwort jetzt zurücksetzen</a></p>
+		<p><a href="${safeUrl}">Passwort jetzt zurücksetzen</a></p>
 		<p style="color:#64748b;font-size:12px">Wenn du das nicht warst, ignoriere diese E-Mail.</p>
 	`;
 
@@ -114,10 +142,47 @@ export async function sendPasswordResetEmail(
 			return { delivered: false as const, fallback: "link" as const };
 		}
 
-		console.info("[skedra] Passwort-Reset (SMTP fehlgeschlagen):", input.url);
-		console.warn("[skedra] SMTP-Fehler:", message);
+		// Fix E2: Den vollständigen Reset-Link (inkl. Token) NICHT ins Log schreiben —
+		// wer Log-Zugriff hat, könnte sonst Konten übernehmen. Nur ein Ereignis loggen.
+		console.warn(
+			"[skedra] Passwort-Reset konnte nicht per SMTP zugestellt werden:",
+			message,
+		);
 		return { delivered: false as const, fallback: "log" as const };
 	}
+}
+
+/**
+ * Fix A4: Bestätigungs-Mail für die E-Mail-Verifizierung.
+ * Wird von better-auth aufgerufen, wenn `requireEmailVerification` aktiv ist.
+ */
+export async function sendVerificationEmail(
+	db: Database,
+	input: { email: string; url: string; userName?: string },
+) {
+	const subject = "Skedra – E-Mail bestätigen";
+	const text = [
+		`Hallo${input.userName ? ` ${input.userName}` : ""},`,
+		"",
+		"bitte bestätige deine E-Mail-Adresse für Skedra über den folgenden Link:",
+		"",
+		input.url,
+		"",
+		"Wenn du dich nicht bei Skedra registriert hast, ignoriere diese E-Mail.",
+	].join("\n");
+
+	// Fix E1: nutzergesteuerte Werte und URL escapen.
+	const safeName = input.userName ? ` ${escapeHtml(input.userName)}` : "";
+	const safeUrl = escapeHtml(input.url);
+	const html = `
+		<p>Hallo${safeName},</p>
+		<p>bitte bestätige deine E-Mail-Adresse für Skedra:</p>
+		<p><a href="${safeUrl}">E-Mail jetzt bestätigen</a></p>
+		<p style="color:#64748b;font-size:12px">Wenn du dich nicht registriert hast, ignoriere diese E-Mail.</p>
+	`;
+
+	await sendAppEmail(db, { to: input.email, subject, text, html });
+	return { delivered: true as const };
 }
 
 export async function sendRegistrationInviteEmail(
@@ -145,11 +210,15 @@ export async function sendRegistrationInviteEmail(
 		.filter(Boolean)
 		.join("\n");
 
+	// Fix E1: alle nutzergesteuerten Werte und die URL escapen.
+	const safeInviter = escapeHtml(input.inviterName ?? "Ein Skedra-Admin");
+	const safeContext = input.context ? escapeHtml(input.context) : "";
+	const safeUrl = escapeHtml(input.url);
 	const html = `
 		<p>Hallo,</p>
-		<p><strong>${input.inviterName ?? "Ein Skedra-Admin"}</strong> hat dich zu Skedra eingeladen.</p>
-		${input.context ? `<p>Kontext: ${input.context}</p>` : ""}
-		<p><a href="${input.url}">Skedra-Konto erstellen</a></p>
+		<p><strong>${safeInviter}</strong> hat dich zu Skedra eingeladen.</p>
+		${safeContext ? `<p>Kontext: ${safeContext}</p>` : ""}
+		<p><a href="${safeUrl}">Skedra-Konto erstellen</a></p>
 		<p style="color:#64748b;font-size:12px">Wenn du diese Einladung nicht erwartet hast, ignoriere diese E-Mail.</p>
 	`;
 
@@ -164,11 +233,11 @@ export async function sendRegistrationInviteEmail(
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Mailversand fehlgeschlagen";
-		console.info(
-			"[skedra] Registrierungs-Einladung (SMTP fehlgeschlagen):",
-			input.url,
+		// Fix E2: Einladungs-Link (enthält Token) nicht ins Log schreiben.
+		console.warn(
+			"[skedra] Registrierungs-Einladung konnte nicht zugestellt werden:",
+			message,
 		);
-		console.warn("[skedra] SMTP-Fehler:", message);
 		return { delivered: false as const, fallback: "link" as const };
 	}
 }
@@ -194,17 +263,23 @@ export async function sendMentionNotificationEmail(
 		`Board öffnen: ${input.boardUrl}`,
 	].join("\n");
 
+	// Fix E1: sämtliche nutzergesteuerten Werte escapen (nicht nur den Kommentar-Auszug).
+	const safeRecipient = escapeHtml(input.recipientName);
+	const safeAuthor = escapeHtml(input.authorName);
+	const safeBoard = escapeHtml(input.boardName);
+	const safePreview = escapeHtml(input.commentPreview.slice(0, 400));
+	const safeBoardUrl = escapeHtml(input.boardUrl);
 	await sendAppEmail(db, {
 		to: input.to,
 		subject,
 		text,
 		html: `
-			<p>Hallo ${input.recipientName},</p>
-			<p><strong>${input.authorName}</strong> hat dich auf <strong>${input.boardName}</strong> erwähnt:</p>
+			<p>Hallo ${safeRecipient},</p>
+			<p><strong>${safeAuthor}</strong> hat dich auf <strong>${safeBoard}</strong> erwähnt:</p>
 			<blockquote style="border-left:3px solid #14b8a6;padding-left:12px;color:#334155">
-				${input.commentPreview.slice(0, 400).replace(/</g, "&lt;")}
+				${safePreview}
 			</blockquote>
-			<p><a href="${input.boardUrl}">Zum Whiteboard</a></p>
+			<p><a href="${safeBoardUrl}">Zum Whiteboard</a></p>
 		`,
 	});
 }

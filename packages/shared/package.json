@@ -13,7 +13,6 @@
 		"./ai-model-filter": "./src/ai-model-filter.ts",
 		"./kanban-ai": "./src/kanban-ai.ts",
 		"./ai-generation": "./src/ai-generation/index.ts",
-		"./realtime-auth": "./src/realtime-auth.ts",
 		"./server-crypto": "./src/server-crypto.ts"
 	},
 	"dependencies": {

@@ -10,11 +10,9 @@ FROM base AS build
 ARG VITE_APP_URL=http://localhost:5174
 ARG VITE_LIBRARIES_URL=http://localhost:5175
 ARG VITE_API_URL=
-ARG VITE_REALTIME_URL=
 ENV VITE_APP_URL=$VITE_APP_URL
 ENV VITE_LIBRARIES_URL=$VITE_LIBRARIES_URL
 ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_REALTIME_URL=$VITE_REALTIME_URL
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
@@ -23,11 +21,9 @@ FROM base AS standalone-build
 ARG VITE_APP_URL=http://localhost:3000
 ARG VITE_LIBRARIES_URL=http://localhost:3000/libraries
 ARG VITE_API_URL=
-ARG VITE_REALTIME_URL=
 ENV VITE_APP_URL=$VITE_APP_URL
 ENV VITE_LIBRARIES_URL=$VITE_LIBRARIES_URL
 ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_REALTIME_URL=$VITE_REALTIME_URL
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @skedra/canvas-core build
@@ -38,20 +34,20 @@ RUN VITE_BASE_PATH=/libraries/ pnpm --filter @skedra/libraries build
 FROM base AS server
 ENV NODE_ENV=production
 COPY --from=build /app /app
-EXPOSE 3001 1235
+EXPOSE 3001
 
 FROM build AS schema-export
 RUN cd packages/db && pnpm exec drizzle-kit export --dialect postgresql --schema src/schema.ts > /schema.sql
 
 FROM build AS api-package
-RUN pnpm --filter @skedra/api deploy --prod --legacy /runtime/api
+RUN pnpm --config.inject-workspace-packages=true --filter @skedra/api deploy --prod /runtime/api
 RUN pnpm exec esbuild apps/api/src/index.ts \
     --bundle \
     --platform=node \
-    --format=esm \
+    --format=cjs \
     --target=node22 \
     --minify \
-    --outfile=/runtime/api/index.js \
+    --outfile=/runtime/api/index.cjs \
     --external:@hono/node-server \
     --external:@trpc/server \
     --external:better-auth \
@@ -74,28 +70,6 @@ RUN chmod +x /app/start-with-migrations.sh
 EXPOSE 3001
 CMD ["/app/start-with-migrations.sh"]
 
-FROM build AS realtime-package
-RUN pnpm --filter @skedra/realtime deploy --prod --legacy /runtime/realtime
-RUN pnpm exec esbuild apps/realtime/src/index.ts \
-    --bundle \
-    --platform=node \
-    --format=esm \
-    --target=node22 \
-    --minify \
-    --outfile=/runtime/realtime/index.js \
-    --external:@hocuspocus/extension-database \
-    --external:@hocuspocus/server \
-    --external:drizzle-orm \
-    --external:zod
-RUN rm -rf /runtime/realtime/src /runtime/realtime/dist /runtime/realtime/.turbo /runtime/realtime/.tmp /runtime/realtime/tsconfig.json /runtime/realtime/node_modules/@skedra
-
-FROM node:22-alpine AS realtime
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=realtime-package /runtime/realtime ./
-EXPOSE 1235
-CMD ["node", "index.js"]
-
 FROM nginx:1.27-alpine AS web
 COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY deploy/nginx/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
@@ -115,7 +89,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache nginx postgresql16 postgresql16-client su-exec
 COPY --from=api-package /runtime/api /app/api
-COPY --from=realtime-package /runtime/realtime /app/realtime
 COPY --from=schema-export /schema.sql /app/api/schema.sql
 COPY deploy/db/selfhost-migrations.sql /app/api/selfhost-migrations.sql
 COPY --from=standalone-build /app/apps/web/dist /usr/share/skedra/web

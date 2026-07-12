@@ -2,7 +2,12 @@
  * Workspace access helpers: owner, admin, member.
  */
 
-import { type Database, teamMembers, teams } from "@skedra/db";
+import { type Database, teamMembers, teamRoles, teams } from "@skedra/db";
+import {
+	DEFAULT_EDITOR_ROLE_PERMISSIONS,
+	parseTeamRolePermissions,
+	serializeTeamRolePermissions,
+} from "@skedra/shared";
 import { and, eq } from "drizzle-orm";
 
 async function getOwnedTeam(db: Database, userId: string) {
@@ -11,12 +16,30 @@ async function getOwnedTeam(db: Database, userId: string) {
 	});
 }
 
+async function ensureDefaultTeamRole(db: Database, teamId: string) {
+	const existing = await db.query.teamRoles.findFirst({
+		where: eq(teamRoles.teamId, teamId),
+		columns: { id: true },
+	});
+	if (existing) return;
+
+	await db.insert(teamRoles).values({
+		teamId,
+		name: "Mitglied",
+		color: "#2563eb",
+		permissions: serializeTeamRolePermissions(DEFAULT_EDITOR_ROLE_PERMISSIONS),
+	});
+}
+
 export async function ensureOwnedWorkspace(
 	db: Database,
 	user: { id: string; name: string },
 ) {
 	const owned = await getOwnedTeam(db, user.id);
-	if (owned) return owned;
+	if (owned) {
+		await ensureDefaultTeamRole(db, owned.id);
+		return owned;
+	}
 
 	const [created] = await db
 		.insert(teams)
@@ -26,16 +49,18 @@ export async function ensureOwnedWorkspace(
 		})
 		.returning();
 
+	await ensureDefaultTeamRole(db, created.id);
 	return created;
 }
 
-async function getManagedWorkspace(db: Database, userId: string) {
+export async function getManagedWorkspace(db: Database, userId: string) {
 	const owned = await getOwnedTeam(db, userId);
 	if (owned) {
 		return {
 			team: owned,
 			isOwner: true as const,
 			canManageWorkspace: true as const,
+			canManageWorkspaceAdmins: true as const,
 		};
 	}
 
@@ -44,14 +69,18 @@ async function getManagedWorkspace(db: Database, userId: string) {
 			eq(teamMembers.userId, userId),
 			eq(teamMembers.workspaceRole, "admin"),
 		),
-		with: { team: true },
+		with: { role: true, team: true },
 	});
 
 	if (adminRow?.team) {
+		const permissions = adminRow.role
+			? parseTeamRolePermissions(adminRow.role.permissions)
+			: null;
 		return {
 			team: adminRow.team,
 			isOwner: false as const,
 			canManageWorkspace: true as const,
+			canManageWorkspaceAdmins: permissions?.manageWorkspaceAdmins ?? false,
 		};
 	}
 

@@ -25,6 +25,7 @@ import { clearLocalCanvasState } from "@/lib/canvas/local-canvas-storage";
 import type { SkedraCanvasFileActions } from "@/lib/canvas/skedra-file-utils";
 import {
 	base64ToBytes,
+	createE2eeKeyHash,
 	encryptYjsUpdate,
 	generateE2eeKey,
 	storeE2eeKey,
@@ -32,7 +33,7 @@ import {
 } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
-import { Loader2 } from "lucide-react";
+import { Check, Cloud, Loader2, LockKeyhole } from "lucide-react";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
@@ -56,6 +57,9 @@ export function GuestCanvasPage() {
 	const [liveCollabDialogOpen, setLiveCollabDialogOpen] = useState(false);
 	const [clearDialogOpen, setClearDialogOpen] = useState(false);
 	const [boardName, setBoardName] = useState("");
+	const [saveEncryptionMode, setSaveEncryptionMode] = useState<
+		"server" | "e2ee" | null
+	>(null);
 	const [saveError, setSaveError] = useState("");
 	const pendingE2eeKeyRef = useRef<string | null>(null);
 	const zenMode = useCanvasStore((state) => state.zenMode);
@@ -83,6 +87,7 @@ export function GuestCanvasPage() {
 
 	useEffect(() => {
 		if (searchParams.get("save") !== "1" || !session?.user) return;
+		setSaveEncryptionMode(null);
 		setSaveDialogOpen(true);
 		setSearchParams({}, { replace: true });
 	}, [searchParams, session?.user, setSearchParams]);
@@ -101,6 +106,7 @@ export function GuestCanvasPage() {
 			return;
 		}
 		setSaveError("");
+		setSaveEncryptionMode(null);
 		setBoardName((current) => current || t("project.newCanvas"));
 		setSaveDialogOpen(true);
 	};
@@ -121,8 +127,23 @@ export function GuestCanvasPage() {
 			setSaveError(t("guestCanvas.saveEmptyError"));
 			return;
 		}
+		if (!saveEncryptionMode) {
+			setSaveError(t("boardCreation.description"));
+			return;
+		}
+
+		if (saveEncryptionMode === "server") {
+			pendingE2eeKeyRef.current = null;
+			createWithState.mutate({
+				name: boardName.trim() || t("project.newCanvas"),
+				encryptionMode: "server",
+				stateBase64,
+			});
+			return;
+		}
 
 		const key = generateE2eeKey();
+		const e2eeKeyHash = await createE2eeKeyHash(key);
 		const e2eeInitialUpdate = await encryptYjsUpdate(
 			base64ToBytes(stateBase64),
 			key,
@@ -130,8 +151,10 @@ export function GuestCanvasPage() {
 		pendingE2eeKeyRef.current = key;
 		createWithState.mutate({
 			name: boardName.trim() || t("project.newCanvas"),
+			encryptionMode: "e2ee",
 			e2eeInitialUpdate,
 			e2eeKeyHint: `created-${new Date().toISOString().slice(0, 10)}`,
+			e2eeKeyHash,
 		});
 	};
 
@@ -254,6 +277,52 @@ export function GuestCanvasPage() {
 							onChange={(event) => setBoardName(event.target.value)}
 							placeholder={t("project.newCanvas")}
 						/>
+						<div className="grid gap-2 pt-2 sm:grid-cols-2">
+							<button
+								type="button"
+								onClick={() => setSaveEncryptionMode("server")}
+								className={`rounded-xl border p-3 text-left ${
+									saveEncryptionMode === "server"
+										? "border-primary bg-primary/10"
+										: "border-border hover:border-primary/50"
+								}`}
+							>
+								<div className="flex items-center justify-between gap-2">
+									<Cloud className="h-5 w-5 text-sky-500" />
+									{saveEncryptionMode === "server" ? (
+										<Check className="h-4 w-4 text-primary" />
+									) : null}
+								</div>
+								<p className="mt-2 text-sm font-medium">
+									{t("boardCreation.serverTitle")}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{t("boardCreation.serverDescription")}
+								</p>
+							</button>
+							<button
+								type="button"
+								onClick={() => setSaveEncryptionMode("e2ee")}
+								className={`rounded-xl border p-3 text-left ${
+									saveEncryptionMode === "e2ee"
+										? "border-primary bg-primary/10"
+										: "border-border hover:border-primary/50"
+								}`}
+							>
+								<div className="flex items-center justify-between gap-2">
+									<LockKeyhole className="h-5 w-5 text-emerald-500" />
+									{saveEncryptionMode === "e2ee" ? (
+										<Check className="h-4 w-4 text-primary" />
+									) : null}
+								</div>
+								<p className="mt-2 text-sm font-medium">
+									{t("boardCreation.e2eeTitle")}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{t("boardCreation.e2eeDescription")}
+								</p>
+							</button>
+						</div>
 						{saveError && (
 							<p className="text-sm text-destructive">{saveError}</p>
 						)}
@@ -264,7 +333,7 @@ export function GuestCanvasPage() {
 						</Button>
 						<Button
 							onClick={handleConfirmSave}
-							disabled={createWithState.isPending}
+							disabled={createWithState.isPending || !saveEncryptionMode}
 						>
 							{createWithState.isPending && (
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />

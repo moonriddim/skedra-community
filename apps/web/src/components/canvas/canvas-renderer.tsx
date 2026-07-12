@@ -18,6 +18,7 @@ interface CanvasRendererProps {
 	/** Optional: nur sichtbare Elemente rendern (Viewport-Culling) */
 	viewport?: Viewport | null;
 	svgSize?: { width: number; height: number } | null;
+	resolveAssetUrl?: (src: string) => string;
 }
 
 export const CanvasRenderer = memo(function CanvasRenderer({
@@ -26,6 +27,7 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 	editingTextId = null,
 	viewport = null,
 	svgSize = null,
+	resolveAssetUrl,
 }: CanvasRendererProps) {
 	const sorted = useMemo(() => {
 		if (!viewport || !svgSize || svgSize.width <= 0 || svgSize.height <= 0) {
@@ -62,6 +64,7 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 					key={el.id}
 					element={el}
 					isEditingText={editingTextId === el.id}
+					resolveAssetUrl={resolveAssetUrl}
 				/>
 			))}
 		</g>

@@ -29,6 +29,24 @@ export const deMessages = {
 		workspaceSettings: "Workspace-Einstellungen",
 		loading: "Wird geladen...",
 	},
+	boardCreation: {
+		title: "Wie soll dein Board verschlüsselt werden?",
+		description:
+			"Beide Varianten speichern dein Board auf deiner Skedra-Instanz und synchronisieren Änderungen in Echtzeit. Wähle bewusst den passenden Schutz.",
+		serverTitle: "Serverseitige Verschlüsselung",
+		serverDescription:
+			"Deine Skedra-Instanz verschlüsselt die Daten und erlaubt berechtigten Nutzern und dem MCP automatischen Zugriff.",
+		serverDetails:
+			"Die API verschlüsselt alle Canvas-Daten vor dem Speichern. Der Server kann sie für berechtigte Zugriffe entschlüsseln; kein separater Board-Key ist nötig.",
+		e2eeTitle: "Ende-zu-Ende verschlüsselt",
+		e2eeDescription:
+			"Maximale Vertraulichkeit: Nur Clients mit dem Board-Schlüssel können Inhalte lesen.",
+		e2eeDetails:
+			"Der Server sieht keinen Klartext. Fuer Recovery wird deine E2EE-Identity entsperrt; der MCP benoetigt den separaten Board-Key.",
+		permanentHint:
+			"Der Verschlüsselungsmodus gilt für dieses Board und kann später nicht ohne Datenmigration gewechselt werden.",
+		continue: "Auswahl bestätigen",
+	},
 	apiErrors: {
 		common: {
 			badRequest: "Die Anfrage konnte nicht verarbeitet werden.",
@@ -292,6 +310,11 @@ export const deMessages = {
 			invalidToken: "Der Reset-Link ist ungültig oder abgelaufen.",
 			passwordTooShort: "Das neue Passwort muss mindestens 8 Zeichen lang sein",
 			passwordMismatch: "Die Passwortbestätigung stimmt nicht überein",
+			e2eeWarningTitle: "Ich verstehe die E2EE-Recovery-Auswirkung",
+			e2eeWarningDescription:
+				"Passwort-Resets koennen deine bestehende private E2EE-Identity nicht neu verpacken, weil das alte Passwort nicht verfuegbar ist. Boards koennen danach ein vorhandenes Schluessel-Fragment oder eine neue Einladung brauchen.",
+			e2eeWarningRequired:
+				"Bitte bestaetige den E2EE-Recovery-Hinweis, bevor du das Passwort zuruecksetzt",
 			backToLogin: "Zurück zur Anmeldung",
 		},
 		twoFactor: {
@@ -396,15 +419,6 @@ export const deMessages = {
 				"Skedra AI (Plattform-Fallback) ist aktiv, wenn du keinen eigenen Key hinterlegst.",
 			hint: "Cloud-Keys werden verschlüsselt gespeichert. Lokale LLMs laufen über deinen eigenen Server.",
 		},
-		canvasRoles: {
-			nav: "Canvas-Rollen",
-			title: "Rollen & Rechte pro Canvas",
-			intro:
-				"Jedes Board hat eigene Rollen. Beim Teilen wählst du die passende Rolle — niemand sieht automatisch alle deine Boards.",
-			boardLabel: "Canvas auswählen",
-			noOwnedBoards:
-				"Du besitzt noch keine Boards. Erstelle zuerst ein Canvas in der Bibliothek.",
-		},
 	},
 	workspaceSetup: {
 		title: "Arbeitsbereich erstellen",
@@ -436,12 +450,24 @@ export const deMessages = {
 			member: "Mitglied",
 		},
 		workspaceInviteHint:
-			"Workspace-Mitglieder können Boards dieses Workspaces entsprechend ihrer Workspace-Rolle öffnen. Feine Canvas-Rechte steuerst du pro Board.",
+			"Team-Rollen tragen die Canvas-Rechte. Pro Board legst du fest, welche Team-Rollen Zugriff haben.",
 		workspaceRoleLabel: "Workspace-Rolle",
 		workspaceRoleMember: "Mitglied",
 		workspaceRoleAdmin: "Admin",
+		teamRoleLabel: "Team-Rolle",
+		workspaceAdminToggle: "Workspace verwalten",
 		rolePermissions: {
 			none: "Keine Rechte gesetzt",
+			admin: {
+				label: "Board-Admin",
+				short: "Admin",
+				hint: "Alle Board-Rechte inklusive Teilen, Mitglieder und Aktivitaet",
+			},
+			manageWorkspaceAdmins: {
+				label: "Workspace-Admins verwalten",
+				short: "Workspace-Admins",
+				hint: "Workspace-Admins ernennen, bearbeiten oder entfernen",
+			},
 			editCanvas: {
 				label: "Canvas bearbeiten",
 				short: "Bearbeiten",
@@ -484,19 +510,27 @@ export const deMessages = {
 			},
 		},
 		teamTabIntro:
-			"Workspace-Team verwaltet, wer Boards in diesem Workspace finden darf. Feine Canvas-Rechte legst du pro Board unter Teilen an.",
-		boardRolesInfoTitle: "Rechte pro Canvas",
-		boardRolesInfoBody:
-			"Rollen legst du unter Einstellungen → Canvas-Rollen an (Canvas dort auswählen).",
+			"Team-Rollen definieren die Canvas-Rechte. Auf jedem Board schaltest du frei, welche Rollen Zugriff haben.",
 		teamInviteTitle: "Workspace-Mitglied einladen",
 		teamInviteHint:
-			"Gibt Zugriff auf deinen Workspace und dessen Boards entsprechend der Workspace-Rolle.",
+			"Gibt Zugriff auf den Workspace. Boards sieht die Person nur, wenn ihre Team-Rolle dort freigeschaltet ist oder sie direkt eingeladen wurde.",
 		teamInviteAction: "Einladen",
 		teamMembersListTitle: "Workspace-Mitglieder",
 		teamMembersEmpty: "Noch keine weiteren Workspace-Mitglieder.",
+		teamRolesEmpty: "Noch keine Team-Rollen.",
+		newTeamRoleTitle: "Neue Team-Rolle",
+		editTeamRoleTitle: "Team-Rolle bearbeiten",
+		teamRoleNameLabel: "Rollenname",
+		teamRoleNamePlaceholder: "z. B. Designer, Reviewer, Gast",
+		teamRoleColorLabel: "Farbe",
+		editTeamRole: "Team-Rolle bearbeiten",
+		saveTeamRole: "Änderungen speichern",
+		cancelEditTeamRole: "Abbrechen",
+		deleteTeamRole: "Team-Rolle löschen",
+		createTeamRole: "Team-Rolle anlegen",
 		rolesSectionTitle: "Rollen & Rechte",
 		rolesCardHint:
-			"Rollen gelten nur auf dem jeweiligen Board. Gäste-Link weiterhin nur Ansehen oder Bearbeiten.",
+			"Diese Rollen gelten workspace-weit. Pro Board entscheidest du, welche Rollen Zugriff bekommen.",
 		openRolesSettings: "Zu Rollen in den Einstellungen",
 		workspaceCard: {
 			title: "Workspace",
@@ -733,6 +767,43 @@ export const deMessages = {
 				none: "Nicht konfiguriert",
 			},
 		},
+		objectStorageCard: {
+			title: "Object Storage",
+			description:
+				"Speichere neue Canvas-Bilder in S3-kompatiblem Object Storage statt in PostgreSQL.",
+			statusTitle: "Aktiver Bildspeicher",
+			activeSource: "Aktive Quelle",
+			useCustomConfig: "Object-Storage-Konfiguration in der App verwalten",
+			useCustomConfigHint:
+				"Wenn deaktiviert, nutzt Skedra die Server-Umgebung oder speichert Bilder inline im Board-State.",
+			managedHint:
+				"Diese SaaS-Instanz verwaltet Object Storage sicher ueber Server-Umgebungsvariablen. Zugangsdaten werden hier nicht angezeigt oder bearbeitet.",
+			provider: "Speicherart",
+			preset: "Anbieter",
+			endpoint: "Endpoint",
+			region: "Region",
+			bucket: "Bucket",
+			accessKeyId: "Access Key ID",
+			secretAccessKey: "Secret Access Key",
+			secretPlaceholder: "Nur eingeben, wenn das Secret geaendert werden soll",
+			secretConfigured: "Ein Secret ist bereits hinterlegt.",
+			secretNotConfigured: "Aktuell ist kein Secret gespeichert.",
+			clearSecret: "Gespeichertes Secret entfernen",
+			publicBaseUrl: "Oeffentliche Basis-URL (optional)",
+			forcePathStyle: "Path-Style-URLs erzwingen",
+			e2eeHint:
+				"Bilddateien werden vor dem Upload im Browser verschluesselt. Fuer direkte R2/S3-URLs muss der Bucket GET-CORS fuer deine App-Domain erlauben; ohne Basis-URL liefert Skedra die Ciphertext-Dateien geschuetzt ueber die API aus.",
+			sources: {
+				database: "In der App gespeichert",
+				env: "Server-Umgebung",
+				inline: "Inline im Board-State",
+			},
+			providers: {
+				inline: "Inline im Board-State",
+				s3: "S3-kompatibler Object Storage",
+			},
+			presets: { custom: "Custom S3" },
+		},
 		accessCard: {
 			title: "Instanz-Zugriff",
 			description:
@@ -762,6 +833,9 @@ export const deMessages = {
 			saveFailed: "SMTP-Einstellungen konnten nicht gespeichert werden.",
 			callsSaved: "Call-Einstellungen gespeichert.",
 			callsSaveFailed: "Call-Einstellungen konnten nicht gespeichert werden.",
+			objectStorageSaved: "Object-Storage-Einstellungen gespeichert.",
+			objectStorageSaveFailed:
+				"Object-Storage-Einstellungen konnten nicht gespeichert werden.",
 			testSent: ({ email }: TranslationParams) =>
 				`Test-E-Mail an ${email} versendet.`,
 			testFailed: "Test-E-Mail konnte nicht versendet werden.",
@@ -1505,10 +1579,11 @@ export const deMessages = {
 		},
 		canvasSettings: {
 			title: "Canvas-Einstellungen",
-			description: "Rollen und Rechte nur für dieses Board.",
-			descriptionNamed: "Rollen für „{name}“ — gelten nur auf diesem Canvas.",
+			description: "Team-Rollen und direkte Freigaben für dieses Board.",
+			descriptionNamed:
+				"Zugriff für „{name}“ — Team-Rollen gelten zentral, Freigaben nur hier.",
 			menuLabel: "Canvas-Menü",
-			menuRoles: "Rollen & Rechte",
+			menuRoles: "Zugriff & Rollen",
 			menuRolesInSettings: "In Einstellungen öffnen",
 		},
 		share: {
@@ -1555,43 +1630,46 @@ export const deMessages = {
 				"Nutze diese iframe-URL in Dokus, Portalen, Notion oder Obsidian. Viewer koennen das Board nicht bearbeiten.",
 			enableEmbedLink: "Embed-Link aktivieren",
 			copyEmbedCode: "Embed-Code kopieren",
+			mcpKeyTitle: "MCP-Zugriff",
+			mcpKeyHint:
+				"Kopiere den E2EE-Schlüssel und gib ihn nur einem MCP oder Agenten, dem du Zugriff auf dieses Board erlaubst.",
+			mcpServerHint:
+				"Dieses Board nutzt serverseitige Verschlüsselung auf deiner Skedra-Instanz. Der MCP greift automatisch mit API-Key und Board-Berechtigung darauf zu.",
+			mcpKeyUnavailable:
+				"Entsperre dieses Board zuerst, um seinen E2EE-Schlüssel für den MCP zu kopieren.",
+			copyMcpKey: "MCP-Schlüssel kopieren",
+			mcpKeyCopied: "MCP-Schlüssel kopiert",
 			integrationsTitle: "Notion & Obsidian",
 			integrationsHint:
 				"Kopiere die Embed-URL fuer Notion oder ein Markdown-Snippet fuer Obsidian.",
 			copyNotionLink: "Notion-Link kopieren",
 			copyObsidianMarkdown: "Obsidian-Snippet kopieren",
-			inviteCollaborator: "Kollaborateur per E-Mail",
+			inviteCollaborator: "Person direkt einladen",
 			invite: "Einladen",
-			inviteRoleLabel: "Rolle mit Rechten",
-			inviteRoleHint: "Rollen legst du unter Einstellungen → Canvas-Rollen an.",
-			manageRolesAction: "Zu Canvas-Rollen",
-			boardRolesTitle: "Rollen auf diesem Canvas",
-			boardRolesHint:
-				"Rechte gelten nur hier — andere Boards bleiben geschlossen, bis du sie separat teilst.",
-			boardRolesEmpty: "Noch keine Rolle auf diesem Board.",
-			boardRolesEmptyInvite:
-				"Lege zuerst unter Einstellungen → Canvas-Rollen mindestens eine Rolle an.",
-			roleNameLabel: "Rollenname",
-			roleNamePlaceholder: "z. B. Designer, Reviewer, Gast",
-			roleColorLabel: "Farbe",
-			newBoardRoleTitle: "Neue Rolle",
-			editBoardRoleTitle: "Rolle bearbeiten",
-			editBoardRole: "Rolle bearbeiten",
-			saveBoardRole: "Änderungen speichern",
-			cancelEditBoardRole: "Abbrechen",
-			deleteBoardRole: "Rolle löschen",
-			createBoardRole: "Rolle anlegen",
-			openRolesSettings: "Rollen anlegen",
-			linkAccessHint:
-				"Für Gäste ohne Konto — keine Workspace-Rolle, nur Ansehen oder Bearbeiten.",
-			membersTitle: "Mitglieder auf diesem Board",
+			inviteRoleLabel: "Team-Rolle",
+			inviteRoleHint: "Rollen legst du zentral unter Team-Mitglieder an.",
+			inviteE2eeHint:
+				"Der kopierte Link enthält den E2EE-Schlüssel im URL-Fragment.",
+			inviteE2eeRecipientEnvelopeHint:
+				"Der Board-Schlüssel wurde als E2EE-Umschlag für diese Person gespeichert; der Link enthält kein Schlüssel-Fragment.",
+			inviteE2eeMissingKeyHint:
+				"Dieses Board ist E2EE-verschlüsselt. Teile den Schlüssel separat, wenn er nicht in deinem Browser bekannt ist.",
+			inviteServerHint:
+				"Dieses Board ist serverseitig verschlüsselt. Eingeladene Personen erhalten Zugriff über ihre Board-Berechtigung; kein separater Schlüssel ist nötig.",
+			teamRoleAccessTitle: "Team-Rollen mit Zugriff",
+			teamRoleAccessHint:
+				"Freigeschaltete Rollen sehen dieses Board. Bearbeiten, Kommentieren und weitere Rechte kommen aus der Team-Rolle.",
+			teamRolesEmptyInvite:
+				"Lege zuerst unter Einstellungen → Team-Mitglieder mindestens eine Team-Rolle an.",
+			manageRolesAction: "Zu Team-Rollen",
+			linkAccessHint: "Für Gäste ohne Konto — nur Ansehen oder Bearbeiten.",
+			membersTitle: "Direkte Personenfreigaben",
 			membersHint:
-				"Personen mit Konto und ihre Rechte. Gäste über den Kollaborations-Link erscheinen hier nicht.",
-			membersEmpty: "Nur du hast Zugriff auf dieses Board.",
+				"Einzelne Personen mit expliziter Board-Freigabe. Team-Rollen mit Zugriff stehen separat im Teilen-Dialog.",
+			membersEmpty: "Keine direkt eingeladenen Personen.",
 			memberOwner: "Board-Besitzer",
-			legacyAccessLabel: "Rolle wählen …",
-			legacyViewOnly: "Legacy: nur ansehen (keine Workspace-Rolle)",
-			legacyEditOnly: "Legacy: bearbeiten (keine Workspace-Rolle)",
+			selectTeamRole: "Team-Rolle wählen …",
+			missingTeamRole: "Keine Team-Rolle zugewiesen.",
 			removeMember: "Vom Board entfernen",
 		},
 		access: {
@@ -1901,6 +1979,12 @@ export const deMessages = {
 				title: "Deine Daten sind geschützt",
 				description:
 					"Dein Board wird verschlüsselt übertragen und in der Cloud gespeichert (AES-256). Zugriff nur für dich und eingeladene Mitglieder.",
+				serverTitle: "Serverseitig verschlüsselt und synchronisiert",
+				serverDescription:
+					"Canvas-Daten werden auf deiner Skedra-Instanz in Echtzeit synchronisiert und vor dem Speichern serverseitig verschlüsselt. Berechtigte Nutzer und MCPs können darauf zugreifen.",
+				e2eeTitle: "Ende-zu-Ende verschlüsselt",
+				e2eeDescription:
+					"Canvas-Daten werden lokal verschlüsselt. Nur Clients mit dem Board-Schlüssel können die Inhalte lesen.",
 				localTitle: "Lokal in diesem Browser",
 				localDescription:
 					"Dieses Board liegt nur in deinem Browser. Zum Teilen und Synchronisieren in der Cloud speichern.",

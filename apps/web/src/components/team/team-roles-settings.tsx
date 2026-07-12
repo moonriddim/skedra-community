@@ -1,16 +1,35 @@
 /**
- * Workspace-Team (ohne Board-Rechte — die liegen pro Canvas im Teilen-Dialog).
+ * Workspace-Team mit zentralen Rollen. Diese Rollen tragen die Canvas-Rechte
+ * und werden pro Board freigeschaltet.
  */
 
 import { RoleBadge } from "@/components/team/role-badge";
+import {
+	RolePermissionsEditor,
+	RolePermissionsSummary,
+} from "@/components/team/role-permissions-editor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NEW_ROLE_PERMISSIONS_DEFAULT } from "@/lib/default-role-permissions";
 import { useI18n } from "@/lib/i18n";
+import { PRESET_TEAM_ROLE_COLORS } from "@/lib/team-role-colors";
 import { trpc } from "@/lib/trpc";
 import { getUserInitials } from "@/lib/user-initials";
-import { Check, Copy, Loader2, Mail, Plus, UserMinus } from "lucide-react";
-import { useState } from "react";
+import { cn } from "@/lib/utils";
+import type { TeamRolePermissions } from "@skedra/shared";
+import {
+	Check,
+	Copy,
+	Loader2,
+	Mail,
+	Pencil,
+	Plus,
+	Trash2,
+	UserMinus,
+	X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface TeamRolesSettingsProps {
 	sessionUser: {
@@ -21,28 +40,101 @@ interface TeamRolesSettingsProps {
 	};
 }
 
+type ListedTeamRole = {
+	id: string;
+	name: string;
+	color: string;
+	permissions: TeamRolePermissions;
+};
+
 export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 	const { t } = useI18n();
 	const utils = trpc.useUtils();
 	const { data: team, isLoading: teamLoading } = trpc.team.get.useQuery();
 
 	const [inviteEmail, setInviteEmail] = useState("");
-	const [inviteWorkspaceRole, setInviteWorkspaceRole] = useState<
-		"member" | "admin"
-	>("member");
+	const [inviteRoleId, setInviteRoleId] = useState("");
+	const [inviteWorkspaceAdmin, setInviteWorkspaceAdmin] = useState(false);
 	const [inviteError, setInviteError] = useState("");
 	const [inviteLink, setInviteLink] = useState("");
 	const [inviteCopied, setInviteCopied] = useState(false);
 
+	const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+	const [roleNameDraft, setRoleNameDraft] = useState("");
+	const [roleColorDraft, setRoleColorDraft] = useState<string>(
+		PRESET_TEAM_ROLE_COLORS[1],
+	);
+	const [rolePermissionsDraft, setRolePermissionsDraft] =
+		useState<TeamRolePermissions>(NEW_ROLE_PERMISSIONS_DEFAULT);
+	const [roleError, setRoleError] = useState("");
+
 	const members = team?.members ?? [];
+	const roles = (team?.roles ?? []) as ListedTeamRole[];
 	const owner = team?.owner ?? sessionUser;
 	const ownerIsCurrentUser = owner.id === sessionUser.id;
+	const canManageWorkspaceAdmins =
+		team?.canManageWorkspaceAdmins ?? ownerIsCurrentUser;
+	const selectedInviteRole = roles.find((role) => role.id === inviteRoleId);
+	const isEditingRole = editingRoleId !== null;
+
+	useEffect(() => {
+		if (!roles.length) {
+			setInviteRoleId("");
+			return;
+		}
+		if (!inviteRoleId || !roles.some((role) => role.id === inviteRoleId)) {
+			setInviteRoleId(roles[0].id);
+		}
+	}, [inviteRoleId, roles]);
 
 	const invalidateTeam = () => void utils.team.get.invalidate();
+
+	const resetRoleForm = () => {
+		setEditingRoleId(null);
+		setRoleNameDraft("");
+		setRoleColorDraft(PRESET_TEAM_ROLE_COLORS[1]);
+		setRolePermissionsDraft(NEW_ROLE_PERMISSIONS_DEFAULT);
+		setRoleError("");
+	};
+
+	const startEditRole = (role: ListedTeamRole) => {
+		setEditingRoleId(role.id);
+		setRoleNameDraft(role.name);
+		setRoleColorDraft(role.color);
+		setRolePermissionsDraft({ ...role.permissions });
+		setRoleError("");
+	};
+
+	const createRole = trpc.team.createRole.useMutation({
+		onSuccess: () => {
+			resetRoleForm();
+			invalidateTeam();
+		},
+		onError: (error) => setRoleError(error.message),
+	});
+
+	const updateRole = trpc.team.updateRole.useMutation({
+		onSuccess: () => {
+			resetRoleForm();
+			invalidateTeam();
+			void utils.whiteboard.list.invalidate();
+		},
+		onError: (error) => setRoleError(error.message),
+	});
+
+	const deleteRole = trpc.team.deleteRole.useMutation({
+		onSuccess: (_result, variables) => {
+			if (editingRoleId === variables.roleId) resetRoleForm();
+			invalidateTeam();
+			void utils.whiteboard.list.invalidate();
+		},
+		onError: (error) => setRoleError(error.message),
+	});
 
 	const inviteMember = trpc.team.inviteMember.useMutation({
 		onSuccess: (result) => {
 			setInviteEmail("");
+			setInviteWorkspaceAdmin(false);
 			setInviteError("");
 			setInviteLink("inviteUrl" in result ? result.inviteUrl : "");
 			invalidateTeam();
@@ -51,12 +143,47 @@ export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 	});
 
 	const updateMemberRole = trpc.team.updateMemberRole.useMutation({
-		onSuccess: () => invalidateTeam(),
+		onSuccess: () => {
+			invalidateTeam();
+			void utils.whiteboard.list.invalidate();
+		},
 	});
 
 	const removeMember = trpc.team.removeMember.useMutation({
 		onSuccess: () => invalidateTeam(),
 	});
+
+	const saveRole = () => {
+		const name = roleNameDraft.trim();
+		if (!name) return;
+		if (isEditingRole && editingRoleId) {
+			updateRole.mutate({
+				roleId: editingRoleId,
+				name,
+				color: roleColorDraft,
+				permissions: rolePermissionsDraft,
+			});
+			return;
+		}
+		createRole.mutate({
+			name,
+			color: roleColorDraft,
+			permissions: rolePermissionsDraft,
+		});
+	};
+
+	const sendInvite = () => {
+		const email = inviteEmail.trim();
+		if (!email || !inviteRoleId) return;
+		inviteMember.mutate({
+			email,
+			roleId: inviteRoleId,
+			workspaceRole:
+				inviteWorkspaceAdmin && canManageWorkspaceAdmins ? "admin" : "member",
+		});
+	};
+
+	const roleSaving = createRole.isPending || updateRole.isPending;
 
 	if (teamLoading) {
 		return (
@@ -77,19 +204,159 @@ export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 	return (
 		<div className="space-y-6">
 			<p className="rounded-xl border border-border/80 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-				{t("workspaceSettings.workspaceInviteHint")}
+				{t("workspaceSettings.teamTabIntro")}
 			</p>
 
 			<div
 				className="rounded-2xl border border-border bg-card p-6 shadow-sm"
 				id="workspace-roles"
 			>
-				<h3 className="text-base font-semibold text-foreground">
-					{t("workspaceSettings.boardRolesInfoTitle")}
-				</h3>
-				<p className="mt-1 text-sm text-muted-foreground">
-					{t("workspaceSettings.boardRolesInfoBody")}
-				</p>
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 className="text-base font-semibold text-foreground">
+							{t("workspaceSettings.rolesSectionTitle")}
+						</h3>
+						<p className="mt-1 text-sm text-muted-foreground">
+							{t("workspaceSettings.rolesCardHint")}
+						</p>
+					</div>
+				</div>
+
+				{roles.length > 0 ? (
+					<ul className="mt-4 grid gap-3">
+						{roles.map((role) => (
+							<li
+								key={role.id}
+								className={cn(
+									"rounded-xl border p-4",
+									editingRoleId === role.id
+										? "border-primary/50 bg-primary/5"
+										: "border-border/70 bg-background/40",
+								)}
+							>
+								<div className="flex flex-wrap items-start justify-between gap-3">
+									<div className="min-w-0 space-y-2">
+										<RoleBadge name={role.name} color={role.color} />
+										<RolePermissionsSummary permissions={role.permissions} />
+									</div>
+									<div className="flex shrink-0 items-center gap-1">
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											disabled={roleSaving}
+											aria-label={t("workspaceSettings.editTeamRole")}
+											onClick={() => startEditRole(role)}
+										>
+											<Pencil className="h-4 w-4" />
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											className="text-muted-foreground hover:text-destructive"
+											disabled={deleteRole.isPending}
+											aria-label={t("workspaceSettings.deleteTeamRole")}
+											onClick={() => deleteRole.mutate({ roleId: role.id })}
+										>
+											<Trash2 className="h-4 w-4" />
+										</Button>
+									</div>
+								</div>
+							</li>
+						))}
+					</ul>
+				) : (
+					<p className="mt-4 text-sm text-muted-foreground">
+						{t("workspaceSettings.teamRolesEmpty")}
+					</p>
+				)}
+
+				<div className="mt-4 space-y-4 rounded-xl border border-border/70 bg-muted/10 p-4">
+					<p className="text-sm font-medium text-foreground">
+						{isEditingRole
+							? t("workspaceSettings.editTeamRoleTitle")
+							: t("workspaceSettings.newTeamRoleTitle")}
+					</p>
+					<div className="grid gap-4">
+						<div className="space-y-1.5">
+							<label
+								htmlFor="team-role-name"
+								className="text-xs font-medium text-muted-foreground"
+							>
+								{t("workspaceSettings.teamRoleNameLabel")}
+							</label>
+							<Input
+								id="team-role-name"
+								placeholder={t("workspaceSettings.teamRoleNamePlaceholder")}
+								value={roleNameDraft}
+								onChange={(event) => {
+									setRoleNameDraft(event.target.value);
+									setRoleError("");
+								}}
+							/>
+						</div>
+						<div className="space-y-1.5">
+							<span className="text-xs font-medium text-muted-foreground">
+								{t("workspaceSettings.teamRoleColorLabel")}
+							</span>
+							<div className="flex flex-wrap gap-1.5">
+								{PRESET_TEAM_ROLE_COLORS.map((color) => (
+									<button
+										key={color}
+										type="button"
+										className={cn(
+											"h-8 w-8 rounded-lg border-2 transition-transform hover:scale-105",
+											roleColorDraft === color
+												? "border-foreground ring-2 ring-primary/30"
+												: "border-transparent",
+										)}
+										style={{ backgroundColor: color }}
+										onClick={() => {
+											setRoleColorDraft(color);
+											setRoleError("");
+										}}
+										aria-label={color}
+									/>
+								))}
+							</div>
+						</div>
+						<RolePermissionsEditor
+							value={rolePermissionsDraft}
+							onChange={setRolePermissionsDraft}
+							className="sm:grid-cols-2 lg:grid-cols-3"
+						/>
+					</div>
+					<div className="flex flex-wrap gap-2">
+						<Button
+							disabled={!roleNameDraft.trim() || roleSaving}
+							onClick={saveRole}
+						>
+							{roleSaving ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : isEditingRole ? null : (
+								<Plus className="mr-2 h-4 w-4" />
+							)}
+							{isEditingRole
+								? t("workspaceSettings.saveTeamRole")
+								: t("workspaceSettings.createTeamRole")}
+						</Button>
+						{isEditingRole ? (
+							<Button
+								type="button"
+								variant="outline"
+								disabled={roleSaving}
+								onClick={resetRoleForm}
+							>
+								<X className="mr-2 h-4 w-4" />
+								{t("workspaceSettings.cancelEditTeamRole")}
+							</Button>
+						) : null}
+					</div>
+					{roleError ? (
+						<p className="text-xs text-destructive">{roleError}</p>
+					) : null}
+				</div>
 			</div>
 
 			<div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -99,8 +366,8 @@ export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 				<p className="mt-0.5 text-sm text-muted-foreground">
 					{t("workspaceSettings.teamInviteHint")}
 				</p>
-				<div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
-					<div className="relative min-w-0 flex-1">
+				<div className="mt-4 grid gap-3 lg:grid-cols-[1fr_13rem_auto_auto] lg:items-end">
+					<div className="relative min-w-0">
 						<Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
 						<Input
 							type="email"
@@ -113,51 +380,49 @@ export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 								setInviteLink("");
 							}}
 							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									const email = inviteEmail.trim();
-									if (!email) return;
-									inviteMember.mutate({
-										email,
-										workspaceRole: inviteWorkspaceRole,
-									});
-								}
+								if (event.key === "Enter") sendInvite();
 							}}
 						/>
 					</div>
-					<div className="space-y-1.5 lg:w-52">
+					<div className="space-y-1.5">
 						<label
 							className="text-xs font-medium text-muted-foreground"
-							htmlFor="workspace-invite-role"
+							htmlFor="workspace-invite-team-role"
 						>
-							{t("workspaceSettings.workspaceRoleLabel")}
+							{t("workspaceSettings.teamRoleLabel")}
 						</label>
 						<select
-							id="workspace-invite-role"
-							className="flex h-10 w-full min-w-[12rem] rounded-md border border-border bg-background px-3 text-sm"
-							value={inviteWorkspaceRole}
-							onChange={(event) =>
-								setInviteWorkspaceRole(event.target.value as "member" | "admin")
-							}
+							id="workspace-invite-team-role"
+							className="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+							value={inviteRoleId}
+							onChange={(event) => setInviteRoleId(event.target.value)}
 						>
-							<option value="member">
-								{t("workspaceSettings.workspaceRoleMember")}
-							</option>
-							<option value="admin">
-								{t("workspaceSettings.workspaceRoleAdmin")}
-							</option>
+							{roles.map((role) => (
+								<option key={role.id} value={role.id}>
+									{role.name}
+								</option>
+							))}
 						</select>
 					</div>
+					{canManageWorkspaceAdmins ? (
+						<label className="flex h-10 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+							<input
+								type="checkbox"
+								checked={inviteWorkspaceAdmin}
+								onChange={(event) =>
+									setInviteWorkspaceAdmin(event.target.checked)
+								}
+							/>
+							{t("workspaceSettings.workspaceAdminToggle")}
+						</label>
+					) : null}
 					<Button
-						className="lg:w-auto"
-						disabled={!inviteEmail.trim() || inviteMember.isPending}
-						onClick={() => {
-							const email = inviteEmail.trim();
-							if (!email) return;
-							inviteMember.mutate({
-								email,
-								workspaceRole: inviteWorkspaceRole,
-							});
-						}}
+						disabled={
+							!inviteEmail.trim() ||
+							!selectedInviteRole ||
+							inviteMember.isPending
+						}
+						onClick={sendInvite}
 					>
 						{inviteMember.isPending ? (
 							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -167,6 +432,19 @@ export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 						{t("workspaceSettings.teamInviteAction")}
 					</Button>
 				</div>
+				{selectedInviteRole ? (
+					<div className="mt-3 rounded-xl border border-border/70 bg-muted/15 p-3">
+						<RoleBadge
+							name={selectedInviteRole.name}
+							color={selectedInviteRole.color}
+						/>
+						<div className="mt-2">
+							<RolePermissionsSummary
+								permissions={selectedInviteRole.permissions}
+							/>
+						</div>
+					</div>
+				) : null}
 				{inviteError ? (
 					<p className="mt-2 text-xs text-destructive">{inviteError}</p>
 				) : null}
@@ -247,28 +525,51 @@ export function TeamRolesSettings({ sessionUser }: TeamRolesSettingsProps) {
 										</p>
 									</div>
 								</div>
-								<div className="flex shrink-0 items-center gap-2">
+								<div className="flex shrink-0 flex-wrap items-center gap-2">
 									<select
 										className="h-9 min-w-[10rem] rounded-md border border-border bg-background px-2 text-sm"
-										value={member.workspaceRole ?? "member"}
+										value={member.roleId ?? ""}
 										disabled={
 											updateMemberRole.isPending ||
-											member.user.id === sessionUser.id
+											member.user.id === sessionUser.id ||
+											roles.length === 0
 										}
 										onChange={(event) =>
 											updateMemberRole.mutate({
 												userId: member.user.id,
-												workspaceRole: event.target.value as "member" | "admin",
+												roleId: event.target.value,
 											})
 										}
 									>
-										<option value="member">
-											{t("workspaceSettings.workspaceRoleMember")}
+										<option value="" disabled>
+											{t("workspaceSettings.teamRoleLabel")}
 										</option>
-										<option value="admin">
-											{t("workspaceSettings.workspaceRoleAdmin")}
-										</option>
+										{roles.map((role) => (
+											<option key={role.id} value={role.id}>
+												{role.name}
+											</option>
+										))}
 									</select>
+									<label className="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+										<input
+											type="checkbox"
+											checked={member.workspaceRole === "admin"}
+											disabled={
+												updateMemberRole.isPending ||
+												member.user.id === sessionUser.id ||
+												!canManageWorkspaceAdmins
+											}
+											onChange={(event) =>
+												updateMemberRole.mutate({
+													userId: member.user.id,
+													workspaceRole: event.target.checked
+														? "admin"
+														: "member",
+												})
+											}
+										/>
+										{t("workspaceSettings.workspaceAdminToggle")}
+									</label>
 									<Button
 										variant="ghost"
 										size="icon"

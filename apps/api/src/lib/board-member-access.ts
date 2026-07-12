@@ -1,24 +1,18 @@
 /**
- * Leitet Board-Rechte aus Mitgliedschaft + Board-Rolle (pro Canvas) ab.
+ * Leitet Board-Rechte aus Mitgliedschaft + zentraler Team-Rolle ab.
  */
 
+import { type Database, teamRoles, type whiteboardMembers } from "@skedra/db";
 import {
-	type Database,
-	type teamRoles,
-	type whiteboardMembers,
-	whiteboardRoles,
-} from "@skedra/db";
-import {
-	type BoardRolePermissions,
-	DEFAULT_EDITOR_ROLE_PERMISSIONS,
-	accessLevelFromPermissions,
+	DEFAULT_ADMIN_ROLE_PERMISSIONS,
+	DEFAULT_VIEWER_ROLE_PERMISSIONS,
+	type TeamRolePermissions,
 	parseTeamRolePermissions,
-	permissionsFromLegacyAccessLevel,
 } from "@skedra/shared";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export type ResolvedBoardAccess = {
-	permissions: BoardRolePermissions;
+	permissions: TeamRolePermissions;
 	canWrite: boolean;
 	canComment: boolean;
 	canResolveComments: boolean;
@@ -35,61 +29,61 @@ export type ResolvedBoardAccess = {
 };
 
 function flagsFromPermissions(
-	permissions: BoardRolePermissions,
+	permissions: TeamRolePermissions,
 	isOwner: boolean,
 ): ResolvedBoardAccess {
+	const hasBoardAdmin = isOwner || permissions.admin;
 	return {
 		permissions,
-		canWrite: permissions.editCanvas,
-		canComment: permissions.comment,
-		canResolveComments: isOwner || permissions.resolveComments,
-		canInvite: permissions.inviteOthers,
-		canManageShare: isOwner || permissions.manageShare,
-		canManageMembers: isOwner || permissions.manageMembers,
-		canViewActivity: isOwner || permissions.viewActivity,
-		canUseAi: permissions.useAi,
+		canWrite: hasBoardAdmin || permissions.editCanvas,
+		canComment: hasBoardAdmin || permissions.comment,
+		canResolveComments: hasBoardAdmin || permissions.resolveComments,
+		canInvite: hasBoardAdmin || permissions.inviteOthers,
+		canManageShare: hasBoardAdmin || permissions.manageShare,
+		canManageMembers: hasBoardAdmin || permissions.manageMembers,
+		canViewActivity: hasBoardAdmin || permissions.viewActivity,
+		canUseAi: hasBoardAdmin || permissions.useAi,
 		canManage: isOwner,
-		accessLevel: permissions.editCanvas ? "edit" : "view",
+		accessLevel: hasBoardAdmin || permissions.editCanvas ? "edit" : "view",
 		roleId: null,
 		roleName: null,
 		roleColor: null,
 	};
 }
 
+function canManageWorkspaceAdmins(role: typeof teamRoles.$inferSelect | null) {
+	return role
+		? parseTeamRolePermissions(role.permissions).manageWorkspaceAdmins
+		: false;
+}
+
 export async function resolveMemberBoardAccess(
 	db: Database,
-	whiteboardId: string,
+	_whiteboardId: string,
 	membership: typeof whiteboardMembers.$inferSelect,
 ): Promise<ResolvedBoardAccess> {
-	let permissions = permissionsFromLegacyAccessLevel(membership.accessLevel);
-	let roleName: string | null = null;
-	let roleColor: string | null = null;
-	const roleId = membership.roleId;
-
-	if (roleId) {
-		const role = await db.query.whiteboardRoles.findFirst({
-			where: and(
-				eq(whiteboardRoles.id, roleId),
-				eq(whiteboardRoles.whiteboardId, whiteboardId),
-			),
-		});
-		if (role) {
-			permissions = parseTeamRolePermissions(role.permissions);
-			roleName = role.name;
-			roleColor = role.color;
-		}
+	const teamRoleId = membership.teamRoleId;
+	const role = await db.query.teamRoles.findFirst({
+		where: eq(teamRoles.id, teamRoleId),
+	});
+	if (!role) {
+		throw new Error("Team-Rolle nicht gefunden.");
 	}
 
+	const permissions = parseTeamRolePermissions(role.permissions);
 	const base = flagsFromPermissions(permissions, false);
-	return { ...base, roleId, roleName, roleColor };
+	return {
+		...base,
+		roleId: teamRoleId,
+		roleName: role.name,
+		roleColor: role.color,
+	};
 }
 
 export function resolveOwnerBoardAccess(): ResolvedBoardAccess {
-	const permissions: BoardRolePermissions = {
-		...DEFAULT_EDITOR_ROLE_PERMISSIONS,
-		inviteOthers: true,
-		manageShare: true,
-		manageMembers: true,
+	const permissions: TeamRolePermissions = {
+		...DEFAULT_ADMIN_ROLE_PERMISSIONS,
+		manageWorkspaceAdmins: true,
 	};
 	const base = flagsFromPermissions(permissions, true);
 	return { ...base, roleId: null, roleName: null, roleColor: null };
@@ -101,11 +95,11 @@ export function resolveWorkspaceBoardAccess(options: {
 	memberRole: typeof teamRoles.$inferSelect | null;
 }): ResolvedBoardAccess {
 	if (options.isWorkspaceOwner || options.workspaceRole === "admin") {
-		const permissions: BoardRolePermissions = {
-			...DEFAULT_EDITOR_ROLE_PERMISSIONS,
-			inviteOthers: true,
-			manageShare: true,
-			manageMembers: true,
+		const permissions: TeamRolePermissions = {
+			...DEFAULT_ADMIN_ROLE_PERMISSIONS,
+			manageWorkspaceAdmins:
+				options.isWorkspaceOwner ||
+				canManageWorkspaceAdmins(options.memberRole),
 		};
 		const base = flagsFromPermissions(permissions, options.isWorkspaceOwner);
 		return {
@@ -119,9 +113,13 @@ export function resolveWorkspaceBoardAccess(options: {
 		};
 	}
 
+	// Fail-Closed: Kann fuer ein Workspace-Mitglied keine konkrete Rolle aufgeloest
+	// werden (z. B. Rolle wurde geloescht -> teamMembers.roleId auf NULL gesetzt),
+	// darf daraus KEIN Schreibzugriff entstehen. Frueher war der Fallback
+	// "Editor" (Schreibrechte) – das ist ein Fail-Open. Sicherer Default: nur Lesen.
 	const permissions = options.memberRole
 		? parseTeamRolePermissions(options.memberRole.permissions)
-		: DEFAULT_EDITOR_ROLE_PERMISSIONS;
+		: DEFAULT_VIEWER_ROLE_PERMISSIONS;
 	const base = flagsFromPermissions(permissions, false);
 	return {
 		...base,
@@ -131,31 +129,8 @@ export function resolveWorkspaceBoardAccess(options: {
 	};
 }
 
-export async function requireWhiteboardRole(
-	db: Database,
-	whiteboardId: string,
-	roleId: string,
-) {
-	const role = await db.query.whiteboardRoles.findFirst({
-		where: and(
-			eq(whiteboardRoles.id, roleId),
-			eq(whiteboardRoles.whiteboardId, whiteboardId),
-		),
-	});
-
-	if (!role) {
-		throw new Error("Rolle gehört nicht zu diesem Board");
-	}
-
-	return role;
-}
-
-export function membershipValuesFromRole(
-	roleId: string,
-	permissions: BoardRolePermissions,
-) {
+export function membershipValuesFromTeamRole(roleId: string) {
 	return {
-		roleId,
-		accessLevel: accessLevelFromPermissions(permissions),
+		teamRoleId: roleId,
 	};
 }

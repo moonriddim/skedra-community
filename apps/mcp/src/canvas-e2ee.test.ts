@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
+import test from "node:test";
+import { createBaseCanvasElement } from "@skedra/canvas-core";
+import {
+	createPlainElementsUpdate,
+	decryptBoardState,
+	encryptElementsUpdate,
+	readPlainBoardState,
+} from "./canvas-e2ee.js";
+
+function createTestKey() {
+	return randomBytes(32).toString("base64url");
+}
+
+test("decryptBoardState reconstructs MCP-created encrypted elements", () => {
+	const key = createTestKey();
+	const element = createBaseCanvasElement(
+		{ createId: () => "mcp-element-1", stroke: "#111111" },
+		{ type: "rectangle", x: 10, y: 20, width: 120, height: 80 },
+	);
+
+	const encrypted = encryptElementsUpdate([element], key);
+	const state = decryptBoardState(
+		[{ id: "update-1", update: encrypted.update }],
+		key,
+	);
+
+	assert.equal(state.appliedUpdates, 1);
+	assert.equal(state.elements.length, 1);
+	assert.equal(state.elements[0]?.id, "mcp-element-1");
+	assert.equal(state.elements[0]?.type, "rectangle");
+	assert.equal(state.elements[0]?.x, 10);
+	assert.equal(state.elements[0]?.width, 120);
+});
+
+test("decryptBoardState rejects updates encrypted for another key", () => {
+	const key = createTestKey();
+	const wrongKey = createTestKey();
+	const element = createBaseCanvasElement(
+		{ createId: () => "mcp-element-2", stroke: "#111111" },
+		{ type: "text", x: 0, y: 0, width: 100, height: 40, text: "secret" },
+	);
+
+	const encrypted = encryptElementsUpdate([element], key);
+
+	assert.throws(
+		() =>
+			decryptBoardState(
+				[{ id: "update-2", update: encrypted.update }],
+				wrongKey,
+			),
+		/Board-Update update-2 konnte nicht entschluesselt werden/u,
+	);
+});
+
+test("readPlainBoardState reconstructs server-managed MCP updates", () => {
+	const element = createBaseCanvasElement(
+		{ createId: () => "server-element-1", stroke: "#111111" },
+		{ type: "ellipse", x: 40, y: 50, width: 90, height: 60 },
+	);
+	const update = createPlainElementsUpdate([element]);
+	const state = readPlainBoardState([{ id: "server-update-1", update }]);
+
+	assert.equal(state.appliedUpdates, 1);
+	assert.equal(state.elements[0]?.id, "server-element-1");
+	assert.equal(state.elements[0]?.type, "ellipse");
+});

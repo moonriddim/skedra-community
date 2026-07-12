@@ -1,4 +1,4 @@
-import type { RemoteCanvasPresence } from "@/hooks/use-canvas-sync";
+import type { RemoteCanvasPresence } from "@/hooks/canvas-sync-types";
 import type { BBox } from "@skedra/canvas-core";
 import type { SnapGuide, SnapPointIndicator } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
@@ -42,6 +42,7 @@ interface CanvasStageProps {
 	snapPointIndicators: SnapPointIndicator[];
 	laserTrails?: LaserTrail[];
 	croppingElement?: CanvasElement | null;
+	resolveAssetUrl?: (src: string) => string;
 	onApplyImageCrop?: (crop: ImageCropRect) => void;
 	onCancelImageCrop?: () => void;
 	onPointerDown: (event: React.PointerEvent<SVGSVGElement>) => void;
@@ -75,6 +76,7 @@ export function CanvasStage({
 	snapPointIndicators,
 	laserTrails = [],
 	croppingElement = null,
+	resolveAssetUrl,
 	onApplyImageCrop,
 	onCancelImageCrop,
 	onPointerDown,
@@ -147,6 +149,7 @@ export function CanvasStage({
 					editingTextId={editingTextId}
 					viewport={viewport}
 					svgSize={svgSize}
+					resolveAssetUrl={resolveAssetUrl}
 				/>
 				<RemoteSelectionOverlays
 					peers={remotePresence}
@@ -207,7 +210,11 @@ export function CanvasStage({
 				)}
 
 				{previewScene && (
-					<CanvasRenderer scene={previewScene} selectedIds={new Set()} />
+					<CanvasRenderer
+						scene={previewScene}
+						selectedIds={new Set()}
+						resolveAssetUrl={resolveAssetUrl}
+					/>
 				)}
 
 				<LaserOverlay trails={laserTrails} viewport={viewport} />

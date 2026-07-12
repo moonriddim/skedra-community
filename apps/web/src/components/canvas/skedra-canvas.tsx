@@ -11,11 +11,14 @@ import {
 	useCanvasStore,
 	useCanvasStoreRef,
 } from "@/hooks/use-canvas-store";
-import { useCanvasSync } from "@/hooks/use-canvas-sync";
 import { useE2eeCanvasSync } from "@/hooks/use-e2ee-canvas-sync";
+import { useEncryptedAssetUrls } from "@/hooks/use-encrypted-asset-urls";
 import { useLibraryDeepLink } from "@/hooks/use-library-deep-link";
 import { useLocalCanvasSync } from "@/hooks/use-local-canvas-sync";
+import { useServerCanvasSync } from "@/hooks/use-server-canvas-sync";
+import type { AssetAccessTokens } from "@/lib/canvas/asset-urls";
 import { mergeElementCustomData } from "@/lib/canvas/custom-data-utils";
+import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import type { SkedraCanvasFileActions } from "@/lib/canvas/skedra-file-utils";
 import {
 	getStickyNoteContent,
@@ -25,6 +28,7 @@ import {
 } from "@/lib/canvas/sticky-note-utils";
 import { useI18n } from "@/lib/i18n";
 import type { MentionCandidate } from "@/lib/mention-utils";
+import { trpc } from "@/lib/trpc";
 import {
 	getFlowchartNodeMeta,
 	isFlowchartNode,
@@ -79,8 +83,8 @@ interface SkedraCanvasProps {
 	/** Gast über Kollaborations-Link (/collab/:token) */
 	collabShareToken?: string;
 	embedShareToken?: string;
-	e2eeEnabled?: boolean;
 	e2eeKey?: string | null;
+	encryptionMode?: "server" | "e2ee";
 	forceReadonly?: boolean;
 	presenceEnabled?: boolean;
 	presencePanelOffsetTop?: number;
@@ -140,8 +144,8 @@ export function SkedraCanvas({
 	presentationShareToken,
 	collabShareToken,
 	embedShareToken,
-	e2eeEnabled = false,
 	e2eeKey,
+	encryptionMode = "e2ee",
 	forceReadonly,
 	presenceEnabled = true,
 	presencePanelOffsetTop,
@@ -170,22 +174,19 @@ export function SkedraCanvas({
 	const [helpDialogOpen, setHelpDialogOpen] = useState(false);
 
 	const localSync = useLocalCanvasSync(localMode);
-	const e2eeActive = !localMode && e2eeEnabled && !!whiteboardId;
-	const remoteSync = useCanvasSync(
-		whiteboardId ?? "00000000-0000-0000-0000-000000000000",
-		{
-			presentationShareToken,
-			collabShareToken,
-			embedShareToken,
-			presenceEnabled: localMode ? false : presenceEnabled,
-			enabled: !localMode && !e2eeActive && !!whiteboardId,
-		},
+	const e2eeRemoteMode =
+		!localMode && !!whiteboardId && encryptionMode === "e2ee";
+	const serverRemoteMode =
+		!localMode && !!whiteboardId && encryptionMode === "server";
+	const { data: assetUploadConfig } = trpc.assets.getUploadConfig.useQuery(
+		undefined,
+		{ enabled: e2eeRemoteMode || serverRemoteMode },
 	);
 	const e2eeSync = useE2eeCanvasSync(
 		whiteboardId ?? "00000000-0000-0000-0000-000000000000",
 		{
 			e2eeKey,
-			enabled: e2eeActive,
+			enabled: e2eeRemoteMode,
 			readonly:
 				forceReadonly ??
 				(presentationMode || !!presentationShareToken || !!embedShareToken),
@@ -194,7 +195,58 @@ export function SkedraCanvas({
 			embedShareToken,
 		},
 	);
-	const sync = localMode ? localSync : e2eeActive ? e2eeSync : remoteSync;
+	const serverSync = useServerCanvasSync(
+		whiteboardId ?? "00000000-0000-0000-0000-000000000000",
+		{
+			enabled: serverRemoteMode,
+			readonly:
+				forceReadonly ??
+				(presentationMode || !!presentationShareToken || !!embedShareToken),
+			presentationShareToken,
+			collabShareToken,
+			embedShareToken,
+		},
+	);
+	const sync = localMode
+		? localSync
+		: encryptionMode === "server"
+			? serverSync
+			: e2eeSync;
+	const assetAccessTokens = useMemo<AssetAccessTokens>(
+		() => ({
+			presentationShareToken,
+			collabShareToken,
+			embedShareToken,
+		}),
+		[presentationShareToken, collabShareToken, embedShareToken],
+	);
+	const imageUploadOptions = useMemo<ImageUploadOptions>(
+		() => ({
+			whiteboardId,
+			objectStorageEnabled:
+				!!whiteboardId &&
+				!!assetUploadConfig?.enabled &&
+				(encryptionMode === "server" || !!e2eeKey),
+			maxImageBytes: assetUploadConfig?.maxImageBytes,
+			e2eeKey,
+			encryptionMode,
+			collabShareToken,
+		}),
+		[
+			assetUploadConfig?.enabled,
+			assetUploadConfig?.maxImageBytes,
+			collabShareToken,
+			e2eeKey,
+			encryptionMode,
+			whiteboardId,
+		],
+	);
+	const resolveAssetUrl = useEncryptedAssetUrls({
+		elements: sync.elements,
+		whiteboardId,
+		e2eeKey,
+		tokens: assetAccessTokens,
+	});
 	const syncRef = useRef(sync);
 	syncRef.current = sync;
 
@@ -455,6 +507,7 @@ export function SkedraCanvas({
 		localMode,
 		localClearCanvas: localSync.clearCanvas,
 		onRequestClearCanvas,
+		imageUploadOptions,
 		deleteElementsWithKanbanReflow,
 		fitViewportToBounds,
 		addFlowchartStep,
@@ -785,6 +838,8 @@ export function SkedraCanvas({
 					onExportSkedra={handleExportSkedra}
 					onExportEncryptedSkedra={() => void handleExportEncryptedSkedra()}
 					onImportSkedra={() => void handleImportSkedra()}
+					imageUploadOptions={imageUploadOptions}
+					resolveAssetUrl={resolveAssetUrl}
 					kanbanDetailId={kanbanDetailId}
 					kanbanListDetailId={kanbanListDetailId}
 					setKanbanDetailId={setKanbanDetailId}
@@ -807,6 +862,7 @@ export function SkedraCanvas({
 					viewDraft={viewDraft}
 					drawingPreview={pointerHandlers.drawingPreview}
 					croppingElement={croppingElement}
+					resolveAssetUrl={resolveAssetUrl}
 					onApplyImageCrop={handleApplyImageCrop}
 					onCancelImageCrop={() => store.setCroppingImageId(null)}
 					onPointerDown={handlePointerDown}
@@ -878,6 +934,7 @@ export function SkedraCanvas({
 									onStopEditView: handleStopEditView,
 									onDeleteView: handleDeleteView,
 									onRenameView: handleRenameView,
+									resolveAssetUrl,
 								}
 					}
 				/>
@@ -914,6 +971,7 @@ export function SkedraCanvas({
 					presenterMode={presenterMode}
 					zenMode={zenMode}
 					localMode={localMode}
+					encryptionMode={encryptionMode}
 					whiteboardId={whiteboardId}
 					canUseAi={canUseAi}
 					helpGuestMode={helpGuestMode}

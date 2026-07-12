@@ -4,18 +4,10 @@
 
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { TeamRolePermissions } from "@skedra/shared";
-
-const PERMISSION_KEYS = [
-	"editCanvas",
-	"comment",
-	"resolveComments",
-	"inviteOthers",
-	"manageShare",
-	"manageMembers",
-	"viewActivity",
-	"useAi",
-] as const satisfies readonly (keyof TeamRolePermissions)[];
+import {
+	TEAM_ROLE_PERMISSION_KEYS,
+	type TeamRolePermissions,
+} from "@skedra/shared";
 
 interface RolePermissionsEditorProps {
 	value: TeamRolePermissions;
@@ -32,7 +24,7 @@ export function RolePermissionsEditor({
 
 	return (
 		<div className={cn("grid gap-2 sm:grid-cols-2 lg:grid-cols-3", className)}>
-			{PERMISSION_KEYS.map((key) => (
+			{TEAM_ROLE_PERMISSION_KEYS.map((key) => (
 				<label
 					key={key}
 					className="flex cursor-pointer items-start gap-2 rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm"
@@ -63,7 +55,7 @@ export function RolePermissionsSummary({
 	permissions,
 }: { permissions: TeamRolePermissions }) {
 	const { t } = useI18n();
-	const active = PERMISSION_KEYS.filter((key) => permissions[key]);
+	const active = TEAM_ROLE_PERMISSION_KEYS.filter((key) => permissions[key]);
 
 	if (active.length === 0) {
 		return (

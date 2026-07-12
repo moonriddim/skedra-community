@@ -22,7 +22,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PickerInput } from "@/components/ui/picker-input";
-import { pickImageFile, pickImageFiles } from "@/lib/canvas/image-utils";
+import {
+	type ImageUploadOptions,
+	pickImageFile,
+	pickImageFiles,
+} from "@/lib/canvas/image-utils";
 import {
 	formatKanbanDateTime,
 	getKanbanDueStatus,
@@ -74,6 +78,8 @@ interface KanbanCardDetailDialogProps {
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
 	onDelete: (id: string) => void;
+	imageUploadOptions?: ImageUploadOptions;
+	resolveAssetUrl?: (src: string) => string;
 }
 type KanbanDialogSection = "cover" | "assignment" | "checklist" | "attachments";
 
@@ -85,6 +91,8 @@ export function KanbanCardDetailDialog({
 	onUpdate,
 	onUpdateElements,
 	onDelete,
+	imageUploadOptions,
+	resolveAssetUrl,
 }: KanbanCardDetailDialogProps) {
 	const { t } = useI18n();
 	const kanbanPriorities = getKanbanPriorities();
@@ -208,7 +216,6 @@ export function KanbanCardDetailDialog({
 			text: nextTitle,
 			height: nextHeight,
 			customData: {
-				...(element.customData ?? {}),
 				skedraType: "kanban-card",
 				description: nextDescription,
 				priority,
@@ -225,9 +232,7 @@ export function KanbanCardDetailDialog({
 				dueDate: nextDueDate,
 				dueComplete: nextDueDate ? dueComplete : false,
 				coverImage,
-				imageSrc: coverImage?.src ?? null,
 				attachments,
-				coverAttachmentId: null,
 				checklist: nextChecklist,
 			},
 		};
@@ -317,9 +322,12 @@ export function KanbanCardDetailDialog({
 				?.name,
 		}),
 	});
+	const coverImagePreviewSrc = coverImage
+		? (resolveAssetUrl?.(coverImage.src) ?? coverImage.src)
+		: "";
 
 	const handlePickCover = async () => {
-		const picked = await pickImageFile();
+		const picked = await pickImageFile(imageUploadOptions);
 		if (!picked) return;
 		setCoverImage({
 			id: createAttachmentId(),
@@ -331,7 +339,7 @@ export function KanbanCardDetailDialog({
 	};
 
 	const handlePickAttachment = async () => {
-		const picked = await pickImageFiles();
+		const picked = await pickImageFiles(imageUploadOptions);
 		if (picked.length === 0) return;
 		setAttachments((current) => [
 			...current,
@@ -442,7 +450,7 @@ export function KanbanCardDetailDialog({
 							{coverImage ? (
 								<div className="overflow-hidden rounded-lg border border-border bg-muted/30">
 									<img
-										src={coverImage.src}
+										src={coverImagePreviewSrc}
 										alt={coverImage.name}
 										className="h-28 w-full object-cover"
 									/>
@@ -793,7 +801,9 @@ export function KanbanCardDetailDialog({
 												className={`overflow-hidden rounded-lg border bg-background transition-colors ${dragOverAttachmentId === attachment.id ? "border-primary ring-1 ring-primary/40" : "border-border"} ${draggedAttachmentId === attachment.id ? "opacity-60" : "opacity-100"}`}
 											>
 												<img
-													src={attachment.src}
+													src={
+														resolveAssetUrl?.(attachment.src) ?? attachment.src
+													}
 													alt={attachment.name}
 													className="h-20 w-full object-cover"
 												/>

@@ -21,6 +21,7 @@ import { generateDiagramElements } from "../../lib/ai-diagram";
 import { fetchAvailableAiModels } from "../../lib/ai-models";
 import {
 	type AiProvider,
+	assertAiBaseUrlAllowed,
 	getDecryptedUserAiKey,
 	getUserAiSettings,
 	resolveAiCredentials,
@@ -36,6 +37,36 @@ const upsertAiSettingsSchema = z.object({
 	model: z.string().max(120).optional(),
 	baseUrl: z.string().max(512).optional(),
 });
+
+/**
+ * Fix M3: Einfaches In-Memory-Rate-Limit für die Diagramm-Generierung, die auf
+ * dem Plattform-Fallback-Key läuft — sonst könnten Nutzer LLM-Kosten des Betreibers
+ * unbegrenzt verursachen. Gilt nur für `source === "platform"`; eigene BYOK-Keys
+ * (Kosten des Nutzers) bleiben unbegrenzt. HINWEIS: pro Instanz, nicht geteilt.
+ */
+const PLATFORM_AI_WINDOW_MS = 60 * 60 * 1000; // 1 Stunde
+const PLATFORM_AI_MAX_PER_WINDOW = 30;
+const platformAiUsage = new Map<string, { count: number; resetAt: number }>();
+
+function enforcePlatformAiQuota(userId: string) {
+	const now = Date.now();
+	const entry = platformAiUsage.get(userId);
+	if (!entry || entry.resetAt < now) {
+		platformAiUsage.set(userId, {
+			count: 1,
+			resetAt: now + PLATFORM_AI_WINDOW_MS,
+		});
+		return;
+	}
+	if (entry.count >= PLATFORM_AI_MAX_PER_WINDOW) {
+		throw new TRPCError({
+			code: "TOO_MANY_REQUESTS",
+			message:
+				"Kontingent für die Plattform-KI erreicht. Bitte später erneut versuchen oder einen eigenen API-Key hinterlegen.",
+		});
+	}
+	entry.count += 1;
+}
 
 export const aiRouter = router({
 	getSettings: protectedProcedure.query(async ({ ctx }) => {
@@ -81,6 +112,9 @@ export const aiRouter = router({
 				});
 			}
 
+			// Fix M2: SSRF-Schutz für nutzergesteuerte Base-URL (Managed-Modus).
+			assertAiBaseUrlAllowed(provider, baseUrl);
+
 			try {
 				const models = await fetchAvailableAiModels({
 					provider,
@@ -89,12 +123,11 @@ export const aiRouter = router({
 				});
 				return { models };
 			} catch (error) {
+				// Fix M5: Provider-Fehlerdetails nur ins Log, nach außen generische Meldung.
+				console.error("[skedra] listModels fehlgeschlagen:", error);
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message:
-						error instanceof Error
-							? error.message
-							: "Modelle konnten nicht geladen werden.",
+					message: "Modelle konnten nicht geladen werden.",
 				});
 			}
 		}),
@@ -228,6 +261,14 @@ export const aiRouter = router({
 					message:
 						"Kein AI-Key hinterlegt. Bitte in den Einstellungen konfigurieren.",
 				});
+			}
+
+			// Fix M2: SSRF-Schutz auch für die eigentliche Generierung (Managed-Modus).
+			assertAiBaseUrlAllowed(credentials.provider, credentials.baseUrl);
+
+			// Fix M3: Nur der Plattform-Fallback-Key wird kontingentiert (Kostenschutz).
+			if (credentials.source === "platform") {
+				enforcePlatformAiQuota(ctx.user.id);
 			}
 
 			const prompt = input.prompt.trim();

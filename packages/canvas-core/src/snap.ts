@@ -254,9 +254,10 @@ export function calcSnap(
 		for (const oSnaps of otherSnapPoints) {
 			for (const oSnap of oSnaps.v) {
 				const diff = oSnap.pos - mSnap.pos;
+				// Nur uebernehmen, wenn dieser Versatz strikt kleiner ist als der
+				// bisher beste (das fruehere <= war redundant zum folgenden <).
 				if (
 					Math.abs(diff) < SNAP_THRESHOLD &&
-					Math.abs(diff) <= Math.abs(bestDx) &&
 					Math.abs(diff) < Math.abs(bestDx)
 				) {
 					bestDx = diff;
@@ -269,9 +270,10 @@ export function calcSnap(
 		for (const oSnaps of otherSnapPoints) {
 			for (const oSnap of oSnaps.h) {
 				const diff = oSnap.pos - mSnap.pos;
+				// Nur uebernehmen, wenn dieser Versatz strikt kleiner ist als der
+				// bisher beste (das fruehere <= war redundant zum folgenden <).
 				if (
 					Math.abs(diff) < SNAP_THRESHOLD &&
-					Math.abs(diff) <= Math.abs(bestDy) &&
 					Math.abs(diff) < Math.abs(bestDy)
 				) {
 					bestDy = diff;

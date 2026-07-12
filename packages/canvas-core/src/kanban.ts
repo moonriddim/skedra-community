@@ -361,13 +361,7 @@ export function normalizeKanbanChecklist(
 export function normalizeKanbanAttachments(
 	customData: Record<string, unknown> | undefined,
 ): KanbanCardAttachment[] {
-	const normalized = normalizeRawAttachments(customData?.attachments);
-	const coverAttachmentId =
-		typeof customData?.coverAttachmentId === "string"
-			? customData.coverAttachmentId
-			: null;
-	if (!coverAttachmentId) return normalized;
-	return normalized.filter((attachment) => attachment.id !== coverAttachmentId);
+	return normalizeRawAttachments(customData?.attachments);
 }
 
 export function normalizeKanbanCoverImage(
@@ -379,31 +373,7 @@ export function normalizeKanbanCoverImage(
 	);
 	if (explicitCover) return explicitCover;
 
-	const normalizedAttachments = normalizeRawAttachments(
-		customData?.attachments,
-	);
-	const coverAttachmentId =
-		typeof customData?.coverAttachmentId === "string"
-			? customData.coverAttachmentId
-			: null;
-	if (coverAttachmentId) {
-		const legacyCover = normalizedAttachments.find(
-			(attachment) => attachment.id === coverAttachmentId,
-		);
-		if (legacyCover) return legacyCover;
-	}
-
-	const legacyImageSrc =
-		typeof customData?.imageSrc === "string" ? customData.imageSrc : "";
-	if (!legacyImageSrc) return null;
-
-	return {
-		id: "legacy-cover",
-		src: legacyImageSrc,
-		name: "Cover",
-		width: 0,
-		height: 0,
-	};
+	return null;
 }
 
 export function computeKanbanCardHeight(input: {

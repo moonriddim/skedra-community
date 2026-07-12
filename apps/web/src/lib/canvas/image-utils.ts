@@ -1,12 +1,30 @@
 /**
- * Hilfsfunktionen fuer Bild-Upload im Canvas und in Kanban-Dialogen.
+ * Hilfsfunktionen fuer Bilder im Canvas und in Kanban-Dialogen.
  */
+
+import { encryptImageAsset } from "@skedra/canvas-core";
+import {
+	buildEncryptedAssetReference,
+	registerLocalEncryptedAssetPreview,
+} from "./asset-urls";
 
 export interface PickedImage {
 	src: string;
+	assetId?: string;
 	width: number;
 	height: number;
 	name: string;
+	sizeBytes?: number;
+	storage?: "inline" | "object";
+}
+
+export interface ImageUploadOptions {
+	whiteboardId?: string;
+	objectStorageEnabled?: boolean;
+	maxImageBytes?: number;
+	e2eeKey?: string | null;
+	encryptionMode?: "server" | "e2ee";
+	collabShareToken?: string;
 }
 
 export function fitImageSize(
@@ -23,7 +41,9 @@ export function fitImageSize(
 	};
 }
 
-export async function pickImageFile(): Promise<PickedImage | null> {
+export async function pickImageFile(
+	uploadOptions?: ImageUploadOptions,
+): Promise<PickedImage | null> {
 	return new Promise((resolve) => {
 		const input = document.createElement("input");
 		input.type = "file";
@@ -47,7 +67,7 @@ export async function pickImageFile(): Promise<PickedImage | null> {
 				}
 
 				try {
-					const result = await readImageFile(file);
+					const result = await readImageFile(file, uploadOptions);
 					cleanup();
 					resolve(result);
 				} catch {
@@ -62,7 +82,9 @@ export async function pickImageFile(): Promise<PickedImage | null> {
 	});
 }
 
-export async function pickImageFiles(): Promise<PickedImage[]> {
+export async function pickImageFiles(
+	uploadOptions?: ImageUploadOptions,
+): Promise<PickedImage[]> {
 	return new Promise((resolve) => {
 		const input = document.createElement("input");
 		input.type = "file";
@@ -88,7 +110,7 @@ export async function pickImageFiles(): Promise<PickedImage[]> {
 
 				try {
 					const result = await Promise.all(
-						files.map((file) => readImageFile(file)),
+						files.map((file) => readImageFile(file, uploadOptions)),
 					);
 					cleanup();
 					resolve(result);
@@ -104,14 +126,86 @@ export async function pickImageFiles(): Promise<PickedImage[]> {
 	});
 }
 
-async function readImageFile(file: File): Promise<PickedImage> {
+async function readImageFile(
+	file: File,
+	uploadOptions?: ImageUploadOptions,
+): Promise<PickedImage> {
+	if (
+		uploadOptions?.objectStorageEnabled &&
+		uploadOptions.maxImageBytes &&
+		file.size > uploadOptions.maxImageBytes
+	) {
+		throw new Error("IMAGE_TOO_LARGE");
+	}
+	const dimensions = await loadImageFileDimensions(file);
+	const uploaded = await uploadEncryptedImageAsset(file, uploadOptions);
+	if (uploaded) {
+		return {
+			src: uploaded.src,
+			assetId: uploaded.assetId,
+			width: dimensions.width,
+			height: dimensions.height,
+			name: file.name,
+			sizeBytes: file.size,
+			storage: "object",
+		};
+	}
 	const src = await fileToDataUrl(file);
-	const dimensions = await loadImageDimensions(src);
 	return {
 		src,
 		width: dimensions.width,
 		height: dimensions.height,
 		name: file.name,
+		sizeBytes: file.size,
+		storage: "inline",
+	};
+}
+
+async function uploadEncryptedImageAsset(
+	file: File,
+	options?: ImageUploadOptions,
+): Promise<{ src: string; assetId: string } | null> {
+	if (
+		!options?.objectStorageEnabled ||
+		!options.whiteboardId ||
+		(options.encryptionMode !== "server" && !options.e2eeKey)
+	) {
+		return null;
+	}
+	const assetId = crypto.randomUUID();
+	const encrypted = await encryptImageAsset({
+		file,
+		boardKey: options.encryptionMode === "server" ? null : options.e2eeKey,
+		whiteboardId: options.whiteboardId,
+		assetId,
+	});
+	const formData = new FormData();
+	formData.set("assetId", assetId);
+	formData.set("whiteboardId", options.whiteboardId);
+	formData.set("plaintextSize", String(file.size));
+	formData.set("encryptionVersion", String(encrypted.reference.v));
+	if (options.collabShareToken) {
+		formData.set("collabShareToken", options.collabShareToken);
+	}
+	formData.set(
+		"file",
+		new File([encrypted.ciphertext], `${assetId}.e2ee`, {
+			type: "application/octet-stream",
+		}),
+	);
+
+	const response = await fetch("/api/assets/images", {
+		method: "POST",
+		body: formData,
+		credentials: "include",
+	});
+	if (!response.ok) throw new Error("IMAGE_UPLOAD_FAILED");
+	const uploaded = (await response.json()) as { id: string; url: string };
+	const src = buildEncryptedAssetReference(uploaded.url, encrypted.reference);
+	registerLocalEncryptedAssetPreview(src, file);
+	return {
+		assetId: uploaded.id,
+		src,
 	};
 }
 
@@ -134,4 +228,11 @@ function loadImageDimensions(
 		image.onerror = reject;
 		image.src = src;
 	});
+}
+
+function loadImageFileDimensions(
+	file: File,
+): Promise<{ width: number; height: number }> {
+	const url = URL.createObjectURL(file);
+	return loadImageDimensions(url).finally(() => URL.revokeObjectURL(url));
 }
