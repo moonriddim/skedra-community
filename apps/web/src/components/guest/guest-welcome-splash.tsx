@@ -61,10 +61,13 @@ export function GuestWelcomeSplash({
 							className="h-16 w-16 object-contain drop-shadow-[0_0_18px_rgba(13,188,174,0.25)]"
 						/>
 						<h1 className="font-comic-note text-5xl font-bold tracking-wide text-primary">
-							Skedra
+							Skedra Online Whiteboard
 						</h1>
 					</div>
-					<p className="mt-4 font-comic-note text-base leading-relaxed text-muted-foreground">
+					<p className="mt-4 font-comic-note text-base leading-relaxed text-foreground">
+						{t("guestCanvas.productDescription")}
+					</p>
+					<p className="mt-3 font-comic-note text-sm leading-relaxed text-muted-foreground">
 						{t("guestCanvas.storageWarning")}
 					</p>
 

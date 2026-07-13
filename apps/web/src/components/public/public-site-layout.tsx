@@ -32,6 +32,9 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 						aria-label={t("publicSite.navigationLabel")}
 					>
 						<Button asChild variant="ghost" size="sm">
+							<Link to="/whiteboard">{t("publicSite.productOverview")}</Link>
+						</Button>
+						<Button asChild variant="ghost" size="sm">
 							<Link to="/pricing">{t("publicSite.pricing")}</Link>
 						</Button>
 						<Button asChild variant="ghost" size="sm">
@@ -75,6 +78,11 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<nav className="border-t border-border bg-background px-4 py-4 md:hidden">
 						<div className="mx-auto grid max-w-6xl gap-2">
 							<Button asChild variant="ghost" className="justify-start">
+								<Link to="/whiteboard" onClick={() => setMenuOpen(false)}>
+									{t("publicSite.productOverview")}
+								</Link>
+							</Button>
+							<Button asChild variant="ghost" className="justify-start">
 								<Link to="/pricing" onClick={() => setMenuOpen(false)}>
 									{t("publicSite.pricing")}
 								</Link>
@@ -108,6 +116,9 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<div>
 						<h2 className="text-sm font-semibold">{t("publicSite.product")}</h2>
 						<div className="mt-3 grid gap-2 text-sm text-muted-foreground">
+							<Link className="hover:text-foreground" to="/whiteboard">
+								{t("publicSite.productOverview")}
+							</Link>
 							<Link className="hover:text-foreground" to="/">
 								{t("publicSite.freeWhiteboard")}
 							</Link>

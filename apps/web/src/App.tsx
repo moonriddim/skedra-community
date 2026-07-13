@@ -1,3 +1,4 @@
+import { SeoManager } from "@/components/public/seo-manager";
 import { I18nProvider } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { AdminLayout, AuthLayout } from "@/routes/layout";
@@ -21,6 +22,9 @@ const SubscribePage = lazy(() =>
 );
 const PricingPage = lazy(() =>
 	import("@/routes/pricing").then((m) => ({ default: m.PricingPage })),
+);
+const WhiteboardPage = lazy(() =>
+	import("@/routes/whiteboard").then((m) => ({ default: m.WhiteboardPage })),
 );
 const PrivacyPage = lazy(() =>
 	import("@/routes/privacy").then((m) => ({ default: m.PrivacyPage })),
@@ -107,6 +111,7 @@ export function App() {
 			<trpc.Provider client={trpcClient} queryClient={queryClient}>
 				<QueryClientProvider client={queryClient}>
 					<BrowserRouter>
+						<SeoManager />
 						<Routes>
 							<Route
 								path="/login"
@@ -129,6 +134,14 @@ export function App() {
 								element={
 									<Suspense fallback={<PageLoader />}>
 										<SubscribePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/whiteboard"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<WhiteboardPage />
 									</Suspense>
 								}
 							/>

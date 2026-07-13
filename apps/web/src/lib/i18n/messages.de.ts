@@ -175,6 +175,7 @@ export const deMessages = {
 	},
 	publicSite: {
 		navigationLabel: "Hauptnavigation",
+		productOverview: "Produkt",
 		pricing: "Preise",
 		openSource: "Open Source",
 		existingCloudAccount: "Cloud-Anmeldung",
@@ -213,6 +214,8 @@ export const deMessages = {
 		recommended: "Empfohlen",
 		existingSubscription: "Du hast bereits ein aktives Abo?",
 		existingSubscriptionAction: "Mit bestehendem Cloud-Konto anmelden",
+		machineReadable:
+			"Aktuelle Preise und Funktionen als maschinenlesbares Markdown",
 		comparisonTitle: "Free oder Cloud? Du entscheidest.",
 		comparisonDescription:
 			"Der Editor bleibt frei. Bezahlt werden nur Hosting, Synchronisierung und Zusammenarbeit.",
@@ -270,6 +273,8 @@ export const deMessages = {
 	guestCanvas: {
 		menu: "Menü",
 		share: "Teilen",
+		productDescription:
+			"Skedra ist ein kostenloses Online-Whiteboard für Skizzen, Mindmaps, Diagramme und Kanban-Boards – direkt im Browser und ohne Konto.",
 		storageWarning:
 			"Deine Zeichnungen werden lokal im Browser gespeichert. Dieser Speicher kann jederzeit gelöscht werden — speichere regelmäßig in der Cloud.",
 		startDrawingHint: "Wähle ein Werkzeug und beginne zu zeichnen!",

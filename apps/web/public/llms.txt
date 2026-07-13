@@ -1,0 +1,21 @@
+# Skedra
+
+> Skedra is a browser-based infinite canvas and online whiteboard. The free editor works without an account and stores boards locally. Skedra Cloud adds encrypted storage, live collaboration, teams, comments, presentations and controlled sharing.
+
+## Product
+
+- [Product overview](https://skedra.xyz/whiteboard): Human-readable description, use cases, security model and Free-versus-Cloud comparison.
+- [Machine-readable product facts](https://skedra.xyz/product.md): Features, formats, collaboration and encryption details.
+- [Pricing](https://skedra.xyz/pricing): Interactive pricing and feature comparison.
+- [Machine-readable pricing](https://skedra.xyz/pricing.md): Current plans, prices, billing periods and included features.
+
+## Trust and legal
+
+- [Privacy policy](https://skedra.xyz/privacy): Data processing, local storage, cloud storage and encryption modes.
+- [Terms](https://skedra.xyz/terms): Terms for the free whiteboard and Skedra Cloud.
+- [Legal notice](https://skedra.xyz/imprint): Operator and contact information.
+- Support: support@skedra.xyz
+
+## Open source
+
+- [Skedra Community repository](https://github.com/moonriddim/skedra-community): Community Edition source code and self-hosting project.

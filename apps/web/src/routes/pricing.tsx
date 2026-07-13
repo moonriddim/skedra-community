@@ -155,6 +155,14 @@ export function PricingPage() {
 							{t("pricingPage.existingSubscriptionAction")}
 						</Link>
 					</p>
+					<p className="mt-3 text-center text-xs text-muted-foreground">
+						<a
+							className="hover:text-foreground hover:underline"
+							href="/pricing.md"
+						>
+							{t("pricingPage.machineReadable")}
+						</a>
+					</p>
 				</div>
 			</section>
 
