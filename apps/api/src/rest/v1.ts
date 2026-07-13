@@ -21,7 +21,7 @@ import {
 	parseTeamRolePermissions,
 } from "@skedra/shared";
 import { decryptText, encryptText } from "@skedra/shared/server-crypto";
-import { and, asc, eq, gt, or } from "drizzle-orm";
+import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -660,6 +660,13 @@ boardsRouter.post("/boards/:id/updates", (c) =>
 			}
 
 			const created = await db.transaction(async (tx) => {
+				// Lock the board row before inserting so REST appends use the same
+				// per-board ordering guarantee as tRPC append/compaction.
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: sql`clock_timestamp()` })
+					.where(eq(whiteboards.id, id));
+
 				const [row] = await tx
 					.insert(whiteboardE2eeUpdates)
 					.values({
@@ -670,17 +677,12 @@ boardsRouter.post("/boards/:id/updates", (c) =>
 							access.whiteboard.encryptionMode === "server"
 								? encryptText(body.update, getYjsEncryptionOptions())
 								: body.update,
+						createdAt: sql`clock_timestamp()`,
 					})
 					.returning({
 						id: whiteboardE2eeUpdates.id,
 						createdAt: whiteboardE2eeUpdates.createdAt,
 					});
-
-				await tx
-					.update(whiteboards)
-					.set({ updatedAt: new Date() })
-					.where(eq(whiteboards.id, id));
-
 				return row;
 			});
 

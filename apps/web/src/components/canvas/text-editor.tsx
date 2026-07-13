@@ -288,6 +288,11 @@ export function TextEditor({
 		if (!ta) return;
 		ta.style.height = "auto";
 		ta.style.height = `${ta.scrollHeight}px`;
+		if (!editingState) return;
+		onUpdateText(editingState.id, ta.value, {
+			width: Math.max(elWidth, ta.scrollWidth / viewport.zoom),
+			height: Math.max(30, ta.scrollHeight / viewport.zoom),
+		});
 	};
 
 	const screenH = pending?.height

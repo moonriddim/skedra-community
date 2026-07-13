@@ -102,9 +102,16 @@ export async function listPendingE2eeUpdates(whiteboardId: string) {
 }
 
 export async function deletePendingE2eeUpdate(id: string) {
+	return deletePendingE2eeUpdates([id]);
+}
+
+/** Deletes a successfully persisted network batch in one IndexedDB commit. */
+export async function deletePendingE2eeUpdates(ids: string[]) {
+	if (ids.length === 0) return;
 	const db = await openQueueDb();
 	const transaction = db.transaction(STORE_NAME, "readwrite");
-	transaction.objectStore(STORE_NAME).delete(id);
+	const store = transaction.objectStore(STORE_NAME);
+	for (const id of ids) store.delete(id);
 	await transactionDone(transaction);
 }
 

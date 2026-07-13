@@ -10,7 +10,6 @@ import {
 	encryptSmtpPassword,
 	getEnvLiveKitConfigStatus,
 	getOrCreateInstanceSettings,
-	isFounderAccount,
 	isInstanceAdmin,
 	requireInstanceAdmin,
 	resolveLiveKitConfig,
@@ -26,7 +25,7 @@ import {
 	getObjectStorageStatus,
 	updateObjectStorageSettings,
 } from "../../lib/object-storage";
-import { authenticatedProcedure, protectedProcedure, router } from "../init";
+import { protectedProcedure, router } from "../init";
 
 const smtpInputSchema = z.object({
 	useCustomSmtp: z.boolean(),
@@ -75,11 +74,6 @@ function requireSelfHostedDeployment() {
 }
 
 export const instanceRouter = router({
-	getFounderAccess: authenticatedProcedure.query(async ({ ctx }) => ({
-		isFounder: isFounderAccount(ctx.user.email),
-		managedDeployment: env.SKEDRA_DEPLOYMENT_MODE === "managed",
-	})),
-
 	getMailStatus: protectedProcedure.query(async ({ ctx }) => {
 		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);

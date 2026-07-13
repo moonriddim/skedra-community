@@ -19,6 +19,8 @@ interface UseBoardLiveChannelOptions {
 	enabled: boolean;
 	/** Wird bei jedem Live-Update-Signal aufgerufen (→ Update-Log nachladen). */
 	onEvent: () => void;
+	/** Resets local log accounting when another client replaces rows by a snapshot. */
+	onCompaction?: () => void;
 	/** Meldet Verbindungsstatus (z. B. um das Poll-Intervall zu drosseln). */
 	onConnectedChange?: (connected: boolean) => void;
 }
@@ -27,11 +29,13 @@ export function useBoardLiveChannel(
 	whiteboardId: string,
 	options: UseBoardLiveChannelOptions,
 ) {
-	const { enabled, onEvent, onConnectedChange } = options;
+	const { enabled, onEvent, onCompaction, onConnectedChange } = options;
 
 	// Callbacks in Refs halten, damit der Effect nicht bei jedem Render neu verbindet.
 	const onEventRef = useRef(onEvent);
 	onEventRef.current = onEvent;
+	const onCompactionRef = useRef(onCompaction);
+	onCompactionRef.current = onCompaction;
 	const onConnectedRef = useRef(onConnectedChange);
 	onConnectedRef.current = onConnectedChange;
 
@@ -47,7 +51,15 @@ export function useBoardLiveChannel(
 		);
 
 		const handleReady = () => onConnectedRef.current?.(true);
-		const handleUpdate = () => {
+		const handleUpdate = (event: Event) => {
+			if (event instanceof MessageEvent) {
+				try {
+					const payload = JSON.parse(event.data) as { type?: unknown };
+					if (payload.type === "compact") onCompactionRef.current?.();
+				} catch {
+					// The durable refetch below remains the source of truth.
+				}
+			}
 			if (eventTimer != null) return;
 			eventTimer = window.setTimeout(() => {
 				eventTimer = null;

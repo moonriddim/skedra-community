@@ -8,6 +8,7 @@ import {
 	Radio,
 	Square,
 	Users,
+	X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -28,6 +29,7 @@ interface PresenterChromeProps {
 	notesOpen: boolean;
 	onStart?: () => void;
 	onEnd?: () => void;
+	onCancelPreparation?: () => void;
 }
 
 function formatElapsed(startedAt: string | null | undefined, now: number) {
@@ -56,9 +58,19 @@ export function PresenterChrome(props: PresenterChromeProps) {
 		return (
 			<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/45 p-4 backdrop-blur-sm">
 				<section
-					className="pointer-events-auto w-[min(94vw,560px)] rounded-3xl border border-border/80 bg-card/95 p-6 shadow-2xl"
+					className="pointer-events-auto relative w-[min(94vw,560px)] rounded-3xl border border-border/80 bg-card/95 p-6 shadow-2xl"
 					aria-labelledby="presentation-preflight-title"
 				>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3"
+						onClick={props.onCancelPreparation}
+						aria-label={t("common.close")}
+					>
+						<X className="h-4 w-4" />
+					</Button>
 					<p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
 						{t("whiteboardPage.presenter.preflightEyebrow")}
 					</p>
@@ -106,6 +118,13 @@ export function PresenterChrome(props: PresenterChromeProps) {
 					)}
 
 					<div className="mt-6 flex flex-wrap justify-end gap-2">
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={props.onCancelPreparation}
+						>
+							{t("common.cancel")}
+						</Button>
 						{props.shareUrl && (
 							<Button type="button" variant="outline" asChild>
 								<a href={props.shareUrl} target="_blank" rel="noreferrer">

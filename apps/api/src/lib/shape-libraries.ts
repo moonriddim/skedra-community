@@ -21,6 +21,11 @@ import { env } from "../env";
 export type LibrarySubmissionStatus = "pending" | "approved" | "rejected";
 export type LibraryCatalogMode = "local" | "remote";
 
+export const DEFAULT_REMOTE_LIBRARY_CATALOG_API_URL =
+	"https://libraries.skedra.xyz";
+export const DEFAULT_REMOTE_LIBRARY_SUBMIT_URL =
+	"https://skedra.xyz/login?redirect=%2Flibrary";
+
 export interface PublicShapeLibraryEntry {
 	id: string;
 	slug: string;
@@ -38,28 +43,53 @@ function trimUrl(value?: string | null) {
 	return trimmed ? trimmed.replace(/\/$/, "") : null;
 }
 
+export function resolveLibraryCatalogConfig(input: {
+	deploymentMode: "selfhost" | "managed";
+	mode: LibraryCatalogMode;
+	remoteApiUrl?: string | null;
+	submitUrl?: string | null;
+	appUrl?: string | null;
+}) {
+	const configuredRemoteBaseUrl = trimUrl(input.remoteApiUrl);
+	const remoteBaseUrl =
+		input.mode === "remote"
+			? (configuredRemoteBaseUrl ?? DEFAULT_REMOTE_LIBRARY_CATALOG_API_URL)
+			: null;
+	const localAppUrl = trimUrl(input.appUrl) ?? "http://localhost:5174";
+	const fallbackSubmitUrl =
+		input.mode === "remote" && !configuredRemoteBaseUrl
+			? DEFAULT_REMOTE_LIBRARY_SUBMIT_URL
+			: `${remoteBaseUrl ?? localAppUrl}/login?redirect=${encodeURIComponent(
+					"/library",
+				)}`;
+
+	return {
+		mode: input.mode,
+		canSubmit:
+			(input.deploymentMode === "managed" && input.mode === "local") ||
+			(input.mode === "remote" && !!remoteBaseUrl),
+		submitUrl: input.submitUrl?.trim() || fallbackSubmitUrl,
+		remoteBaseUrl,
+	};
+}
+
+function resolveConfiguredLibraryCatalog() {
+	return resolveLibraryCatalogConfig({
+		deploymentMode: env.SKEDRA_DEPLOYMENT_MODE,
+		mode: env.SKEDRA_LIBRARY_CATALOG_MODE as LibraryCatalogMode,
+		remoteApiUrl: env.SKEDRA_LIBRARY_CATALOG_API_URL,
+		submitUrl: env.SKEDRA_LIBRARY_SUBMIT_URL,
+		appUrl: env.APP_URL,
+	});
+}
+
 function getRemoteCatalogBaseUrl() {
-	return trimUrl(env.SKEDRA_LIBRARY_CATALOG_API_URL);
+	return resolveConfiguredLibraryCatalog().remoteBaseUrl;
 }
 
 export function getLibraryCatalogConfig() {
-	const remoteBaseUrl = getRemoteCatalogBaseUrl();
-	const submitBaseUrl =
-		env.SKEDRA_LIBRARY_CATALOG_MODE === "remote" && remoteBaseUrl
-			? remoteBaseUrl
-			: (trimUrl(env.APP_URL) ?? "http://localhost:5174");
-	const submitUrl =
-		env.SKEDRA_LIBRARY_SUBMIT_URL?.trim() ||
-		`${submitBaseUrl}/login?redirect=${encodeURIComponent("/library")}`;
-
-	return {
-		mode: env.SKEDRA_LIBRARY_CATALOG_MODE as LibraryCatalogMode,
-		canSubmit:
-			(env.SKEDRA_DEPLOYMENT_MODE === "managed" &&
-				env.SKEDRA_LIBRARY_CATALOG_MODE === "local") ||
-			!!remoteBaseUrl,
-		submitUrl,
-	};
+	const { mode, canSubmit, submitUrl } = resolveConfiguredLibraryCatalog();
+	return { mode, canSubmit, submitUrl };
 }
 
 async function fetchRemoteCatalog(path: string) {

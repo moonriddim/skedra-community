@@ -96,6 +96,7 @@ interface SkedraCanvasToolPanelsProps {
 	setKanbanDetailId: (id: string | null) => void;
 	setKanbanListDetailId: (id: string | null) => void;
 	kanbanAssignmentOptions?: KanbanAssignmentOptions;
+	onPresentationElementsPreview: (elements: CanvasElement[]) => void;
 	commands: Pick<
 		CanvasCommands,
 		| "addKanbanCard"
@@ -136,6 +137,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	setKanbanDetailId,
 	setKanbanListDetailId,
 	kanbanAssignmentOptions,
+	onPresentationElementsPreview,
 	commands,
 }: SkedraCanvasToolPanelsProps) {
 	const panelStore = useCanvasStore(
@@ -244,6 +246,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 						imageUploadOptions={imageUploadOptions}
 						resolveAssetUrl={resolveAssetUrl}
 						onClose={() => setKanbanDetailId(null)}
+						onPreviewElements={onPresentationElementsPreview}
 						onUpdate={sync.updateElement}
 						onUpdateElements={sync.updateElements}
 						onDelete={(id) => {

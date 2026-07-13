@@ -14,45 +14,20 @@ import {
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { env } from "../../env";
-import { isFounderAccount } from "../../lib/instance-settings";
 import {
-	approveLibrarySubmission,
 	deletePublishedShapeLibrary,
 	getLibraryCatalogConfig,
 	listConfiguredPublicShapeLibraries,
-	listPendingLibrarySubmissions,
 	listUserShapeLibraries,
-	rejectLibrarySubmission,
 	submitConfiguredShapeLibraryForReview,
 } from "../../lib/shape-libraries";
-import {
-	authenticatedProcedure,
-	protectedProcedure,
-	publicProcedure,
-	router,
-} from "../init";
+import { protectedProcedure, publicProcedure, router } from "../init";
 
 const libraryItemSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
 	elements: z.array(z.record(z.unknown())),
 });
-
-function assertManagedFounder(email: string | null | undefined) {
-	if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Library-Review ist nur im Managed-Modus verfügbar",
-		});
-	}
-	if (!isFounderAccount(email)) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "Library-Review ist ausschließlich für den Founder verfügbar",
-		});
-	}
-}
 
 function mapSubmissionError(error: unknown): never {
 	const message = error instanceof Error ? error.message : "UNKNOWN";
@@ -203,73 +178,6 @@ export const shapeLibraryRouter = router({
 				};
 			} catch (error) {
 				mapSubmissionError(error);
-			}
-		}),
-
-	listReviewQueue: authenticatedProcedure.query(async ({ ctx }) => {
-		assertManagedFounder(ctx.user.email);
-		return listPendingLibrarySubmissions(ctx.db);
-	}),
-
-	approveSubmission: authenticatedProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.mutation(async ({ ctx, input }) => {
-			assertManagedFounder(ctx.user.email);
-			try {
-				await approveLibrarySubmission(ctx.db, {
-					id: input.id,
-					reviewerId: ctx.user.id,
-				});
-				return { success: true };
-			} catch (error) {
-				const message = error instanceof Error ? error.message : "UNKNOWN";
-				if (message === "SUBMISSION_NOT_FOUND") {
-					throw new TRPCError({
-						code: "NOT_FOUND",
-						message: "Einreichung nicht gefunden",
-					});
-				}
-				if (message === "SUBMISSION_ALREADY_REVIEWED") {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message: "Einreichung wurde bereits bearbeitet",
-					});
-				}
-				if (message === "SLUG_TAKEN") {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message: "Dieser Slug ist bereits vergeben",
-					});
-				}
-				throw error;
-			}
-		}),
-
-	rejectSubmission: authenticatedProcedure
-		.input(
-			z.object({
-				id: z.string().uuid(),
-				note: z.string().max(500).optional(),
-			}),
-		)
-		.mutation(async ({ ctx, input }) => {
-			assertManagedFounder(ctx.user.email);
-			try {
-				await rejectLibrarySubmission(ctx.db, {
-					id: input.id,
-					reviewerId: ctx.user.id,
-					note: input.note,
-				});
-				return { success: true };
-			} catch (error) {
-				const message = error instanceof Error ? error.message : "UNKNOWN";
-				if (message === "SUBMISSION_NOT_FOUND") {
-					throw new TRPCError({
-						code: "NOT_FOUND",
-						message: "Einreichung nicht gefunden",
-					});
-				}
-				throw error;
 			}
 		}),
 

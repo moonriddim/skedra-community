@@ -42,6 +42,19 @@ function copyVisibleScalar(
 	}
 }
 
+/** Apply presenter-only draft elements over the synced scene before sanitizing. */
+export function mergePresentationFrameElements(
+	elements: Iterable<CanvasElement>,
+	previews: Iterable<CanvasElement | null | undefined>,
+): CanvasElement[] {
+	const merged = new Map<string, CanvasElement>();
+	for (const element of elements) merged.set(element.id, element);
+	for (const preview of previews) {
+		if (preview) merged.set(preview.id, preview);
+	}
+	return Array.from(merged.values());
+}
+
 /** Remove editor-only metadata while retaining what the read-only renderer shows. */
 export function sanitizePresentationElement(
 	element: CanvasElement,

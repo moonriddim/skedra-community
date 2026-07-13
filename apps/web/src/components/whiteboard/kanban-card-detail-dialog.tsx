@@ -66,7 +66,7 @@ import {
 	X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 interface KanbanCardDetailDialogProps {
 	element: CanvasElement | null;
@@ -78,6 +78,7 @@ interface KanbanCardDetailDialogProps {
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
 	onDelete: (id: string) => void;
+	onPreviewElements?: (elements: CanvasElement[]) => void;
 	imageUploadOptions?: ImageUploadOptions;
 	resolveAssetUrl?: (src: string) => string;
 }
@@ -91,6 +92,7 @@ export function KanbanCardDetailDialog({
 	onUpdate,
 	onUpdateElements,
 	onDelete,
+	onPreviewElements,
 	imageUploadOptions,
 	resolveAssetUrl,
 }: KanbanCardDetailDialogProps) {
@@ -127,9 +129,13 @@ export function KanbanCardDetailDialog({
 		checklist: false,
 		attachments: false,
 	});
+	const [loadedElementId, setLoadedElementId] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (!element) return;
+		if (!element) {
+			setLoadedElementId(null);
+			return;
+		}
 		const nextCoverImage = normalizeKanbanCoverImage(element.customData);
 		const nextAttachments = normalizeKanbanAttachments(element.customData);
 		const nextChecklist = normalizeKanbanChecklist(
@@ -185,11 +191,11 @@ export function KanbanCardDetailDialog({
 			checklist: nextChecklist.length > 0,
 			attachments: nextAttachments.length > 0,
 		});
+		setLoadedElementId(element.id);
 	}, [element]);
 
-	if (!element) return null;
-
-	const handleSave = () => {
+	const draftChanges = useMemo<Partial<CanvasElement> | null>(() => {
+		if (!element || loadedElementId !== element.id) return null;
 		const nextTitle = title.trim() || t("canvas.kanban.newCard");
 		const nextDescription = description.trim();
 		const nextChecklist = normalizeKanbanChecklist(checklist);
@@ -202,19 +208,18 @@ export function KanbanCardDetailDialog({
 			assignmentOptions?.roles.find((role) => role.id === roleId) ?? null;
 		const assignmentBadges =
 			(selectedAssignee ? 1 : 0) + (selectedRole ? 1 : 0);
-		const nextHeight = computeKanbanCardHeight({
-			title: nextTitle,
-			description: nextDescription,
-			coverImage,
-			checklist: nextChecklist,
-			attachments,
-			startDate: nextStartDate,
-			dueDate: nextDueDate,
-			assignmentBadges,
-		});
-		const baseChanges: Partial<CanvasElement> = {
+		return {
 			text: nextTitle,
-			height: nextHeight,
+			height: computeKanbanCardHeight({
+				title: nextTitle,
+				description: nextDescription,
+				coverImage,
+				checklist: nextChecklist,
+				attachments,
+				startDate: nextStartDate,
+				dueDate: nextDueDate,
+				assignmentBadges,
+			}),
 			customData: {
 				skedraType: "kanban-card",
 				description: nextDescription,
@@ -236,21 +241,71 @@ export function KanbanCardDetailDialog({
 				checklist: nextChecklist,
 			},
 		};
+	}, [
+		assigneeId,
+		assignmentOptions,
+		attachments,
+		checklist,
+		coverImage,
+		description,
+		dueComplete,
+		dueDate,
+		dueTime,
+		element,
+		loadedElementId,
+		priority,
+		roleId,
+		startDate,
+		startTime,
+		t,
+		title,
+	]);
+
+	useEffect(() => {
+		if (!element || !draftChanges || !onPreviewElements) return;
+		const previewElement = { ...element, ...draftChanges };
+		if (!element.frameId) {
+			onPreviewElements([previewElement]);
+			return;
+		}
+
+		const nextElements = new Map(elements);
+		nextElements.set(element.id, previewElement);
+		const reflowUpdates = buildKanbanReflowUpdates(
+			nextElements,
+			new Set([element.id]),
+			new Map([[element.id, element.frameId]]),
+		);
+		const previews = [previewElement];
+		for (const update of reflowUpdates) {
+			if (update.id === element.id) continue;
+			const current = nextElements.get(update.id);
+			if (current) previews.push({ ...current, ...update.changes });
+		}
+		onPreviewElements(previews);
+	}, [draftChanges, element, elements, onPreviewElements]);
+
+	useEffect(() => () => onPreviewElements?.([]), [onPreviewElements]);
+
+	if (!element) return null;
+
+	const handleSave = () => {
+		if (!draftChanges) return;
 
 		if (element.frameId) {
 			const nextElements = new Map(elements);
-			nextElements.set(element.id, { ...element, ...baseChanges });
+			nextElements.set(element.id, { ...element, ...draftChanges });
 			const reflowUpdates = buildKanbanReflowUpdates(
 				nextElements,
 				new Set([element.id]),
 				new Map([[element.id, element.frameId]]),
 			);
 			onUpdateElements([
-				{ id: element.id, changes: baseChanges },
+				{ id: element.id, changes: draftChanges },
 				...reflowUpdates.filter((update) => update.id !== element.id),
 			]);
 		} else {
-			onUpdate(element.id, baseChanges);
+			onUpdate(element.id, draftChanges);
 		}
 		onClose();
 	};

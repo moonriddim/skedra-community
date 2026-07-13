@@ -28,6 +28,8 @@ interface SavedViewTileProps {
 	canMoveNext: boolean;
 	onRename: (id: string, name: string) => void;
 	resolveAssetUrl?: (src: string) => string;
+	showAspectRatio: boolean;
+	freeAspectLabel: string;
 	editLabel: string;
 	finishEditLabel: string;
 	deleteLabel: string;
@@ -64,6 +66,8 @@ export function SavedViewTile({
 	canMoveNext,
 	onRename,
 	resolveAssetUrl,
+	showAspectRatio,
+	freeAspectLabel,
 	editLabel,
 	finishEditLabel,
 	deleteLabel,
@@ -72,6 +76,13 @@ export function SavedViewTile({
 	moveNextLabel,
 }: SavedViewTileProps) {
 	const [draftName, setDraftName] = useState(view.name);
+	const aspectRatioLabel =
+		view.aspectRatio ??
+		(Math.abs(view.width / Math.max(view.height, 1) - 16 / 9) < 0.02
+			? "16:9"
+			: Math.abs(view.width / Math.max(view.height, 1) - 4 / 3) < 0.02
+				? "4:3"
+				: freeAspectLabel);
 
 	useEffect(() => {
 		setDraftName(view.name);
@@ -159,10 +170,14 @@ export function SavedViewTile({
 								resolveAssetUrl={resolveAssetUrl}
 							/>
 						</svg>
-						<div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
-						<span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white/85">
-							{view.aspectRatio ?? "16:9"}
-						</span>
+						{showAspectRatio && (
+							<>
+								<div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
+								<span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white/85">
+									{aspectRatioLabel}
+								</span>
+							</>
+						)}
 					</button>
 				</div>
 

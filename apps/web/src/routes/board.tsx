@@ -62,7 +62,13 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 
 const SkedraCanvas = lazy(() =>
 	import("@/components/canvas/skedra-canvas").then((m) => ({
@@ -80,8 +86,22 @@ type InviteKeyDelivery = "none" | "fragment" | "recipient";
 
 export function BoardPage() {
 	const { boardId } = useParams();
+	const navigate = useNavigate();
+	const location = useLocation();
 	const [searchParams] = useSearchParams();
 	const presenterMode = searchParams.get("present") === "1";
+	const presentationPreparationMode = searchParams.get("prepare") === "1";
+	const buildBoardModeHref = (mode?: "prepare" | "present") => {
+		const nextSearch = new URLSearchParams(searchParams);
+		nextSearch.delete("prepare");
+		nextSearch.delete("present");
+		if (mode) nextSearch.set(mode, "1");
+		const query = nextSearch.toString();
+		return `${location.pathname}${query ? `?${query}` : ""}${location.hash}`;
+	};
+	const normalBoardHref = buildBoardModeHref();
+	const preparationBoardHref = buildBoardModeHref("prepare");
+	const presenterBoardHref = buildBoardModeHref("present");
 	const { t } = useI18n();
 	const { data: session } = authClient.useSession();
 	const utils = trpc.useUtils();
@@ -1613,22 +1633,47 @@ export function BoardPage() {
 							size="sm"
 							className="bg-card/90 backdrop-blur-md"
 						>
-							<Link to={`/board/${board.id}`}>
+							<Link to={normalBoardHref}>
 								{t("whiteboardPage.presenter.exit")}
 							</Link>
 						</Button>
+					) : presentationPreparationMode ? (
+						<>
+							<Button
+								asChild
+								variant="outline"
+								size="sm"
+								className="bg-card/90 backdrop-blur-md"
+							>
+								<Link to={normalBoardHref}>
+									{t("whiteboardPage.presenter.exitPreparation")}
+								</Link>
+							</Button>
+							{isOwner && (
+								<Button
+									variant="outline"
+									size="sm"
+									className="bg-card/90 backdrop-blur-md"
+									asChild
+								>
+									<Link to={presenterBoardHref}>
+										<MonitorPlay className="mr-2 h-4 w-4" />
+										{t("whiteboardPage.presenter.title")}
+									</Link>
+								</Button>
+							)}
+						</>
 					) : (
-						isOwner &&
-						shareSettings?.shareEnabled && (
+						isOwner && (
 							<Button
 								variant="outline"
 								size="sm"
 								className="bg-card/90 backdrop-blur-md"
 								asChild
 							>
-								<Link to={`/board/${board.id}?present=1`}>
+								<Link to={preparationBoardHref}>
 									<MonitorPlay className="mr-2 h-4 w-4" />
-									{t("whiteboardPage.presenter.title")}
+									{t("whiteboardPage.presenter.prepare")}
 								</Link>
 							</Button>
 						)
@@ -1757,6 +1802,7 @@ export function BoardPage() {
 					kanbanAssignmentOptions={kanbanAssignmentOptions}
 					presencePanelOffsetTop={68}
 					presenterMode={presenterMode}
+					presentationPreparationMode={presentationPreparationMode}
 					presenterShareUrl={shareUrl}
 					presenterSessionId={presenterSessionId}
 					presenterStartedAt={presenterStartedAt}
@@ -1766,6 +1812,9 @@ export function BoardPage() {
 					}
 					onStartPresentation={handleStartPresentation}
 					onEndPresentation={handleEndPresentation}
+					onCancelPresentationPreparation={() =>
+						navigate(normalBoardHref, { replace: true })
+					}
 					onPresentationSessionEnded={() => {
 						setPresenterSessionId(null);
 						setPresenterStartedAt(null);

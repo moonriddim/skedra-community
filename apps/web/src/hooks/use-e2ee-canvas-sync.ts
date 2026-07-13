@@ -1,3 +1,4 @@
+import { shouldCompactCanvasUpdateLog } from "@/lib/canvas-sync-policy";
 import { applySkedraFileToYDoc } from "@/lib/canvas/skedra-file-utils";
 import {
 	yjsCreateElement,
@@ -16,7 +17,11 @@ import {
 	encryptYjsUpdate,
 } from "@/lib/e2ee";
 import {
-	deletePendingE2eeUpdate,
+	E2EE_UPDATE_BATCH_DELAY_MS,
+	createPendingE2eeUpdateBatch,
+} from "@/lib/e2ee-update-batching";
+import {
+	deletePendingE2eeUpdates,
 	enqueuePendingE2eeUpdate,
 	listPendingE2eeUpdates,
 } from "@/lib/e2ee-update-queue";
@@ -33,7 +38,6 @@ import { type PresenceIdentity, useBoardPresence } from "./use-board-presence";
 const REMOTE_E2EE_ORIGIN = "skedra-e2ee-remote";
 const PENDING_E2EE_ORIGIN = "skedra-e2ee-pending";
 const E2EE_UPDATE_PAGE_SIZE = 500;
-const E2EE_COMPACT_AFTER_UPDATES = 2000;
 
 type E2eeUpdateCursor = { id: string; createdAt: string };
 
@@ -81,9 +85,11 @@ export function useE2eeCanvasSync(
 	const ydocRef = useRef<Y.Doc | null>(null);
 	const syncFrameRef = useRef<number | null>(null);
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
+	const compactableUpdateBytesRef = useRef(0);
 	const appliedPendingUpdateIdsRef = useRef<Set<string>>(new Set());
 	const sendQueueRef = useRef(Promise.resolve());
 	const flushQueueRef = useRef(Promise.resolve());
+	const flushTimerRef = useRef<number | null>(null);
 	const clientIdRef = useRef(createClientId());
 	const decryptionReadyRef = useRef(false);
 	const compactionInFlightRef = useRef(false);
@@ -151,6 +157,10 @@ export function useE2eeCanvasSync(
 		onEvent: () => {
 			void refetchUpdates();
 		},
+		onCompaction: () => {
+			appliedUpdateIdsRef.current = new Set();
+			compactableUpdateBytesRef.current = 0;
+		},
 		onConnectedChange: (connected) => {
 			liveConnectedRef.current = connected;
 		},
@@ -202,23 +212,32 @@ export function useE2eeCanvasSync(
 		if (!enabled || readonly || !e2eeKey || !whiteboardId) {
 			return Promise.resolve();
 		}
+		if (flushTimerRef.current != null) {
+			window.clearTimeout(flushTimerRef.current);
+			flushTimerRef.current = null;
+		}
 
 		const run = flushQueueRef.current
 			.catch(() => undefined)
 			.then(async () => {
-				const pending = await listPendingE2eeUpdates(whiteboardId);
-				for (const queued of pending) {
+				let flushedAny = false;
+				for (;;) {
+					const pending = await listPendingE2eeUpdates(whiteboardId);
+					const batch = await createPendingE2eeUpdateBatch(pending, e2eeKey);
+					const first = batch?.records[0];
+					if (!batch || !first) break;
 					await appendUpdate.mutateAsync({
 						...accessInput,
-						clientId: queued.clientId,
-						keyHash: queued.keyHash,
-						update: queued.update,
+						clientId: first.clientId,
+						keyHash: first.keyHash,
+						update: batch.update,
 					});
-					await deletePendingE2eeUpdate(queued.id);
+					await deletePendingE2eeUpdates(
+						batch.records.map((record) => record.id),
+					);
+					flushedAny = true;
 				}
-				if (pending.length > 0) {
-					setConnectionError(null);
-				}
+				if (flushedAny) setConnectionError(null);
 			})
 			.catch((error) => {
 				setConnectionError(
@@ -239,6 +258,14 @@ export function useE2eeCanvasSync(
 		readonly,
 		whiteboardId,
 	]);
+
+	const schedulePendingUpdateFlush = useCallback(() => {
+		if (flushTimerRef.current != null) return;
+		flushTimerRef.current = window.setTimeout(() => {
+			flushTimerRef.current = null;
+			void flushPendingUpdates();
+		}, E2EE_UPDATE_BATCH_DELAY_MS);
+	}, [flushPendingUpdates]);
 
 	const applyPendingQueuedUpdates = useCallback(async () => {
 		if (!e2eeKey || !ydocRef.current) return;
@@ -269,6 +296,7 @@ export function useE2eeCanvasSync(
 		const ydoc = new Y.Doc({ gc: false });
 		ydocRef.current = ydoc;
 		appliedUpdateIdsRef.current = new Set();
+		compactableUpdateBytesRef.current = 0;
 		appliedPendingUpdateIdsRef.current = new Set();
 		decryptionReadyRef.current = false;
 		setUpdateCursor(null);
@@ -304,7 +332,7 @@ export function useE2eeCanvasSync(
 						update: encrypted,
 					});
 					appliedPendingUpdateIdsRef.current.add(pending.id);
-					await flushPendingUpdates();
+					schedulePendingUpdateFlush();
 				} catch (error) {
 					const keyHash = await createE2eeKeyHash(e2eeKey).catch(() => null);
 					const encrypted = await encryptYjsUpdate(update, e2eeKey).catch(
@@ -332,6 +360,11 @@ export function useE2eeCanvasSync(
 		ydoc.on("update", updateObserver);
 
 		return () => {
+			if (flushTimerRef.current != null) {
+				window.clearTimeout(flushTimerRef.current);
+				flushTimerRef.current = null;
+			}
+			void sendQueueRef.current.then(() => flushPendingUpdates());
 			if (syncFrameRef.current != null) {
 				window.cancelAnimationFrame(syncFrameRef.current);
 				syncFrameRef.current = null;
@@ -353,6 +386,7 @@ export function useE2eeCanvasSync(
 		enabled,
 		flushPendingUpdates,
 		readonly,
+		schedulePendingUpdateFlush,
 		scheduleSyncFromYjs,
 		whiteboardId,
 	]);
@@ -392,17 +426,17 @@ export function useE2eeCanvasSync(
 
 	useEffect(() => {
 		if (!enabled || readonly || !e2eeKey) return;
-		const retry = () => {
-			void flushPendingUpdates();
-		};
+		const retry = () => void sendQueueRef.current.then(flushPendingUpdates);
 		const retryWhenVisible = () => {
 			if (document.visibilityState === "visible") retry();
 		};
 		window.addEventListener("online", retry);
+		window.addEventListener("pagehide", retry);
 		document.addEventListener("visibilitychange", retryWhenVisible);
 		const interval = window.setInterval(retry, 5_000);
 		return () => {
 			window.removeEventListener("online", retry);
+			window.removeEventListener("pagehide", retry);
 			document.removeEventListener("visibilitychange", retryWhenVisible);
 			window.clearInterval(interval);
 		};
@@ -423,7 +457,13 @@ export function useE2eeCanvasSync(
 						decrypted,
 						REMOTE_E2EE_ORIGIN,
 					);
+					const hasBaseUpdate = appliedUpdateIdsRef.current.size > 0;
 					appliedUpdateIdsRef.current.add(update.id);
+					// The first row is the irreducible base/snapshot. Only subsequent
+					// ASCII JSON/base64url payload can be reduced by compaction.
+					if (hasBaseUpdate) {
+						compactableUpdateBytesRef.current += update.update.length;
+					}
 					lastAppliedCursor = {
 						id: update.id,
 						createdAt: new Date(update.createdAt).toISOString(),
@@ -471,7 +511,10 @@ export function useE2eeCanvasSync(
 				!readonly &&
 				compactionCursor &&
 				ydocRef.current &&
-				appliedUpdateIdsRef.current.size >= E2EE_COMPACT_AFTER_UPDATES &&
+				shouldCompactCanvasUpdateLog({
+					updateCount: appliedUpdateIdsRef.current.size,
+					compactableBytes: compactableUpdateBytesRef.current,
+				}) &&
 				!compactionInFlightRef.current
 			) {
 				const pendingBeforeCompaction = await listPendingE2eeUpdates(
@@ -491,6 +534,7 @@ export function useE2eeCanvasSync(
 						upToId: compactionCursor.id,
 					});
 					appliedUpdateIdsRef.current = new Set();
+					compactableUpdateBytesRef.current = 0;
 				} catch (error) {
 					setConnectionError(
 						error instanceof Error

@@ -69,7 +69,6 @@ import {
 	Plus,
 	Search,
 	Settings,
-	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
 	Trash2,
@@ -142,13 +141,6 @@ export function HomePage() {
 		enabled: false,
 		retry: false,
 	});
-	const { data: founderAccess } = trpc.instance.getFounderAccess.useQuery(
-		undefined,
-		{
-			retry: false,
-		},
-	);
-
 	// --- TRPC MUTATIONS ---
 	// Normales neues Board anlegen (blanko)
 	const createBoard = trpc.whiteboard.create.useMutation({
@@ -545,19 +537,6 @@ export function HomePage() {
 				</div>
 				<div className="flex flex-wrap items-center gap-3">
 					<BoardAppearanceMenu />
-					{founderAccess?.managedDeployment && founderAccess.isFounder ? (
-						<Button
-							asChild
-							variant="outline"
-							size="sm"
-							className="h-10 rounded-xl border-primary/30 bg-primary/5 hover:bg-primary/10"
-						>
-							<Link to="/admin/libraries">
-								<ShieldCheck className="mr-2 h-4.5 w-4.5 text-primary" />
-								{t("adminLibraries.eyebrow")}
-							</Link>
-						</Button>
-					) : null}
 					<Button
 						asChild
 						variant="outline"

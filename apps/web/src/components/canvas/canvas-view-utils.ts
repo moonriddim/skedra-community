@@ -1,5 +1,9 @@
-import type { BBox } from "@skedra/canvas-core";
-import type { HandlePosition, Viewport } from "@skedra/canvas-core";
+import type {
+	BBox,
+	HandlePosition,
+	SavedCanvasView,
+	Viewport,
+} from "@skedra/canvas-core";
 
 export const VIEW_PADDING = 96;
 export const MIN_VIEW_SIZE = 48;
@@ -88,6 +92,23 @@ export function constrainViewBoundsToAspectRatio(
 		x = bounds.x + (bounds.width - width) / 2;
 	}
 	return { x, y, width, height };
+}
+
+export function getCapturedViewBounds(
+	bounds: BBox,
+	presentationPreparationMode: boolean,
+): BBox {
+	return presentationPreparationMode
+		? constrainViewBoundsToAspectRatio(bounds, 16 / 9)
+		: bounds;
+}
+
+export function getViewResizeAspectRatio(
+	aspectRatio: SavedCanvasView["aspectRatio"],
+	presentationPreparationMode: boolean,
+): number | null {
+	if (!presentationPreparationMode || aspectRatio === "free") return null;
+	return aspectRatio === "4:3" ? 4 / 3 : 16 / 9;
 }
 
 export function areViewportsEqual(

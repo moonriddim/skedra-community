@@ -409,6 +409,8 @@ const publicLibrarySubmissionSchema = z.object({
 	file: skedraLibrarySchema,
 });
 
+const PUBLIC_LIBRARY_SUBMISSION_MAX_BYTES = 5 * 1024 * 1024;
+
 const uuidPattern =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -883,61 +885,68 @@ app.get("/api/libraries", async (c) => {
 	}
 });
 
-app.post("/api/libraries/submissions", async (c) => {
-	if (
-		env.SKEDRA_DEPLOYMENT_MODE !== "managed" ||
-		env.SKEDRA_LIBRARY_CATALOG_MODE !== "local"
-	) {
-		return c.json({ error: "Einreichungen werden zentral verwaltet" }, 404);
-	}
-
-	const rawBody = await c.req.json().catch(() => null);
-	const parsed = publicLibrarySubmissionSchema.safeParse(rawBody);
-	if (!parsed.success) {
-		return c.json({ error: "Ungueltige Einreichung" }, 400);
-	}
-
-	const authorName =
-		parsed.data.authorName?.trim() ||
-		parsed.data.submitterName?.trim() ||
-		"Skedra user";
-
-	try {
-		const row = await submitShapeLibraryForReview(db, {
-			authorName,
-			submitterName: parsed.data.submitterName?.trim() || authorName,
-			submitterEmail: parsed.data.submitterEmail,
-			sourceInstanceUrl: parsed.data.sourceInstanceUrl,
-			slug: parsed.data.slug,
-			name: parsed.data.name,
-			description: parsed.data.description,
-			licenseAccepted: parsed.data.licenseAccepted,
-			file: parsed.data.file,
-		});
-
-		return c.json(
-			{
-				id: row.id,
-				slug: row.slug,
-				name: row.name,
-				status: row.status,
-			},
-			201,
-		);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "UNKNOWN";
-		if (message === "SLUG_TAKEN") {
-			return c.json({ error: "Dieser Slug ist bereits vergeben" }, 409);
+app.post(
+	"/api/libraries/submissions",
+	bodyLimit({
+		maxSize: PUBLIC_LIBRARY_SUBMISSION_MAX_BYTES,
+		onError: (c) => c.json({ error: "Bibliothek ist zu gross" }, 413),
+	}),
+	async (c) => {
+		if (
+			env.SKEDRA_DEPLOYMENT_MODE !== "managed" ||
+			env.SKEDRA_LIBRARY_CATALOG_MODE !== "local"
+		) {
+			return c.json({ error: "Einreichungen werden zentral verwaltet" }, 404);
 		}
-		if (message === "INVALID_SLUG" || message === "EMPTY_LIBRARY") {
-			return c.json({ error: "Ungueltige Bibliothek" }, 400);
+
+		const rawBody = await c.req.json().catch(() => null);
+		const parsed = publicLibrarySubmissionSchema.safeParse(rawBody);
+		if (!parsed.success) {
+			return c.json({ error: "Ungueltige Einreichung" }, 400);
 		}
-		return c.json(
-			{ error: "Einreichung konnte nicht gespeichert werden" },
-			500,
-		);
-	}
-});
+
+		const authorName =
+			parsed.data.authorName?.trim() ||
+			parsed.data.submitterName?.trim() ||
+			"Skedra user";
+
+		try {
+			const row = await submitShapeLibraryForReview(db, {
+				authorName,
+				submitterName: parsed.data.submitterName?.trim() || authorName,
+				submitterEmail: parsed.data.submitterEmail,
+				sourceInstanceUrl: parsed.data.sourceInstanceUrl,
+				slug: parsed.data.slug,
+				name: parsed.data.name,
+				description: parsed.data.description,
+				licenseAccepted: parsed.data.licenseAccepted,
+				file: parsed.data.file,
+			});
+
+			return c.json(
+				{
+					id: row.id,
+					slug: row.slug,
+					name: row.name,
+					status: row.status,
+				},
+				201,
+			);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "UNKNOWN";
+			if (message === "SLUG_TAKEN") {
+				return c.json({ error: "Dieser Slug ist bereits vergeben" }, 409);
+			}
+			if (message === "INVALID_SLUG" || message === "EMPTY_LIBRARY") {
+				return c.json({ error: "Ungueltige Bibliothek" }, 400);
+			}
+			return c.json(
+				{ error: "Einreichung konnte nicht gespeichert werden" },
+				500,
+			);
+		}
+	},
+);
 
 app.get("/api/libraries/:slug", async (c) => {
 	const rawSlug = c.req.param("slug") ?? "";

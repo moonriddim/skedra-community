@@ -34,6 +34,7 @@ import type { MentionCandidate } from "@/lib/mention-utils";
 import {
 	createPresentationFrameContent,
 	createPresentationRelativeCamera,
+	mergePresentationFrameElements,
 	viewportFromPresentationCamera,
 } from "@/lib/presentation-frame";
 import { trpc } from "@/lib/trpc";
@@ -42,7 +43,10 @@ import {
 	isFlowchartNode,
 	isMindmapNode,
 } from "@skedra/canvas-core";
-import type { KanbanAssignmentOptions } from "@skedra/canvas-core";
+import type {
+	CanvasElement,
+	KanbanAssignmentOptions,
+} from "@skedra/canvas-core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { useShallow } from "zustand/react/shallow";
@@ -102,6 +106,8 @@ interface SkedraCanvasProps {
 	kanbanAssignmentOptions?: KanbanAssignmentOptions;
 	/** Editor im Presenter-Modus (?present=1) — Slides + Notes, Heartbeat extern */
 	presenterMode?: boolean;
+	/** Canvas-Modus zum Vorbereiten von Folien und Sprechernotizen (?prepare=1). */
+	presentationPreparationMode?: boolean;
 	presenterShareUrl?: string;
 	presenterSessionId?: string | null;
 	presenterStartedAt?: string | null;
@@ -109,6 +115,7 @@ interface SkedraCanvasProps {
 	presenterStartError?: string | null;
 	onStartPresentation?: () => void;
 	onEndPresentation?: () => void;
+	onCancelPresentationPreparation?: () => void;
 	onPresentationSessionEnded?: () => void;
 	/** Audience-View (/present/:token) */
 	audienceBoardName?: string;
@@ -167,6 +174,7 @@ export function SkedraCanvas({
 	presencePanelLayout,
 	kanbanAssignmentOptions,
 	presenterMode = false,
+	presentationPreparationMode = false,
 	presenterShareUrl = "",
 	presenterSessionId,
 	presenterStartedAt,
@@ -174,6 +182,7 @@ export function SkedraCanvas({
 	presenterStartError,
 	onStartPresentation,
 	onEndPresentation,
+	onCancelPresentationPreparation,
 	onPresentationSessionEnded,
 	audienceBoardName,
 	comments,
@@ -191,6 +200,10 @@ export function SkedraCanvas({
 	const [presenterNotesOpen, setPresenterNotesOpen] = useState(presenterMode);
 	const [helpDialogOpen, setHelpDialogOpen] = useState(false);
 	const [audienceFollowPresenter, setAudienceFollowPresenter] = useState(true);
+	const [presentationElementPreviews, setPresentationElementPreviews] =
+		useState<CanvasElement[]>([]);
+	const effectivePresentationPreparationMode =
+		presenterMode || presentationPreparationMode;
 	const [canvasViewportSize, setCanvasViewportSize] = useState({
 		width: 0,
 		height: 0,
@@ -447,7 +460,12 @@ export function SkedraCanvas({
 		handleViewPointerMove,
 		handleViewPointerUp,
 		resetViewsOnImport,
-	} = useCanvasSavedViews({ svgRef, sync, store });
+	} = useCanvasSavedViews({
+		svgRef,
+		sync,
+		store,
+		presentationPreparationMode: effectivePresentationPreparationMode,
+	});
 	const {
 		importDialogOpen,
 		setImportDialogOpen,
@@ -503,35 +521,6 @@ export function SkedraCanvas({
 		presentationSync.presentationCamera,
 		savedViewList,
 		setActiveViewId,
-	]);
-
-	useEffect(() => {
-		if (!presenterMode || !presenterSessionId || !activeView) return;
-		if (canvasViewportSize.width <= 0 || canvasViewportSize.height <= 0) return;
-		const timer = window.setTimeout(() => {
-			const slideIndex = savedViewList.findIndex(
-				(view) => view.id === activeView.id,
-			);
-			if (slideIndex < 0) return;
-			const frame = createPresentationFrameContent({
-				slide: activeView,
-				slideIndex,
-				totalSlides: savedViewList.length,
-				elements: sync.elements.values(),
-				viewport: useCanvasStore.getState().viewport,
-				viewportSize: canvasViewportSize,
-			});
-			void presentationPublisher.publishFrame(frame);
-		}, 100);
-		return () => window.clearTimeout(timer);
-	}, [
-		activeView,
-		canvasViewportSize,
-		presentationPublisher.publishFrame,
-		presenterMode,
-		presenterSessionId,
-		savedViewList,
-		sync.elements,
 	]);
 
 	useEffect(() => {
@@ -690,6 +679,12 @@ export function SkedraCanvas({
 		}
 	}, [presenterMode]);
 
+	useEffect(() => {
+		if (!effectivePresentationPreparationMode) {
+			setPresenterNotesOpen(false);
+		}
+	}, [effectivePresentationPreparationMode]);
+
 	const selectedEls = sync.scene.getSelectedElements(selectedIds);
 	const selectedMindmapNode =
 		selectedEls.length === 1 && isMindmapNode(selectedEls[0])
@@ -810,6 +805,40 @@ export function SkedraCanvas({
 		stopUndoCapture: history.stopCapturing,
 		startTextPlacement,
 	});
+
+	useEffect(() => {
+		if (!presenterMode || !presenterSessionId || !activeView) return;
+		if (canvasViewportSize.width <= 0 || canvasViewportSize.height <= 0) return;
+		const timer = window.setTimeout(() => {
+			const slideIndex = savedViewList.findIndex(
+				(view) => view.id === activeView.id,
+			);
+			if (slideIndex < 0) return;
+			const frame = createPresentationFrameContent({
+				slide: activeView,
+				slideIndex,
+				totalSlides: savedViewList.length,
+				elements: mergePresentationFrameElements(sync.elements.values(), [
+					...presentationElementPreviews,
+					pointerHandlers.drawingPreview,
+				]),
+				viewport: useCanvasStore.getState().viewport,
+				viewportSize: canvasViewportSize,
+			});
+			void presentationPublisher.publishFrame(frame);
+		}, 100);
+		return () => window.clearTimeout(timer);
+	}, [
+		activeView,
+		canvasViewportSize,
+		pointerHandlers.drawingPreview,
+		presentationElementPreviews,
+		presentationPublisher.publishFrame,
+		presenterMode,
+		presenterSessionId,
+		savedViewList,
+		sync.elements,
+	]);
 
 	const {
 		getEventElement,
@@ -1096,6 +1125,7 @@ export function SkedraCanvas({
 					setKanbanDetailId={setKanbanDetailId}
 					setKanbanListDetailId={setKanbanListDetailId}
 					kanbanAssignmentOptions={kanbanAssignmentOptions}
+					onPresentationElementsPreview={setPresentationElementPreviews}
 					commands={canvasCommands}
 				/>
 
@@ -1162,6 +1192,8 @@ export function SkedraCanvas({
 									canRedo: history.canRedo,
 									presentationMode,
 									presenterMode,
+									presentationPreparationMode:
+										effectivePresentationPreparationMode,
 									onUndo: history.undo,
 									onRedo: history.redo,
 									onFitViewport: handleFitViewport,
@@ -1259,6 +1291,7 @@ export function SkedraCanvas({
 					}
 					onStartPresentation={onStartPresentation}
 					onEndPresentation={onEndPresentation}
+					onCancelPresentationPreparation={onCancelPresentationPreparation}
 					presentationShareToken={presentationShareToken}
 					audienceBoardName={audienceBoardName}
 					audienceIsLive={presentationSync.presentationIsLive}

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { guestCanWriteCollabShare } from "./access-policy";
 
-test("managed guests are read-only even when an old link was configured for edit", () => {
-	assert.equal(guestCanWriteCollabShare("managed", "edit"), false);
+test("managed collaboration links honor their configured guest access", () => {
+	assert.equal(guestCanWriteCollabShare("managed", "edit"), true);
 	assert.equal(guestCanWriteCollabShare("managed", "view"), false);
 });
 

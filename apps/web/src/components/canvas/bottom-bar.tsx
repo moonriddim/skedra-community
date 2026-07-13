@@ -25,6 +25,7 @@ interface BottomBarProps {
 	canRedo: boolean;
 	presentationMode?: boolean;
 	presenterMode?: boolean;
+	presentationPreparationMode?: boolean;
 	onUndo: () => void;
 	onRedo: () => void;
 	onFitViewport: () => void;
@@ -52,6 +53,7 @@ export function BottomBar({
 	canRedo,
 	presentationMode = false,
 	presenterMode = false,
+	presentationPreparationMode = false,
 	onUndo,
 	onRedo,
 	onFitViewport,
@@ -95,14 +97,24 @@ export function BottomBar({
 		);
 	};
 
-	const viewTileLabels = {
-		editLabel: t("canvas.bottomBar.editView"),
-		finishEditLabel: t("canvas.bottomBar.finishViewEditing"),
-		deleteLabel: t("canvas.bottomBar.deleteView"),
-		duplicateLabel: t("canvas.bottomBar.duplicateView"),
-		movePreviousLabel: t("canvas.bottomBar.moveViewPrevious"),
-		moveNextLabel: t("canvas.bottomBar.moveViewNext"),
-	};
+	const viewTileLabels = presentationPreparationMode
+		? {
+				editLabel: t("canvas.bottomBar.editSlide"),
+				finishEditLabel: t("canvas.bottomBar.finishViewEditing"),
+				deleteLabel: t("canvas.bottomBar.deleteSlide"),
+				duplicateLabel: t("canvas.bottomBar.duplicateSlide"),
+				movePreviousLabel: t("canvas.bottomBar.moveSlidePrevious"),
+				moveNextLabel: t("canvas.bottomBar.moveSlideNext"),
+			}
+		: {
+				editLabel: t("canvas.bottomBar.editView"),
+				finishEditLabel: t("canvas.bottomBar.finishViewEditing"),
+				deleteLabel: t("canvas.bottomBar.deleteView"),
+				duplicateLabel: t("canvas.bottomBar.duplicateView"),
+				movePreviousLabel: t("canvas.bottomBar.moveViewPrevious"),
+				moveNextLabel: t("canvas.bottomBar.moveViewNext"),
+			};
+	const freeAspectLabel = t("canvas.bottomBar.freeAspect");
 
 	return (
 		<TooltipProvider delayDuration={300}>
@@ -111,7 +123,11 @@ export function BottomBar({
 					align="end"
 					views={leftViews}
 					showCapturingHint={isCapturingView}
-					capturingLabel={t("canvas.bottomBar.capturingView")}
+					capturingLabel={t(
+						presentationPreparationMode
+							? "canvas.bottomBar.capturingSlide"
+							: "canvas.bottomBar.capturingView",
+					)}
 					elements={elements}
 					activeViewId={activeViewId}
 					editingViewId={editingViewId}
@@ -124,6 +140,8 @@ export function BottomBar({
 					canManageViews={!presentationMode}
 					onRenameView={onRenameView}
 					resolveAssetUrl={resolveAssetUrl}
+					showAspectRatio={presentationPreparationMode}
+					freeAspectLabel={freeAspectLabel}
 					{...viewTileLabels}
 				/>
 
@@ -173,14 +191,26 @@ export function BottomBar({
 							<div className="mx-1 h-5 w-px bg-border" />
 							<span className="hidden items-center gap-1 px-1 text-xs font-semibold text-foreground sm:inline-flex">
 								<PanelsTopLeft className="h-3.5 w-3.5" />
-								{t("canvas.bottomBar.slides")}
+								{t(
+									presentationPreparationMode
+										? "canvas.bottomBar.slides"
+										: "canvas.bottomBar.views",
+								)}
 							</span>
 
 							<BarButton
 								label={
 									isCapturingView
-										? t("canvas.bottomBar.cancelViewCapture")
-										: t("canvas.bottomBar.saveView")
+										? t(
+												presentationPreparationMode
+													? "canvas.bottomBar.cancelSlideCapture"
+													: "canvas.bottomBar.cancelViewCapture",
+											)
+										: t(
+												presentationPreparationMode
+													? "canvas.bottomBar.createSlide"
+													: "canvas.bottomBar.saveView",
+											)
 								}
 								onClick={
 									isCapturingView ? onCancelCaptureView : onStartCaptureView
@@ -192,7 +222,7 @@ export function BottomBar({
 									<BookmarkPlus className="h-4 w-4" />
 								)}
 							</BarButton>
-							{canUsePresenterNotes && (
+							{presentationPreparationMode && canUsePresenterNotes && (
 								<BarButton
 									label={t("canvas.bottomBar.presenterNotes")}
 									onClick={onOpenPresenterNotes}
@@ -220,6 +250,8 @@ export function BottomBar({
 					canManageViews={!presentationMode}
 					onRenameView={onRenameView}
 					resolveAssetUrl={resolveAssetUrl}
+					showAspectRatio={presentationPreparationMode}
+					freeAspectLabel={freeAspectLabel}
 					{...viewTileLabels}
 				/>
 			</div>
@@ -244,6 +276,8 @@ function SavedViewsRail({
 	canManageViews,
 	onRenameView,
 	resolveAssetUrl,
+	showAspectRatio,
+	freeAspectLabel,
 	editLabel,
 	finishEditLabel,
 	deleteLabel,
@@ -267,6 +301,8 @@ function SavedViewsRail({
 	canManageViews: boolean;
 	onRenameView: (id: string, name: string) => void;
 	resolveAssetUrl?: (src: string) => string;
+	showAspectRatio: boolean;
+	freeAspectLabel: string;
 	editLabel: string;
 	finishEditLabel: string;
 	deleteLabel: string;
@@ -282,7 +318,7 @@ function SavedViewsRail({
 
 	return (
 		<div className={`flex min-w-0 flex-1 ${justifyClass}`}>
-			<div className="flex max-w-[min(34vw,360px)] items-end gap-2 overflow-x-auto px-1">
+			<div className="flex max-w-[min(34vw,360px)] items-end gap-2 overflow-x-auto px-1 py-2">
 				{showCapturingHint && (
 					<div className="w-24 shrink-0 px-1 text-right text-[11px] font-medium text-emerald-300">
 						{capturingLabel}
@@ -306,6 +342,8 @@ function SavedViewsRail({
 						canMoveNext={index < views.length - 1}
 						onRename={onRenameView}
 						resolveAssetUrl={resolveAssetUrl}
+						showAspectRatio={showAspectRatio}
+						freeAspectLabel={freeAspectLabel}
 						editLabel={editLabel}
 						finishEditLabel={finishEditLabel}
 						deleteLabel={deleteLabel}

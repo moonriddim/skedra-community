@@ -45,6 +45,7 @@ import {
 	lt,
 	lte,
 	or,
+	sql,
 } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "../../env";
@@ -1178,10 +1179,7 @@ export const whiteboardRouter = router({
 			return {
 				enabled: access.whiteboard.collabShareEnabled,
 				shareToken: access.whiteboard.collabShareToken,
-				accessLevel:
-					env.SKEDRA_DEPLOYMENT_MODE === "managed"
-						? ("view" as const)
-						: access.whiteboard.collabShareAccessLevel,
+				accessLevel: access.whiteboard.collabShareAccessLevel,
 			};
 		}),
 
@@ -1210,11 +1208,7 @@ export const whiteboardRouter = router({
 				.set({
 					collabShareEnabled: input.enabled,
 					collabShareAccessLevel:
-						env.SKEDRA_DEPLOYMENT_MODE === "managed"
-							? "view"
-							: (input.accessLevel ??
-								existing?.collabShareAccessLevel ??
-								"edit"),
+						input.accessLevel ?? existing?.collabShareAccessLevel ?? "edit",
 					collabShareToken: input.enabled
 						? (existing?.collabShareToken ?? createCollabShareToken())
 						: (existing?.collabShareToken ?? null),
@@ -1544,6 +1538,14 @@ export const whiteboardRouter = router({
 			assertCanWriteE2eeUpdate(access, input.keyHash);
 
 			const created = await ctx.db.transaction(async (tx) => {
+				// Updating the parent row first serializes append and compaction for
+				// this board. Without this lock, a concurrent append could be assigned
+				// an older cursor and be skipped or deleted by compaction.
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: sql`clock_timestamp()` })
+					.where(eq(whiteboards.id, input.whiteboardId));
+
 				const [update] = await tx
 					.insert(whiteboardE2eeUpdates)
 					.values({
@@ -1551,17 +1553,12 @@ export const whiteboardRouter = router({
 						userId: access.userId,
 						clientId: input.clientId,
 						update: input.update,
+						createdAt: sql`clock_timestamp()`,
 					})
 					.returning({
 						id: whiteboardE2eeUpdates.id,
 						createdAt: whiteboardE2eeUpdates.createdAt,
 					});
-
-				await tx
-					.update(whiteboards)
-					.set({ updatedAt: new Date() })
-					.where(eq(whiteboards.id, input.whiteboardId));
-
 				return update;
 			});
 
@@ -1592,6 +1589,11 @@ export const whiteboardRouter = router({
 			assertCanWriteE2eeUpdate(access, input.keyHash);
 
 			const created = await ctx.db.transaction(async (tx) => {
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: sql`clock_timestamp()` })
+					.where(eq(whiteboards.id, input.whiteboardId));
+
 				const [cutoff] = await tx
 					.select({
 						id: whiteboardE2eeUpdates.id,
@@ -1636,17 +1638,12 @@ export const whiteboardRouter = router({
 						userId: access.userId,
 						clientId: input.clientId,
 						update: input.update,
+						createdAt: sql`clock_timestamp()`,
 					})
 					.returning({
 						id: whiteboardE2eeUpdates.id,
 						createdAt: whiteboardE2eeUpdates.createdAt,
 					});
-
-				await tx
-					.update(whiteboards)
-					.set({ updatedAt: new Date() })
-					.where(eq(whiteboards.id, input.whiteboardId));
-
 				return snapshot;
 			});
 
@@ -1729,6 +1726,11 @@ export const whiteboardRouter = router({
 			}
 
 			const created = await ctx.db.transaction(async (tx) => {
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: sql`clock_timestamp()` })
+					.where(eq(whiteboards.id, input.whiteboardId));
+
 				const [update] = await tx
 					.insert(whiteboardE2eeUpdates)
 					.values({
@@ -1736,16 +1738,12 @@ export const whiteboardRouter = router({
 						userId: access.userId,
 						clientId: input.clientId,
 						update: encryptServerUpdate(input.update),
+						createdAt: sql`clock_timestamp()`,
 					})
 					.returning({
 						id: whiteboardE2eeUpdates.id,
 						createdAt: whiteboardE2eeUpdates.createdAt,
 					});
-
-				await tx
-					.update(whiteboards)
-					.set({ updatedAt: new Date() })
-					.where(eq(whiteboards.id, input.whiteboardId));
 				return update;
 			});
 
@@ -1778,6 +1776,11 @@ export const whiteboardRouter = router({
 			}
 
 			const created = await ctx.db.transaction(async (tx) => {
+				await tx
+					.update(whiteboards)
+					.set({ updatedAt: sql`clock_timestamp()` })
+					.where(eq(whiteboards.id, input.whiteboardId));
+
 				const [cutoff] = await tx
 					.select({
 						id: whiteboardE2eeUpdates.id,
@@ -1821,16 +1824,12 @@ export const whiteboardRouter = router({
 						userId: access.userId,
 						clientId: input.clientId,
 						update: encryptServerUpdate(input.update),
+						createdAt: sql`clock_timestamp()`,
 					})
 					.returning({
 						id: whiteboardE2eeUpdates.id,
 						createdAt: whiteboardE2eeUpdates.createdAt,
 					});
-
-				await tx
-					.update(whiteboards)
-					.set({ updatedAt: new Date() })
-					.where(eq(whiteboards.id, input.whiteboardId));
 				return snapshot;
 			});
 

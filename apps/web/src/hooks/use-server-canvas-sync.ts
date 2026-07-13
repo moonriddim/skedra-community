@@ -1,3 +1,4 @@
+import { shouldCompactCanvasUpdateLog } from "@/lib/canvas-sync-policy";
 import { applySkedraFileToYDoc } from "@/lib/canvas/skedra-file-utils";
 import {
 	yjsCreateElement,
@@ -23,7 +24,6 @@ import { type PresenceIdentity, useBoardPresence } from "./use-board-presence";
 
 const REMOTE_SERVER_ORIGIN = "skedra-server-remote";
 const SERVER_UPDATE_PAGE_SIZE = 500;
-const SERVER_COMPACT_AFTER_UPDATES = 2000;
 const SERVER_UPDATE_BATCH_DELAY_MS = 150;
 const SERVER_UPDATE_BATCH_MAX_BYTES = 2_500_000;
 
@@ -74,6 +74,7 @@ export function useServerCanvasSync(
 	const ydocRef = useRef<Y.Doc | null>(null);
 	const syncFrameRef = useRef<number | null>(null);
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
+	const compactableUpdateBytesRef = useRef(0);
 	const pendingUpdatesRef = useRef<Uint8Array[]>([]);
 	const pendingUpdateBytesRef = useRef(0);
 	const flushTimerRef = useRef<number | null>(null);
@@ -127,6 +128,10 @@ export function useServerCanvasSync(
 	useBoardLiveChannel(whiteboardId, {
 		enabled: enabled && !!whiteboardId && isSessionUser,
 		onEvent: () => void refetchUpdates(),
+		onCompaction: () => {
+			appliedUpdateIdsRef.current = new Set();
+			compactableUpdateBytesRef.current = 0;
+		},
 		onConnectedChange: (connected) => {
 			liveConnectedRef.current = connected;
 		},
@@ -243,6 +248,7 @@ export function useServerCanvasSync(
 		const ydoc = new Y.Doc({ gc: false });
 		ydocRef.current = ydoc;
 		appliedUpdateIdsRef.current = new Set();
+		compactableUpdateBytesRef.current = 0;
 		syncReadyRef.current = false;
 		setUpdateCursor(null);
 		setScene(CanvasScene.empty());
@@ -328,7 +334,13 @@ export function useServerCanvasSync(
 						base64ToBytes(update.update),
 						REMOTE_SERVER_ORIGIN,
 					);
+					const hasBaseUpdate = appliedUpdateIdsRef.current.size > 0;
 					appliedUpdateIdsRef.current.add(update.id);
+					// The first base/snapshot row is irreducible. Only later base64
+					// update payload contributes to the byte compaction threshold.
+					if (hasBaseUpdate) {
+						compactableUpdateBytesRef.current += update.update.length;
+					}
 					lastAppliedCursor = {
 						id: update.id,
 						createdAt: new Date(update.createdAt).toISOString(),
@@ -364,7 +376,10 @@ export function useServerCanvasSync(
 				!readonly &&
 				compactionCursor &&
 				ydocRef.current &&
-				appliedUpdateIdsRef.current.size >= SERVER_COMPACT_AFTER_UPDATES &&
+				shouldCompactCanvasUpdateLog({
+					updateCount: appliedUpdateIdsRef.current.size,
+					compactableBytes: compactableUpdateBytesRef.current,
+				}) &&
 				pendingUpdatesRef.current.length === 0 &&
 				!compactionInFlightRef.current
 			) {
@@ -377,6 +392,7 @@ export function useServerCanvasSync(
 						upToId: compactionCursor.id,
 					});
 					appliedUpdateIdsRef.current = new Set();
+					compactableUpdateBytesRef.current = 0;
 				} catch (error) {
 					setConnectionError(
 						error instanceof Error

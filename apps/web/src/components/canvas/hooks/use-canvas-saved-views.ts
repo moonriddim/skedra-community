@@ -1,5 +1,6 @@
 /**
- * Gespeicherte Views (Slides): State, CRUD und Pointer-Interaktion zum Erstellen/Verschieben.
+ * Gespeicherte Ansichten: State, CRUD und Pointer-Interaktion.
+ * Im Vorbereitungsmodus werden dieselben Ansichten als Folien bearbeitet.
  */
 
 import {
@@ -7,6 +8,8 @@ import {
 	VIEW_PADDING,
 	type ViewInteractionState,
 	constrainViewBoundsToAspectRatio,
+	getCapturedViewBounds,
+	getViewResizeAspectRatio,
 	normalizeBounds,
 	resizeViewBounds,
 } from "@/components/canvas/canvas-view-utils";
@@ -40,6 +43,7 @@ interface UseCanvasSavedViewsOptions {
 	svgRef: RefObject<SVGSVGElement | null>;
 	sync: CanvasSyncSlice;
 	store: CanvasStoreSlice;
+	presentationPreparationMode: boolean;
 }
 
 function orderViews(views: Iterable<SavedCanvasView>) {
@@ -54,6 +58,7 @@ export function useCanvasSavedViews({
 	svgRef,
 	sync,
 	store,
+	presentationPreparationMode,
 }: UseCanvasSavedViewsOptions) {
 	const { t } = useI18n();
 	const viewInteractionRef = useRef<ViewInteractionState>(null);
@@ -141,7 +146,12 @@ export function useCanvasSavedViews({
 			const duplicate: SavedCanvasView = {
 				...source,
 				id: nanoid(),
-				name: t("canvas.bottomBar.duplicateViewName", { name: source.name }),
+				name: t(
+					presentationPreparationMode
+						? "canvas.bottomBar.duplicateSlideName"
+						: "canvas.bottomBar.duplicateViewName",
+					{ name: source.name },
+				),
 				x: source.x + 24,
 				y: source.y + 24,
 				order: sourceIndex + 1,
@@ -151,7 +161,7 @@ export function useCanvasSavedViews({
 			sync.createView(duplicate);
 			setActiveViewId(duplicate.id);
 		},
-		[sync, t],
+		[presentationPreparationMode, sync, t],
 	);
 
 	const handleMoveView = useCallback(
@@ -297,12 +307,10 @@ export function useCanvasSavedViews({
 					dy,
 				);
 				const view = sync.views.get(interaction.viewId);
-				const ratio =
-					view?.aspectRatio === "4:3"
-						? 4 / 3
-						: view?.aspectRatio === "free"
-							? null
-							: 16 / 9;
+				const ratio = getViewResizeAspectRatio(
+					view?.aspectRatio,
+					presentationPreparationMode,
+				);
 				const nextBounds = ratio
 					? constrainViewBoundsToAspectRatio(
 							resizedBounds,
@@ -320,7 +328,7 @@ export function useCanvasSavedViews({
 			}
 			return true;
 		},
-		[sync],
+		[presentationPreparationMode, sync],
 	);
 
 	const handleViewPointerUp = useCallback(() => {
@@ -344,21 +352,28 @@ export function useCanvasSavedViews({
 						sync.updateView(view.id, { order: index, updatedAt: now });
 					}
 				}
-				const slideBounds = constrainViewBoundsToAspectRatio(
+				const capturedBounds = getCapturedViewBounds(
 					finalBounds,
-					16 / 9,
+					presentationPreparationMode,
 				);
 				const nextView: SavedCanvasView = {
 					id: nanoid(),
-					name: t("canvas.bottomBar.defaultViewName", { index: nextIndex }),
-					x: slideBounds.x,
-					y: slideBounds.y,
-					width: slideBounds.width,
-					height: slideBounds.height,
+					name: t(
+						presentationPreparationMode
+							? "canvas.bottomBar.defaultSlideName"
+							: "canvas.bottomBar.defaultViewName",
+						{ index: nextIndex },
+					),
+					x: capturedBounds.x,
+					y: capturedBounds.y,
+					width: capturedBounds.width,
+					height: capturedBounds.height,
 					createdAt: now,
 					updatedAt: now,
 					order: ordered.length,
-					aspectRatio: "16:9",
+					...(presentationPreparationMode
+						? ({ aspectRatio: "16:9" } as const)
+						: {}),
 				};
 				sync.createView(nextView);
 				setActiveViewId(nextView.id);
@@ -368,7 +383,7 @@ export function useCanvasSavedViews({
 
 		viewInteractionRef.current = null;
 		return true;
-	}, [sync, t, viewDraft]);
+	}, [presentationPreparationMode, sync, t, viewDraft]);
 
 	const resetViewsOnImport = useCallback(() => {
 		setActiveViewId(null);

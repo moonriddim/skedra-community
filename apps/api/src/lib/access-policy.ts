@@ -14,8 +14,8 @@ export function complimentaryGrantIsActive(input: {
 }
 
 export function guestCanWriteCollabShare(
-	deploymentMode: "selfhost" | "managed",
+	_deploymentMode: "selfhost" | "managed",
 	accessLevel: "view" | "edit",
 ) {
-	return deploymentMode === "selfhost" && accessLevel === "edit";
+	return accessLevel === "edit";
 }

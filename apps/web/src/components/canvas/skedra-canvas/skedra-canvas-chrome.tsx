@@ -71,6 +71,7 @@ interface SkedraCanvasChromeProps {
 	presenterStartError?: string | null;
 	onStartPresentation?: () => void;
 	onEndPresentation?: () => void;
+	onCancelPresentationPreparation?: () => void;
 	presentationShareToken?: string;
 	audienceBoardName?: string;
 	audienceIsLive: boolean;
@@ -114,6 +115,7 @@ export function SkedraCanvasChrome({
 	presenterStartError,
 	onStartPresentation,
 	onEndPresentation,
+	onCancelPresentationPreparation,
 	presentationShareToken,
 	audienceBoardName,
 	audienceIsLive,
@@ -205,6 +207,7 @@ export function SkedraCanvasChrome({
 						notesOpen={presenterNotesOpen}
 						onStart={onStartPresentation}
 						onEnd={onEndPresentation}
+						onCancelPreparation={onCancelPresentationPreparation}
 					/>
 				</Suspense>
 			)}

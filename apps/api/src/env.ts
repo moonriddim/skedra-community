@@ -76,7 +76,6 @@ const envSchema = z
 			.default("change-me-to-a-random-secret-min-32-chars"),
 		DATA_ENCRYPTION_SECRET: z.string().min(32).optional(),
 		SKEDRA_DEPLOYMENT_MODE: z.enum(["selfhost", "managed"]).default("selfhost"),
-		SKEDRA_FOUNDER_EMAIL: optionalEmail,
 		APP_URL: z.string().default("http://localhost:5174"),
 		/** Öffentlicher Katalog (apps/libraries), z. B. http://localhost:5175 */
 		LIBRARIES_URL: z.string().default("http://localhost:5175"),
@@ -88,7 +87,7 @@ const envSchema = z
 		SKEDRA_REGISTRATION_MODE: z
 			.enum(["open", "invite", "closed"])
 			.default("invite"),
-		SKEDRA_LIBRARY_CATALOG_MODE: z.enum(["local", "remote"]).default("local"),
+		SKEDRA_LIBRARY_CATALOG_MODE: z.enum(["local", "remote"]).default("remote"),
 		SKEDRA_LIBRARY_CATALOG_API_URL: z.string().optional(),
 		SKEDRA_LIBRARY_SUBMIT_URL: z.string().optional(),
 		SKEDRA_CALLS_ENABLED: z

@@ -5,6 +5,7 @@ import {
 	createPresentationFrameContent,
 	decodePresentationFrameContent,
 	getPresentationFrameAssetIds,
+	mergePresentationFrameElements,
 	viewportFromPresentationCamera,
 } from "./presentation-frame.js";
 
@@ -61,6 +62,27 @@ test("presentation frames contain only elements intersecting the current slide",
 		["inside"],
 	);
 	assert.equal("presenterNotes" in decoded.view, false);
+});
+
+test("presentation previews replace synced elements and include active drawing drafts", () => {
+	const card = rectangle("card", 100, 100);
+	card.text = "Before";
+	const cardPreview = { ...card, text: "While typing" };
+	const drawingPreview = rectangle("drawing-preview", 300, 100);
+	drawingPreview.type = "freehand";
+
+	const merged = mergePresentationFrameElements(
+		[card],
+		[cardPreview, drawingPreview, null],
+	);
+
+	assert.deepEqual(
+		merged.map((element) => [element.id, element.text]),
+		[
+			["card", "While typing"],
+			["drawing-preview", undefined],
+		],
+	);
 });
 
 test("relative presentation cameras preserve the slide across viewport sizes", () => {
