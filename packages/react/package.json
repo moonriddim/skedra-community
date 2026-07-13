@@ -21,6 +21,18 @@
 			"types": "./dist/factories.d.ts",
 			"import": "./dist/factories.js"
 		},
+		"./commands": {
+			"types": "./dist/commands.d.ts",
+			"import": "./dist/commands.js"
+		},
+		"./io": {
+			"types": "./dist/io.d.ts",
+			"import": "./dist/io.js"
+		},
+		"./exporters": {
+			"types": "./dist/exporters.d.ts",
+			"import": "./dist/exporters.js"
+		},
 		"./workspace-hooks": {
 			"types": "./dist/workspace-hooks.d.ts",
 			"import": "./dist/workspace-hooks.js"

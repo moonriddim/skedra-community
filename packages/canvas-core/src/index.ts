@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./align";
 export * from "./corner-radius";
+export * from "./commands";
 export * from "./element-factory";
 export * from "./excalidraw-import";
 export * from "./flowchart";
@@ -16,6 +17,7 @@ export * from "./ordering";
 export * from "./path-rendering";
 export * from "./scene";
 export * from "./selection";
+export * from "./selection-operations";
 export * from "./snap";
 export * from "./viewport";
 export * from "./flowchart-navigation";

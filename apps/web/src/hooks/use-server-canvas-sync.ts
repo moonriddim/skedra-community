@@ -31,6 +31,7 @@ interface UseServerCanvasSyncOptions {
 	enabled?: boolean;
 	readonly?: boolean;
 	presentationShareToken?: string;
+	presenceEnabled?: boolean;
 	collabShareToken?: string;
 	embedShareToken?: string;
 	presence?: PresenceIdentity;
@@ -63,6 +64,7 @@ export function useServerCanvasSync(
 		enabled = true,
 		readonly = false,
 		presentationShareToken,
+		presenceEnabled = true,
 		collabShareToken,
 		embedShareToken,
 		presence,
@@ -116,6 +118,8 @@ export function useServerCanvasSync(
 
 	const isSessionUser =
 		!presentationShareToken && !collabShareToken && !embedShareToken;
+	const canUsePresentationPresence =
+		presenceEnabled && !!presentationShareToken;
 	useBoardLiveChannel(whiteboardId, {
 		enabled: enabled && !!whiteboardId && isSessionUser,
 		onEvent: () => void refetchUpdates(),
@@ -137,10 +141,14 @@ export function useServerCanvasSync(
 		[presence, readonly],
 	);
 	const presenceApi = useBoardPresence(whiteboardId, {
-		enabled: enabled && !!whiteboardId && isSessionUser,
+		enabled:
+			enabled &&
+			!!whiteboardId &&
+			(isSessionUser || canUsePresentationPresence),
 		encryptionMode: "server",
 		e2eeKey: null,
 		identity: presenceIdentity,
+		presentationShareToken,
 	});
 
 	const syncFromYjs = useCallback(() => {
@@ -404,6 +412,7 @@ export function useServerCanvasSync(
 		},
 		[guardWrite],
 	);
+	const getYDoc = useCallback(() => ydocRef.current, []);
 
 	return {
 		isConnected,
@@ -428,6 +437,6 @@ export function useServerCanvasSync(
 		setPresenceCursor: presenceApi.setPresenceCursor,
 		setPresenceViewport: presenceApi.setPresenceViewport,
 		setPresenceActiveView: presenceApi.setPresenceActiveView,
-		getYDoc: () => ydocRef.current,
+		getYDoc,
 	};
 }

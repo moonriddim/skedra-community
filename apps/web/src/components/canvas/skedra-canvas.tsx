@@ -191,6 +191,7 @@ export function SkedraCanvas({
 				forceReadonly ??
 				(presentationMode || !!presentationShareToken || !!embedShareToken),
 			presentationShareToken,
+			presenceEnabled,
 			collabShareToken,
 			embedShareToken,
 		},
@@ -203,6 +204,7 @@ export function SkedraCanvas({
 				forceReadonly ??
 				(presentationMode || !!presentationShareToken || !!embedShareToken),
 			presentationShareToken,
+			presenceEnabled,
 			collabShareToken,
 			embedShareToken,
 		},
@@ -364,12 +366,58 @@ export function SkedraCanvas({
 		canvasFileRef,
 		onImportApplied: resetViewsOnImport,
 	});
-	const savedViewList = Array.from(sync.views.values()).sort(
-		(a, b) => a.createdAt - b.createdAt,
+	const savedViewList = useMemo(
+		() =>
+			Array.from(sync.views.values()).sort((a, b) => a.createdAt - b.createdAt),
+		[sync.views],
 	);
 	const activeView = activeViewId
 		? (sync.views.get(activeViewId) ?? null)
 		: null;
+
+	useEffect(() => {
+		if (!presenterMode || activeViewId || savedViewList.length === 0) return;
+		handleSelectView(savedViewList[0].id);
+	}, [activeViewId, handleSelectView, presenterMode, savedViewList]);
+
+	useEffect(() => {
+		if (!presenterMode || savedViewList.length === 0) return;
+
+		const handlePresenterKeyDown = (event: KeyboardEvent) => {
+			const target = event.target;
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				(target instanceof HTMLElement && target.isContentEditable)
+			) {
+				return;
+			}
+
+			const previous = event.key === "ArrowLeft" || event.key === "PageUp";
+			const next =
+				event.key === "ArrowRight" ||
+				event.key === "PageDown" ||
+				event.key === " ";
+			if (!previous && !next) return;
+
+			const currentIndex = Math.max(
+				0,
+				savedViewList.findIndex((view) => view.id === activeViewId),
+			);
+			const nextIndex = Math.max(
+				0,
+				Math.min(savedViewList.length - 1, currentIndex + (previous ? -1 : 1)),
+			);
+			const nextView = savedViewList[nextIndex];
+			if (!nextView || nextView.id === activeViewId) return;
+
+			event.preventDefault();
+			handleSelectView(nextView.id);
+		};
+
+		window.addEventListener("keydown", handlePresenterKeyDown);
+		return () => window.removeEventListener("keydown", handlePresenterKeyDown);
+	}, [activeViewId, handleSelectView, presenterMode, savedViewList]);
 	const {
 		setActivePanel,
 		setContextMenu,
@@ -936,6 +984,7 @@ export function SkedraCanvas({
 									onStopEditView: handleStopEditView,
 									onDeleteView: handleDeleteView,
 									onRenameView: handleRenameView,
+									onOpenPresenterNotes: () => setPresenterNotesOpen(true),
 									resolveAssetUrl,
 								}
 					}

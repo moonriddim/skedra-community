@@ -58,7 +58,7 @@ export const accountRouter = router({
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message:
-						"Die verschluesselte E2EE-Identity muss zusammen mit dem Passwort aktualisiert werden.",
+						"Die verschlüsselte E2EE-Identity muss zusammen mit dem Passwort aktualisiert werden.",
 				});
 			}
 

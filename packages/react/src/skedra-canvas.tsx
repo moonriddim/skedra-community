@@ -1,30 +1,43 @@
 import {
 	CanvasScene,
+	GRID_SIZE,
 	applyCanvasElementUpdates,
 	applyCanvasMutationPlan,
+	buildBringForwardUpdates,
+	buildBringToFrontUpdates,
 	buildCanvasDrawingElement,
 	buildCanvasMoveUpdates,
 	buildCanvasTextElement,
 	buildCanvasTextUpdate,
+	buildFlowchartNodeKindChanges,
 	buildKanbanDropUpdates,
+	buildSendBackwardUpdates,
+	buildSendToBackUpdates,
 	buildTemplateDropUpdates,
 	buildTemplateSectionLayoutSyncUpdates,
 	clientPointToCanvas,
+	cloneCanvasSelection,
 	collectCanvasSelectionRectIds,
 	computeViewportForBounds,
 	createCanvasTemplateStickyNote,
 	createStackIndexAfter,
+	getAlignmentUpdates,
 	getBBox,
 	getCanvasKeyboardCommand,
 	getCanvasKeyboardResizeChanges,
 	getCanvasViewportCenter,
 	getCombinedBBox,
+	getDistributionUpdates,
+	getFlipUpdates,
+	getGroupUpdates,
+	getLockUpdates,
 	isKanbanCard,
 	isKanbanList,
 	isMindmapNode,
 	lassoPathToSvgD,
 	normalizeCanvasRect,
 	planCanvasDeletion,
+	planFlowchartStepMutation,
 	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
@@ -42,23 +55,30 @@ import {
 import {
 	ArrowRight,
 	Circle,
+	Copy,
 	Diamond,
+	Download,
 	Eraser,
 	Frame,
 	GitBranch,
+	Grid3X3,
 	Hand,
+	ImagePlus,
 	Kanban,
 	Lasso,
 	LayoutTemplate,
+	Library,
 	Minus,
 	MousePointer2,
 	PenLine,
 	Pipette,
 	Plus,
+	Redo2,
 	Square,
 	StickyNote,
 	TextCursorInput,
 	Trash2,
+	Undo2,
 	Zap,
 } from "lucide-react";
 import {
@@ -77,6 +97,16 @@ import {
 	useRef,
 	useState,
 } from "react";
+import type {
+	SkedraAlignment,
+	SkedraCanvasCommandId,
+	SkedraCanvasExtendedApi,
+	SkedraDistribution,
+	SkedraFlowchartStepOptions,
+	SkedraKanbanCardDetails,
+	SkedraLayerCommand,
+} from "./commands.js";
+import { exportSkedraVisual } from "./exporters.js";
 import {
 	SKEDRA_TEMPLATES,
 	type SkedraSdkTemplateId,
@@ -90,7 +120,31 @@ import {
 	getSkedraMindmapAppearance,
 	withSkedraStackIndexes,
 } from "./factories.js";
-import type { CanvasElement, Viewport } from "./types.js";
+import {
+	createSkedraFile,
+	createSkedraImageElement,
+	createSkedraLibraryFile,
+	createSkedraLibraryItem,
+	cropSkedraImage,
+	downloadSkedraBlob,
+	encryptSkedraFile,
+	instantiateSkedraLibraryItem,
+	parseSkedraClipboard,
+	parseSkedraFileContents,
+	parseSkedraLibrary,
+	serializeSkedraClipboard,
+	serializeSkedraFile,
+	serializeSkedraLibrary,
+} from "./io.js";
+import type {
+	SkedraFile,
+	SkedraImageOptions,
+	SkedraLibraryFile,
+	SkedraLibraryItem,
+} from "./io.js";
+import { SdkMindmapActions } from "./mindmap-actions.js";
+import { SkedraPropertiesPanel } from "./properties-panel.js";
+import type { CanvasElement, SavedCanvasView, Viewport } from "./types.js";
 
 export type SkedraSdkTool =
 	| "select"
@@ -115,7 +169,7 @@ export type SkedraCanvasTheme = "light" | "dark";
 
 export type SkedraCanvasChangeHandler = (elements: CanvasElement[]) => void;
 
-export interface SkedraCanvasApi {
+export interface SkedraCanvasApi extends SkedraCanvasExtendedApi {
 	getElements: () => CanvasElement[];
 	setElements: (elements: CanvasElement[]) => void;
 	addElements: (elements: CanvasElement[]) => void;
@@ -159,6 +213,18 @@ export interface SkedraCanvasProps {
 	onChange?: SkedraCanvasChangeHandler;
 	readOnly?: boolean;
 	showToolbar?: boolean;
+	showProperties?: boolean;
+	showGrid?: boolean;
+	onGridChange?: (enabled: boolean) => void;
+	views?: SavedCanvasView[];
+	defaultViews?: SavedCanvasView[];
+	onViewsChange?: (views: SavedCanvasView[]) => void;
+	libraries?: SkedraLibraryFile[];
+	defaultLibraries?: SkedraLibraryFile[];
+	onLibrariesChange?: (libraries: SkedraLibraryFile[]) => void;
+	onSelectionChange?: (selectedIds: string[]) => void;
+	onToolChange?: (tool: SkedraSdkTool) => void;
+	onViewportChange?: (viewport: Viewport) => void;
 	initialTool?: SkedraSdkTool;
 	theme?: SkedraCanvasTheme;
 	className?: string;
@@ -326,6 +392,14 @@ function toWorldPoint(
 	);
 }
 
+function snapWorldPoint(point: Point, enabled: boolean): Point {
+	if (!enabled) return point;
+	return {
+		x: Math.round(point.x / GRID_SIZE) * GRID_SIZE,
+		y: Math.round(point.y / GRID_SIZE) * GRID_SIZE,
+	};
+}
+
 function buildDraftElement(
 	drag: Extract<DragState, { type: "draw" }>,
 	stroke: string,
@@ -342,6 +416,17 @@ function buildDraftElement(
 	});
 }
 
+function pickBrowserFile(accept: string): Promise<File | null> {
+	return new Promise((resolve) => {
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept = accept;
+		input.onchange = () => resolve(input.files?.[0] ?? null);
+		input.oncancel = () => resolve(null);
+		input.click();
+	});
+}
+
 export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 	function SkedraCanvas(
 		{
@@ -350,6 +435,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			onChange,
 			readOnly = false,
 			showToolbar = true,
+			showProperties = true,
+			showGrid = true,
+			onGridChange,
+			views,
+			defaultViews = [],
+			onViewsChange,
+			libraries,
+			defaultLibraries = [],
+			onLibrariesChange,
+			onSelectionChange,
+			onToolChange,
+			onViewportChange,
 			initialTool = "select",
 			theme = "light",
 			className,
@@ -362,6 +459,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 	) {
 		const svgRef = useRef<SVGSVGElement | null>(null);
 		const dragRef = useRef<DragState | null>(null);
+		const clipboardRef = useRef<CanvasElement[]>([]);
+		const historyTransactionRef = useRef<CanvasElement[] | null>(null);
+		const undoStackRef = useRef<CanvasElement[][]>([]);
+		const redoStackRef = useRef<CanvasElement[][]>([]);
 		const reactId = useId();
 		const svgIdPrefix = useMemo(
 			() => `skedra-sdk-${toSvgIdPart(reactId)}`,
@@ -371,6 +472,16 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const isControlled = elements != null;
 		const [internalElements, setInternalElements] =
 			useState<CanvasElement[]>(defaultElements);
+		const [historyRevision, setHistoryRevision] = useState(0);
+		const [internalViews, setInternalViews] =
+			useState<SavedCanvasView[]>(defaultViews);
+		const [internalLibraries, setInternalLibraries] =
+			useState<SkedraLibraryFile[]>(defaultLibraries);
+		const [gridEnabled, setGridEnabled] = useState(showGrid);
+		const [activeViewId, setActiveViewId] = useState<string | null>(null);
+		const [presentationViewId, setPresentationViewId] = useState<string | null>(
+			null,
+		);
 		const [tool, setTool] = useState<SkedraSdkTool>(initialTool);
 		const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 		const [viewport, setViewport] = useState<Viewport>({
@@ -382,6 +493,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			null,
 		);
 		const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+		const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+		const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
+		const [viewMenuOpen, setViewMenuOpen] = useState(false);
+		const [exportMenuOpen, setExportMenuOpen] = useState(false);
 		const [selectionBox, setSelectionBox] = useState<{
 			start: Point;
 			end: Point;
@@ -395,6 +510,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const [fill, setFill] = useState(fillColor);
 
 		const currentElements = elements ?? internalElements;
+		const currentViews = views ?? internalViews;
+		const currentLibraries = libraries ?? internalLibraries;
 		const scene = useMemo(
 			() => CanvasScene.from(currentElements),
 			[currentElements],
@@ -414,14 +531,31 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			return () => window.clearTimeout(timeout);
 		}, [laserTrail?.finished]);
 
+		useEffect(
+			() => onSelectionChange?.([...selectedIds]),
+			[onSelectionChange, selectedIds],
+		);
+		useEffect(() => onToolChange?.(tool), [onToolChange, tool]);
+		useEffect(() => onViewportChange?.(viewport), [onViewportChange, viewport]);
+		useEffect(() => onGridChange?.(gridEnabled), [gridEnabled, onGridChange]);
+		useEffect(() => setGridEnabled(showGrid), [showGrid]);
+
 		const commitElements = useCallback(
-			(next: CanvasElement[]) => {
+			(next: CanvasElement[], recordHistory = true) => {
+				if (recordHistory && !historyTransactionRef.current) {
+					undoStackRef.current.push(
+						currentElements.map((element) => ({ ...element })),
+					);
+					if (undoStackRef.current.length > 100) undoStackRef.current.shift();
+					redoStackRef.current = [];
+					setHistoryRevision((value) => value + 1);
+				}
 				if (!isControlled) {
 					setInternalElements(next);
 				}
 				onChange?.(next);
 			},
-			[isControlled, onChange],
+			[currentElements, isControlled, onChange],
 		);
 
 		const applyDerivedUpdates = useCallback((next: CanvasElement[]) => {
@@ -433,8 +567,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		}, []);
 
 		const commitCanvasElements = useCallback(
-			(next: CanvasElement[]) => {
-				commitElements(applyDerivedUpdates(next));
+			(next: CanvasElement[], recordHistory = true) => {
+				commitElements(applyDerivedUpdates(next), recordHistory);
 			},
 			[applyDerivedUpdates, commitElements],
 		);
@@ -684,6 +818,533 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			);
 		}, [currentElements]);
 
+		const commitViews = useCallback(
+			(next: SavedCanvasView[]) => {
+				if (views == null) setInternalViews(next);
+				onViewsChange?.(next);
+			},
+			[onViewsChange, views],
+		);
+
+		const commitLibraries = useCallback(
+			(next: SkedraLibraryFile[]) => {
+				if (libraries == null) setInternalLibraries(next);
+				onLibrariesChange?.(next);
+			},
+			[libraries, onLibrariesChange],
+		);
+
+		const deleteSelection = useCallback(() => {
+			if (selectedIds.size === 0) return;
+			const plan = planCanvasDeletion(
+				toCanvasElementMap(currentElements),
+				selectedIds,
+			);
+			if (plan.deleteIds.length > 0) {
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
+			}
+			setSelectedIds(new Set());
+		}, [commitCanvasElements, currentElements, selectedIds]);
+
+		const undo = useCallback(() => {
+			const previous = undoStackRef.current.pop();
+			if (!previous) return;
+			redoStackRef.current.push(
+				currentElements.map((element) => ({ ...element })),
+			);
+			commitElements(previous, false);
+			setSelectedIds(new Set());
+			setHistoryRevision((value) => value + 1);
+		}, [commitElements, currentElements]);
+
+		const redo = useCallback(() => {
+			const next = redoStackRef.current.pop();
+			if (!next) return;
+			undoStackRef.current.push(
+				currentElements.map((element) => ({ ...element })),
+			);
+			commitElements(next, false);
+			setSelectedIds(new Set());
+			setHistoryRevision((value) => value + 1);
+		}, [commitElements, currentElements]);
+
+		const copySelection = useCallback(() => {
+			const copied = currentElements
+				.filter((element) => selectedIds.has(element.id))
+				.map((element) => structuredClone(element));
+			if (copied.length > 0) {
+				clipboardRef.current = copied;
+				if (
+					typeof navigator !== "undefined" &&
+					navigator.clipboard?.writeText
+				) {
+					void navigator.clipboard
+						.writeText(serializeSkedraClipboard(copied))
+						.catch(() => undefined);
+				}
+			}
+			return copied;
+		}, [currentElements, selectedIds]);
+
+		const pasteElements = useCallback(
+			(source: CanvasElement[]) => {
+				if (source.length === 0 || readOnly) return [];
+				const cloned = cloneCanvasSelection({
+					elements: source,
+					existingElements: currentElements,
+					createId,
+				});
+				clipboardRef.current = cloned.elements.map((element) =>
+					structuredClone(element),
+				);
+				commitCanvasElements([...currentElements, ...cloned.elements]);
+				setSelectedIds(new Set(cloned.elements.map((element) => element.id)));
+				return cloned.elements;
+			},
+			[commitCanvasElements, currentElements, readOnly],
+		);
+
+		const pasteSelection = useCallback(
+			() => pasteElements(clipboardRef.current),
+			[pasteElements],
+		);
+
+		const pasteFromClipboard = useCallback(async () => {
+			if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
+				try {
+					const text = await navigator.clipboard.readText();
+					clipboardRef.current = parseSkedraClipboard(text);
+				} catch {
+					// Browser permission or non-Skedra clipboard: use the internal clipboard.
+				}
+			}
+			return pasteElements(clipboardRef.current);
+		}, [pasteElements]);
+
+		const cutSelection = useCallback(() => {
+			const copied = copySelection();
+			if (copied.length > 0) deleteSelection();
+			return copied;
+		}, [copySelection, deleteSelection]);
+
+		const duplicateSelection = useCallback(() => {
+			copySelection();
+			return pasteSelection();
+		}, [copySelection, pasteSelection]);
+
+		const applySelectedUpdates = useCallback(
+			(updates: Array<{ id: string; changes: Partial<CanvasElement> }>) => {
+				if (readOnly || updates.length === 0) return;
+				commitCanvasElements(
+					applyCanvasElementUpdates(currentElements, updates),
+				);
+			},
+			[commitCanvasElements, currentElements, readOnly],
+		);
+
+		const alignSelection = useCallback(
+			(alignment: SkedraAlignment) => {
+				applySelectedUpdates(getAlignmentUpdates(selectedElements, alignment));
+			},
+			[applySelectedUpdates, selectedElements],
+		);
+
+		const distributeSelection = useCallback(
+			(axis: SkedraDistribution) => {
+				applySelectedUpdates(getDistributionUpdates(selectedElements, axis));
+			},
+			[applySelectedUpdates, selectedElements],
+		);
+
+		const layerSelection = useCallback(
+			(command: SkedraLayerCommand) => {
+				const builders = {
+					"bring-forward": buildBringForwardUpdates,
+					"send-backward": buildSendBackwardUpdates,
+					"bring-to-front": buildBringToFrontUpdates,
+					"send-to-back": buildSendToBackUpdates,
+				} as const;
+				applySelectedUpdates(builders[command](currentElements, selectedIds));
+			},
+			[applySelectedUpdates, currentElements, selectedIds],
+		);
+
+		const groupSelection = useCallback(() => {
+			if (selectedElements.length < 2) return;
+			applySelectedUpdates(getGroupUpdates(selectedElements, createId()));
+		}, [applySelectedUpdates, selectedElements]);
+
+		const ungroupSelection = useCallback(() => {
+			applySelectedUpdates(getGroupUpdates(selectedElements, null));
+		}, [applySelectedUpdates, selectedElements]);
+
+		const flipSelection = useCallback(
+			(axis: "horizontal" | "vertical") => {
+				applySelectedUpdates(getFlipUpdates(selectedElements, axis));
+			},
+			[applySelectedUpdates, selectedElements],
+		);
+
+		const lockSelection = useCallback(
+			(locked?: boolean) => {
+				applySelectedUpdates(getLockUpdates(selectedElements, locked));
+			},
+			[applySelectedUpdates, selectedElements],
+		);
+
+		const setSelectionProperties = useCallback(
+			(properties: Partial<CanvasElement>) => {
+				applySelectedUpdates(
+					selectedElements.map((element) => ({
+						id: element.id,
+						changes: properties,
+					})),
+				);
+			},
+			[applySelectedUpdates, selectedElements],
+		);
+
+		const setGrid = useCallback(
+			(enabled: boolean) => setGridEnabled(enabled),
+			[],
+		);
+
+		const insertImage = useCallback(
+			async (source: Blob | string, options: SkedraImageOptions = {}) => {
+				const center = getViewportCenter();
+				const image = await createSkedraImageElement(source, {
+					...options,
+					createId: options.createId ?? createId,
+				});
+				const placed = {
+					...image,
+					x: options.x ?? center.x - image.width / 2,
+					y: options.y ?? center.y - image.height / 2,
+				};
+				return addSdkElements([placed])[0];
+			},
+			[addSdkElements, getViewportCenter],
+		);
+
+		const cropImage = useCallback(
+			(
+				id: string,
+				crop: { x: number; y: number; width: number; height: number },
+			) => {
+				const image = currentElements.find((element) => element.id === id);
+				if (!image || image.type !== "image") return null;
+				const cropped = cropSkedraImage(image, crop);
+				commitCanvasElements(
+					currentElements.map((element) =>
+						element.id === id ? cropped : element,
+					),
+				);
+				return cropped;
+			},
+			[commitCanvasElements, currentElements],
+		);
+
+		const insertLibraryItem = useCallback(
+			(item: SkedraLibraryItem, options: { x?: number; y?: number } = {}) => {
+				const center = getViewportCenter();
+				return addSdkElements(
+					instantiateSkedraLibraryItem({
+						item,
+						existingElements: currentElements,
+						x: options.x ?? center.x,
+						y: options.y ?? center.y,
+						createId,
+					}),
+				);
+			},
+			[addSdkElements, currentElements, getViewportCenter],
+		);
+
+		const addFlowchartStep = useCallback(
+			(nodeId: string, options: SkedraFlowchartStepOptions = {}) => {
+				const plan = planFlowchartStepMutation({
+					elements: toCanvasElementMap(currentElements),
+					nodeId,
+					createId,
+					...options,
+					stroke,
+					fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
+					startEditing: false,
+				});
+				if (!plan) return [];
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
+				setSelectedIds(new Set(plan.selectedIds ?? []));
+				return plan.create;
+			},
+			[commitCanvasElements, currentElements, stroke],
+		);
+
+		const setFlowchartNodeKind = useCallback(
+			(nodeId: string, kind: "start" | "step" | "decision" | "end") => {
+				const node = currentElements.find((element) => element.id === nodeId);
+				if (!node) return;
+				applySelectedUpdates([
+					{ id: nodeId, changes: buildFlowchartNodeKindChanges(node, kind) },
+				]);
+			},
+			[applySelectedUpdates, currentElements],
+		);
+
+		const updateKanbanCard = useCallback(
+			(cardId: string, details: SkedraKanbanCardDetails) => {
+				const card = currentElements.find((element) => element.id === cardId);
+				if (!card || !isKanbanCard(card)) return;
+				const { title, ...custom } = details;
+				applySelectedUpdates([
+					{
+						id: cardId,
+						changes: {
+							text: title ?? card.text,
+							customData: { ...(card.customData ?? {}), ...custom },
+						},
+					},
+				]);
+			},
+			[applySelectedUpdates, currentElements],
+		);
+
+		const updateKanbanList = useCallback(
+			(
+				listId: string,
+				details: {
+					name?: string;
+					description?: string;
+					wipLimit?: number | null;
+				},
+			) => {
+				const list = currentElements.find((element) => element.id === listId);
+				if (!list || !isKanbanList(list)) return;
+				const { name, ...custom } = details;
+				applySelectedUpdates([
+					{
+						id: listId,
+						changes: {
+							frameLabel: name ?? list.frameLabel,
+							customData: { ...(list.customData ?? {}), ...custom },
+						},
+					},
+				]);
+			},
+			[applySelectedUpdates, currentElements],
+		);
+
+		const createView = useCallback(
+			(
+				view: Omit<SavedCanvasView, "id" | "createdAt" | "updatedAt"> &
+					Partial<Pick<SavedCanvasView, "id" | "createdAt" | "updatedAt">>,
+			) => {
+				const now = Date.now();
+				const next: SavedCanvasView = {
+					...view,
+					id: view.id ?? createId(),
+					createdAt: view.createdAt ?? now,
+					updatedAt: view.updatedAt ?? now,
+				};
+				commitViews([...currentViews, next]);
+				setActiveViewId(next.id);
+				return next;
+			},
+			[commitViews, currentViews],
+		);
+
+		const updateView = useCallback(
+			(id: string, updates: Partial<SavedCanvasView>) => {
+				commitViews(
+					currentViews.map((view) =>
+						view.id === id
+							? { ...view, ...updates, updatedAt: Date.now() }
+							: view,
+					),
+				);
+			},
+			[commitViews, currentViews],
+		);
+
+		const deleteView = useCallback(
+			(id: string) => {
+				commitViews(currentViews.filter((view) => view.id !== id));
+				if (activeViewId === id) setActiveViewId(null);
+				if (presentationViewId === id) setPresentationViewId(null);
+			},
+			[activeViewId, commitViews, currentViews, presentationViewId],
+		);
+
+		const goToView = useCallback(
+			(id: string) => {
+				const view = currentViews.find((candidate) => candidate.id === id);
+				const svg = svgRef.current;
+				if (!view || !svg) return;
+				setViewport(
+					computeViewportForBounds(svg.getBoundingClientRect(), view, 32),
+				);
+				setActiveViewId(id);
+			},
+			[currentViews],
+		);
+
+		const movePresentation = useCallback(
+			(direction: 1 | -1) => {
+				if (currentViews.length === 0) return;
+				const currentIndex = currentViews.findIndex(
+					(view) => view.id === presentationViewId,
+				);
+				const nextIndex =
+					currentIndex < 0
+						? 0
+						: Math.max(
+								0,
+								Math.min(currentViews.length - 1, currentIndex + direction),
+							);
+				const next = currentViews[nextIndex];
+				setPresentationViewId(next.id);
+				goToView(next.id);
+			},
+			[currentViews, goToView, presentationViewId],
+		);
+
+		const startPresentation = useCallback(
+			(startViewId?: string) => {
+				const id = startViewId ?? currentViews[0]?.id;
+				if (!id) return;
+				setPresentationViewId(id);
+				goToView(id);
+			},
+			[currentViews, goToView],
+		);
+
+		const exportFile = useCallback(
+			() =>
+				createSkedraFile({
+					elements: currentElements,
+					views: currentViews,
+					viewport,
+				}),
+			[currentElements, currentViews, viewport],
+		);
+
+		const importFile = useCallback(
+			(file: SkedraFile) => {
+				commitCanvasElements(file.elements);
+				commitViews(file.views ?? []);
+				if (file.appState?.viewport) setViewport(file.appState.viewport);
+				setSelectedIds(new Set());
+			},
+			[commitCanvasElements, commitViews],
+		);
+
+		const executeCommand = useCallback(
+			(command: SkedraCanvasCommandId) => {
+				switch (command) {
+					case "undo":
+						undo();
+						break;
+					case "redo":
+						redo();
+						break;
+					case "copy":
+						copySelection();
+						break;
+					case "cut":
+						cutSelection();
+						break;
+					case "paste":
+						pasteSelection();
+						break;
+					case "duplicate":
+						duplicateSelection();
+						break;
+					case "delete":
+						deleteSelection();
+						break;
+					case "select-all":
+						setSelectedIds(
+							new Set(currentElements.map((element) => element.id)),
+						);
+						break;
+					case "group":
+						groupSelection();
+						break;
+					case "ungroup":
+						ungroupSelection();
+						break;
+					case "align-top":
+						alignSelection("top");
+						break;
+					case "align-bottom":
+						alignSelection("bottom");
+						break;
+					case "align-left":
+						alignSelection("left");
+						break;
+					case "align-right":
+						alignSelection("right");
+						break;
+					case "align-horizontal-center":
+						alignSelection("horizontal-center");
+						break;
+					case "align-vertical-center":
+						alignSelection("vertical-center");
+						break;
+					case "distribute-horizontal":
+						distributeSelection("horizontal");
+						break;
+					case "distribute-vertical":
+						distributeSelection("vertical");
+						break;
+					case "bring-forward":
+						layerSelection("bring-forward");
+						break;
+					case "send-backward":
+						layerSelection("send-backward");
+						break;
+					case "bring-to-front":
+						layerSelection("bring-to-front");
+						break;
+					case "send-to-back":
+						layerSelection("send-to-back");
+						break;
+					case "flip-horizontal":
+						flipSelection("horizontal");
+						break;
+					case "flip-vertical":
+						flipSelection("vertical");
+						break;
+					case "toggle-lock":
+						lockSelection();
+						break;
+					case "toggle-grid":
+						setGridEnabled((enabled) => !enabled);
+						break;
+					case "fit-to-content":
+						fitToContent();
+						break;
+				}
+			},
+			[
+				alignSelection,
+				copySelection,
+				currentElements,
+				cutSelection,
+				deleteSelection,
+				distributeSelection,
+				duplicateSelection,
+				fitToContent,
+				flipSelection,
+				groupSelection,
+				layerSelection,
+				lockSelection,
+				pasteSelection,
+				redo,
+				undo,
+				ungroupSelection,
+			],
+		);
+
 		useImperativeHandle(
 			ref,
 			() => ({
@@ -710,14 +1371,81 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					setSelectedIds(new Set());
 				},
 				getSelectedIds: () => Array.from(selectedIds),
+				setSelectedIds: (ids) => setSelectedIds(new Set(ids)),
 				setTool,
 				fitToContent,
+				canUndo: () => undoStackRef.current.length > 0,
+				canRedo: () => redoStackRef.current.length > 0,
+				undo,
+				redo,
+				copy: copySelection,
+				cut: cutSelection,
+				paste: pasteSelection,
+				pasteFromClipboard,
+				duplicate: duplicateSelection,
+				selectAll: () =>
+					setSelectedIds(new Set(currentElements.map((element) => element.id))),
+				deleteSelection,
+				group: groupSelection,
+				ungroup: ungroupSelection,
+				align: alignSelection,
+				distribute: distributeSelection,
+				layer: layerSelection,
+				flip: flipSelection,
+				setLocked: lockSelection,
+				setProperties: setSelectionProperties,
+				setGrid,
+				getGrid: () => gridEnabled,
+				getViewport: () => viewport,
+				setViewport,
+				insertImage,
+				cropImage,
+				getLibraries: () => currentLibraries,
+				setLibraries: commitLibraries,
+				insertLibraryItem,
+				addFlowchartStep,
+				setFlowchartNodeKind,
+				updateKanbanCard,
+				updateKanbanList,
+				getViews: () => currentViews,
+				createView,
+				updateView,
+				deleteView,
+				goToView,
+				startPresentation,
+				nextView: () => movePresentation(1),
+				previousView: () => movePresentation(-1),
+				stopPresentation: () => setPresentationViewId(null),
+				exportFile,
+				importFile,
+				executeCommand,
 			}),
 			[
+				addFlowchartStep,
+				alignSelection,
 				commitCanvasElements,
 				commitElements,
+				commitLibraries,
+				copySelection,
+				createView,
 				currentElements,
+				currentLibraries,
+				currentViews,
+				cropImage,
+				cutSelection,
+				deleteSelection,
+				deleteView,
+				distributeSelection,
+				duplicateSelection,
+				executeCommand,
+				exportFile,
 				fitToContent,
+				flipSelection,
+				goToView,
+				gridEnabled,
+				groupSelection,
+				importFile,
+				insertImage,
 				insertFrame,
 				insertKanbanBoard,
 				insertKanbanCard,
@@ -726,9 +1454,44 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				insertMindmapSibling,
 				insertStickyNote,
 				insertTemplate,
+				insertLibraryItem,
+				layerSelection,
+				lockSelection,
+				movePresentation,
+				pasteSelection,
+				pasteFromClipboard,
+				redo,
 				selectedIds,
+				setFlowchartNodeKind,
+				setGrid,
+				setSelectionProperties,
+				startPresentation,
+				undo,
+				ungroupSelection,
+				updateKanbanCard,
+				updateKanbanList,
+				updateView,
+				viewport,
 			],
 		);
+
+		const beginHistoryTransaction = () => {
+			if (!historyTransactionRef.current) {
+				historyTransactionRef.current = currentElements.map((element) => ({
+					...element,
+				}));
+			}
+		};
+
+		const finishHistoryTransaction = () => {
+			const snapshot = historyTransactionRef.current;
+			historyTransactionRef.current = null;
+			if (!snapshot) return;
+			undoStackRef.current.push(snapshot);
+			if (undoStackRef.current.length > 100) undoStackRef.current.shift();
+			redoStackRef.current = [];
+			setHistoryRevision((value) => value + 1);
+		};
 
 		const resolveText = useCallback(
 			(element: CanvasElement | null) => {
@@ -746,6 +1509,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (!svg) return;
 			svg.setPointerCapture(event.pointerId);
 			const world = toWorldPoint(event, svg, viewport);
+			const placementWorld = snapWorldPoint(world, gridEnabled);
 
 			if (tool === "pan" || event.altKey) {
 				dragRef.current = {
@@ -786,6 +1550,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (readOnly && tool !== "select") return;
 
 			if (tool === "eraser") {
+				beginHistoryTransaction();
 				const drag: Extract<DragState, { type: "erase" }> = {
 					type: "erase",
 					startElements: currentElements,
@@ -821,7 +1586,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				const id = createId();
 				const nextElement = buildCanvasTextElement({
 					id,
-					point: world,
+					point: placementWorld,
 					text,
 					stroke,
 					fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
@@ -835,8 +1600,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (tool === "sticky-note") {
 				const [note] = addSdkElements([
 					createSkedraStickyNoteElement({
-						x: world.x - 100,
-						y: world.y - 100,
+						x: placementWorld.x - 100,
+						y: placementWorld.y - 100,
 						text: "",
 						theme,
 						createId,
@@ -847,12 +1612,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			}
 
 			if (tool === "kanban") {
-				insertKanbanBoard({ x: world.x, y: world.y });
+				insertKanbanBoard({ x: placementWorld.x, y: placementWorld.y });
 				return;
 			}
 
 			if (tool === "mindmap") {
-				insertMindmap({ x: world.x, y: world.y });
+				insertMindmap({ x: placementWorld.x, y: placementWorld.y });
 				return;
 			}
 
@@ -866,6 +1631,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						: new Set([hit.id]);
 					setSelectedIds(nextSelection);
 					if (readOnly) return;
+					beginHistoryTransaction();
 					dragRef.current = {
 						type: "select-move",
 						startWorld: world,
@@ -908,9 +1674,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			dragRef.current = {
 				type: "draw",
 				tool,
-				startWorld: world,
-				points: [world],
+				startWorld: placementWorld,
+				points: [placementWorld],
 			};
+			beginHistoryTransaction();
 			setDraftElement(buildDraftElement(dragRef.current, stroke, fill));
 		};
 
@@ -928,14 +1695,28 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return;
 			}
 
-			const world = toWorldPoint(event, svg, viewport);
+			const rawWorld = toWorldPoint(event, svg, viewport);
+			const world = snapWorldPoint(
+				rawWorld,
+				gridEnabled &&
+					(drag.type === "draw" ||
+						drag.type === "resize" ||
+						drag.type === "select-move"),
+			);
 
 			if (drag.type === "resize") {
+				const delta = snapWorldPoint(
+					{
+						x: rawWorld.x - drag.startWorld.x,
+						y: rawWorld.y - drag.startWorld.y,
+					},
+					gridEnabled,
+				);
 				const changes = resizeCanvasElement(
 					drag.startElement,
 					drag.handle,
-					world.x - drag.startWorld.x,
-					world.y - drag.startWorld.y,
+					delta.x,
+					delta.y,
 				);
 				commitCanvasElements(
 					currentElements.map((element) =>
@@ -1019,13 +1800,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			}
 
 			if (drag.type === "select-move") {
-				const dx = world.x - drag.startWorld.x;
-				const dy = world.y - drag.startWorld.y;
+				const delta = snapWorldPoint(
+					{
+						x: rawWorld.x - drag.startWorld.x,
+						y: rawWorld.y - drag.startWorld.y,
+					},
+					gridEnabled,
+				);
 				const startMap = toCanvasElementMap(drag.startElements);
 				commitElements(
 					applyCanvasElementUpdates(
 						drag.startElements,
-						buildCanvasMoveUpdates(startMap, drag.moveStart, dx, dy),
+						buildCanvasMoveUpdates(startMap, drag.moveStart, delta.x, delta.y),
 					),
 				);
 				return;
@@ -1063,6 +1849,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			}
 
 			if (drag?.type === "erase" || drag?.type === "lasso") {
+				finishHistoryTransaction();
 				return;
 			}
 
@@ -1080,16 +1867,19 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					}),
 				);
 				setDraftElement(null);
+				finishHistoryTransaction();
 				return;
 			}
 
 			if (!drag || drag.type !== "draw" || !draftElement) {
 				setDraftElement(null);
+				finishHistoryTransaction();
 				return;
 			}
 
 			if (!shouldKeepCanvasDrawing(draftElement)) {
 				setDraftElement(null);
+				finishHistoryTransaction();
 				return;
 			}
 
@@ -1102,6 +1892,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			commitCanvasElements([...currentElements, nextElement]);
 			setSelectedIds(new Set([nextElement.id]));
 			setDraftElement(null);
+			finishHistoryTransaction();
 		};
 
 		const startResize = (
@@ -1114,6 +1905,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			event.stopPropagation();
 			const svg = svgRef.current;
 			if (!svg) return;
+			beginHistoryTransaction();
 			dragRef.current = {
 				type: "resize",
 				handle,
@@ -1216,17 +2008,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			}));
 		};
 
-		const clearSelected = useCallback(() => {
-			if (selectedIds.size === 0) return;
-			const plan = planCanvasDeletion(
-				toCanvasElementMap(currentElements),
-				selectedIds,
-			);
-			if (plan.deleteIds.length > 0) {
-				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
-			}
-			setSelectedIds(new Set());
-		}, [commitCanvasElements, currentElements, selectedIds]);
+		const clearSelected = deleteSelection;
 
 		useEffect(() => {
 			if (readOnly) return;
@@ -1236,6 +2018,32 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				if (
 					target?.closest("input, textarea, select, [contenteditable='true']")
 				) {
+					return;
+				}
+				const ctrl = event.ctrlKey || event.metaKey;
+				const key = event.key.toLowerCase();
+				let sdkCommand: SkedraCanvasCommandId | null = null;
+				if (ctrl && key === "c" && !event.altKey) sdkCommand = "copy";
+				else if (ctrl && key === "x" && !event.altKey) sdkCommand = "cut";
+				else if (ctrl && key === "v" && !event.altKey) sdkCommand = "paste";
+				else if (ctrl && key === "d" && !event.altKey) sdkCommand = "duplicate";
+				else if (ctrl && !event.shiftKey && key === "g") sdkCommand = "group";
+				else if (ctrl && event.shiftKey && key === "g") sdkCommand = "ungroup";
+				else if (ctrl && event.shiftKey && key === "l")
+					sdkCommand = "toggle-lock";
+				else if (ctrl && event.key === "]") {
+					sdkCommand = event.shiftKey ? "bring-to-front" : "bring-forward";
+				} else if (ctrl && event.key === "[") {
+					sdkCommand = event.shiftKey ? "send-to-back" : "send-backward";
+				} else if (!ctrl && event.shiftKey && key === "h") {
+					sdkCommand = "flip-horizontal";
+				} else if (!ctrl && event.shiftKey && key === "v") {
+					sdkCommand = "flip-vertical";
+				}
+				if (sdkCommand) {
+					event.preventDefault();
+					if (sdkCommand === "paste") void pasteFromClipboard();
+					else executeCommand(sdkCommand);
 					return;
 				}
 				const command = getCanvasKeyboardCommand(event);
@@ -1253,6 +2061,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				} else if (command === "escape") {
 					setSelectedIds(new Set());
 					setTool("select");
+				} else if (command === "undo") {
+					event.preventDefault();
+					undo();
+				} else if (command === "redo") {
+					event.preventDefault();
+					redo();
 				}
 			};
 
@@ -1262,8 +2076,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			clearSelected,
 			commitElements,
 			currentElements,
+			executeCommand,
+			pasteFromClipboard,
 			readOnly,
+			redo,
 			selectedIds.size,
+			undo,
 		]);
 
 		const insertTemplateSticky = useCallback(
@@ -1314,13 +2132,123 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[rendererConfig],
 		);
 
+		const pickAndInsertImage = async () => {
+			const file = await pickBrowserFile("image/*");
+			if (file) await insertImage(file, { name: file.name });
+		};
+
+		const pickAndImportDocument = async () => {
+			const file = await pickBrowserFile(
+				".skedra,.skedra.enc,application/json,application/vnd.skedra+json",
+			);
+			if (!file) return;
+			const raw = await file.text();
+			const encrypted = raw.includes("skedra-encrypted");
+			const passphrase = encrypted
+				? (window.prompt("Passphrase") ?? undefined)
+				: undefined;
+			importFile(await parseSkedraFileContents(raw, passphrase));
+		};
+
+		const downloadDocument = async (encrypted: boolean) => {
+			const file = exportFile();
+			if (!encrypted) {
+				downloadSkedraBlob(
+					new Blob([serializeSkedraFile(file)], {
+						type: "application/vnd.skedra+json",
+					}),
+					"skedra-whiteboard.skedra",
+				);
+				return;
+			}
+			const passphrase = window.prompt("Passphrase for encrypted export");
+			if (!passphrase) return;
+			const secured = await encryptSkedraFile(file, passphrase);
+			downloadSkedraBlob(
+				new Blob([JSON.stringify(secured, null, 2)], {
+					type: "application/vnd.skedra+json",
+				}),
+				"skedra-whiteboard.skedra.enc",
+			);
+		};
+
+		const downloadVisual = async (format: "svg" | "png" | "pdf" | "pptx") => {
+			const svg = svgRef.current;
+			if (!svg) return;
+			const blob = await exportSkedraVisual(svg, format);
+			downloadSkedraBlob(blob, `skedra-whiteboard.${format}`);
+		};
+
+		const pickAndAddLibrary = async () => {
+			const file = await pickBrowserFile(
+				".skedralib,.excalidrawlib,application/json",
+			);
+			if (!file) return;
+			commitLibraries([
+				...currentLibraries,
+				parseSkedraLibrary(await file.text()),
+			]);
+		};
+
+		const saveSelectionToLibrary = () => {
+			if (selectedElements.length === 0) return;
+			const name = window.prompt("Shape name", "New shape") ?? "New shape";
+			const item = createSkedraLibraryItem({
+				elements: selectedElements,
+				name,
+			});
+			const personal = currentLibraries.find(
+				(library) => library.name === "Personal",
+			);
+			if (personal) {
+				commitLibraries(
+					currentLibraries.map((library) =>
+						library === personal
+							? { ...library, items: [...library.items, item] }
+							: library,
+					),
+				);
+			} else {
+				commitLibraries([
+					...currentLibraries,
+					createSkedraLibraryFile([item], { name: "Personal" }),
+				]);
+			}
+		};
+
+		const downloadLibraries = () => {
+			const combined = createSkedraLibraryFile(
+				currentLibraries.flatMap((library) => library.items),
+				{ name: "Skedra libraries" },
+			);
+			downloadSkedraBlob(
+				new Blob([serializeSkedraLibrary(combined)], {
+					type: "application/vnd.skedra.library+json",
+				}),
+				"skedra-library.skedralib",
+			);
+		};
+
+		const captureCurrentView = () => {
+			const rect = svgRef.current?.getBoundingClientRect();
+			if (!rect) return;
+			createView({
+				name: `View ${currentViews.length + 1}`,
+				x: -viewport.x / viewport.zoom,
+				y: -viewport.y / viewport.zoom,
+				width: rect.width / viewport.zoom,
+				height: rect.height / viewport.zoom,
+			});
+		};
+
 		return (
 			<div
 				className={normalizeClassName(className)}
 				style={style}
 				data-theme={theme}
+				data-history-revision={historyRevision}
 			>
-				{showToolbar && (
+				{showToolbar && !presentationViewId && (
 					<div className="skedra-sdk__toolbar" role="toolbar">
 						{SDK_TOOLS.map((entry) => {
 							const Icon = entry.icon;
@@ -1373,6 +2301,267 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								</div>
 							)}
 						</div>
+						<button
+							type="button"
+							className="skedra-sdk__tool"
+							title="Insert image"
+							aria-label="Insert image"
+							disabled={readOnly}
+							onClick={() => void pickAndInsertImage()}
+						>
+							<ImagePlus size={17} strokeWidth={2} />
+						</button>
+						<div className="skedra-sdk__template-menu">
+							<button
+								type="button"
+								className="skedra-sdk__tool"
+								title="Shape libraries"
+								aria-label="Shape libraries"
+								data-active={libraryMenuOpen}
+								onClick={() => setLibraryMenuOpen((open) => !open)}
+							>
+								<Library size={17} strokeWidth={2} />
+							</button>
+							{libraryMenuOpen && (
+								<div className="skedra-sdk__template-popover skedra-sdk__menu-wide">
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										onClick={() => void pickAndAddLibrary()}
+									>
+										Import library
+									</button>
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										disabled={currentLibraries.length === 0}
+										onClick={downloadLibraries}
+									>
+										Export libraries
+									</button>
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										disabled={selectedElements.length === 0}
+										onClick={saveSelectionToLibrary}
+									>
+										Save selection
+									</button>
+									{currentLibraries.flatMap((library) =>
+										library.items.map((item) => (
+											<button
+												key={`${library.name ?? library.source ?? "library"}-${item.id}`}
+												type="button"
+												className="skedra-sdk__template-item"
+												onClick={() => {
+													insertLibraryItem(item);
+													setLibraryMenuOpen(false);
+												}}
+											>
+												{item.name ?? "Shape"}
+												<Plus size={14} />
+											</button>
+										)),
+									)}
+								</div>
+							)}
+						</div>
+						<div className="skedra-sdk__template-menu">
+							<button
+								type="button"
+								className="skedra-sdk__tool"
+								title="Edit commands"
+								aria-label="Edit commands"
+								data-active={commandMenuOpen}
+								onClick={() => setCommandMenuOpen((open) => !open)}
+							>
+								<Copy size={17} />
+							</button>
+							{commandMenuOpen && (
+								<div className="skedra-sdk__template-popover skedra-sdk__command-grid">
+									{(
+										[
+											["Copy", "copy"],
+											["Cut", "cut"],
+											["Paste", "paste"],
+											["Duplicate", "duplicate"],
+											["Group", "group"],
+											["Ungroup", "ungroup"],
+											["Align left", "align-left"],
+											["Align right", "align-right"],
+											["Align top", "align-top"],
+											["Align bottom", "align-bottom"],
+											["Distribute horizontal", "distribute-horizontal"],
+											["Distribute vertical", "distribute-vertical"],
+											["Bring forward", "bring-forward"],
+											["Send backward", "send-backward"],
+											["Bring to front", "bring-to-front"],
+											["Send to back", "send-to-back"],
+											["Flip horizontal", "flip-horizontal"],
+											["Flip vertical", "flip-vertical"],
+										] as const
+									).map(([label, command]) => (
+										<button
+											key={command}
+											type="button"
+											className="skedra-sdk__template-item"
+											onClick={() => executeCommand(command)}
+										>
+											{label}
+										</button>
+									))}
+								</div>
+							)}
+						</div>
+						<div className="skedra-sdk__template-menu">
+							<button
+								type="button"
+								className="skedra-sdk__tool"
+								title="Saved views and presentation"
+								aria-label="Saved views and presentation"
+								data-active={viewMenuOpen}
+								onClick={() => setViewMenuOpen((open) => !open)}
+							>
+								<Frame size={17} />
+							</button>
+							{viewMenuOpen && (
+								<div className="skedra-sdk__template-popover skedra-sdk__menu-wide">
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										onClick={captureCurrentView}
+									>
+										Save current view
+									</button>
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										disabled={currentViews.length === 0}
+										onClick={() => startPresentation()}
+									>
+										Start presentation
+									</button>
+									{currentViews.map((view) => (
+										<div key={view.id} className="skedra-sdk__view-row">
+											<button type="button" onClick={() => goToView(view.id)}>
+												{view.name}
+											</button>
+											<button
+												type="button"
+												aria-label={`Rename ${view.name}`}
+												onClick={() => {
+													const name = window.prompt("View name", view.name);
+													if (name?.trim())
+														updateView(view.id, { name: name.trim() });
+												}}
+											>
+												Rename
+											</button>
+											<button
+												type="button"
+												aria-label={`Edit notes for ${view.name}`}
+												onClick={() => {
+													const notes = window.prompt(
+														"Presenter notes",
+														view.presenterNotes ?? "",
+													);
+													if (notes != null)
+														updateView(view.id, {
+															presenterNotes: notes || undefined,
+														});
+												}}
+											>
+												Notes
+											</button>
+											<button
+												type="button"
+												aria-label={`Delete ${view.name}`}
+												onClick={() => deleteView(view.id)}
+											>
+												Delete
+											</button>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+						<div className="skedra-sdk__template-menu">
+							<button
+								type="button"
+								className="skedra-sdk__tool"
+								title="Import and export"
+								aria-label="Import and export"
+								data-active={exportMenuOpen}
+								onClick={() => setExportMenuOpen((open) => !open)}
+							>
+								<Download size={17} />
+							</button>
+							{exportMenuOpen && (
+								<div className="skedra-sdk__template-popover skedra-sdk__export-menu">
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										onClick={() => void pickAndImportDocument()}
+									>
+										Import .skedra
+									</button>
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										onClick={() => void downloadDocument(false)}
+									>
+										Export .skedra
+									</button>
+									<button
+										type="button"
+										className="skedra-sdk__template-item"
+										onClick={() => void downloadDocument(true)}
+									>
+										Export encrypted
+									</button>
+									{(["svg", "png", "pdf", "pptx"] as const).map((format) => (
+										<button
+											key={format}
+											type="button"
+											className="skedra-sdk__template-item"
+											onClick={() => void downloadVisual(format)}
+										>
+											Export {format.toUpperCase()}
+										</button>
+									))}
+								</div>
+							)}
+						</div>
+						<button
+							type="button"
+							className="skedra-sdk__tool"
+							title="Undo"
+							aria-label="Undo"
+							disabled={undoStackRef.current.length === 0}
+							onClick={undo}
+						>
+							<Undo2 size={17} />
+						</button>
+						<button
+							type="button"
+							className="skedra-sdk__tool"
+							title="Redo"
+							aria-label="Redo"
+							disabled={redoStackRef.current.length === 0}
+							onClick={redo}
+						>
+							<Redo2 size={17} />
+						</button>
+						<button
+							type="button"
+							className="skedra-sdk__tool"
+							title="Grid"
+							aria-label="Grid"
+							data-active={gridEnabled}
+							onClick={() => setGridEnabled((enabled) => !enabled)}
+						>
+							<Grid3X3 size={17} />
+						</button>
 						<div className="skedra-sdk__divider" />
 						<label className="skedra-sdk__color" title="Stroke color">
 							<input
@@ -1426,12 +2615,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					<defs>
 						<pattern
 							id={gridPatternId}
-							width="24"
-							height="24"
+							width={GRID_SIZE}
+							height={GRID_SIZE}
 							patternUnits="userSpaceOnUse"
 						>
 							<path
-								d="M 24 0 L 0 0 0 24"
+								d={`M ${GRID_SIZE} 0 L 0 0 0 ${GRID_SIZE}`}
 								fill="none"
 								stroke="currentColor"
 								strokeOpacity="0.08"
@@ -1439,9 +2628,17 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							/>
 						</pattern>
 					</defs>
-					<rect width="100%" height="100%" fill={`url(#${gridPatternId})`} />
+					{gridEnabled && (
+						<rect
+							width="100%"
+							height="100%"
+							fill={`url(#${gridPatternId})`}
+							data-skedra-ui="grid"
+						/>
+					)}
 					<g
 						transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}
+						data-skedra-elements="true"
 					>
 						<CanvasRendererProvider config={rendererConfig}>
 							{sortedElements.map((element) => (
@@ -1504,6 +2701,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 										stroke="var(--skedra-sdk-accent, #2563eb)"
 										strokeWidth={1.5 / viewport.zoom}
 										role="button"
+										data-skedra-ui="resize-handle"
 										tabIndex={0}
 										aria-label={`Resize ${handle}`}
 										onPointerDown={(event) =>
@@ -1555,68 +2753,52 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							)}
 					</g>
 				</svg>
+				{showProperties && !presentationViewId && (
+					<SkedraPropertiesPanel
+						selected={selectedElements}
+						readOnly={readOnly}
+						onSetProperties={setSelectionProperties}
+						onDelete={deleteSelection}
+						onGroup={groupSelection}
+						onUngroup={ungroupSelection}
+						onAlign={alignSelection}
+						onDistribute={distributeSelection}
+						onLayer={layerSelection}
+						onFlip={flipSelection}
+						onLock={lockSelection}
+						onCropImage={(id, crop) => {
+							cropImage(id, crop);
+						}}
+						onAddFlowchartStep={(nodeId, options) => {
+							addFlowchartStep(nodeId, options);
+						}}
+						onSetFlowchartNodeKind={setFlowchartNodeKind}
+						onUpdateKanbanCard={updateKanbanCard}
+						onUpdateKanbanList={updateKanbanList}
+					/>
+				)}
+				{presentationViewId && (
+					<div
+						className="skedra-sdk__presentation"
+						role="toolbar"
+						aria-label="Presentation controls"
+					>
+						<button type="button" onClick={() => movePresentation(-1)}>
+							Previous
+						</button>
+						<span>
+							{currentViews.find((view) => view.id === presentationViewId)
+								?.name ?? "Presentation"}
+						</span>
+						<button type="button" onClick={() => movePresentation(1)}>
+							Next
+						</button>
+						<button type="button" onClick={() => setPresentationViewId(null)}>
+							Exit
+						</button>
+					</div>
+				)}
 			</div>
 		);
 	},
 );
-
-function SdkMindmapActions({
-	element,
-	viewport,
-	onInsertChild,
-}: {
-	element: CanvasElement;
-	viewport: Viewport;
-	onInsertChild: (
-		parentId: string,
-		options?: { direction?: "left" | "right" | "up" | "down"; text?: string },
-	) => CanvasElement | null;
-}) {
-	const directions: Array<"left" | "right" | "up" | "down"> = [
-		"left",
-		"right",
-		"up",
-		"down",
-	];
-	const points = directions.map((direction) => ({
-		direction,
-		x:
-			direction === "left"
-				? element.x
-				: direction === "right"
-					? element.x + element.width
-					: element.x + element.width / 2,
-		y:
-			direction === "up"
-				? element.y
-				: direction === "down"
-					? element.y + element.height
-					: element.y + element.height / 2,
-	}));
-	return (
-		<g>
-			{points.map((point) => (
-				<g
-					key={`${element.id}-${point.direction}`}
-					transform={`translate(${point.x}, ${point.y}) scale(${1 / viewport.zoom})`}
-				>
-					<foreignObject x={-10} y={-10} width={20} height={20}>
-						<button
-							type="button"
-							className="skedra-sdk__mindmap-action"
-							aria-label={`Add mindmap node ${point.direction}`}
-							onPointerDown={(event) => event.stopPropagation()}
-							onClick={(event) => {
-								event.preventDefault();
-								event.stopPropagation();
-								onInsertChild(element.id, { direction: point.direction });
-							}}
-						>
-							<Plus size={13} strokeWidth={2.2} />
-						</button>
-					</foreignObject>
-				</g>
-			))}
-		</g>
-	);
-}

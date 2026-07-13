@@ -148,7 +148,18 @@ jobs:
               "deploy sha-$GITHUB_SHA"
 
       - name: Verify public health endpoint
-        run: curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 https://skedra.xyz/api/health
+        run: |
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 https://skedra.xyz/api/health
+          curl --fail --silent --show-error https://skedra.xyz/two-factor >/dev/null
+
+          websocket_status="$(curl --http1.1 --silent --show-error --max-time 10 \
+            --output /dev/null --write-out '%{http_code}' \
+            --header 'Connection: Upgrade' \
+            --header 'Upgrade: websocket' \
+            --header 'Sec-WebSocket-Version: 13' \
+            --header 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+            https://skedra.xyz/api/boards/00000000-0000-4000-8000-000000000000/presence || true)"
+          test "$websocket_status" = "101"
 
   release:
     runs-on: ubuntu-latest

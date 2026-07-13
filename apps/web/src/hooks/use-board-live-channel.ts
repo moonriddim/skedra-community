@@ -10,6 +10,7 @@
  * werden per `withCredentials` mitgeschickt — passend zur same-origin-API.
  */
 
+import { getApiUrl } from "@/lib/api-url";
 import { useEffect, useRef } from "react";
 
 interface UseBoardLiveChannelOptions {
@@ -35,9 +36,12 @@ export function useBoardLiveChannel(
 	useEffect(() => {
 		if (!enabled || !whiteboardId) return;
 
-		const source = new EventSource(`/api/boards/${whiteboardId}/live`, {
-			withCredentials: true,
-		});
+		const source = new EventSource(
+			getApiUrl(`/api/boards/${whiteboardId}/live`),
+			{
+				withCredentials: true,
+			},
+		);
 
 		const handleReady = () => onConnectedRef.current?.(true);
 		const handleUpdate = () => onEventRef.current();

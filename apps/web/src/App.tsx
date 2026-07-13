@@ -1,11 +1,19 @@
 import { SeoManager } from "@/components/public/seo-manager";
+import { getApiUrl } from "@/lib/api-url";
 import { I18nProvider } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { AdminLayout, AuthLayout } from "@/routes/layout";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { Loader2 } from "lucide-react";
-import { Suspense, lazy, useState } from "react";
+import {
+	Component,
+	type ErrorInfo,
+	type ReactNode,
+	Suspense,
+	lazy,
+	useState,
+} from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 const GuestCanvasPage = lazy(() =>
@@ -86,6 +94,45 @@ function RootPage() {
 	return <GuestCanvasPage />;
 }
 
+class AppErrorBoundary extends Component<
+	{ children: ReactNode },
+	{ failed: boolean }
+> {
+	state = { failed: false };
+
+	static getDerivedStateFromError() {
+		return { failed: true };
+	}
+
+	componentDidCatch(error: Error, info: ErrorInfo) {
+		console.error("Skedra rendering failed", error, info);
+	}
+
+	render() {
+		if (!this.state.failed) return this.props.children;
+		return (
+			<main className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
+				<div className="max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-lg">
+					<h1 className="text-xl font-semibold">
+						Skedra konnte nicht geladen werden
+					</h1>
+					<p className="mt-2 text-sm text-muted-foreground">
+						Die Seite ist möglicherweise noch mit einer älteren App-Version
+						geöffnet.
+					</p>
+					<button
+						type="button"
+						className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+						onClick={() => window.location.reload()}
+					>
+						Neu laden
+					</button>
+				</div>
+			</main>
+		);
+	}
+}
+
 export function App() {
 	const [queryClient] = useState(
 		() =>
@@ -100,7 +147,7 @@ export function App() {
 		trpc.createClient({
 			links: [
 				httpBatchLink({
-					url: "/api/trpc",
+					url: getApiUrl("/api/trpc"),
 					fetch(url, options) {
 						return fetch(url, { ...options, credentials: "include" });
 					},
@@ -109,7 +156,7 @@ export function App() {
 		}),
 	);
 
-	return (
+	const app = (
 		<I18nProvider>
 			<trpc.Provider client={trpcClient} queryClient={queryClient}>
 				<QueryClientProvider client={queryClient}>
@@ -282,4 +329,6 @@ export function App() {
 			</trpc.Provider>
 		</I18nProvider>
 	);
+
+	return <AppErrorBoundary>{app}</AppErrorBoundary>;
 }

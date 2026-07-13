@@ -3,6 +3,7 @@
  */
 
 import { encryptImageAsset } from "@skedra/canvas-core";
+import { getApiUrl } from "../api-url";
 import {
 	buildEncryptedAssetReference,
 	registerLocalEncryptedAssetPreview,
@@ -194,7 +195,7 @@ async function uploadEncryptedImageAsset(
 		}),
 	);
 
-	const response = await fetch("/api/assets/images", {
+	const response = await fetch(getApiUrl("/api/assets/images"), {
 		method: "POST",
 		body: formData,
 		credentials: "include",

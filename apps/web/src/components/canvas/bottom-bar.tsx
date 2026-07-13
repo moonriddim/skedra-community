@@ -7,7 +7,15 @@ import {
 import { useCanvasStore } from "@/hooks/use-canvas-store";
 import { useI18n } from "@/lib/i18n";
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
-import { BookmarkPlus, Redo2, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
+import {
+	BookmarkPlus,
+	Redo2,
+	StickyNote,
+	Undo2,
+	X,
+	ZoomIn,
+	ZoomOut,
+} from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { SavedViewTile } from "./saved-view-tile";
 
@@ -31,6 +39,7 @@ interface BottomBarProps {
 	onStopEditView: () => void;
 	onDeleteView: (id: string) => void;
 	onRenameView: (id: string, name: string) => void;
+	onOpenPresenterNotes: () => void;
 	resolveAssetUrl?: (src: string) => string;
 }
 
@@ -54,6 +63,7 @@ export function BottomBar({
 	onStopEditView,
 	onDeleteView,
 	onRenameView,
+	onOpenPresenterNotes,
 	resolveAssetUrl,
 }: BottomBarProps) {
 	const viewportControls = useCanvasStore(
@@ -130,7 +140,7 @@ export function BottomBar({
 
 					<div className="mx-1 h-5 w-px bg-border" />
 
-					{!presentationMode && (
+					{!presentationMode && !presenterMode && (
 						<>
 							<BarButton
 								label={t("canvas.bottomBar.undo")}
@@ -164,6 +174,13 @@ export function BottomBar({
 								) : (
 									<BookmarkPlus className="h-4 w-4" />
 								)}
+							</BarButton>
+							<BarButton
+								label={t("canvas.bottomBar.presenterNotes")}
+								onClick={onOpenPresenterNotes}
+								disabled={!activeViewId}
+							>
+								<StickyNote className="h-4 w-4" />
 							</BarButton>
 						</>
 					)}

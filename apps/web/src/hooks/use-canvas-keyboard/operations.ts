@@ -4,7 +4,12 @@
 
 import { isTextEditableElement } from "@/components/canvas/hooks/use-canvas-text-editing";
 import { useCanvasStoreRef } from "@/hooks/use-canvas-store";
-import { type AlignEdge, getAlignmentUpdates } from "@skedra/canvas-core";
+import {
+	type AlignEdge,
+	type DistributionAxis,
+	getAlignmentUpdates,
+	getDistributionUpdates,
+} from "@skedra/canvas-core";
 import { getCornerRadiusPercent } from "@skedra/canvas-core";
 import type { CanvasElement, StrokeStyle } from "@skedra/canvas-core";
 import {
@@ -12,8 +17,11 @@ import {
 	buildBringToFrontUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
-	createStackIndexAfter,
-	createStackIndexBefore,
+	cloneCanvasSelection,
+	createSelectionFrame,
+	getFlipUpdates,
+	getGroupUpdates,
+	getLockUpdates,
 } from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import { useCallback, useRef } from "react";
@@ -64,26 +72,16 @@ export function useCanvasKeyboardOperations({
 
 	const pasteClipboard = useCallback(() => {
 		if (clipboardRef.current.length === 0) return;
-		const newIds = new Set<string>();
-		const offset = 20;
-		for (const el of clipboardRef.current) {
-			const id = nanoid();
-			const detail: CanvasElement = {
-				...el,
-				id,
-				x: el.x + offset,
-				y: el.y + offset,
-				stackIndex: createStackIndexAfter(elements.values(), id),
-			};
-			createElement(detail);
-			newIds.add(id);
-		}
-		storeRef.current.setSelectedIds(newIds);
-		clipboardRef.current = clipboardRef.current.map((el) => ({
-			...el,
-			x: el.x + offset,
-			y: el.y + offset,
-		}));
+		const cloned = cloneCanvasSelection({
+			elements: clipboardRef.current,
+			existingElements: elements.values(),
+			createId: nanoid,
+		});
+		for (const element of cloned.elements) createElement(element);
+		storeRef.current.setSelectedIds(
+			new Set(cloned.elements.map((element) => element.id)),
+		);
+		clipboardRef.current = cloned.elements;
 	}, [createElement, elements, storeRef]);
 
 	const cutSelection = useCallback(() => {
@@ -189,26 +187,19 @@ export function useCanvasKeyboardOperations({
 	const flipHorizontal = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		updateElements(
-			sel.map((el) => ({ id: el.id, changes: { flipX: !el.flipX } })),
-		);
+		updateElements(getFlipUpdates(sel, "horizontal"));
 	}, [getSelected, updateElements]);
 
 	const flipVertical = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		updateElements(
-			sel.map((el) => ({ id: el.id, changes: { flipY: !el.flipY } })),
-		);
+		updateElements(getFlipUpdates(sel, "vertical"));
 	}, [getSelected, updateElements]);
 
 	const toggleLock = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		const allLocked = sel.every((el) => el.locked);
-		updateElements(
-			sel.map((el) => ({ id: el.id, changes: { locked: !allLocked } })),
-		);
+		updateElements(getLockUpdates(sel));
 	}, [getSelected, updateElements]);
 
 	const addLink = useCallback(() => {
@@ -226,43 +217,16 @@ export function useCanvasKeyboardOperations({
 		const sel = getSelected();
 		if (sel.length === 0) return;
 
-		const padding = 30;
-		let minX = Number.POSITIVE_INFINITY;
-		let minY = Number.POSITIVE_INFINITY;
-		let maxX = Number.NEGATIVE_INFINITY;
-		let maxY = Number.NEGATIVE_INFINITY;
-		for (const el of sel) {
-			minX = Math.min(minX, el.x);
-			minY = Math.min(minY, el.y);
-			maxX = Math.max(maxX, el.x + el.width);
-			maxY = Math.max(maxY, el.y + el.height);
-		}
-
-		const frameId = nanoid();
-		createElement({
-			id: frameId,
-			type: "frame",
-			x: minX - padding,
-			y: minY - padding,
-			width: maxX - minX + padding * 2,
-			height: maxY - minY + padding * 2,
-			rotation: 0,
-			fill: "transparent",
-			stroke: "#6366f1",
-			strokeWidth: 1.5,
-			strokeStyle: "solid",
-			opacity: 100,
-			locked: false,
-			groupId: null,
-			stackIndex: createStackIndexBefore(elements.values(), frameId),
-			flipX: false,
-			flipY: false,
-			frameLabel: "Frame",
+		const planned = createSelectionFrame({
+			elements: sel,
+			existingElements: elements.values(),
+			createId: nanoid,
 		});
-
-		updateElements(sel.map((el) => ({ id: el.id, changes: { frameId } })));
+		if (!planned) return;
+		createElement(planned.frame);
+		updateElements(planned.updates);
 		storeRef.current.setSelectedIds(
-			new Set([frameId, ...sel.map((el) => el.id)]),
+			new Set([planned.frame.id, ...sel.map((el) => el.id)]),
 		);
 	}, [elements, getSelected, createElement, updateElements, storeRef]);
 
@@ -277,16 +241,13 @@ export function useCanvasKeyboardOperations({
 	const groupSelection = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length < 2) return;
-		const gId = nanoid();
-		updateElements(sel.map((el) => ({ id: el.id, changes: { groupId: gId } })));
+		updateElements(getGroupUpdates(sel, nanoid()));
 	}, [getSelected, updateElements]);
 
 	const ungroupSelection = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		updateElements(
-			sel.map((el) => ({ id: el.id, changes: { groupId: undefined } })),
-		);
+		updateElements(getGroupUpdates(sel, null));
 	}, [getSelected, updateElements]);
 
 	const alignSelection = useCallback(
@@ -294,6 +255,15 @@ export function useCanvasKeyboardOperations({
 			const sel = getSelected();
 			if (sel.length < 2) return;
 			updateElements(getAlignmentUpdates(sel, edge));
+		},
+		[getSelected, updateElements],
+	);
+
+	const distributeSelection = useCallback(
+		(axis: DistributionAxis) => {
+			const sel = getSelected();
+			if (sel.length < 3) return;
+			updateElements(getDistributionUpdates(sel, axis));
 		},
 		[getSelected, updateElements],
 	);
@@ -348,6 +318,7 @@ export function useCanvasKeyboardOperations({
 		groupSelection,
 		ungroupSelection,
 		alignSelection,
+		distributeSelection,
 		adjustFontSize,
 		startEditingSelection,
 	};

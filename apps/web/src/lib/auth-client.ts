@@ -1,8 +1,9 @@
 import { twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import { getAbsoluteApiBaseUrl } from "./api-url";
 
 export const authClient = createAuthClient({
-	baseURL: window.location.origin,
+	baseURL: getAbsoluteApiBaseUrl(),
 	fetchOptions: {
 		credentials: "include",
 	},

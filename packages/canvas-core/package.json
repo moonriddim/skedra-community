@@ -10,6 +10,7 @@
 		".": "./src/index.ts",
 		"./align": "./src/align.ts",
 		"./corner-radius": "./src/corner-radius.ts",
+		"./commands": "./src/commands.ts",
 		"./element-factory": "./src/element-factory.ts",
 		"./encrypted-assets": "./src/encrypted-assets.ts",
 		"./editor-operations": "./src/editor-operations.ts",
@@ -30,6 +31,7 @@
 		"./path-rendering": "./src/path-rendering.ts",
 		"./scene": "./src/scene.ts",
 		"./selection": "./src/selection.ts",
+		"./selection-operations": "./src/selection-operations.ts",
 		"./snap": "./src/snap.ts",
 		"./viewport": "./src/viewport.ts"
 	},

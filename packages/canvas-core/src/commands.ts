@@ -1,0 +1,32 @@
+/** Host-independent editor commands that every interactive canvas adapter supports. */
+export const CANVAS_EDITOR_COMMAND_IDS = [
+	"undo",
+	"redo",
+	"copy",
+	"cut",
+	"paste",
+	"duplicate",
+	"delete",
+	"select-all",
+	"group",
+	"ungroup",
+	"align-top",
+	"align-bottom",
+	"align-left",
+	"align-right",
+	"align-horizontal-center",
+	"align-vertical-center",
+	"distribute-horizontal",
+	"distribute-vertical",
+	"bring-forward",
+	"send-backward",
+	"bring-to-front",
+	"send-to-back",
+	"flip-horizontal",
+	"flip-vertical",
+	"toggle-lock",
+	"toggle-grid",
+	"fit-to-content",
+] as const;
+
+export type CanvasEditorCommandId = (typeof CANVAS_EDITOR_COMMAND_IDS)[number];

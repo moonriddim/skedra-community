@@ -134,7 +134,7 @@ export function SkedraCanvasChrome({
 				</Suspense>
 			)}
 
-			{presenterMode && !localMode && (
+			{!presentationMode && presenterNotesOpen && (
 				<Suspense fallback={null}>
 					<PresenterNotesPanel
 						open={presenterNotesOpen}

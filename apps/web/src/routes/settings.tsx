@@ -83,10 +83,12 @@ export function ApiKeysSettingsPage() {
 	const { data: team, isLoading: teamLoading } = trpc.team.get.useQuery();
 	const { data: billingStatus } = trpc.billing.getStatus.useQuery();
 	const { data: mailStatus } = trpc.instance.getMailStatus.useQuery(undefined, {
+		enabled: billingStatus?.available === false,
 		retry: false,
 	});
 
-	const showSystemTab = mailStatus?.isAdmin ?? false;
+	const showSystemTab =
+		billingStatus?.available === false && mailStatus?.isAdmin === true;
 	const showTeamTab = team?.canManageWorkspace ?? false;
 	const showBillingTab = billingStatus?.available === true;
 	const [searchParams] = useSearchParams();
@@ -130,6 +132,10 @@ export function ApiKeysSettingsPage() {
 	useEffect(() => {
 		if (tabFromUrl === "billing" && showBillingTab) setActiveTab("billing");
 	}, [showBillingTab, tabFromUrl]);
+
+	useEffect(() => {
+		if (tabFromUrl === "system" && showSystemTab) setActiveTab("system");
+	}, [showSystemTab, tabFromUrl]);
 	const [newKeyName, setNewKeyName] = useState("");
 	const [selectedScopes, setSelectedScopes] = useState<SkedraApiKeyScope[]>([
 		...SKEDRA_API_KEY_DEFAULT_SCOPES,

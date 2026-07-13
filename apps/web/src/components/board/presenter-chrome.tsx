@@ -57,7 +57,12 @@ export function PresenterChrome({
 
 				{shareUrl && (
 					<Button type="button" variant="outline" size="sm" asChild>
-						<a href={shareUrl} target="_blank" rel="noreferrer">
+						<a
+							href={shareUrl}
+							target="_blank"
+							rel="noreferrer"
+							title={t("whiteboardPage.presenter.openViewerHint")}
+						>
 							<ExternalLink className="mr-1.5 h-3.5 w-3.5" />
 							{t("whiteboardPage.presenter.openViewer")}
 						</a>

@@ -11,6 +11,7 @@ import {
 	getCanvasKeyboardCommand,
 	getCanvasKeyboardResizeChanges,
 	planCanvasDeletion,
+	planFlowchartStepMutation,
 	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
@@ -23,6 +24,7 @@ import {
 	createKanbanCardElement,
 	createKanbanListElements,
 } from "./element-factory";
+import { createFlowchartNode, getFlowchartConnectorMeta } from "./flowchart";
 import { createMindmapEdge, createMindmapNode } from "./mindmap";
 import type { CanvasElement } from "./types";
 
@@ -347,4 +349,38 @@ test("keyboard resize rejects locked elements", () => {
 		}),
 		{ x: 0, y: 0, width: 101, height: 100 },
 	);
+});
+
+test("flowchart planner and deletion use the shared mutation contract", () => {
+	const root = createFlowchartNode({
+		id: "flow-root",
+		x: 10,
+		y: 20,
+		width: 160,
+		height: 56,
+		type: "ellipse",
+		text: "Start",
+		flowchartId: "flow",
+		nodeKind: "start",
+		stroke: "#111",
+	});
+	const plan = planFlowchartStepMutation({
+		elements: toCanvasElementMap([root]),
+		nodeId: root.id,
+		createId: idFactory("flow"),
+		branch: "yes",
+		label: "Approved",
+		startEditing: false,
+	});
+	assert.ok(plan);
+	assert.equal(plan.create.length, 2);
+	const connector = plan.create.find((element) =>
+		getFlowchartConnectorMeta(element),
+	);
+	assert.ok(connector);
+
+	const withStep = applyCanvasMutationPlan([root], plan);
+	const deletion = planCanvasDeletion(toCanvasElementMap(withStep), [root.id]);
+	assert.ok(deletion.deleteIds.includes(root.id));
+	assert.ok(deletion.deleteIds.includes(connector.id));
 });

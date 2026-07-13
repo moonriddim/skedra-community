@@ -2,8 +2,10 @@
  * Passwort-Reset über Better-Auth HTTP-API (Self-Hosting / eigener SMTP).
  */
 
+import { getApiUrl } from "./api-url";
+
 async function postAuth(path: string, body: Record<string, unknown>) {
-	const response = await fetch(`/api/auth${path}`, {
+	const response = await fetch(getApiUrl(`/api/auth${path}`), {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(body),

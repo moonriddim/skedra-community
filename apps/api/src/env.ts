@@ -40,6 +40,37 @@ const envSchema = z
 		DATABASE_URL: z
 			.string()
 			.default("postgresql://skedra:skedra_secret@localhost:5434/skedra"),
+		DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+		DATABASE_IDLE_TIMEOUT_SECONDS: z.coerce
+			.number()
+			.int()
+			.min(1)
+			.max(3600)
+			.default(30),
+		DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce
+			.number()
+			.int()
+			.min(1)
+			.max(300)
+			.default(10),
+		DATABASE_MAX_LIFETIME_SECONDS: z.coerce
+			.number()
+			.int()
+			.min(60)
+			.max(86400)
+			.default(1800),
+		DATABASE_STATEMENT_TIMEOUT_MS: z.coerce
+			.number()
+			.int()
+			.min(1000)
+			.max(600000)
+			.default(30000),
+		DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS: z.coerce
+			.number()
+			.int()
+			.min(1000)
+			.max(600000)
+			.default(30000),
 		AUTH_SECRET: z
 			.string()
 			.default("change-me-to-a-random-secret-min-32-chars"),

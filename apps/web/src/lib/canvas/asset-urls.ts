@@ -1,3 +1,4 @@
+import { getApiUrl } from "@/lib/api-url";
 import { base64UrlToBytes, bytesToBase64Url } from "@/lib/e2ee";
 import type { EncryptedAssetReference } from "@skedra/canvas-core";
 
@@ -26,13 +27,19 @@ export function hasAssetAccessTokens(tokens?: AssetAccessTokens | null) {
 }
 
 function createAssetProxyUrl(src: string) {
+	const appOrigin = window.location.origin;
+	const apiOrigin = new URL(getApiUrl("/"), appOrigin).origin;
 	let url: URL;
 	try {
-		url = new URL(src, "https://skedra.local");
+		url = new URL(src, apiOrigin);
 	} catch {
 		return null;
 	}
-	if (/^https?:\/\//iu.test(src) && url.origin !== window.location.origin) {
+	if (
+		/^https?:\/\//iu.test(src) &&
+		url.origin !== appOrigin &&
+		url.origin !== apiOrigin
+	) {
 		return null;
 	}
 
@@ -44,7 +51,7 @@ function createAssetProxyUrl(src: string) {
 	if (!legacyAssetId) return null;
 	const proxyUrl = new URL(
 		`${API_ASSET_PATH_PREFIX}${legacyAssetId}`,
-		"https://skedra.local",
+		apiOrigin,
 	);
 	proxyUrl.hash = url.hash;
 	return proxyUrl;
@@ -69,14 +76,16 @@ export function withAssetAccessParams(
 	if (tokens?.embedShareToken) {
 		url.searchParams.set("embedShareToken", tokens.embedShareToken);
 	}
-	return `${url.pathname}${url.search}${url.hash}`;
+	return url.origin === window.location.origin
+		? `${url.pathname}${url.search}${url.hash}`
+		: url.toString();
 }
 
 export function buildEncryptedAssetReference(
 	url: string,
 	reference: EncryptedAssetReference,
 ) {
-	const parsedUrl = new URL(url, window.location.origin);
+	const parsedUrl = new URL(url, getApiUrl("/") || window.location.origin);
 	const hash = new URLSearchParams(parsedUrl.hash.replace(/^#/u, ""));
 	hash.set(
 		ENCRYPTED_ASSET_FRAGMENT_KEY,

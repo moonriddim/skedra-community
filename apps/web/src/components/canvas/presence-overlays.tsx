@@ -1,6 +1,7 @@
 import type { RemoteCanvasPresence } from "@/hooks/canvas-sync-types";
 import { getCombinedBBox } from "@skedra/canvas-core";
 import type { CanvasElement, Viewport } from "@skedra/canvas-core";
+import { MousePointer2 } from "lucide-react";
 
 interface RemoteSelectionOverlaysProps {
 	peers: RemoteCanvasPresence[];
@@ -104,12 +105,13 @@ export function RemoteCursorOverlay({
 						style={{ transform: `translate(${screenX}px, ${screenY}px)` }}
 					>
 						<div className="relative -translate-x-1/2 -translate-y-1/2">
-							<div
-								className="h-3.5 w-3.5 rounded-full border-2 border-white shadow-lg"
-								style={{ backgroundColor: peer.user.color }}
+							<MousePointer2
+								className="h-6 w-6 fill-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]"
+								style={{ color: peer.user.color }}
+								strokeWidth={2.5}
 							/>
 							<div
-								className="mt-1.5 inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium text-white shadow-lg"
+								className="ml-4 mt-0.5 inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium text-white shadow-lg"
 								style={{ backgroundColor: peer.user.color }}
 							>
 								{peer.user.name}

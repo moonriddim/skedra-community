@@ -40,10 +40,17 @@ export function useCanvasHistory({
 	const isRestoringRef = useRef(false);
 	const debounceRef = useRef<number | null>(null);
 	const scopeKeyRef = useRef(scopeKey);
+	const getYDocRef = useRef(getYDoc);
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
 
 	scopeKeyRef.current = scopeKey;
+	getYDocRef.current = getYDoc;
+
+	// Sync hooks may return a new wrapper function after scene updates. Keeping the
+	// latest getter behind a stable callback prevents those renders from resetting
+	// the complete undo/redo session.
+	const getCurrentYDoc = useCallback(() => getYDocRef.current(), []);
 
 	const syncUndoRedoState = useCallback(() => {
 		setCanUndo(
@@ -128,7 +135,7 @@ export function useCanvasHistory({
 			return;
 		}
 
-		const doc = getYDoc();
+		const doc = getCurrentYDoc();
 		if (!doc) return;
 
 		initializeHistory();
@@ -153,7 +160,7 @@ export function useCanvasHistory({
 			}
 		};
 	}, [
-		getYDoc,
+		getCurrentYDoc,
 		initializeHistory,
 		isReady,
 		schedulePendingPush,
@@ -164,7 +171,7 @@ export function useCanvasHistory({
 		pushPendingEntry(true);
 		if (undoStackRef.current.length === 0) return;
 
-		const doc = getYDoc();
+		const doc = getCurrentYDoc();
 		if (!doc) return;
 
 		if (debounceRef.current != null) {
@@ -185,12 +192,12 @@ export function useCanvasHistory({
 
 		persistHistory();
 		syncUndoRedoState();
-	}, [getYDoc, persistHistory, pushPendingEntry, syncUndoRedoState]);
+	}, [getCurrentYDoc, persistHistory, pushPendingEntry, syncUndoRedoState]);
 
 	const redo = useCallback(() => {
 		if (redoStackRef.current.length === 0) return;
 
-		const doc = getYDoc();
+		const doc = getCurrentYDoc();
 		if (!doc) return;
 
 		if (debounceRef.current != null) {
@@ -211,7 +218,7 @@ export function useCanvasHistory({
 
 		persistHistory();
 		syncUndoRedoState();
-	}, [getYDoc, persistHistory, syncUndoRedoState]);
+	}, [getCurrentYDoc, persistHistory, syncUndoRedoState]);
 
 	const stopCapturing = useCallback(() => {
 		if (debounceRef.current != null) {

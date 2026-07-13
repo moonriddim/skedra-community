@@ -24,7 +24,6 @@ import {
 	ObjectStorageConfigChangeError,
 	getEnvObjectStorageStatus,
 	getObjectStorageStatus,
-	isManagedDeployment,
 	updateObjectStorageSettings,
 } from "../../lib/object-storage";
 import { authenticatedProcedure, protectedProcedure, router } from "../init";
@@ -66,6 +65,15 @@ const objectStorageInputSchema = z.object({
 	forcePathStyle: z.boolean().optional(),
 });
 
+function requireSelfHostedDeployment() {
+	if (env.SKEDRA_DEPLOYMENT_MODE === "managed") {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "System-Einstellungen sind im Managed-Betrieb nicht verfügbar.",
+		});
+	}
+}
+
 export const instanceRouter = router({
 	getFounderAccess: authenticatedProcedure.query(async ({ ctx }) => ({
 		isFounder: isFounderAccount(ctx.user.email),
@@ -73,6 +81,7 @@ export const instanceRouter = router({
 	})),
 
 	getMailStatus: protectedProcedure.query(async ({ ctx }) => {
+		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 		const settings = await getOrCreateInstanceSettings(ctx.db);
 		const delivery = await getMailDeliveryStatus(ctx.db);
@@ -96,6 +105,7 @@ export const instanceRouter = router({
 	updateSmtp: protectedProcedure
 		.input(smtpInputSchema)
 		.mutation(async ({ ctx, input }) => {
+			requireSelfHostedDeployment();
 			const settings = await getOrCreateInstanceSettings(ctx.db);
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 
@@ -129,6 +139,7 @@ export const instanceRouter = router({
 		}),
 
 	getCallStatus: protectedProcedure.query(async ({ ctx }) => {
+		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 		const settings = await getOrCreateInstanceSettings(ctx.db);
 		const resolved = await resolveLiveKitConfig(ctx.db);
@@ -157,6 +168,7 @@ export const instanceRouter = router({
 	updateCalls: protectedProcedure
 		.input(callsInputSchema)
 		.mutation(async ({ ctx, input }) => {
+			requireSelfHostedDeployment();
 			const settings = await getOrCreateInstanceSettings(ctx.db);
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 
@@ -203,38 +215,9 @@ export const instanceRouter = router({
 		}),
 
 	getObjectStorageStatus: protectedProcedure.query(async ({ ctx }) => {
+		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
-		const managedDeployment = isManagedDeployment();
 		const resolved = await getObjectStorageStatus(ctx.db);
-		if (managedDeployment) {
-			return {
-				...resolved,
-				endpoint: null,
-				region: null,
-				bucket: null,
-				publicBaseUrl: null,
-				forcePathStyle: false,
-				hasAccessKeyId: false,
-				hasSecretAccessKey: false,
-				isAdmin: true,
-				objectStorageSettingsEditable: false,
-				useCustomObjectStorage: false,
-				objectStorageProvider: resolved.provider,
-				objectStoragePreset: resolved.preset,
-				objectStorageEndpoint: null,
-				objectStorageRegion: null,
-				objectStorageBucket: null,
-				objectStorageAccessKeyId: null,
-				hasStoredSecretAccessKey: false,
-				objectStoragePublicBaseUrl: null,
-				objectStorageForcePathStyle: false,
-				envConfigured: resolved.configured,
-				envProvider: resolved.provider,
-				envPreset: resolved.preset,
-				envBucket: null,
-				envPublicBaseUrl: null,
-			};
-		}
 
 		const settings = await getOrCreateInstanceSettings(ctx.db);
 		const envStatus = getEnvObjectStorageStatus();
@@ -276,14 +259,8 @@ export const instanceRouter = router({
 	updateObjectStorage: protectedProcedure
 		.input(objectStorageInputSchema)
 		.mutation(async ({ ctx, input }) => {
+			requireSelfHostedDeployment();
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
-			if (isManagedDeployment()) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message:
-						"Object Storage wird in dieser Skedra-Instanz per Umgebung verwaltet.",
-				});
-			}
 			const settings = await getOrCreateInstanceSettings(ctx.db);
 			const endpoint = input.endpoint?.trim() || null;
 			const region = input.region?.trim() || null;
@@ -306,7 +283,7 @@ export const instanceRouter = router({
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message:
-						"Bucket, Access Key, Secret und Endpoint sind fuer S3-kompatiblen Storage erforderlich.",
+						"Bucket, Access Key, Secret und Endpoint sind für S3-kompatiblen Storage erforderlich.",
 				});
 			}
 
@@ -336,6 +313,7 @@ export const instanceRouter = router({
 		}),
 
 	sendTestEmail: protectedProcedure.mutation(async ({ ctx }) => {
+		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 
 		await sendAppEmail(ctx.db, {
@@ -362,6 +340,7 @@ export const instanceRouter = router({
 	peekPasswordResetLink: protectedProcedure
 		.input(z.object({ email: z.string().email() }))
 		.query(async ({ ctx, input }) => {
+			requireSelfHostedDeployment();
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 			const url = consumePasswordResetLink(input.email);
 			return { url };

@@ -715,7 +715,8 @@ app.get("/api/boards/:id/live", async (c) => {
  *
  * Relayt ausschließlich CLIENTSEITIG verschlüsselte Presence-Nachrichten
  * (Cursor/Auswahl/Name) an die anderen Teilnehmer eines Boards. Nichts wird
- * persistiert, nichts entschlüsselt. Zugriff: eingeloggte Nutzer mit Board-Lesezugriff.
+ * persistiert, nichts entschlüsselt. Zugriff: eingeloggte Nutzer mit Board-Lesezugriff
+ * oder Presentation-Viewer, wenn Presence für den Share-Link aktiviert ist.
  */
 app.get(
 	"/api/boards/:id/presence",
@@ -723,6 +724,8 @@ app.get(
 		const rawId = c.req.param("id");
 		const boardId = isUuid(rawId) ? rawId : null;
 		let authorizedUserId: string | null = null;
+		const presentationShareToken =
+			c.req.query("presentationShareToken")?.trim() ?? "";
 
 		if (boardId) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -741,6 +744,26 @@ app.get(
 						boardId,
 					);
 					authorizedUserId = session.user.id;
+				} catch {
+					authorizedUserId = null;
+				}
+			}
+
+			if (!authorizedUserId && presentationShareToken) {
+				try {
+					const access = await getPresentationShareAccess(
+						db,
+						presentationShareToken,
+					);
+					if (
+						access.whiteboard.id === boardId &&
+						access.shareSettings.presenceEnabled
+					) {
+						authorizedUserId = `presentation:${createHash("sha256")
+							.update(presentationShareToken)
+							.digest("hex")
+							.slice(0, 16)}`;
+					}
 				} catch {
 					authorizedUserId = null;
 				}

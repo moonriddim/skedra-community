@@ -52,6 +52,10 @@ export function PresenterNotesPanel({
 				: (activeIndex + offset + views.length) % views.length;
 		onSelectView(views[nextIndex].id);
 	};
+	const saveDraft = () => {
+		if (!activeView || draft === (activeView.presenterNotes ?? "")) return;
+		onUpdateNotes(activeView.id, draft);
+	};
 
 	return (
 		<div
@@ -83,6 +87,7 @@ export function PresenterNotesPanel({
 						size="icon"
 						onClick={onClose}
 						className="text-white/70 hover:bg-white/10 hover:text-white"
+						aria-label={t("whiteboardPage.presenterNotes.close")}
 					>
 						<X className="h-4 w-4" />
 					</Button>
@@ -127,18 +132,27 @@ export function PresenterNotesPanel({
 							<Textarea
 								value={draft}
 								onChange={(event) => setDraft(event.target.value)}
-								onBlur={() => {
-									if (draft !== (activeView.presenterNotes ?? "")) {
-										onUpdateNotes(activeView.id, draft);
-									}
-								}}
+								onBlur={saveDraft}
 								placeholder={t("whiteboardPage.presenterNotes.placeholder")}
+								aria-label={t("whiteboardPage.presenterNotes.editorLabel")}
 								className="min-h-[160px] resize-y border-white/10 bg-black/20 text-white placeholder:text-white/35"
 							/>
-							<p className="flex items-start gap-2 text-xs text-white/50">
-								<StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-								{t("whiteboardPage.presenterNotes.hint")}
-							</p>
+							<div className="flex items-start justify-between gap-3">
+								<p className="flex items-start gap-2 text-xs text-white/50">
+									<StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+									{t("whiteboardPage.presenterNotes.hint")}
+								</p>
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									onPointerDown={(event) => event.preventDefault()}
+									onClick={saveDraft}
+									disabled={draft === (activeView.presenterNotes ?? "")}
+								>
+									{t("whiteboardPage.presenterNotes.save")}
+								</Button>
+							</div>
 						</>
 					) : (
 						<p className="py-6 text-center text-sm text-white/55">

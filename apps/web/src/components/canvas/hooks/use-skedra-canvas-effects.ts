@@ -266,7 +266,9 @@ export function useSkedraCanvasEffects({
 			if (view) {
 				lastFollowedPresenterViewIdRef.current = presenter.activeViewId;
 				setActiveViewId(presenter.activeViewId);
-				fitViewportToBounds(view);
+				if (!presenter.viewport) {
+					fitViewportToBounds(view);
+				}
 			}
 		}
 	}, [

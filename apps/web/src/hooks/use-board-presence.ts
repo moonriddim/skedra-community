@@ -9,6 +9,7 @@
  * Ersetzt den bisherigen No-op im E2EE-Sync-Hook.
  */
 
+import { getApiWebSocketUrl } from "@/lib/api-url";
 import { decryptYjsUpdate, encryptYjsUpdate } from "@/lib/e2ee";
 import type { Viewport } from "@skedra/canvas-core";
 import type { CanvasRole } from "@skedra/shared";
@@ -19,8 +20,10 @@ import type { RemoteCanvasPresence } from "./canvas-sync-types";
 const PRESENCE_TTL_MS = 12_000;
 /** Mindestabstand zwischen gesendeten Presence-Updates (gegen Flooding). */
 const SEND_THROTTLE_MS = 60;
+const PRESENCE_HEARTBEAT_MS = 4_000;
 const PRUNE_INTERVAL_MS = 4_000;
-const RECONNECT_DELAY_MS = 2_000;
+const RECONNECT_BASE_DELAY_MS = 1_000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
 
 export interface PresenceIdentity {
 	id: string;
@@ -36,6 +39,7 @@ interface UseBoardPresenceOptions {
 	encryptionMode: "server" | "e2ee";
 	e2eeKey: string | null | undefined;
 	identity: PresenceIdentity;
+	presentationShareToken?: string;
 }
 
 const encoder = new TextEncoder();
@@ -49,7 +53,8 @@ export function useBoardPresence(
 	whiteboardId: string,
 	options: UseBoardPresenceOptions,
 ) {
-	const { enabled, encryptionMode, e2eeKey, identity } = options;
+	const { enabled, encryptionMode, e2eeKey, identity, presentationShareToken } =
+		options;
 
 	const clientIdRef = useRef(randomClientId());
 	const wsRef = useRef<WebSocket | null>(null);
@@ -69,6 +74,7 @@ export function useBoardPresence(
 
 	const sendTimerRef = useRef<number | null>(null);
 	const lastSentRef = useRef(0);
+	const flushSendRef = useRef<() => Promise<void>>(async () => {});
 
 	// Verbindung auf- und bei Abbruch wieder aufbauen.
 	useEffect(() => {
@@ -77,14 +83,38 @@ export function useBoardPresence(
 
 		let closed = false;
 		let reconnectTimer: number | null = null;
+		let reconnectAttempt = 0;
+
+		const scheduleReconnect = () => {
+			if (closed || reconnectTimer !== null) return;
+			const delay = Math.min(
+				RECONNECT_MAX_DELAY_MS,
+				RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt,
+			);
+			reconnectAttempt += 1;
+			reconnectTimer = window.setTimeout(() => {
+				reconnectTimer = null;
+				connect();
+			}, delay);
+		};
 
 		const connect = () => {
 			if (closed) return;
-			const proto = window.location.protocol === "https:" ? "wss" : "ws";
-			const ws = new WebSocket(
-				`${proto}://${window.location.host}/api/boards/${whiteboardId}/presence`,
+			const presenceUrl = new URL(
+				getApiWebSocketUrl(`/api/boards/${whiteboardId}/presence`),
 			);
+			if (presentationShareToken) {
+				presenceUrl.searchParams.set(
+					"presentationShareToken",
+					presentationShareToken,
+				);
+			}
+			const ws = new WebSocket(presenceUrl);
 			wsRef.current = ws;
+			ws.onopen = () => {
+				reconnectAttempt = 0;
+				void flushSendRef.current();
+			};
 
 			ws.onmessage = async (event) => {
 				try {
@@ -107,10 +137,11 @@ export function useBoardPresence(
 				}
 			};
 
-			ws.onclose = () => {
+			ws.onclose = (event) => {
 				if (wsRef.current === ws) wsRef.current = null;
-				if (!closed)
-					reconnectTimer = window.setTimeout(connect, RECONNECT_DELAY_MS);
+				// Policy violations are permanent (missing session/board access), so
+				// retrying would only flood the console and server.
+				if (!closed && event.code !== 1008) scheduleReconnect();
 			};
 			ws.onerror = () => ws.close();
 		};
@@ -120,11 +151,15 @@ export function useBoardPresence(
 		return () => {
 			closed = true;
 			if (reconnectTimer) window.clearTimeout(reconnectTimer);
+			if (sendTimerRef.current != null) {
+				window.clearTimeout(sendTimerRef.current);
+				sendTimerRef.current = null;
+			}
 			wsRef.current?.close();
 			wsRef.current = null;
 			setRemoteMap(new Map());
 		};
-	}, [enabled, encryptionMode, whiteboardId, e2eeKey]);
+	}, [enabled, encryptionMode, whiteboardId, e2eeKey, presentationShareToken]);
 
 	// Abgelaufene (stille) Presences ausblenden.
 	useEffect(() => {
@@ -184,6 +219,15 @@ export function useBoardPresence(
 			// Senden ist best-effort.
 		}
 	}, [e2eeKey, encryptionMode]);
+	flushSendRef.current = flushSend;
+
+	useEffect(() => {
+		if (!enabled) return;
+		const interval = window.setInterval(() => {
+			void flushSend();
+		}, PRESENCE_HEARTBEAT_MS);
+		return () => window.clearInterval(interval);
+	}, [enabled, flushSend]);
 
 	// Gedrosseltes Senden: sofort, sonst gesammelt nach kurzer Wartezeit.
 	const scheduleSend = useCallback(() => {

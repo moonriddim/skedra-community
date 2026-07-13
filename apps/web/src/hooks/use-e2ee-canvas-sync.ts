@@ -42,6 +42,7 @@ interface UseE2eeCanvasSyncOptions {
 	enabled?: boolean;
 	readonly?: boolean;
 	presentationShareToken?: string;
+	presenceEnabled?: boolean;
 	collabShareToken?: string;
 	embedShareToken?: string;
 	/**
@@ -72,6 +73,7 @@ export function useE2eeCanvasSync(
 		enabled = true,
 		readonly = false,
 		presentationShareToken,
+		presenceEnabled = true,
 		collabShareToken,
 		embedShareToken,
 		presence,
@@ -135,10 +137,13 @@ export function useE2eeCanvasSync(
 			retry: 1,
 		});
 
-	// Nur eingeloggte Nutzer bekommen Live-Kanäle (Server-Auth = Session);
-	// Gäste über Share-Links bleiben beim Polling.
+	// Nur eingeloggte Nutzer bekommen den SSE-Live-Kanal; Share-Links bleiben
+	// für Dokument-Updates beim Polling. Presentation-Viewer dürfen separat in
+	// den flüchtigen Presence-Kanal, wenn dies für den Link aktiviert ist.
 	const isSessionUser =
 		!presentationShareToken && !collabShareToken && !embedShareToken;
+	const canUsePresentationPresence =
+		presenceEnabled && !!presentationShareToken;
 
 	// SSE: sofortiges Nachladen bei neuen verschlüsselten Updates.
 	useBoardLiveChannel(whiteboardId, {
@@ -166,10 +171,15 @@ export function useE2eeCanvasSync(
 	);
 
 	const presenceApi = useBoardPresence(whiteboardId, {
-		enabled: enabled && !!e2eeKey && !!whiteboardId && isSessionUser,
+		enabled:
+			enabled &&
+			!!e2eeKey &&
+			!!whiteboardId &&
+			(isSessionUser || canUsePresentationPresence),
 		encryptionMode: "e2ee",
 		e2eeKey,
 		identity: presenceIdentity,
+		presentationShareToken,
 	});
 
 	const syncFromYjs = useCallback(() => {
@@ -596,6 +606,7 @@ export function useE2eeCanvasSync(
 		},
 		[guardWrite],
 	);
+	const getYDoc = useCallback(() => ydocRef.current, []);
 
 	return {
 		isConnected,
@@ -621,6 +632,6 @@ export function useE2eeCanvasSync(
 		setPresenceCursor: presenceApi.setPresenceCursor,
 		setPresenceViewport: presenceApi.setPresenceViewport,
 		setPresenceActiveView: presenceApi.setPresenceActiveView,
-		getYDoc: () => ydocRef.current,
+		getYDoc,
 	};
 }

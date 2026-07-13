@@ -1,4 +1,19 @@
 import { createBaseCanvasElement } from "./element-factory";
+import {
+	FLOWCHART_BRANCH_GAP,
+	FLOWCHART_HORIZONTAL_GAP,
+	type FlowchartBranchKind,
+	type FlowchartConnectorRoute,
+	type FlowchartNodeKind,
+	buildFlowchartConnectorSyncUpdates,
+	createFlowchartConnector,
+	createFlowchartNode,
+	getFlowchartBranchTarget,
+	getFlowchartConnectorMeta,
+	getFlowchartNodeMeta,
+	getFlowchartNodePreset,
+	getFlowchartOutgoingNodes,
+} from "./flowchart";
 import { getBBox } from "./geometry";
 import {
 	buildKanbanDeletionReflowUpdates,
@@ -135,6 +150,19 @@ export interface MindmapSiblingMutationOptions extends MindmapMutationOptions {
 	preserveAnchorSelection?: boolean;
 }
 
+export interface FlowchartStepMutationOptions {
+	elements: Map<string, CanvasElement>;
+	nodeId: string;
+	createId: () => string;
+	branch?: FlowchartBranchKind;
+	route?: FlowchartConnectorRoute;
+	nodeKind?: FlowchartNodeKind;
+	label?: string;
+	stroke?: string;
+	fontFamily?: string;
+	startEditing?: boolean;
+}
+
 export type CanvasKeyboardCommand =
 	| "delete-selection"
 	| "clear-canvas"
@@ -218,6 +246,14 @@ export function planCanvasNormalization(
 		) {
 			orphanEdges.push(element.id);
 		}
+		const connector = getFlowchartConnectorMeta(element);
+		if (
+			connector &&
+			(!elements.has(connector.flowchartSourceId) ||
+				!elements.has(connector.flowchartTargetId))
+		) {
+			orphanEdges.push(element.id);
+		}
 	}
 	return {
 		create: [],
@@ -228,6 +264,9 @@ export function planCanvasNormalization(
 			...buildTemplateSectionLayoutSyncUpdates(elements, {
 				excludeIds: orphanEdges,
 			}),
+			...buildFlowchartConnectorSyncUpdates(elements).filter(
+				(update) => !orphanEdges.includes(update.id),
+			),
 		],
 		deleteIds: orphanEdges,
 	};
@@ -482,6 +521,8 @@ export function buildCanvasMoveUpdates(
 		});
 	}
 
+	updates.push(...buildFlowchartConnectorSyncUpdates(virtualElements));
+
 	return updates;
 }
 
@@ -661,6 +702,14 @@ export function planCanvasDeletion(
 		) {
 			deleteIds.add(element.id);
 		}
+		const connector = getFlowchartConnectorMeta(element);
+		if (
+			connector &&
+			(deleteIds.has(connector.flowchartSourceId) ||
+				deleteIds.has(connector.flowchartTargetId))
+		) {
+			deleteIds.add(element.id);
+		}
 	}
 
 	return {
@@ -734,6 +783,114 @@ export function planKanbanCardInsertion(options: {
 		deleteIds: [],
 		selectedIds: [card.id],
 		editingTextId: null,
+	};
+}
+
+/** Plans flowchart node and connector creation for both web and SDK consumers. */
+export function planFlowchartStepMutation(
+	options: FlowchartStepMutationOptions,
+): CanvasMutationPlan | null {
+	const node = options.elements.get(options.nodeId);
+	const meta = getFlowchartNodeMeta(node);
+	if (!node || !meta) return null;
+	const branch = options.branch ?? "next";
+	const route =
+		options.route ??
+		(branch === "no" ? "down" : branch === "yes" ? "right" : "right");
+	const nodeKind = options.nodeKind ?? "step";
+	const preset = getFlowchartNodePreset(
+		nodeKind,
+		options.stroke ?? node.stroke,
+	);
+	if (branch !== "next") {
+		const existing = getFlowchartBranchTarget(
+			node.id,
+			branch,
+			options.elements,
+		);
+		if (existing) {
+			return {
+				create: [],
+				update: [],
+				deleteIds: [],
+				selectedIds: [existing.id],
+				editingTextId: options.startEditing === false ? null : existing.id,
+			};
+		}
+	}
+	const outgoing = getFlowchartOutgoingNodes(node.id, route, options.elements);
+	const nextNodeId = options.createId();
+	const connectorId = options.createId();
+	const centeredX = node.x + node.width / 2 - preset.width / 2;
+	const centeredY = node.y + node.height / 2 - preset.height / 2;
+	const nextX =
+		route === "down" || route === "up"
+			? centeredX + outgoing.length * 36
+			: route === "left"
+				? outgoing.length === 0
+					? node.x - preset.width - FLOWCHART_HORIZONTAL_GAP
+					: Math.min(...outgoing.map((entry) => entry.x)) -
+						preset.width -
+						FLOWCHART_HORIZONTAL_GAP
+				: outgoing.length === 0
+					? node.x + node.width + FLOWCHART_HORIZONTAL_GAP
+					: Math.max(...outgoing.map((entry) => entry.x + entry.width)) +
+						FLOWCHART_HORIZONTAL_GAP;
+	const nextY =
+		route === "right" || route === "left"
+			? centeredY + outgoing.length * FLOWCHART_BRANCH_GAP
+			: route === "up"
+				? outgoing.length === 0
+					? node.y - preset.height - FLOWCHART_BRANCH_GAP
+					: Math.min(...outgoing.map((entry) => entry.y)) -
+						preset.height -
+						FLOWCHART_BRANCH_GAP
+				: outgoing.length === 0
+					? node.y + node.height + FLOWCHART_BRANCH_GAP
+					: Math.max(...outgoing.map((entry) => entry.y + entry.height)) +
+						FLOWCHART_BRANCH_GAP;
+	const label =
+		options.label ??
+		(branch === "yes" ? "Yes" : branch === "no" ? "No" : "Step");
+	const nextNode = createFlowchartNode({
+		id: nextNodeId,
+		x: nextX,
+		y: nextY,
+		width: preset.width,
+		height: preset.height,
+		type: preset.type,
+		text: label,
+		flowchartId: meta.flowchartId,
+		nodeKind,
+		stroke: preset.stroke,
+		cornerRadius: preset.cornerRadius,
+		fontSize: preset.fontSize,
+		fontFamily: options.fontFamily,
+		fontWeight: preset.fontWeight,
+		stackIndex: createStackIndexAfter(options.elements.values(), nextNodeId),
+	});
+	const connector = createFlowchartConnector({
+		id: connectorId,
+		flowchartId: meta.flowchartId,
+		source: node,
+		target: nextNode,
+		route,
+		branchKind: branch,
+		text: branch === "next" ? undefined : branch === "yes" ? "Yes" : "No",
+		fontSize: branch === "next" ? undefined : 12,
+		arrowTextSide: branch === "no" || route === "up" ? "below" : "above",
+		stackIndex: createStackIndexBeforeElement(
+			[...options.elements.values(), nextNode],
+			nextNode.id,
+			connectorId,
+		),
+	});
+	return {
+		create: [nextNode, connector],
+		update: [],
+		deleteIds: [],
+		selectedIds: [nextNode.id],
+		editingTextId: options.startEditing === false ? null : nextNode.id,
 	};
 }
 

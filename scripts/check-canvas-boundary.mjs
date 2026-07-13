@@ -112,6 +112,48 @@ const sharedEditorOperationConsumers = [
 		],
 	},
 	{
+		operation: "planFlowchartStepMutation",
+		files: [
+			"apps/web/src/components/canvas/hooks/use-flowchart-canvas-tool.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "cloneCanvasSelection",
+		files: [
+			"apps/web/src/hooks/use-canvas-keyboard/operations.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getDistributionUpdates",
+		files: [
+			"apps/web/src/hooks/use-canvas-keyboard/operations.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getGroupUpdates",
+		files: [
+			"apps/web/src/hooks/use-canvas-keyboard/operations.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getFlipUpdates",
+		files: [
+			"apps/web/src/hooks/use-canvas-keyboard/operations.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getLockUpdates",
+		files: [
+			"apps/web/src/hooks/use-canvas-keyboard/operations.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
 		operation: "buildCanvasDrawingElement",
 		files: [
 			"apps/web/src/hooks/use-canvas-pointer/preview-builders.ts",

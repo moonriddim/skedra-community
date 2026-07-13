@@ -7,8 +7,11 @@ export default defineConfig(({ mode }) => ({
 		emptyOutDir: mode !== "sdk-watch",
 		lib: {
 			entry: {
+				commands: "src/commands.ts",
+				exporters: "src/exporters.ts",
 				index: "src/index.ts",
 				factories: "src/factories.ts",
+				io: "src/io.ts",
 				"workspace-hooks": "src/workspace-hooks.ts",
 			},
 			formats: ["es"],

@@ -867,6 +867,8 @@ export const enMessages = {
 			dialogDescription: "This action cannot be undone.",
 			dataWarning:
 				"All boards and workspaces you own, including their stored files, will be permanently deleted. Content owned by others and merely shared with you is retained.",
+			subscriptionCancellation:
+				"Any active Skedra Cloud subscription is canceled immediately together with the account. Amounts already charged are not automatically refunded.",
 			confirmationLabel: (params: TranslationParams) =>
 				`Enter ${params.email ?? "your email address"} to confirm`,
 			passwordLabel: "Current password",
@@ -1905,7 +1907,9 @@ export const enMessages = {
 			viewerInactive: "Viewer off",
 			presenceVisible: "Presence visible",
 			presenceHidden: "Presence hidden",
-			openViewer: "Open viewer",
+			openViewer: "Open audience view",
+			openViewerHint:
+				"Opens the view that people see through the presentation link.",
 			viewerUnavailable:
 				"Viewer links are not enabled for this whiteboard right now or are waiting for an active presentation. Switch to edit mode to change the share settings.",
 			liveActive: "Live",
@@ -1915,8 +1919,11 @@ export const enMessages = {
 		},
 		presenterNotes: {
 			label: "Presenter notes",
+			editorLabel: "Edit presenter notes",
 			show: "Show notes",
 			hide: "Hide notes",
+			close: "Close presenter notes",
+			save: "Save",
 			noSlide: "No slide selected",
 			previous: "Previous",
 			next: "Next",
@@ -2148,6 +2155,7 @@ export const enMessages = {
 			undo: "Undo (Ctrl+Z)",
 			redo: "Redo (Ctrl+Y)",
 			saveView: "Save view",
+			presenterNotes: "Edit presenter notes for the selected view",
 			cancelViewCapture: "Cancel view capture",
 			capturingView: "Drag an area to save a view",
 			editView: "Edit view",

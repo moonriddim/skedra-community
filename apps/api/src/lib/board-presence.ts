@@ -13,6 +13,7 @@ import type { WSContext } from "hono/ws";
 export type PresenceMember = {
 	ws: WSContext;
 	userId: string;
+	lastData: string | null;
 };
 
 /** whiteboardId -> aktive Presence-Verbindungen dieses Prozesses. */
@@ -28,7 +29,15 @@ export function joinPresenceRoom(
 		room = new Set();
 		rooms.set(whiteboardId, room);
 	}
-	const member: PresenceMember = { ws, userId };
+	for (const existingMember of room) {
+		if (!existingMember.lastData) continue;
+		try {
+			ws.send(existingMember.lastData);
+		} catch {
+			// The new connection will be cleaned up by its websocket lifecycle.
+		}
+	}
+	const member: PresenceMember = { ws, userId, lastData: null };
 	room.add(member);
 	return member;
 }
@@ -54,6 +63,7 @@ export function broadcastPresence(
 ) {
 	const room = rooms.get(whiteboardId);
 	if (!room) return;
+	sender.lastData = data;
 	for (const member of room) {
 		if (member === sender) continue;
 		try {

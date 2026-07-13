@@ -42,7 +42,7 @@ export const deMessages = {
 		e2eeDescription:
 			"Maximale Vertraulichkeit: Nur Clients mit dem Board-Schlüssel können Inhalte lesen.",
 		e2eeDetails:
-			"Der Server sieht keinen Klartext. Fuer Recovery wird deine E2EE-Identity entsperrt; der MCP benoetigt den separaten Board-Key.",
+			"Der Server sieht keinen Klartext. Für Recovery wird deine E2EE-Identity entsperrt; der MCP benötigt den separaten Board-Key.",
 		permanentHint:
 			"Der Verschlüsselungsmodus gilt für dieses Board und kann später nicht ohne Datenmigration gewechselt werden.",
 		continue: "Auswahl bestätigen",
@@ -301,7 +301,7 @@ export const deMessages = {
 		signUp: "Registrieren",
 		saveToCloud: "In Cloud speichern",
 		saveSkedra: "Als .skedra speichern",
-		saveEncryptedSkedra: "Verschluesselte .skedra speichern",
+		saveEncryptedSkedra: "Verschlüsselte .skedra speichern",
 		openSkedra: ".skedra öffnen",
 		exportSvg: "SVG exportieren",
 		exportPng: "PNG exportieren",
@@ -345,9 +345,9 @@ export const deMessages = {
 			"Die geöffnete .skedra-Datei ersetzt alle Elemente und Views auf der Zeichenfläche.",
 		importConfirmAction: "Datei laden",
 		encryptedPassphrasePrompt:
-			"Lege eine Passphrase fuer die verschluesselte .skedra-Datei fest (mindestens 8 Zeichen). Skedra kann sie nicht wiederherstellen.",
+			"Lege eine Passphrase für die verschlüsselte .skedra-Datei fest (mindestens 8 Zeichen). Skedra kann sie nicht wiederherstellen.",
 		encryptedImportPassphrasePrompt:
-			"Gib die Passphrase fuer diese verschluesselte .skedra-Datei ein.",
+			"Gib die Passphrase für diese verschlüsselte .skedra-Datei ein.",
 		errorTitle: "Datei konnte nicht geladen werden",
 		errors: {
 			invalidJson: "Die Datei enthält kein gültiges JSON.",
@@ -356,16 +356,16 @@ export const deMessages = {
 				"Diese Datei wurde mit einer neueren Skedra-Version erstellt.",
 			passphraseRequired: "Gib eine Passphrase mit mindestens 8 Zeichen ein.",
 			encryptedUnsupported:
-				"Dein Browser unterstuetzt verschluesselte .skedra-Dateien nicht.",
+				"Dein Browser unterstützt verschlüsselte .skedra-Dateien nicht.",
 			decryptFailed:
-				"Die verschluesselte .skedra-Datei konnte nicht entschluesselt werden. Pruefe die Passphrase.",
+				"Die verschlüsselte .skedra-Datei konnte nicht entschlüsselt werden. Prüfe die Passphrase.",
 			unknown: "Beim Laden der Datei ist ein Fehler aufgetreten.",
 		},
 	},
 	embedPage: {
-		unavailableTitle: "Embed nicht verfuegbar",
+		unavailableTitle: "Embed nicht verfügbar",
 		unavailableDescription:
-			"Dieses Board-Embed ist nicht mehr aktiv oder der Link ist ungueltig.",
+			"Dieses Board-Embed ist nicht mehr aktiv oder der Link ist ungültig.",
 	},
 	auth: {
 		login: {
@@ -425,9 +425,9 @@ export const deMessages = {
 			passwordMismatch: "Die Passwortbestätigung stimmt nicht überein",
 			e2eeWarningTitle: "Ich verstehe die E2EE-Recovery-Auswirkung",
 			e2eeWarningDescription:
-				"Passwort-Resets koennen deine bestehende private E2EE-Identity nicht neu verpacken, weil das alte Passwort nicht verfuegbar ist. Boards koennen danach ein vorhandenes Schluessel-Fragment oder eine neue Einladung brauchen.",
+				"Passwort-Resets können deine bestehende private E2EE-Identity nicht neu verpacken, weil das alte Passwort nicht verfügbar ist. Boards können danach ein vorhandenes Schlüssel-Fragment oder eine neue Einladung brauchen.",
 			e2eeWarningRequired:
-				"Bitte bestaetige den E2EE-Recovery-Hinweis, bevor du das Passwort zuruecksetzt",
+				"Bitte bestätige den E2EE-Recovery-Hinweis, bevor du das Passwort zurücksetzt",
 			backToLogin: "Zurück zur Anmeldung",
 		},
 		twoFactor: {
@@ -619,7 +619,7 @@ export const deMessages = {
 			admin: {
 				label: "Board-Admin",
 				short: "Admin",
-				hint: "Alle Board-Rechte inklusive Teilen, Mitglieder und Aktivitaet",
+				hint: "Alle Board-Rechte inklusive Teilen, Mitglieder und Aktivität",
 			},
 			manageWorkspaceAdmins: {
 				label: "Workspace-Admins verwalten",
@@ -878,6 +878,8 @@ export const deMessages = {
 			dialogDescription: "Dieser Vorgang kann nicht rückgängig gemacht werden.",
 			dataWarning:
 				"Alle von dir besessenen Boards und Workspaces sowie die darin gespeicherten Dateien werden dauerhaft gelöscht. Inhalte anderer Personen, die dir nur freigegeben wurden, bleiben erhalten.",
+			subscriptionCancellation:
+				"Ein aktives Skedra-Cloud-Abo wird zusammen mit dem Konto sofort gekündigt. Bereits abgerechnete Beträge werden dadurch nicht automatisch erstattet.",
 			confirmationLabel: (params: TranslationParams) =>
 				`Gib zur Bestätigung ${params.email ?? "deine E-Mail-Adresse"} ein`,
 			passwordLabel: "Aktuelles Passwort",
@@ -961,8 +963,7 @@ export const deMessages = {
 		},
 		callsCard: {
 			title: "Calls",
-			description:
-				"Konfiguriere Voice-Hangouts auf Instanzebene ueber LiveKit.",
+			description: "Konfiguriere Voice-Hangouts auf Instanzebene über LiveKit.",
 			statusTitle: "Aktiver Call-Anbieter",
 			activeSource: "Aktive Quelle",
 			useCustomConfig: "Call-Konfiguration in der App verwalten",
@@ -974,7 +975,7 @@ export const deMessages = {
 			apiKey: "API Key",
 			apiSecret: "API Secret",
 			apiSecretPlaceholder:
-				"Nur eingeben, wenn das Secret geaendert werden soll",
+				"Nur eingeben, wenn das Secret geändert werden soll",
 			apiSecretConfigured: "Ein API Secret ist bereits hinterlegt.",
 			apiSecretNotConfigured: "Aktuell ist kein API Secret gespeichert.",
 			clearApiSecret: "Gespeichertes API Secret entfernen",
@@ -995,7 +996,7 @@ export const deMessages = {
 			useCustomConfigHint:
 				"Wenn deaktiviert, nutzt Skedra die Server-Umgebung oder speichert Bilder inline im Board-State.",
 			managedHint:
-				"Diese SaaS-Instanz verwaltet Object Storage sicher ueber Server-Umgebungsvariablen. Zugangsdaten werden hier nicht angezeigt oder bearbeitet.",
+				"Diese SaaS-Instanz verwaltet Object Storage sicher über Server-Umgebungsvariablen. Zugangsdaten werden hier nicht angezeigt oder bearbeitet.",
 			provider: "Speicherart",
 			preset: "Anbieter",
 			endpoint: "Endpoint",
@@ -1003,14 +1004,14 @@ export const deMessages = {
 			bucket: "Bucket",
 			accessKeyId: "Access Key ID",
 			secretAccessKey: "Secret Access Key",
-			secretPlaceholder: "Nur eingeben, wenn das Secret geaendert werden soll",
+			secretPlaceholder: "Nur eingeben, wenn das Secret geändert werden soll",
 			secretConfigured: "Ein Secret ist bereits hinterlegt.",
 			secretNotConfigured: "Aktuell ist kein Secret gespeichert.",
 			clearSecret: "Gespeichertes Secret entfernen",
-			publicBaseUrl: "Oeffentliche Basis-URL (optional)",
+			publicBaseUrl: "Öffentliche Basis-URL (optional)",
 			forcePathStyle: "Path-Style-URLs erzwingen",
 			e2eeHint:
-				"Bilddateien werden vor dem Upload im Browser verschluesselt. Fuer direkte R2/S3-URLs muss der Bucket GET-CORS fuer deine App-Domain erlauben; ohne Basis-URL liefert Skedra die Ciphertext-Dateien geschuetzt ueber die API aus.",
+				"Bilddateien werden vor dem Upload im Browser verschlüsselt. Für direkte R2/S3-URLs muss der Bucket GET-CORS für deine App-Domain erlauben; ohne Basis-URL liefert Skedra die Ciphertext-Dateien geschützt über die API aus.",
 			sources: {
 				database: "In der App gespeichert",
 				env: "Server-Umgebung",
@@ -1845,7 +1846,7 @@ export const deMessages = {
 			collabView: "Nur ansehen",
 			embedLinkTitle: "Einbettbarer Read-only-Link",
 			embedLinkHint:
-				"Nutze diese iframe-URL in Dokus, Portalen, Notion oder Obsidian. Viewer koennen das Board nicht bearbeiten.",
+				"Nutze diese iframe-URL in Dokus, Portalen, Notion oder Obsidian. Viewer können das Board nicht bearbeiten.",
 			enableEmbedLink: "Embed-Link aktivieren",
 			copyEmbedCode: "Embed-Code kopieren",
 			mcpKeyTitle: "MCP-Zugriff",
@@ -1859,7 +1860,7 @@ export const deMessages = {
 			mcpKeyCopied: "MCP-Schlüssel kopiert",
 			integrationsTitle: "Notion & Obsidian",
 			integrationsHint:
-				"Kopiere die Embed-URL fuer Notion oder ein Markdown-Snippet fuer Obsidian.",
+				"Kopiere die Embed-URL für Notion oder ein Markdown-Snippet für Obsidian.",
 			copyNotionLink: "Notion-Link kopieren",
 			copyObsidianMarkdown: "Obsidian-Snippet kopieren",
 			inviteCollaborator: "Person direkt einladen",
@@ -1936,7 +1937,9 @@ export const deMessages = {
 			viewerInactive: "Viewer aus",
 			presenceVisible: "Presence sichtbar",
 			presenceHidden: "Presence verborgen",
-			openViewer: "Viewer öffnen",
+			openViewer: "Publikumsansicht öffnen",
+			openViewerHint:
+				"Öffnet die Ansicht, die Zuschauer über den Präsentationslink sehen.",
 			viewerUnavailable:
 				"Viewer-Links sind für dieses Whiteboard gerade nicht freigegeben oder warten auf eine aktive Präsentation. Wechsle in den Bearbeiten-Modus, um die Freigabe zu ändern.",
 			liveActive: "Live",
@@ -1946,8 +1949,11 @@ export const deMessages = {
 		},
 		presenterNotes: {
 			label: "Presenter Notes",
+			editorLabel: "Presenter Notes bearbeiten",
 			show: "Notizen anzeigen",
 			hide: "Notizen ausblenden",
+			close: "Presenter Notes schließen",
+			save: "Speichern",
 			noSlide: "Keine Slide ausgewählt",
 			previous: "Zurück",
 			next: "Weiter",
@@ -2135,7 +2141,7 @@ export const deMessages = {
 			exportPdf: "PDF Export",
 			exportPptx: "PPTX Export",
 			saveSkedra: "Als .skedra speichern",
-			saveEncryptedSkedra: "Verschluesselte .skedra speichern",
+			saveEncryptedSkedra: "Verschlüsselte .skedra speichern",
 			openSkedra: ".skedra öffnen",
 			insertMindmap: "Mindmap einfügen",
 			insertFlowchart: "Flowchart einfügen",
@@ -2151,7 +2157,7 @@ export const deMessages = {
 			open: "Call",
 			title: "Voice-Hangout",
 			description:
-				"Oeffnet einen gemeinsamen Audio-Raum fuer dieses Board. Teilnehmende koennen sprechen, waehrend sie am Canvas arbeiten.",
+				"Öffnet einen gemeinsamen Audio-Raum für dieses Board. Teilnehmende können sprechen, während sie am Canvas arbeiten.",
 			connecting: "Call wird vorbereitet...",
 			unavailable: "Calls sind auf dieser Skedra-Instanz nicht aktiviert.",
 			error: "Der Call konnte nicht gestartet werden.",
@@ -2168,7 +2174,7 @@ export const deMessages = {
 			leaveAction: "Verlassen",
 			allowAudio: "Audio-Wiedergabe erlauben",
 			livekitHint:
-				"Medien laufen ueber LiveKit fuer {boardName}. Skedra speichert nur die Board-Session-Zuordnung, keine Call-Medien.",
+				"Medien laufen über LiveKit für {boardName}. Skedra speichert nur die Board-Session-Zuordnung, keine Call-Medien.",
 		},
 		textPlaceholder: "Text eingeben...",
 		arrowTextPlaceholder:
@@ -2180,6 +2186,7 @@ export const deMessages = {
 			undo: "Rückgängig (Ctrl+Z)",
 			redo: "Wiederholen (Ctrl+Y)",
 			saveView: "View speichern",
+			presenterNotes: "Presenter Notes für die gewählte View bearbeiten",
 			cancelViewCapture: "View-Erfassung abbrechen",
 			capturingView: "Bereich ziehen, um einen View zu speichern",
 			editView: "View bearbeiten",

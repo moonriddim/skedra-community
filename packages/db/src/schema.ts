@@ -72,7 +72,7 @@ export const sessions = pgTable("sessions", {
 	userAgent: text("user_agent"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [index("sessions_user_idx").on(table.userId)]);
 
 export const accounts = pgTable("accounts", {
 	id: text("id").primaryKey(),
@@ -90,7 +90,10 @@ export const accounts = pgTable("accounts", {
 	password: text("password"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("accounts_user_provider_idx").on(table.userId, table.providerId),
+	index("accounts_provider_account_idx").on(table.providerId, table.accountId),
+]);
 
 export const verifications = pgTable("verifications", {
 	id: text("id").primaryKey(),
@@ -99,7 +102,9 @@ export const verifications = pgTable("verifications", {
 	expiresAt: timestamp("expires_at").notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("verifications_identifier_idx").on(table.identifier),
+]);
 
 /** TOTP secret and encrypted recovery codes managed by Better Auth's 2FA plugin. */
 export const twoFactors = pgTable(
@@ -263,6 +268,15 @@ export const whiteboards = pgTable(
 		uniqueIndex("whiteboard_embed_share_token_unique").on(
 			table.embedShareToken,
 		),
+		index("whiteboards_owner_archived_idx").on(
+			table.ownerId,
+			table.archivedAt,
+		),
+		index("whiteboards_team_archived_idx").on(
+			table.teamId,
+			table.archivedAt,
+		),
+		index("whiteboards_folder_idx").on(table.folderId),
 	],
 );
 
@@ -365,6 +379,7 @@ export const whiteboardMembers = pgTable(
 			table.whiteboardId,
 			table.userId,
 		),
+		index("whiteboard_members_user_idx").on(table.userId),
 	],
 );
 
@@ -381,7 +396,16 @@ export const whiteboardActivities = pgTable("whiteboard_activities", {
 	/** Optionale JSON-Metadaten (Name, E-Mail, …) */
 	metadata: text("metadata"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("whiteboard_activities_board_created_idx").on(
+		table.whiteboardId,
+		table.createdAt,
+	),
+	index("whiteboard_activities_user_created_idx").on(
+		table.userId,
+		table.createdAt,
+	),
+]);
 
 /** Excalidraw-ähnliche Kommentar-Threads — verankert an Canvas-Koordinaten. */
 export const whiteboardCommentThreads = pgTable("whiteboard_comment_threads", {
@@ -398,7 +422,13 @@ export const whiteboardCommentThreads = pgTable("whiteboard_comment_threads", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("whiteboard_comment_threads_board_updated_idx").on(
+		table.whiteboardId,
+		table.updatedAt,
+	),
+	index("whiteboard_comment_threads_created_by_idx").on(table.createdById),
+]);
 
 /** Einzelne Nachrichten innerhalb eines Kommentar-Threads. */
 export const whiteboardCommentMessages = pgTable(
@@ -414,6 +444,13 @@ export const whiteboardCommentMessages = pgTable(
 		body: text("body").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
+	(table) => [
+		index("whiteboard_comment_messages_thread_created_idx").on(
+			table.threadId,
+			table.createdAt,
+		),
+		index("whiteboard_comment_messages_author_idx").on(table.authorId),
+	],
 );
 
 /** AI Text-to-Diagram Verlauf pro Board (nur fuer den jeweiligen User sichtbar). */
@@ -430,7 +467,14 @@ export const whiteboardAiMessages = pgTable("whiteboard_ai_messages", {
 	model: text("model"),
 	elementCount: integer("element_count"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("whiteboard_ai_messages_board_user_created_idx").on(
+		table.whiteboardId,
+		table.userId,
+		table.createdAt,
+	),
+	index("whiteboard_ai_messages_user_idx").on(table.userId),
+]);
 
 // ===== AI Settings (BYOK) =====
 
@@ -504,6 +548,7 @@ export const boardIntegrationSyncs = pgTable(
 			table.provider,
 		),
 		index("board_integration_sync_board_idx").on(table.whiteboardId),
+		index("board_integration_sync_user_idx").on(table.userId),
 	],
 );
 
@@ -516,7 +561,7 @@ export const teams = pgTable("teams", {
 		.notNull()
 		.references(() => users.id, { onDelete: "cascade" }),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [index("teams_owner_idx").on(table.ownerId)]);
 
 /** Workspace-Ordner/Collections fuer Boards. */
 export const whiteboardFolders = pgTable("whiteboard_folders", {
@@ -531,7 +576,11 @@ export const whiteboardFolders = pgTable("whiteboard_folders", {
 	parentId: uuid("parent_id"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("whiteboard_folders_team_name_idx").on(table.teamId, table.name),
+	index("whiteboard_folders_owner_idx").on(table.ownerId),
+	index("whiteboard_folders_parent_idx").on(table.parentId),
+]);
 
 /** Benutzerdefinierte Rollen pro Workspace (Name + Farbe). */
 export const teamRoles = pgTable("team_roles", {
@@ -545,7 +594,9 @@ export const teamRoles = pgTable("team_roles", {
 	/** JSON: admin, manageWorkspaceAdmins, editCanvas, comment, ... */
 	permissions: text("permissions").notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+	index("team_roles_team_created_idx").on(table.teamId, table.createdAt),
+]);
 
 /** Welche zentralen Team-Rollen auf ein Board zugreifen duerfen. */
 export const whiteboardTeamRoleAccess = pgTable(
@@ -565,6 +616,7 @@ export const whiteboardTeamRoleAccess = pgTable(
 			table.whiteboardId,
 			table.teamRoleId,
 		),
+		index("whiteboard_team_role_access_role_idx").on(table.teamRoleId),
 	],
 );
 
@@ -587,7 +639,14 @@ export const teamMembers = pgTable(
 			.default("member"),
 		joinedAt: timestamp("joined_at").defaultNow().notNull(),
 	},
-	(table) => [uniqueIndex("team_member_unique").on(table.teamId, table.userId)],
+	(table) => [
+		uniqueIndex("team_member_unique").on(table.teamId, table.userId),
+		index("team_members_user_workspace_role_idx").on(
+			table.userId,
+			table.workspaceRole,
+		),
+		index("team_members_team_role_idx").on(table.teamId, table.roleId),
+	],
 );
 
 // ===== Managed billing (Stripe) =====
@@ -711,6 +770,13 @@ export const registrationInvites = pgTable(
 	(table) => [
 		uniqueIndex("registration_invite_token_unique").on(table.token),
 		index("registration_invite_email_idx").on(table.email),
+		index("registration_invites_invited_by_idx").on(table.invitedById),
+		index("registration_invites_team_idx").on(table.teamId),
+		index("registration_invites_team_role_idx").on(table.teamRoleId),
+		index("registration_invites_whiteboard_idx").on(table.whiteboardId),
+		index("registration_invites_whiteboard_role_idx").on(
+			table.whiteboardTeamRoleId,
+		),
 	],
 );
 

@@ -997,6 +997,11 @@ export function ProfileAccountSecurity({ email }: ProfileAccountSecurityProps) {
 						<div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
 							{t("profileSettings.dangerZone.dataWarning")}
 						</div>
+						{publicConfig?.managed ? (
+							<div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+								{t("profileSettings.dangerZone.subscriptionCancellation")}
+							</div>
+						) : null}
 						<div className="space-y-2">
 							<Label htmlFor="delete-confirmation">
 								{t("profileSettings.dangerZone.confirmationLabel", { email })}
