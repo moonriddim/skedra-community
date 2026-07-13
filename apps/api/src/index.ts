@@ -41,6 +41,7 @@ import { closeDatabase, db } from "./lib/db";
 import { getBoardAccess } from "./lib/permissions";
 import {
 	countPresentationAudience,
+	endPresentationSession,
 	getPresentationShareAccess,
 	isAuthorizedPresentationSession,
 	presentationFrameAllowsAsset,
@@ -129,6 +130,7 @@ type PresentationViewerConnection = {
 type PresentationPresenterConnection = {
 	ws: WSContext;
 	sessionId: string;
+	presenterId: string;
 };
 
 const presentationViewerRooms = new Map<
@@ -141,6 +143,10 @@ const presentationPresenterRooms = new Map<
 >();
 const presentationRoomUnsubscribers = new Map<string, () => void>();
 const presentationAudienceCountTimers = new Map<
+	string,
+	ReturnType<typeof setTimeout>
+>();
+const presentationPresenterEndTimers = new Map<
 	string,
 	ReturnType<typeof setTimeout>
 >();
@@ -330,6 +336,65 @@ function clearScheduledPresentationAudienceCounts() {
 		clearTimeout(timer);
 	}
 	presentationAudienceCountTimers.clear();
+}
+
+function presentationSessionKey(whiteboardId: string, sessionId: string) {
+	return `${whiteboardId}:${sessionId}`;
+}
+
+function cancelScheduledPresentationEnd(
+	whiteboardId: string,
+	sessionId: string,
+) {
+	const key = presentationSessionKey(whiteboardId, sessionId);
+	const timer = presentationPresenterEndTimers.get(key);
+	if (timer) clearTimeout(timer);
+	presentationPresenterEndTimers.delete(key);
+}
+
+/**
+ * Give short reconnects a small grace period, then revoke an orphaned stream.
+ * Page-exit requests normally end it sooner; this is the server-side fallback.
+ */
+function schedulePresentationEndAfterDisconnect(input: {
+	whiteboardId: string;
+	sessionId: string;
+	presenterId: string;
+}) {
+	const key = presentationSessionKey(input.whiteboardId, input.sessionId);
+	if (presentationPresenterEndTimers.has(key)) return;
+	const timer = setTimeout(() => {
+		presentationPresenterEndTimers.delete(key);
+		const hasReconnected = Array.from(
+			presentationPresenterRooms.get(input.whiteboardId) ?? [],
+		).some((connection) => connection.sessionId === input.sessionId);
+		if (hasReconnected) return;
+
+		void endPresentationSession(db, input)
+			.then((ended) => {
+				if (!ended) return;
+				publishPresentationLive({
+					type: "ended",
+					whiteboardId: input.whiteboardId,
+					sessionId: input.sessionId,
+				});
+			})
+			.catch((error) => {
+				console.warn(
+					"[skedra] Could not end disconnected presentation.",
+					error,
+				);
+			});
+	}, 3_000);
+	timer.unref();
+	presentationPresenterEndTimers.set(key, timer);
+}
+
+function clearScheduledPresentationEnds() {
+	for (const timer of presentationPresenterEndTimers.values()) {
+		clearTimeout(timer);
+	}
+	presentationPresenterEndTimers.clear();
 }
 
 const publicLibrarySubmissionSchema = z.object({
@@ -1177,6 +1242,64 @@ app.get(
 	}),
 );
 
+/**
+ * Page-exit endpoint for keepalive requests. It accepts a plain UUID body so a
+ * cross-origin API deployment does not need a preflight during tab shutdown.
+ */
+app.post(
+	"/api/boards/:id/presentation-end",
+	bodyLimit({
+		maxSize: 100,
+		onError: (c) => c.json({ error: "invalid presentation session" }, 400),
+	}),
+	async (c) => {
+		const rawBoardId = c.req.param("id");
+		const whiteboardId = isUuid(rawBoardId) ? rawBoardId : null;
+		const rawSessionId = (await c.req.text()).trim();
+		const sessionId = isUuid(rawSessionId) ? rawSessionId : null;
+		if (!whiteboardId || !sessionId) {
+			return c.json({ error: "invalid presentation session" }, 400);
+		}
+
+		const session = await auth.api.getSession({ headers: c.req.raw.headers });
+		if (!session?.user || !(await userHasProductAccess(db, session.user.id))) {
+			return c.json({ error: "unauthorized" }, 401);
+		}
+
+		try {
+			const access = await getBoardAccess(
+				{
+					db,
+					user: {
+						id: session.user.id,
+						name: session.user.name,
+						email: session.user.email,
+						image: session.user.image,
+					},
+				},
+				whiteboardId,
+			);
+			if (!access.canWrite) return c.json({ error: "forbidden" }, 403);
+		} catch {
+			return c.json({ error: "forbidden" }, 403);
+		}
+
+		const ended = await endPresentationSession(db, {
+			whiteboardId,
+			sessionId,
+			presenterId: session.user.id,
+		});
+		if (ended) {
+			publishPresentationLive({
+				type: "ended",
+				whiteboardId,
+				sessionId,
+			});
+		}
+		return c.json({ ended });
+	},
+);
+
 /** Session-bound publisher channel for the single authorized presenter. */
 app.get(
 	"/api/boards/:id/presentation-live",
@@ -1229,13 +1352,14 @@ app.get(
 					ws.close(1008, "unauthorized presenter session");
 					return;
 				}
-				presenter = { ws, sessionId };
+				presenter = { ws, sessionId, presenterId: authorizedUserId };
 				let room = presentationPresenterRooms.get(whiteboardId);
 				if (!room) {
 					room = new Set();
 					presentationPresenterRooms.set(whiteboardId, room);
 				}
 				room.add(presenter);
+				cancelScheduledPresentationEnd(whiteboardId, sessionId);
 				ensurePresentationRoomSubscription(whiteboardId);
 				sendPresentationMessage(ws, {
 					type: "ready",
@@ -1367,9 +1491,15 @@ app.get(
 			},
 			onClose() {
 				if (!presenter || !whiteboardId) return;
+				const disconnectedPresenter = presenter;
 				presentationPresenterRooms.get(whiteboardId)?.delete(presenter);
 				cleanupPresentationRoomSubscription(whiteboardId);
 				presenter = null;
+				schedulePresentationEndAfterDisconnect({
+					whiteboardId,
+					sessionId: disconnectedPresenter.sessionId,
+					presenterId: disconnectedPresenter.presenterId,
+				});
 			},
 		};
 	}),
@@ -1423,6 +1553,7 @@ async function shutdown(signal: NodeJS.Signals) {
 	]);
 
 	clearScheduledPresentationAudienceCounts();
+	clearScheduledPresentationEnds();
 	await Promise.allSettled([
 		closeBoardLiveBus(),
 		closeBoardPresence(),

@@ -16,7 +16,6 @@ import {
 	whiteboardFolders,
 	whiteboardKeyRecipients,
 	whiteboardMembers,
-	whiteboardPresentationAudience,
 	whiteboardPresenterNotes,
 	whiteboardTeamRoleAccess,
 	whiteboards,
@@ -88,6 +87,7 @@ import {
 import {
 	countPresentationAudience,
 	createPresentationShareToken,
+	endPresentationSession,
 	getPresentationShareAccess,
 	getWhiteboardPresentationShareSettings,
 	isPresentationCurrentlyActive,
@@ -1997,41 +1997,19 @@ export const whiteboardRouter = router({
 		.input(z.object({ id: z.string().uuid(), sessionId: z.string().uuid() }))
 		.mutation(async ({ ctx, input }) => {
 			await requireBoardMember(ctx, input.id);
-			const [updated] = await ctx.db
-				.update(whiteboards)
-				.set({
-					presentationActiveUntil: null,
-					presentationSessionId: null,
-					presentationPresenterId: null,
-					presentationFrameSequence: null,
-					presentationFramePayload: null,
-					presentationFrameAssetIds: null,
-					presentationFrameUpdatedAt: null,
-				})
-				.where(
-					and(
-						eq(whiteboards.id, input.id),
-						eq(whiteboards.presentationSessionId, input.sessionId),
-						eq(whiteboards.presentationPresenterId, ctx.user.id),
-					),
-				)
-				.returning({ id: whiteboards.id });
-			if (updated) {
-				await ctx.db
-					.delete(whiteboardPresentationAudience)
-					.where(
-						and(
-							eq(whiteboardPresentationAudience.whiteboardId, input.id),
-							eq(whiteboardPresentationAudience.sessionId, input.sessionId),
-						),
-					);
+			const ended = await endPresentationSession(ctx.db, {
+				whiteboardId: input.id,
+				sessionId: input.sessionId,
+				presenterId: ctx.user.id,
+			});
+			if (ended) {
 				publishPresentationLive({
 					type: "ended",
 					whiteboardId: input.id,
 					sessionId: input.sessionId,
 				});
 			}
-			return { id: input.id, ended: !!updated };
+			return { id: input.id, ended };
 		}),
 
 	listCommentThreads: protectedProcedure

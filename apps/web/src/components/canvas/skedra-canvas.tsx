@@ -238,7 +238,6 @@ export function SkedraCanvas({
 			enabled: e2eeRemoteMode,
 			readonly:
 				!!forceReadonly ||
-				presenterMode ||
 				presentationMode ||
 				!!presentationShareToken ||
 				!!embedShareToken,
@@ -254,7 +253,6 @@ export function SkedraCanvas({
 			enabled: serverRemoteMode,
 			readonly:
 				!!forceReadonly ||
-				presenterMode ||
 				presentationMode ||
 				!!presentationShareToken ||
 				!!embedShareToken,
@@ -586,11 +584,10 @@ export function SkedraCanvas({
 				return;
 			}
 
+			if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey)
+				return;
 			const previous = event.key === "ArrowLeft" || event.key === "PageUp";
-			const next =
-				event.key === "ArrowRight" ||
-				event.key === "PageDown" ||
-				event.key === " ";
+			const next = event.key === "ArrowRight" || event.key === "PageDown";
 			if (!previous && !next) return;
 
 			const currentIndex = Math.max(
@@ -605,6 +602,7 @@ export function SkedraCanvas({
 			if (!nextView || nextView.id === activeViewId) return;
 
 			event.preventDefault();
+			event.stopImmediatePropagation();
 			handleSelectView(nextView.id);
 		};
 
@@ -769,7 +767,7 @@ export function SkedraCanvas({
 	}, [editingViewId, setEditingViewId, sync.views]);
 
 	const keyboard = useCanvasKeyboard({
-		enabled: !presentationMode && !presenterMode && !sync.isReadonly,
+		enabled: !presentationMode && !sync.isReadonly,
 		elements: sync.elements,
 		createElement: sync.createElement,
 		deleteElements: deleteElementsWithKanbanReflow,
@@ -1040,8 +1038,7 @@ export function SkedraCanvas({
 		openKanbanList,
 	});
 
-	const showEditorChrome =
-		!presentationMode && !presenterMode && !sync.isReadonly && !zenMode;
+	const showEditorChrome = !presentationMode && !sync.isReadonly && !zenMode;
 	const hasPropertyContext =
 		selectedIds.size > 0 ||
 		pendingText != null ||

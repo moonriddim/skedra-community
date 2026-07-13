@@ -1,5 +1,6 @@
 /**
- * Presenter Notes — nur im Presenter-Modus sichtbar, pro Saved View (Slide).
+ * Private Presenter Notes per Saved View (Slide), editable before and during a
+ * presentation and never rendered into the audience frame.
  */
 
 import { Button } from "@/components/ui/button";

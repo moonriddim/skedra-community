@@ -22,6 +22,7 @@ import { BoardShareMembersList } from "@/components/whiteboard/board-share-membe
 import type { PendingCommentPlacement } from "@/components/whiteboard/canvas-comment-layer";
 import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard-comment-types";
 import { WhiteboardCommentsPanel } from "@/components/whiteboard/whiteboard-comments-panel";
+import { getApiUrl } from "@/lib/api-url";
 import { authClient } from "@/lib/auth-client";
 import {
 	type UnlockedUserE2eeIdentity,
@@ -430,6 +431,26 @@ export function BoardPage() {
 		},
 		[boardId],
 	);
+
+	useEffect(() => {
+		if (!boardId || !presenterSessionId) return;
+		const endPresentationOnPageExit = () => {
+			void fetch(
+				getApiUrl(
+					`/api/boards/${encodeURIComponent(boardId)}/presentation-end`,
+				),
+				{
+					method: "POST",
+					body: presenterSessionId,
+					credentials: "include",
+					keepalive: true,
+				},
+			).catch(() => undefined);
+		};
+		window.addEventListener("pagehide", endPresentationOnPageExit);
+		return () =>
+			window.removeEventListener("pagehide", endPresentationOnPageExit);
+	}, [boardId, presenterSessionId]);
 
 	const shareUrl = useMemo(() => {
 		if (!shareSettings?.shareToken) return "";

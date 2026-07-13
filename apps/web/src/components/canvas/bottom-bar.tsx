@@ -121,7 +121,7 @@ export function BottomBar({
 					onDeleteView={onDeleteView}
 					onDuplicateView={onDuplicateView}
 					onMoveView={onMoveView}
-					canManageViews={!presenterMode}
+					canManageViews={!presentationMode}
 					onRenameView={onRenameView}
 					resolveAssetUrl={resolveAssetUrl}
 					{...viewTileLabels}
@@ -153,7 +153,7 @@ export function BottomBar({
 
 					<div className="mx-1 h-5 w-px bg-border" />
 
-					{!presentationMode && !presenterMode && (
+					{!presentationMode && (
 						<>
 							<BarButton
 								label={t("canvas.bottomBar.undo")}
@@ -217,7 +217,7 @@ export function BottomBar({
 					onDeleteView={onDeleteView}
 					onDuplicateView={onDuplicateView}
 					onMoveView={onMoveView}
-					canManageViews={!presenterMode}
+					canManageViews={!presentationMode}
 					onRenameView={onRenameView}
 					resolveAssetUrl={resolveAssetUrl}
 					{...viewTileLabels}

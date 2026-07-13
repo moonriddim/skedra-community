@@ -152,3 +152,48 @@ export async function removePresentationAudienceConnection(
 		.delete(whiteboardPresentationAudience)
 		.where(eq(whiteboardPresentationAudience.connectionId, connectionId));
 }
+
+/**
+ * End exactly one presenter-owned session and remove every audience lease that
+ * belongs to it. The session predicate makes duplicate lifecycle signals safe.
+ */
+export async function endPresentationSession(
+	db: Database,
+	input: {
+		whiteboardId: string;
+		sessionId: string;
+		presenterId: string;
+	},
+) {
+	const [updated] = await db
+		.update(whiteboards)
+		.set({
+			presentationActiveUntil: null,
+			presentationSessionId: null,
+			presentationPresenterId: null,
+			presentationFrameSequence: null,
+			presentationFramePayload: null,
+			presentationFrameAssetIds: null,
+			presentationFrameUpdatedAt: null,
+		})
+		.where(
+			and(
+				eq(whiteboards.id, input.whiteboardId),
+				eq(whiteboards.presentationSessionId, input.sessionId),
+				eq(whiteboards.presentationPresenterId, input.presenterId),
+			),
+		)
+		.returning({ id: whiteboards.id });
+
+	if (!updated) return false;
+
+	await db
+		.delete(whiteboardPresentationAudience)
+		.where(
+			and(
+				eq(whiteboardPresentationAudience.whiteboardId, input.whiteboardId),
+				eq(whiteboardPresentationAudience.sessionId, input.sessionId),
+			),
+		);
+	return true;
+}
