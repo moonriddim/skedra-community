@@ -2,7 +2,7 @@
  * Whiteboard/Board-Router – Excalidraw-ähnlich: flache Boards pro User.
  */
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import {
 	type Database,
 	teamMembers,
@@ -16,6 +16,8 @@ import {
 	whiteboardFolders,
 	whiteboardKeyRecipients,
 	whiteboardMembers,
+	whiteboardPresentationAudience,
+	whiteboardPresenterNotes,
 	whiteboardTeamRoleAccess,
 	whiteboards,
 } from "@skedra/db";
@@ -84,11 +86,13 @@ import {
 	requireBoardViewActivity,
 } from "../../lib/permissions";
 import {
+	countPresentationAudience,
 	createPresentationShareToken,
 	getPresentationShareAccess,
 	getWhiteboardPresentationShareSettings,
 	isPresentationCurrentlyActive,
 } from "../../lib/presentation";
+import { publishPresentationLive } from "../../lib/presentation-live-bus";
 import {
 	buildRegistrationInviteUrl,
 	createRegistrationInvite,
@@ -179,22 +183,11 @@ async function requireE2eeUpdateAccess(
 	}
 
 	if (input.presentationShareToken) {
-		const access = await getPresentationShareAccess(
-			ctx.db,
-			input.presentationShareToken,
-		);
-		if (access.whiteboard.id !== input.whiteboardId) {
-			throw createAppError({
-				code: "FORBIDDEN",
-				appErrorCode: appErrorCodes.whiteboardAccessDenied,
-				message: "Falscher Praesentationslink",
-			});
-		}
-		return {
-			whiteboard: access.whiteboard,
-			canWrite: false,
-			userId: `guest-${input.presentationShareToken.slice(0, 8)}`,
-		};
+		throw createAppError({
+			code: "FORBIDDEN",
+			appErrorCode: appErrorCodes.whiteboardAccessDenied,
+			message: "Praesentationslinks erhalten nur die aktuell publizierte Folie",
+		});
 	}
 
 	if (input.embedShareToken) {
@@ -1012,6 +1005,85 @@ export const whiteboardRouter = router({
 			}
 		}),
 
+	listPresenterNotes: protectedProcedure
+		.input(z.object({ id: z.string().uuid() }))
+		.query(async ({ ctx, input }) => {
+			const access = await requireBoardMember(ctx, input.id);
+			if (!access.canWrite) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Keine Leserechte fuer Sprechernotizen",
+				});
+			}
+			return ctx.db.query.whiteboardPresenterNotes.findMany({
+				where: eq(whiteboardPresenterNotes.whiteboardId, input.id),
+				columns: {
+					viewId: true,
+					content: true,
+					encrypted: true,
+					updatedAt: true,
+				},
+			});
+		}),
+
+	updatePresenterNote: protectedProcedure
+		.input(
+			z.object({
+				id: z.string().uuid(),
+				viewId: z.string().min(1).max(160),
+				content: z.string().max(200_000),
+				encrypted: z.boolean(),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireBoardMember(ctx, input.id);
+			if (!access.canWrite) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Keine Schreibrechte fuer Sprechernotizen",
+				});
+			}
+			const mustEncrypt = access.whiteboard.encryptionMode === "e2ee";
+			if (input.encrypted !== mustEncrypt) {
+				throw createAppError({
+					code: "BAD_REQUEST",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: mustEncrypt
+						? "E2EE-Sprechernotizen muessen clientseitig verschluesselt sein"
+						: "Server-Boards erwarten Klartextnotizen im geschuetzten Mitgliederbereich",
+				});
+			}
+
+			const [note] = await ctx.db
+				.insert(whiteboardPresenterNotes)
+				.values({
+					whiteboardId: input.id,
+					viewId: input.viewId,
+					content: input.content,
+					encrypted: input.encrypted,
+					updatedById: ctx.user.id,
+				})
+				.onConflictDoUpdate({
+					target: [
+						whiteboardPresenterNotes.whiteboardId,
+						whiteboardPresenterNotes.viewId,
+					],
+					set: {
+						content: input.content,
+						encrypted: input.encrypted,
+						updatedById: ctx.user.id,
+						updatedAt: new Date(),
+					},
+				})
+				.returning({
+					viewId: whiteboardPresenterNotes.viewId,
+					updatedAt: whiteboardPresenterNotes.updatedAt,
+				});
+			return note;
+		}),
+
 	updatePresentationShare: protectedProcedure
 		.input(
 			z.object({
@@ -1031,6 +1103,7 @@ export const whiteboardRouter = router({
 					presentationSharePresenceEnabled: true,
 					presentationShareAccessMode: true,
 					presentationShareToken: true,
+					presentationSessionId: true,
 				},
 			});
 
@@ -1050,6 +1123,17 @@ export const whiteboardRouter = router({
 						? (existing?.presentationShareToken ??
 							createPresentationShareToken())
 						: (existing?.presentationShareToken ?? null),
+					...(input.enabled
+						? {}
+						: {
+								presentationActiveUntil: null,
+								presentationSessionId: null,
+								presentationPresenterId: null,
+								presentationFrameSequence: null,
+								presentationFramePayload: null,
+								presentationFrameAssetIds: null,
+								presentationFrameUpdatedAt: null,
+							}),
 					updatedAt: new Date(),
 				})
 				.where(eq(whiteboards.id, input.id))
@@ -1069,6 +1153,13 @@ export const whiteboardRouter = router({
 					userId: ctx.user.id,
 					type: "presentation_shared",
 					metadata: { name: updated.name },
+				});
+			}
+			if (!input.enabled && existing?.presentationShareEnabled) {
+				publishPresentationLive({
+					type: "revoke",
+					whiteboardId: input.id,
+					sessionId: existing.presentationSessionId,
 				});
 			}
 
@@ -1756,12 +1847,23 @@ export const whiteboardRouter = router({
 		.input(z.object({ id: z.string().uuid() }))
 		.mutation(async ({ ctx, input }) => {
 			await requireBoardManageShare(ctx, input.id);
+			const existing = await ctx.db.query.whiteboards.findFirst({
+				where: eq(whiteboards.id, input.id),
+				columns: { presentationSessionId: true },
+			});
 
 			const [updated] = await ctx.db
 				.update(whiteboards)
 				.set({
 					presentationShareEnabled: true,
 					presentationShareToken: createPresentationShareToken(),
+					presentationActiveUntil: null,
+					presentationSessionId: null,
+					presentationPresenterId: null,
+					presentationFrameSequence: null,
+					presentationFramePayload: null,
+					presentationFrameAssetIds: null,
+					presentationFrameUpdatedAt: null,
 					updatedAt: new Date(),
 				})
 				.where(eq(whiteboards.id, input.id))
@@ -1774,6 +1876,11 @@ export const whiteboardRouter = router({
 					message: "Board nicht gefunden",
 				});
 			}
+			publishPresentationLive({
+				type: "revoke",
+				whiteboardId: input.id,
+				sessionId: existing?.presentationSessionId ?? null,
+			});
 
 			return {
 				shareEnabled: updated.presentationShareEnabled,
@@ -1783,36 +1890,148 @@ export const whiteboardRouter = router({
 			};
 		}),
 
-	heartbeatPresentationSession: protectedProcedure
-		.input(z.object({ id: z.string().uuid(), active: z.boolean() }))
+	startPresentationSession: protectedProcedure
+		.input(z.object({ id: z.string().uuid() }))
 		.mutation(async ({ ctx, input }) => {
-			await requireBoardMember(ctx, input.id);
+			const access = await requireBoardMember(ctx, input.id);
+			if (!access.canWrite || !access.whiteboard.presentationShareEnabled) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Praesentieren ist fuer dieses Board nicht erlaubt",
+				});
+			}
 
-			const activeUntil = input.active ? new Date(Date.now() + 90_000) : null;
+			const sessionId = randomUUID();
+			const startedAt = new Date();
+			const activeUntil = new Date(startedAt.getTime() + 90_000);
 
 			const [updated] = await ctx.db
 				.update(whiteboards)
-				.set({ presentationActiveUntil: activeUntil, updatedAt: new Date() })
-				.where(eq(whiteboards.id, input.id))
+				.set({
+					presentationActiveUntil: activeUntil,
+					presentationSessionId: sessionId,
+					presentationPresenterId: ctx.user.id,
+					presentationFrameSequence: null,
+					presentationFramePayload: null,
+					presentationFrameAssetIds: null,
+					presentationFrameUpdatedAt: null,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(whiteboards.id, input.id),
+						eq(whiteboards.presentationShareEnabled, true),
+						or(
+							isNull(whiteboards.presentationActiveUntil),
+							lt(whiteboards.presentationActiveUntil, startedAt),
+						),
+					),
+				)
 				.returning({
 					id: whiteboards.id,
-					presentationActiveUntil: whiteboards.presentationActiveUntil,
+					presentationSessionId: whiteboards.presentationSessionId,
 				});
 
 			if (!updated) {
 				throw createAppError({
-					code: "NOT_FOUND",
+					code: "CONFLICT",
 					appErrorCode: appErrorCodes.whiteboardNotFound,
-					message: "Board nicht gefunden",
+					message: "Auf diesem Board laeuft bereits eine andere Praesentation",
 				});
 			}
 
 			return {
 				id: updated.id,
-				isPresentationActive: isPresentationCurrentlyActive(
-					updated.presentationActiveUntil,
+				sessionId: updated.presentationSessionId as string,
+				startedAt: startedAt.toISOString(),
+				audienceCount: 0,
+			};
+		}),
+
+	heartbeatPresentationSession: protectedProcedure
+		.input(z.object({ id: z.string().uuid(), sessionId: z.string().uuid() }))
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireBoardMember(ctx, input.id);
+			if (!access.canWrite) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Keine Berechtigung zum Praesentieren",
+				});
+			}
+			const now = new Date();
+			const [updated] = await ctx.db
+				.update(whiteboards)
+				.set({
+					presentationActiveUntil: new Date(now.getTime() + 90_000),
+				})
+				.where(
+					and(
+						eq(whiteboards.id, input.id),
+						eq(whiteboards.presentationSessionId, input.sessionId),
+						eq(whiteboards.presentationPresenterId, ctx.user.id),
+						gt(whiteboards.presentationActiveUntil, now),
+					),
+				)
+				.returning({ id: whiteboards.id });
+			if (!updated) {
+				throw createAppError({
+					code: "CONFLICT",
+					appErrorCode: appErrorCodes.presentationShareInactive,
+					message: "Diese Presenter-Session ist nicht mehr aktiv",
+				});
+			}
+			return {
+				id: updated.id,
+				isPresentationActive: true,
+				audienceCount: await countPresentationAudience(
+					ctx.db,
+					input.id,
+					input.sessionId,
 				),
 			};
+		}),
+
+	endPresentationSession: protectedProcedure
+		.input(z.object({ id: z.string().uuid(), sessionId: z.string().uuid() }))
+		.mutation(async ({ ctx, input }) => {
+			await requireBoardMember(ctx, input.id);
+			const [updated] = await ctx.db
+				.update(whiteboards)
+				.set({
+					presentationActiveUntil: null,
+					presentationSessionId: null,
+					presentationPresenterId: null,
+					presentationFrameSequence: null,
+					presentationFramePayload: null,
+					presentationFrameAssetIds: null,
+					presentationFrameUpdatedAt: null,
+				})
+				.where(
+					and(
+						eq(whiteboards.id, input.id),
+						eq(whiteboards.presentationSessionId, input.sessionId),
+						eq(whiteboards.presentationPresenterId, ctx.user.id),
+					),
+				)
+				.returning({ id: whiteboards.id });
+			if (updated) {
+				await ctx.db
+					.delete(whiteboardPresentationAudience)
+					.where(
+						and(
+							eq(whiteboardPresentationAudience.whiteboardId, input.id),
+							eq(whiteboardPresentationAudience.sessionId, input.sessionId),
+						),
+					);
+				publishPresentationLive({
+					type: "ended",
+					whiteboardId: input.id,
+					sessionId: input.sessionId,
+				});
+			}
+			return { id: input.id, ended: !!updated };
 		}),
 
 	listCommentThreads: protectedProcedure
@@ -1841,30 +2060,34 @@ export const whiteboardRouter = router({
 				whiteboardId: z.string().uuid(),
 				x: z.number(),
 				y: z.number(),
-				body: z.string().min(1).max(2000),
+				body: z.string().trim().min(1).max(2000),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
 			await requireBoardComment(ctx, input.whiteboardId);
 
 			const now = new Date();
-			const [thread] = await ctx.db
-				.insert(whiteboardCommentThreads)
-				.values({
-					whiteboardId: input.whiteboardId,
-					x: input.x,
-					y: input.y,
-					createdById: ctx.user.id,
-					createdAt: now,
-					updatedAt: now,
-				})
-				.returning();
-
 			const body = input.body.trim();
-			await ctx.db.insert(whiteboardCommentMessages).values({
-				threadId: thread.id,
-				authorId: ctx.user.id,
-				body,
+			const thread = await ctx.db.transaction(async (tx) => {
+				const [createdThread] = await tx
+					.insert(whiteboardCommentThreads)
+					.values({
+						whiteboardId: input.whiteboardId,
+						x: input.x,
+						y: input.y,
+						createdById: ctx.user.id,
+						createdAt: now,
+						updatedAt: now,
+					})
+					.returning();
+
+				await tx.insert(whiteboardCommentMessages).values({
+					threadId: createdThread.id,
+					authorId: ctx.user.id,
+					body,
+				});
+
+				return createdThread;
 			});
 
 			const board = await ctx.db.query.whiteboards.findFirst({

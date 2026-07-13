@@ -1,6 +1,5 @@
 import { BoardActivityOverlay } from "@/components/board";
 import { BoardAppearanceMenu } from "@/components/board/board-appearance-menu";
-import { LiveCallPanel } from "@/components/board/live-call-panel";
 import { RoleBadge } from "@/components/team/role-badge";
 import { RolePermissionsSummary } from "@/components/team/role-permissions-editor";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,12 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { BoardShareMembersList } from "@/components/whiteboard/board-share-members-list";
 import type { PendingCommentPlacement } from "@/components/whiteboard/canvas-comment-layer";
 import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard-comment-types";
@@ -64,6 +69,12 @@ const SkedraCanvas = lazy(() =>
 	})),
 );
 
+const LiveCallPanel = lazy(() =>
+	import("@/components/board/live-call-panel").then((m) => ({
+		default: m.LiveCallPanel,
+	})),
+);
+
 type InviteKeyDelivery = "none" | "fragment" | "recipient";
 
 export function BoardPage() {
@@ -76,7 +87,6 @@ export function BoardPage() {
 	const [copied, setCopied] = useState(false);
 	const [commentsOpen, setCommentsOpen] = useState(false);
 	const [activityOpen, setActivityOpen] = useState(false);
-	const [nameDraft, setNameDraft] = useState("");
 	const [inviteEmail, setInviteEmail] = useState("");
 	const [inviteRoleId, setInviteRoleId] = useState("");
 	const [inviteLink, setInviteLink] = useState("");
@@ -104,7 +114,12 @@ export function BoardPage() {
 	const [obsidianPath, setObsidianPath] = useState("");
 	const [obsidianApiKey, setObsidianApiKey] = useState("");
 	const [callOpen, setCallOpen] = useState(false);
-	const [presenterIsLive, setPresenterIsLive] = useState(false);
+	const [presenterSessionId, setPresenterSessionId] = useState<string | null>(
+		null,
+	);
+	const [presenterStartedAt, setPresenterStartedAt] = useState<string | null>(
+		null,
+	);
 	const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
 	const [showResolvedComments, setShowResolvedComments] = useState(false);
 	const [commentPlacementActive, setCommentPlacementActive] = useState(false);
@@ -123,10 +138,11 @@ export function BoardPage() {
 		{ id: boardId ?? "" },
 		{ enabled: !!boardId },
 	);
+	const encryptionMode = board?.encryptionMode ?? "server";
 	const { data: ownKeyRecipient } = trpc.whiteboard.getOwnKeyRecipient.useQuery(
 		{ id: boardId ?? "" },
 		{
-			enabled: !!boardId && !!session?.user && board?.encryptionMode === "e2ee",
+			enabled: !!boardId && !!session?.user && encryptionMode === "e2ee",
 		},
 	);
 	const identityQuery = trpc.userE2ee.getIdentity.useQuery(undefined, {
@@ -138,7 +154,7 @@ export function BoardPage() {
 	});
 
 	const canManage = board?.canManage ?? false;
-	const isE2eeBoard = board?.encryptionMode !== "server";
+	const isE2eeBoard = encryptionMode === "e2ee";
 	const canInvite = board?.canInvite ?? canManage;
 	const canManageShare = board?.canManageShare ?? canManage;
 	const canManageMembers = board?.canManageMembers ?? canManage;
@@ -224,11 +240,6 @@ export function BoardPage() {
 			onError: () => setDeletingMessageId(null),
 		},
 	);
-
-	const updateBoard = trpc.whiteboard.update.useMutation({
-		onSuccess: () =>
-			void utils.whiteboard.getById.invalidate({ id: boardId ?? "" }),
-	});
 
 	const updateShare = trpc.whiteboard.updatePresentationShare.useMutation({
 		onSuccess: () =>
@@ -368,27 +379,57 @@ export function BoardPage() {
 		},
 	});
 
-	const heartbeatPresentation =
-		trpc.whiteboard.heartbeatPresentationSession.useMutation({
-			onSuccess: (result) => setPresenterIsLive(result.isPresentationActive),
+	const startPresentation =
+		trpc.whiteboard.startPresentationSession.useMutation({
+			onSuccess: (result) => {
+				setPresenterSessionId(result.sessionId);
+				setPresenterStartedAt(result.startedAt);
+			},
 		});
+	const endPresentation = trpc.whiteboard.endPresentationSession.useMutation({
+		onSuccess: () => {
+			setPresenterSessionId(null);
+			setPresenterStartedAt(null);
+		},
+	});
+	const presenterSessionRef = useRef<string | null>(null);
+	presenterSessionRef.current = presenterSessionId;
+	const endPresentationMutateRef = useRef(endPresentation.mutate);
+	endPresentationMutateRef.current = endPresentation.mutate;
+
+	const handleStartPresentation = useCallback(() => {
+		if (!boardId || startPresentation.isPending) return;
+		startPresentation.mutate({ id: boardId });
+	}, [boardId, startPresentation.isPending, startPresentation.mutate]);
+
+	const handleEndPresentation = useCallback(() => {
+		if (!boardId || !presenterSessionRef.current) return;
+		endPresentationMutateRef.current({
+			id: boardId,
+			sessionId: presenterSessionRef.current,
+		});
+	}, [boardId]);
 
 	useEffect(() => {
-		if (!boardId || !presenterMode) {
-			setPresenterIsLive(false);
-			return;
+		if (presenterMode) return;
+		if (presenterSessionRef.current && boardId) {
+			endPresentationMutateRef.current({
+				id: boardId,
+				sessionId: presenterSessionRef.current,
+			});
 		}
+	}, [boardId, presenterMode]);
 
-		void heartbeatPresentation.mutate({ id: boardId, active: true });
-		const interval = window.setInterval(() => {
-			void heartbeatPresentation.mutate({ id: boardId, active: true });
-		}, 45_000);
-
-		return () => {
-			window.clearInterval(interval);
-			void heartbeatPresentation.mutate({ id: boardId, active: false });
-		};
-	}, [boardId, presenterMode, heartbeatPresentation.mutate]);
+	useEffect(
+		() => () => {
+			if (!boardId || !presenterSessionRef.current) return;
+			endPresentationMutateRef.current({
+				id: boardId,
+				sessionId: presenterSessionRef.current,
+			});
+		},
+		[boardId],
+	);
 
 	const shareUrl = useMemo(() => {
 		if (!shareSettings?.shareToken) return "";
@@ -840,547 +881,179 @@ export function BoardPage() {
 						{t("whiteboardPage.backToLibrary")}
 					</Link>
 				</Button>
-
-				{isOwner ? (
-					<Input
-						className="h-9 w-48 bg-card/90 backdrop-blur-md font-medium"
-						value={nameDraft || board.name}
-						onChange={(e) => setNameDraft(e.target.value)}
-						onBlur={() => {
-							const next = nameDraft.trim();
-							if (next && next !== board.name) {
-								updateBoard.mutate({ id: board.id, name: next });
-							}
-						}}
-					/>
-				) : (
-					<div className="h-9 flex items-center px-3 rounded-lg border border-border bg-card/90 backdrop-blur-md font-medium text-sm">
-						{board.name}
-					</div>
-				)}
 			</div>
 
-			<div className="absolute right-4 top-4 z-50 flex items-center gap-2">
-				<BoardAppearanceMenu />
+			<TooltipProvider>
+				<div className="absolute right-4 top-4 z-50 flex items-center gap-2">
+					<BoardAppearanceMenu />
 
-				{canViewActivity ? (
-					<Button
-						variant="outline"
-						size="sm"
-						className="bg-card/90 backdrop-blur-md"
-						onClick={() => {
-							setActivityOpen(true);
-							setCommentsOpen(false);
-						}}
-					>
-						<History className="mr-2 h-4 w-4" />
-						{t("whiteboardPage.activity.open")}
-					</Button>
-				) : null}
+					{canViewActivity ? (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									className={`h-9 w-9 backdrop-blur-md ${
+										activityOpen
+											? "border-primary bg-primary/10 text-primary"
+											: "bg-card/90"
+									}`}
+									aria-label={t("whiteboardPage.activity.open")}
+									aria-pressed={activityOpen}
+									onClick={() => {
+										setActivityOpen((open) => {
+											if (!open) setCommentsOpen(false);
+											return !open;
+										});
+									}}
+								>
+									<History className="h-4 w-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								{t("whiteboardPage.activity.open")}
+							</TooltipContent>
+						</Tooltip>
+					) : null}
 
-				<Button
-					variant="outline"
-					size="sm"
-					className="bg-card/90 backdrop-blur-md"
-					onClick={() => {
-						setCommentsOpen(true);
-						setActivityOpen(false);
-					}}
-				>
-					<MessageSquare className="mr-2 h-4 w-4" />
-					{t("whiteboardPage.comments.label")}
-				</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								className={`h-9 w-9 backdrop-blur-md ${
+									commentsOpen
+										? "border-primary bg-primary/10 text-primary"
+										: "bg-card/90"
+								}`}
+								aria-label={t("whiteboardPage.comments.label")}
+								aria-pressed={commentsOpen}
+								onClick={() => {
+									setCommentsOpen((open) => {
+										if (!open) setActivityOpen(false);
+										return !open;
+									});
+								}}
+							>
+								<MessageSquare className="h-4 w-4" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{t("whiteboardPage.comments.label")}
+						</TooltipContent>
+					</Tooltip>
 
-				{callsConfig?.enabled ? (
-					<Dialog open={callOpen} onOpenChange={setCallOpen}>
+					{callsConfig?.enabled ? (
+						<Dialog open={callOpen} onOpenChange={setCallOpen}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<DialogTrigger asChild>
+										<Button
+											variant="outline"
+											size="icon"
+											className="h-9 w-9 bg-card/90 backdrop-blur-md"
+											aria-label={t("canvas.call.open")}
+										>
+											<MonitorPlay className="h-4 w-4" />
+										</Button>
+									</DialogTrigger>
+								</TooltipTrigger>
+								<TooltipContent>{t("canvas.call.open")}</TooltipContent>
+							</Tooltip>
+							<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+								<DialogHeader>
+									<DialogTitle>{t("canvas.call.title")}</DialogTitle>
+									<DialogDescription>
+										{t("canvas.call.description")}
+									</DialogDescription>
+								</DialogHeader>
+								{callOpen ? (
+									<Suspense
+										fallback={
+											<div className="flex h-48 items-center justify-center">
+												<Loader2 className="h-6 w-6 animate-spin text-primary" />
+											</div>
+										}
+									>
+										<LiveCallPanel
+											boardId={board.id}
+											boardName={board.name}
+											open={callOpen}
+										/>
+									</Suspense>
+								) : null}
+							</DialogContent>
+						</Dialog>
+					) : null}
+
+					<Dialog>
 						<DialogTrigger asChild>
 							<Button
 								variant="outline"
 								size="sm"
 								className="bg-card/90 backdrop-blur-md"
 							>
-								<MonitorPlay className="mr-2 h-4 w-4" />
-								{t("canvas.call.open")}
+								<Share2 className="mr-2 h-4 w-4" />
+								{t("whiteboardPage.share.title")}
 							</Button>
 						</DialogTrigger>
-						<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+						<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
 							<DialogHeader>
-								<DialogTitle>{t("canvas.call.title")}</DialogTitle>
+								<DialogTitle>{t("whiteboardPage.share.title")}</DialogTitle>
 								<DialogDescription>
-									{t("canvas.call.description")}
+									{t("whiteboardPage.share.subtitle")}
 								</DialogDescription>
 							</DialogHeader>
-							<LiveCallPanel
-								boardId={board.id}
-								boardName={board.name}
-								open={callOpen}
-							/>
-						</DialogContent>
-					</Dialog>
-				) : null}
-
-				<Dialog>
-					<DialogTrigger asChild>
-						<Button
-							variant="outline"
-							size="sm"
-							className="bg-card/90 backdrop-blur-md"
-						>
-							<Share2 className="mr-2 h-4 w-4" />
-							{t("whiteboardPage.share.title")}
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-						<DialogHeader>
-							<DialogTitle>{t("whiteboardPage.share.title")}</DialogTitle>
-							<DialogDescription>
-								{t("whiteboardPage.share.subtitle")}
-							</DialogDescription>
-						</DialogHeader>
-						<div className="space-y-4">
-							<div className="rounded-md border border-border/60 p-3">
-								<p className="flex items-center gap-2 text-sm font-medium">
-									<Code2 className="h-4 w-4 text-muted-foreground" />
-									{t("whiteboardPage.share.mcpKeyTitle")}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									{!isE2eeBoard
-										? t("whiteboardPage.share.mcpServerHint")
-										: e2eeKey
-											? t("whiteboardPage.share.mcpKeyHint")
-											: t("whiteboardPage.share.mcpKeyUnavailable")}
-								</p>
-								{isE2eeBoard ? (
-									<Button
-										className="mt-3"
-										disabled={!e2eeKey}
-										onClick={handleCopyMcpKey}
-										variant="outline"
-									>
-										{mcpKeyCopied ? (
-											<Check className="mr-2 h-4 w-4" />
-										) : (
-											<Copy className="mr-2 h-4 w-4" />
-										)}
-										{mcpKeyCopied
-											? t("whiteboardPage.share.mcpKeyCopied")
-											: t("whiteboardPage.share.copyMcpKey")}
-									</Button>
-								) : null}
-							</div>
-
-							<BoardShareMembersList
-								boardId={board.id}
-								canManage={canManageMembers}
-								inviteRoles={canManageMembers ? inviteRoles : undefined}
-							/>
-							{canManageMembers ? (
-								<div className="border-t pt-4 space-y-3">
-									<div>
-										<p className="text-sm font-medium">
-											{t("whiteboardPage.share.teamRoleAccessTitle")}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{t("whiteboardPage.share.teamRoleAccessHint")}
-										</p>
-									</div>
-									{(inviteRoles?.length ?? 0) === 0 ? (
-										<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
-											<p>{t("whiteboardPage.share.teamRolesEmptyInvite")}</p>
-											<Button
-												variant="outline"
-												size="sm"
-												className="mt-3"
-												asChild
-											>
-												<Link to="/settings?tab=team">
-													{t("whiteboardPage.share.manageRolesAction")}
-												</Link>
-											</Button>
-										</div>
-									) : (
-										<ul className="space-y-2">
-											{inviteRoles?.map((role) => (
-												<li
-													key={role.id}
-													className="rounded-lg border border-border/70 bg-muted/15 p-3"
-												>
-													<label className="flex cursor-pointer items-start gap-3">
-														<input
-															type="checkbox"
-															className="mt-1"
-															checked={role.granted}
-															disabled={setTeamRoleAccess.isPending}
-															onChange={(event) =>
-																setTeamRoleAccess.mutate({
-																	id: board.id,
-																	roleId: role.id,
-																	enabled: event.target.checked,
-																})
-															}
-														/>
-														<span className="min-w-0 flex-1 space-y-2">
-															<RoleBadge name={role.name} color={role.color} />
-															<RolePermissionsSummary
-																permissions={role.permissions}
-															/>
-														</span>
-													</label>
-												</li>
-											))}
-										</ul>
-									)}
+							<div className="space-y-4">
+								<div className="rounded-md border border-border/60 p-3">
+									<p className="flex items-center gap-2 text-sm font-medium">
+										<Code2 className="h-4 w-4 text-muted-foreground" />
+										{t("whiteboardPage.share.mcpKeyTitle")}
+									</p>
+									<p className="mt-1 text-xs text-muted-foreground">
+										{!isE2eeBoard
+											? t("whiteboardPage.share.mcpServerHint")
+											: e2eeKey
+												? t("whiteboardPage.share.mcpKeyHint")
+												: t("whiteboardPage.share.mcpKeyUnavailable")}
+									</p>
+									{isE2eeBoard ? (
+										<Button
+											className="mt-3"
+											disabled={!e2eeKey}
+											onClick={handleCopyMcpKey}
+											variant="outline"
+										>
+											{mcpKeyCopied ? (
+												<Check className="mr-2 h-4 w-4" />
+											) : (
+												<Copy className="mr-2 h-4 w-4" />
+											)}
+											{mcpKeyCopied
+												? t("whiteboardPage.share.mcpKeyCopied")
+												: t("whiteboardPage.share.copyMcpKey")}
+										</Button>
+									) : null}
 								</div>
-							) : null}
-							{canManageShare ? (
-								<>
-									<label className="flex items-center gap-2 text-sm">
-										<input
-											type="checkbox"
-											checked={shareSettings?.shareEnabled ?? false}
-											onChange={(e) =>
-												updateShare.mutate({
-													id: board.id,
-													enabled: e.target.checked,
-												})
-											}
-										/>
-										{t("whiteboardPage.share.enablePublicLink")}
-									</label>
-									{shareSettings?.shareEnabled && shareUrl && (
-										<div className="space-y-2">
-											<Input readOnly value={shareUrl} />
-											<div className="flex gap-2">
-												<Button
-													variant="outline"
-													className="flex-1"
-													onClick={handleCopyShare}
-												>
-													{copied ? (
-														<Check className="h-4 w-4" />
-													) : (
-														<Copy className="h-4 w-4" />
-													)}
-													{copied
-														? t("whiteboardPage.share.copied")
-														: t("whiteboardPage.share.copyLink")}
-												</Button>
-												<Button variant="outline" asChild>
-													<a href={shareUrl} target="_blank" rel="noreferrer">
-														<ExternalLink className="h-4 w-4" />
-													</a>
-												</Button>
-												<Button
-													variant="outline"
-													disabled={regenerateShare.isPending}
-													onClick={() =>
-														regenerateShare.mutate({ id: board.id })
-													}
-												>
-													<RefreshCcw className="h-4 w-4" />
-												</Button>
-											</div>
+
+								<BoardShareMembersList
+									boardId={board.id}
+									canManage={canManageMembers}
+									inviteRoles={canManageMembers ? inviteRoles : undefined}
+								/>
+								{canManageMembers ? (
+									<div className="border-t pt-4 space-y-3">
+										<div>
+											<p className="text-sm font-medium">
+												{t("whiteboardPage.share.teamRoleAccessTitle")}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{t("whiteboardPage.share.teamRoleAccessHint")}
+											</p>
 										</div>
-									)}
-									<div className="border-t pt-4 space-y-3">
-										<p className="text-sm font-medium">
-											{t("whiteboardPage.share.collabLinkTitle")}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{t("whiteboardPage.share.linkAccessHint")}
-										</p>
-										<label className="flex items-center gap-2 text-sm">
-											<input
-												type="checkbox"
-												checked={collabSettings?.enabled ?? false}
-												onChange={(e) =>
-													updateCollabShare.mutate({
-														id: board.id,
-														enabled: e.target.checked,
-														accessLevel: collabSettings?.accessLevel ?? "edit",
-													})
-												}
-											/>
-											{t("whiteboardPage.share.enableCollabLink")}
-										</label>
-										{collabSettings?.enabled && (
-											<>
-												<select
-													className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-													value={collabSettings.accessLevel}
-													onChange={(e) =>
-														updateCollabShare.mutate({
-															id: board.id,
-															enabled: true,
-															accessLevel: e.target.value as "view" | "edit",
-														})
-													}
-												>
-													<option value="edit">
-														{t("whiteboardPage.share.collabEdit")}
-													</option>
-													<option value="view">
-														{t("whiteboardPage.share.collabView")}
-													</option>
-												</select>
-												{collabUrl && (
-													<div className="flex gap-2">
-														<Input readOnly value={collabUrl} />
-														<Button
-															variant="outline"
-															onClick={async () => {
-																await navigator.clipboard.writeText(collabUrl);
-																setCollabCopied(true);
-																setTimeout(() => setCollabCopied(false), 2000);
-															}}
-														>
-															{collabCopied ? (
-																<Check className="h-4 w-4" />
-															) : (
-																<Copy className="h-4 w-4" />
-															)}
-														</Button>
-													</div>
-												)}
-											</>
-										)}
-									</div>
-									<div className="border-t pt-4 space-y-3">
-										<p className="flex items-center gap-2 text-sm font-medium">
-											<Code2 className="h-4 w-4 text-muted-foreground" />
-											{t("whiteboardPage.share.embedLinkTitle")}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{t("whiteboardPage.share.embedLinkHint")}
-										</p>
-										<label className="flex items-center gap-2 text-sm">
-											<input
-												type="checkbox"
-												checked={embedSettings?.enabled ?? false}
-												onChange={(e) =>
-													updateEmbedShare.mutate({
-														id: board.id,
-														enabled: e.target.checked,
-													})
-												}
-											/>
-											{t("whiteboardPage.share.enableEmbedLink")}
-										</label>
-										{embedSettings?.enabled && embedUrl && (
-											<div className="space-y-2">
-												<div className="flex gap-2">
-													<Input readOnly value={embedUrl} />
-													<Button
-														variant="outline"
-														onClick={handleCopyEmbedUrl}
-													>
-														{embedCopied ? (
-															<Check className="h-4 w-4" />
-														) : (
-															<Copy className="h-4 w-4" />
-														)}
-													</Button>
-													<Button variant="outline" asChild>
-														<a href={embedUrl} target="_blank" rel="noreferrer">
-															<ExternalLink className="h-4 w-4" />
-														</a>
-													</Button>
-												</div>
-												<div className="flex gap-2">
-													<Input readOnly value={embedCode} />
-													<Button
-														variant="outline"
-														onClick={handleCopyEmbedCode}
-													>
-														{embedCodeCopied ? (
-															<Check className="h-4 w-4" />
-														) : (
-															<Copy className="h-4 w-4" />
-														)}
-														<span className="sr-only">
-															{t("whiteboardPage.share.copyEmbedCode")}
-														</span>
-													</Button>
-												</div>
-												<div className="rounded-md border border-border/60 p-3 space-y-3">
-													<p className="text-sm font-medium">
-														{t("whiteboardPage.share.integrationsTitle")}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														Notion schreibt/aktualisiert einen Embed-Block per
-														Notion API. Obsidian synchronisiert eine
-														Markdown-Datei über die Local REST API.
-													</p>
-													<div className="space-y-2">
-														<p className="text-xs font-medium uppercase text-muted-foreground">
-															Notion
-														</p>
-														<Input
-															value={notionPageId}
-															onChange={(event) =>
-																setNotionPageId(event.target.value)
-															}
-															placeholder="Page- oder Block-ID"
-														/>
-														<Input
-															value={notionToken}
-															onChange={(event) =>
-																setNotionToken(event.target.value)
-															}
-															placeholder={
-																notionIntegration?.hasSecret
-																	? "Token gespeichert"
-																	: "Notion Integration Token"
-															}
-															type="password"
-														/>
-														<div className="grid gap-2 sm:grid-cols-2">
-															<Button
-																variant="outline"
-																size="sm"
-																disabled={
-																	!notionPageId.trim() ||
-																	saveNotionIntegration.isPending
-																}
-																onClick={handleSaveNotionIntegration}
-															>
-																{notionIntegration ? "Speichern" : "Verbinden"}
-															</Button>
-															<Button
-																variant="outline"
-																size="sm"
-																disabled={
-																	!notionIntegration ||
-																	syncIntegration.isPending
-																}
-																onClick={() =>
-																	syncIntegration.mutate({
-																		whiteboardId: board.id,
-																		provider: "notion",
-																	})
-																}
-															>
-																Jetzt syncen
-															</Button>
-														</div>
-														{notionIntegration?.lastSyncError ? (
-															<p className="text-xs text-destructive">
-																{notionIntegration.lastSyncError}
-															</p>
-														) : null}
-													</div>
-													<div className="space-y-2 border-t pt-3">
-														<p className="text-xs font-medium uppercase text-muted-foreground">
-															Obsidian
-														</p>
-														<Input
-															value={obsidianEndpoint}
-															onChange={(event) =>
-																setObsidianEndpoint(event.target.value)
-															}
-															placeholder="http://127.0.0.1:27123"
-														/>
-														<Input
-															value={obsidianPath}
-															onChange={(event) =>
-																setObsidianPath(event.target.value)
-															}
-															placeholder="Skedra/Board.md"
-														/>
-														<Input
-															value={obsidianApiKey}
-															onChange={(event) =>
-																setObsidianApiKey(event.target.value)
-															}
-															placeholder={
-																obsidianIntegration?.hasSecret
-																	? "API-Key gespeichert"
-																	: "Local REST API-Key"
-															}
-															type="password"
-														/>
-														<div className="grid gap-2 sm:grid-cols-2">
-															<Button
-																variant="outline"
-																size="sm"
-																disabled={
-																	!obsidianEndpoint.trim() ||
-																	!obsidianPath.trim() ||
-																	saveObsidianIntegration.isPending
-																}
-																onClick={handleSaveObsidianIntegration}
-															>
-																{obsidianIntegration
-																	? "Speichern"
-																	: "Verbinden"}
-															</Button>
-															<Button
-																variant="outline"
-																size="sm"
-																disabled={
-																	!obsidianIntegration ||
-																	syncIntegration.isPending
-																}
-																onClick={() =>
-																	syncIntegration.mutate({
-																		whiteboardId: board.id,
-																		provider: "obsidian",
-																	})
-																}
-															>
-																Jetzt syncen
-															</Button>
-														</div>
-														{obsidianIntegration?.lastSyncError ? (
-															<p className="text-xs text-destructive">
-																{obsidianIntegration.lastSyncError}
-															</p>
-														) : null}
-													</div>
-													<div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={handleCopyNotionLink}
-														>
-															{notionCopied ? (
-																<Check className="mr-2 h-4 w-4" />
-															) : (
-																<Copy className="mr-2 h-4 w-4" />
-															)}
-															Link kopieren
-														</Button>
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={handleCopyObsidianMarkdown}
-														>
-															{obsidianCopied ? (
-																<Check className="mr-2 h-4 w-4" />
-															) : (
-																<Copy className="mr-2 h-4 w-4" />
-															)}
-															Markdown kopieren
-														</Button>
-													</div>
-												</div>
-											</div>
-										)}
-									</div>
-								</>
-							) : null}
-							{canInvite ? (
-								<div className="border-t pt-4 space-y-3">
-									<p className="mb-1 text-sm font-medium">
-										{t("whiteboardPage.share.inviteCollaborator")}
-									</p>
-									<p className="text-xs text-muted-foreground">
-										{t("whiteboardPage.share.inviteRoleHint")}
-									</p>
-									{(inviteRoles?.length ?? 0) === 0 ? (
-										<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
-											<p>{t("whiteboardPage.share.teamRolesEmptyInvite")}</p>
-											{canManage ? (
+										{(inviteRoles?.length ?? 0) === 0 ? (
+											<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
+												<p>{t("whiteboardPage.share.teamRolesEmptyInvite")}</p>
 												<Button
 													variant="outline"
 													size="sm"
@@ -1391,141 +1064,556 @@ export function BoardPage() {
 														{t("whiteboardPage.share.manageRolesAction")}
 													</Link>
 												</Button>
-											) : null}
-										</div>
-									) : (
-										<div className="flex flex-col gap-3">
-											<div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-												<Input
-													type="email"
-													placeholder="email@example.com"
-													value={inviteEmail}
-													onChange={(e) => {
-														setInviteEmail(e.target.value);
-														setInviteLink("");
-														setInviteKeyDelivery("none");
-													}}
-													className="flex-1"
-												/>
-												<div className="space-y-1.5 min-w-[160px]">
-													<label
-														className="text-xs font-medium text-muted-foreground"
-														htmlFor="board-invite-role"
-													>
-														{t("whiteboardPage.share.inviteRoleLabel")}
-													</label>
-													<select
-														id="board-invite-role"
-														className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-														value={selectedInviteRole?.id ?? ""}
-														onChange={(e) => setInviteRoleId(e.target.value)}
-													>
-														{inviteRoles?.map((role) => (
-															<option key={role.id} value={role.id}>
-																{role.name}
-															</option>
-														))}
-													</select>
-												</div>
-												<Button
-													disabled={
-														!inviteEmail ||
-														!selectedInviteRole?.id ||
-														inviteMember.isPending
-													}
-													onClick={() => {
-														if (!selectedInviteRole?.id) return;
-														inviteMember.mutate({
-															id: board.id,
-															email: inviteEmail,
-															roleId: selectedInviteRole.id,
-														});
-													}}
-												>
-													{t("whiteboardPage.share.invite")}
-												</Button>
 											</div>
-											{inviteLink ? (
-												<div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-													<div className="flex flex-col gap-2 sm:flex-row">
-														<Input
-															readOnly
-															value={inviteLink}
-															className="text-xs"
-														/>
+										) : (
+											<ul className="space-y-2">
+												{inviteRoles?.map((role) => (
+													<li
+														key={role.id}
+														className="rounded-lg border border-border/70 bg-muted/15 p-3"
+													>
+														<label className="flex cursor-pointer items-start gap-3">
+															<input
+																type="checkbox"
+																className="mt-1"
+																checked={role.granted}
+																disabled={setTeamRoleAccess.isPending}
+																onChange={(event) =>
+																	setTeamRoleAccess.mutate({
+																		id: board.id,
+																		roleId: role.id,
+																		enabled: event.target.checked,
+																	})
+																}
+															/>
+															<span className="min-w-0 flex-1 space-y-2">
+																<RoleBadge
+																	name={role.name}
+																	color={role.color}
+																/>
+																<RolePermissionsSummary
+																	permissions={role.permissions}
+																/>
+															</span>
+														</label>
+													</li>
+												))}
+											</ul>
+										)}
+									</div>
+								) : null}
+								{canManageShare ? (
+									<>
+										<label className="flex items-center gap-2 text-sm">
+											<input
+												type="checkbox"
+												checked={shareSettings?.shareEnabled ?? false}
+												onChange={(e) =>
+													updateShare.mutate({
+														id: board.id,
+														enabled: e.target.checked,
+													})
+												}
+											/>
+											{t("whiteboardPage.share.enablePublicLink")}
+										</label>
+										{shareSettings?.shareEnabled && shareUrl && (
+											<div className="space-y-2">
+												<Input readOnly value={shareUrl} />
+												<div className="flex gap-2">
+													<Button
+														variant="outline"
+														className="flex-1"
+														onClick={handleCopyShare}
+													>
+														{copied ? (
+															<Check className="h-4 w-4" />
+														) : (
+															<Copy className="h-4 w-4" />
+														)}
+														{copied
+															? t("whiteboardPage.share.copied")
+															: t("whiteboardPage.share.copyLink")}
+													</Button>
+													<Button variant="outline" asChild>
+														<a href={shareUrl} target="_blank" rel="noreferrer">
+															<ExternalLink className="h-4 w-4" />
+														</a>
+													</Button>
+													<Button
+														variant="outline"
+														disabled={regenerateShare.isPending}
+														onClick={() =>
+															regenerateShare.mutate({ id: board.id })
+														}
+													>
+														<RefreshCcw className="h-4 w-4" />
+													</Button>
+												</div>
+											</div>
+										)}
+										<div className="border-t pt-4 space-y-3">
+											<p className="text-sm font-medium">
+												{t("whiteboardPage.share.collabLinkTitle")}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{t("whiteboardPage.share.linkAccessHint")}
+											</p>
+											<label className="flex items-center gap-2 text-sm">
+												<input
+													type="checkbox"
+													checked={collabSettings?.enabled ?? false}
+													onChange={(e) =>
+														updateCollabShare.mutate({
+															id: board.id,
+															enabled: e.target.checked,
+															accessLevel:
+																collabSettings?.accessLevel ?? "edit",
+														})
+													}
+												/>
+												{t("whiteboardPage.share.enableCollabLink")}
+											</label>
+											{collabSettings?.enabled && (
+												<>
+													<select
+														className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+														value={collabSettings.accessLevel}
+														onChange={(e) =>
+															updateCollabShare.mutate({
+																id: board.id,
+																enabled: true,
+																accessLevel: e.target.value as "view" | "edit",
+															})
+														}
+													>
+														<option value="edit">
+															{t("whiteboardPage.share.collabEdit")}
+														</option>
+														<option value="view">
+															{t("whiteboardPage.share.collabView")}
+														</option>
+													</select>
+													{collabUrl && (
+														<div className="flex gap-2">
+															<Input readOnly value={collabUrl} />
+															<Button
+																variant="outline"
+																onClick={async () => {
+																	await navigator.clipboard.writeText(
+																		collabUrl,
+																	);
+																	setCollabCopied(true);
+																	setTimeout(
+																		() => setCollabCopied(false),
+																		2000,
+																	);
+																}}
+															>
+																{collabCopied ? (
+																	<Check className="h-4 w-4" />
+																) : (
+																	<Copy className="h-4 w-4" />
+																)}
+															</Button>
+														</div>
+													)}
+												</>
+											)}
+										</div>
+										<div className="border-t pt-4 space-y-3">
+											<p className="flex items-center gap-2 text-sm font-medium">
+												<Code2 className="h-4 w-4 text-muted-foreground" />
+												{t("whiteboardPage.share.embedLinkTitle")}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{t("whiteboardPage.share.embedLinkHint")}
+											</p>
+											<label className="flex items-center gap-2 text-sm">
+												<input
+													type="checkbox"
+													checked={embedSettings?.enabled ?? false}
+													onChange={(e) =>
+														updateEmbedShare.mutate({
+															id: board.id,
+															enabled: e.target.checked,
+														})
+													}
+												/>
+												{t("whiteboardPage.share.enableEmbedLink")}
+											</label>
+											{embedSettings?.enabled && embedUrl && (
+												<div className="space-y-2">
+													<div className="flex gap-2">
+														<Input readOnly value={embedUrl} />
 														<Button
 															variant="outline"
-															type="button"
-															onClick={async () => {
-																await navigator.clipboard.writeText(inviteLink);
-																setInviteCopied(true);
-																setTimeout(() => setInviteCopied(false), 2000);
-															}}
+															onClick={handleCopyEmbedUrl}
 														>
-															{inviteCopied ? (
+															{embedCopied ? (
 																<Check className="h-4 w-4" />
 															) : (
 																<Copy className="h-4 w-4" />
 															)}
-															{inviteCopied
-																? t("common.copied")
-																: t("common.copy")}
+														</Button>
+														<Button variant="outline" asChild>
+															<a
+																href={embedUrl}
+																target="_blank"
+																rel="noreferrer"
+															>
+																<ExternalLink className="h-4 w-4" />
+															</a>
 														</Button>
 													</div>
-													<p className="mt-2 text-xs text-muted-foreground">
-														{inviteE2eeHint}
-													</p>
-												</div>
-											) : null}
-											{selectedInviteRole ? (
-												<div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-													<RoleBadge
-														name={selectedInviteRole.name}
-														color={selectedInviteRole.color}
-													/>
-													<div className="mt-2">
-														<RolePermissionsSummary
-															permissions={selectedInviteRole.permissions}
-														/>
+													<div className="flex gap-2">
+														<Input readOnly value={embedCode} />
+														<Button
+															variant="outline"
+															onClick={handleCopyEmbedCode}
+														>
+															{embedCodeCopied ? (
+																<Check className="h-4 w-4" />
+															) : (
+																<Copy className="h-4 w-4" />
+															)}
+															<span className="sr-only">
+																{t("whiteboardPage.share.copyEmbedCode")}
+															</span>
+														</Button>
+													</div>
+													<div className="rounded-md border border-border/60 p-3 space-y-3">
+														<p className="text-sm font-medium">
+															{t("whiteboardPage.share.integrationsTitle")}
+														</p>
+														<p className="text-xs text-muted-foreground">
+															Notion schreibt/aktualisiert einen Embed-Block per
+															Notion API. Obsidian synchronisiert eine
+															Markdown-Datei über die Local REST API.
+														</p>
+														<div className="space-y-2">
+															<p className="text-xs font-medium uppercase text-muted-foreground">
+																Notion
+															</p>
+															<Input
+																value={notionPageId}
+																onChange={(event) =>
+																	setNotionPageId(event.target.value)
+																}
+																placeholder="Page- oder Block-ID"
+															/>
+															<Input
+																value={notionToken}
+																onChange={(event) =>
+																	setNotionToken(event.target.value)
+																}
+																placeholder={
+																	notionIntegration?.hasSecret
+																		? "Token gespeichert"
+																		: "Notion Integration Token"
+																}
+																type="password"
+															/>
+															<div className="grid gap-2 sm:grid-cols-2">
+																<Button
+																	variant="outline"
+																	size="sm"
+																	disabled={
+																		!notionPageId.trim() ||
+																		saveNotionIntegration.isPending
+																	}
+																	onClick={handleSaveNotionIntegration}
+																>
+																	{notionIntegration
+																		? "Speichern"
+																		: "Verbinden"}
+																</Button>
+																<Button
+																	variant="outline"
+																	size="sm"
+																	disabled={
+																		!notionIntegration ||
+																		syncIntegration.isPending
+																	}
+																	onClick={() =>
+																		syncIntegration.mutate({
+																			whiteboardId: board.id,
+																			provider: "notion",
+																		})
+																	}
+																>
+																	Jetzt syncen
+																</Button>
+															</div>
+															{notionIntegration?.lastSyncError ? (
+																<p className="text-xs text-destructive">
+																	{notionIntegration.lastSyncError}
+																</p>
+															) : null}
+														</div>
+														<div className="space-y-2 border-t pt-3">
+															<p className="text-xs font-medium uppercase text-muted-foreground">
+																Obsidian
+															</p>
+															<Input
+																value={obsidianEndpoint}
+																onChange={(event) =>
+																	setObsidianEndpoint(event.target.value)
+																}
+																placeholder="http://127.0.0.1:27123"
+															/>
+															<Input
+																value={obsidianPath}
+																onChange={(event) =>
+																	setObsidianPath(event.target.value)
+																}
+																placeholder="Skedra/Board.md"
+															/>
+															<Input
+																value={obsidianApiKey}
+																onChange={(event) =>
+																	setObsidianApiKey(event.target.value)
+																}
+																placeholder={
+																	obsidianIntegration?.hasSecret
+																		? "API-Key gespeichert"
+																		: "Local REST API-Key"
+																}
+																type="password"
+															/>
+															<div className="grid gap-2 sm:grid-cols-2">
+																<Button
+																	variant="outline"
+																	size="sm"
+																	disabled={
+																		!obsidianEndpoint.trim() ||
+																		!obsidianPath.trim() ||
+																		saveObsidianIntegration.isPending
+																	}
+																	onClick={handleSaveObsidianIntegration}
+																>
+																	{obsidianIntegration
+																		? "Speichern"
+																		: "Verbinden"}
+																</Button>
+																<Button
+																	variant="outline"
+																	size="sm"
+																	disabled={
+																		!obsidianIntegration ||
+																		syncIntegration.isPending
+																	}
+																	onClick={() =>
+																		syncIntegration.mutate({
+																			whiteboardId: board.id,
+																			provider: "obsidian",
+																		})
+																	}
+																>
+																	Jetzt syncen
+																</Button>
+															</div>
+															{obsidianIntegration?.lastSyncError ? (
+																<p className="text-xs text-destructive">
+																	{obsidianIntegration.lastSyncError}
+																</p>
+															) : null}
+														</div>
+														<div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={handleCopyNotionLink}
+															>
+																{notionCopied ? (
+																	<Check className="mr-2 h-4 w-4" />
+																) : (
+																	<Copy className="mr-2 h-4 w-4" />
+																)}
+																Link kopieren
+															</Button>
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={handleCopyObsidianMarkdown}
+															>
+																{obsidianCopied ? (
+																	<Check className="mr-2 h-4 w-4" />
+																) : (
+																	<Copy className="mr-2 h-4 w-4" />
+																)}
+																Markdown kopieren
+															</Button>
+														</div>
 													</div>
 												</div>
-											) : null}
+											)}
 										</div>
-									)}
-								</div>
-							) : null}
-						</div>
-					</DialogContent>
-				</Dialog>
+									</>
+								) : null}
+								{canInvite ? (
+									<div className="border-t pt-4 space-y-3">
+										<p className="mb-1 text-sm font-medium">
+											{t("whiteboardPage.share.inviteCollaborator")}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{t("whiteboardPage.share.inviteRoleHint")}
+										</p>
+										{(inviteRoles?.length ?? 0) === 0 ? (
+											<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
+												<p>{t("whiteboardPage.share.teamRolesEmptyInvite")}</p>
+												{canManage ? (
+													<Button
+														variant="outline"
+														size="sm"
+														className="mt-3"
+														asChild
+													>
+														<Link to="/settings?tab=team">
+															{t("whiteboardPage.share.manageRolesAction")}
+														</Link>
+													</Button>
+												) : null}
+											</div>
+										) : (
+											<div className="flex flex-col gap-3">
+												<div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+													<Input
+														type="email"
+														placeholder="email@example.com"
+														value={inviteEmail}
+														onChange={(e) => {
+															setInviteEmail(e.target.value);
+															setInviteLink("");
+															setInviteKeyDelivery("none");
+														}}
+														className="flex-1"
+													/>
+													<div className="space-y-1.5 min-w-[160px]">
+														<label
+															className="text-xs font-medium text-muted-foreground"
+															htmlFor="board-invite-role"
+														>
+															{t("whiteboardPage.share.inviteRoleLabel")}
+														</label>
+														<select
+															id="board-invite-role"
+															className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+															value={selectedInviteRole?.id ?? ""}
+															onChange={(e) => setInviteRoleId(e.target.value)}
+														>
+															{inviteRoles?.map((role) => (
+																<option key={role.id} value={role.id}>
+																	{role.name}
+																</option>
+															))}
+														</select>
+													</div>
+													<Button
+														disabled={
+															!inviteEmail ||
+															!selectedInviteRole?.id ||
+															inviteMember.isPending
+														}
+														onClick={() => {
+															if (!selectedInviteRole?.id) return;
+															inviteMember.mutate({
+																id: board.id,
+																email: inviteEmail,
+																roleId: selectedInviteRole.id,
+															});
+														}}
+													>
+														{t("whiteboardPage.share.invite")}
+													</Button>
+												</div>
+												{inviteLink ? (
+													<div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+														<div className="flex flex-col gap-2 sm:flex-row">
+															<Input
+																readOnly
+																value={inviteLink}
+																className="text-xs"
+															/>
+															<Button
+																variant="outline"
+																type="button"
+																onClick={async () => {
+																	await navigator.clipboard.writeText(
+																		inviteLink,
+																	);
+																	setInviteCopied(true);
+																	setTimeout(
+																		() => setInviteCopied(false),
+																		2000,
+																	);
+																}}
+															>
+																{inviteCopied ? (
+																	<Check className="h-4 w-4" />
+																) : (
+																	<Copy className="h-4 w-4" />
+																)}
+																{inviteCopied
+																	? t("common.copied")
+																	: t("common.copy")}
+															</Button>
+														</div>
+														<p className="mt-2 text-xs text-muted-foreground">
+															{inviteE2eeHint}
+														</p>
+													</div>
+												) : null}
+												{selectedInviteRole ? (
+													<div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+														<RoleBadge
+															name={selectedInviteRole.name}
+															color={selectedInviteRole.color}
+														/>
+														<div className="mt-2">
+															<RolePermissionsSummary
+																permissions={selectedInviteRole.permissions}
+															/>
+														</div>
+													</div>
+												) : null}
+											</div>
+										)}
+									</div>
+								) : null}
+							</div>
+						</DialogContent>
+					</Dialog>
 
-				{presenterMode ? (
-					<Button
-						asChild
-						variant="outline"
-						size="sm"
-						className="bg-card/90 backdrop-blur-md"
-					>
-						<Link to={`/board/${board.id}`}>
-							{t("whiteboardPage.presenter.exit")}
-						</Link>
-					</Button>
-				) : (
-					isOwner &&
-					shareSettings?.shareEnabled && (
+					{presenterMode ? (
 						<Button
+							asChild
 							variant="outline"
 							size="sm"
 							className="bg-card/90 backdrop-blur-md"
-							asChild
 						>
-							<Link to={`/board/${board.id}?present=1`}>
-								<MonitorPlay className="mr-2 h-4 w-4" />
-								{t("whiteboardPage.presenter.title")}
+							<Link to={`/board/${board.id}`}>
+								{t("whiteboardPage.presenter.exit")}
 							</Link>
 						</Button>
-					)
-				)}
-			</div>
+					) : (
+						isOwner &&
+						shareSettings?.shareEnabled && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="bg-card/90 backdrop-blur-md"
+								asChild
+							>
+								<Link to={`/board/${board.id}?present=1`}>
+									<MonitorPlay className="mr-2 h-4 w-4" />
+									{t("whiteboardPage.presenter.title")}
+								</Link>
+							</Button>
+						)
+					)}
+				</div>
+			</TooltipProvider>
 
 			{isE2eeBoard && !e2eeKey ? (
 				<div className="absolute inset-x-4 top-20 z-[60] mx-auto max-w-md rounded-md border border-border bg-card/95 p-4 shadow-lg backdrop-blur">
@@ -1640,7 +1728,7 @@ export function BoardPage() {
 			>
 				<SkedraCanvas
 					whiteboardId={boardId}
-					encryptionMode={board.encryptionMode}
+					encryptionMode={encryptionMode}
 					canUseAi={board?.canUseAi ?? true}
 					e2eeKey={e2eeKey}
 					e2eeStateRef={e2eeStateRef}
@@ -1649,7 +1737,18 @@ export function BoardPage() {
 					presencePanelOffsetTop={68}
 					presenterMode={presenterMode}
 					presenterShareUrl={shareUrl}
-					presenterIsLive={presenterIsLive}
+					presenterSessionId={presenterSessionId}
+					presenterStartedAt={presenterStartedAt}
+					presenterSessionStarting={startPresentation.isPending}
+					presenterStartError={
+						startPresentation.error?.message ?? endPresentation.error?.message
+					}
+					onStartPresentation={handleStartPresentation}
+					onEndPresentation={handleEndPresentation}
+					onPresentationSessionEnded={() => {
+						setPresenterSessionId(null);
+						setPresenterStartedAt(null);
+					}}
 					focusCanvasPointRef={focusCanvasPointRef}
 					comments={{
 						threads,

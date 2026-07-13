@@ -1,9 +1,13 @@
-import { type Database, whiteboards } from "@skedra/db";
+import {
+	type Database,
+	whiteboardPresentationAudience,
+	whiteboards,
+} from "@skedra/db";
 import {
 	getWhiteboardPresentationShareSettings,
 	isPresentationCurrentlyActive,
 } from "@skedra/shared";
-import { eq } from "drizzle-orm";
+import { and, count, eq, gt, lt } from "drizzle-orm";
 
 export function createPresentationShareToken() {
 	return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "");
@@ -13,6 +17,56 @@ export {
 	getWhiteboardPresentationShareSettings,
 	isPresentationCurrentlyActive,
 };
+
+export function isAuthorizedPresentationSession(
+	presentation: {
+		presentationSessionId: string | null;
+		presentationPresenterId: string | null;
+		presentationActiveUntil: Date | null;
+	},
+	input: { sessionId: string; presenterId: string },
+	now = new Date(),
+) {
+	return (
+		presentation.presentationSessionId === input.sessionId &&
+		presentation.presentationPresenterId === input.presenterId &&
+		!!presentation.presentationActiveUntil &&
+		presentation.presentationActiveUntil.getTime() > now.getTime()
+	);
+}
+
+export function presentationFrameAllowsAsset(
+	presentation: {
+		id: string;
+		presentationSessionId: string | null;
+		presentationActiveUntil: Date | null;
+		presentationFrameAssetIds: string | null;
+	},
+	input: { whiteboardId: string; assetId: string },
+	now = new Date(),
+) {
+	if (
+		presentation.id !== input.whiteboardId ||
+		!presentation.presentationSessionId ||
+		!presentation.presentationActiveUntil ||
+		presentation.presentationActiveUntil.getTime() <= now.getTime() ||
+		!presentation.presentationFrameAssetIds
+	) {
+		return false;
+	}
+	try {
+		const assetIds = JSON.parse(
+			presentation.presentationFrameAssetIds,
+		) as unknown;
+		return (
+			Array.isArray(assetIds) &&
+			assetIds.length <= 10_000 &&
+			assetIds.includes(input.assetId)
+		);
+	} catch {
+		return false;
+	}
+}
 
 export async function getPresentationShareAccess(
 	db: Database,
@@ -43,4 +97,58 @@ export async function getPresentationShareAccess(
 	}
 
 	return { whiteboard, shareSettings };
+}
+
+export async function countPresentationAudience(
+	db: Database,
+	whiteboardId: string,
+	sessionId: string,
+) {
+	await db
+		.delete(whiteboardPresentationAudience)
+		.where(lt(whiteboardPresentationAudience.expiresAt, new Date()));
+	const [result] = await db
+		.select({ value: count() })
+		.from(whiteboardPresentationAudience)
+		.where(
+			and(
+				eq(whiteboardPresentationAudience.whiteboardId, whiteboardId),
+				eq(whiteboardPresentationAudience.sessionId, sessionId),
+				gt(whiteboardPresentationAudience.expiresAt, new Date()),
+			),
+		);
+	return result?.value ?? 0;
+}
+
+export async function refreshPresentationAudienceConnection(
+	db: Database,
+	input: {
+		connectionId: string;
+		whiteboardId: string;
+		sessionId: string;
+	},
+) {
+	await db
+		.insert(whiteboardPresentationAudience)
+		.values({
+			...input,
+			expiresAt: new Date(Date.now() + 45_000),
+		})
+		.onConflictDoUpdate({
+			target: whiteboardPresentationAudience.connectionId,
+			set: {
+				whiteboardId: input.whiteboardId,
+				sessionId: input.sessionId,
+				expiresAt: new Date(Date.now() + 45_000),
+			},
+		});
+}
+
+export async function removePresentationAudienceConnection(
+	db: Database,
+	connectionId: string,
+) {
+	await db
+		.delete(whiteboardPresentationAudience)
+		.where(eq(whiteboardPresentationAudience.connectionId, connectionId));
 }

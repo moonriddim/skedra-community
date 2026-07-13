@@ -2,7 +2,14 @@ import { CanvasRenderer } from "@/components/canvas/canvas-renderer";
 import { Input } from "@/components/ui/input";
 import { CanvasScene, getBBox } from "@skedra/canvas-core";
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
-import { Check, Pencil, Trash2 } from "lucide-react";
+import {
+	Check,
+	ChevronLeft,
+	ChevronRight,
+	Copy,
+	Pencil,
+	Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 interface SavedViewTileProps {
@@ -14,11 +21,19 @@ interface SavedViewTileProps {
 	onStartEdit: (id: string) => void;
 	onStopEdit: () => void;
 	onDelete: (id: string) => void;
+	onDuplicate: (id: string) => void;
+	onMove: (id: string, direction: -1 | 1) => void;
+	canManage: boolean;
+	canMovePrevious: boolean;
+	canMoveNext: boolean;
 	onRename: (id: string, name: string) => void;
 	resolveAssetUrl?: (src: string) => string;
 	editLabel: string;
 	finishEditLabel: string;
 	deleteLabel: string;
+	duplicateLabel: string;
+	movePreviousLabel: string;
+	moveNextLabel: string;
 }
 
 const EMPTY_SELECTED_IDS = new Set<string>();
@@ -42,11 +57,19 @@ export function SavedViewTile({
 	onStartEdit,
 	onStopEdit,
 	onDelete,
+	onDuplicate,
+	onMove,
+	canManage,
+	canMovePrevious,
+	canMoveNext,
 	onRename,
 	resolveAssetUrl,
 	editLabel,
 	finishEditLabel,
 	deleteLabel,
+	duplicateLabel,
+	movePreviousLabel,
+	moveNextLabel,
 }: SavedViewTileProps) {
 	const [draftName, setDraftName] = useState(view.name);
 
@@ -71,8 +94,8 @@ export function SavedViewTile({
 	};
 
 	return (
-		<div className="group flex w-24 shrink-0 justify-center">
-			<div className="flex w-20 origin-bottom flex-col gap-1 transition-transform duration-200 ease-out group-hover:scale-110">
+		<div className="group flex w-28 shrink-0 justify-center">
+			<div className="flex w-24 origin-bottom flex-col gap-1 transition-transform duration-200 ease-out group-hover:scale-105 group-focus-within:scale-105">
 				{isEditing ? (
 					<Input
 						value={draftName}
@@ -105,7 +128,7 @@ export function SavedViewTile({
 					</button>
 				)}
 
-				<div className="flex items-start gap-1">
+				<div className="relative flex items-start gap-1">
 					<button
 						type="button"
 						onClick={() => onSelect(view.id)}
@@ -137,15 +160,40 @@ export function SavedViewTile({
 							/>
 						</svg>
 						<div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
+						<span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white/85">
+							{view.aspectRatio ?? "16:9"}
+						</span>
 					</button>
+				</div>
 
+				{canManage && (
 					<div
-						className={`flex shrink-0 flex-col gap-0.5 pt-0.5 transition-all duration-200 ${
+						className={`flex items-center justify-center gap-0.5 transition-opacity ${
 							isEditing
 								? "opacity-100"
-								: "pointer-events-none translate-x-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"
+								: "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
 						}`}
 					>
+						<TileAction
+							label={movePreviousLabel}
+							onClick={() => onMove(view.id, -1)}
+							disabled={!canMovePrevious}
+						>
+							<ChevronLeft className="h-3.5 w-3.5" />
+						</TileAction>
+						<TileAction
+							label={moveNextLabel}
+							onClick={() => onMove(view.id, 1)}
+							disabled={!canMoveNext}
+						>
+							<ChevronRight className="h-3.5 w-3.5" />
+						</TileAction>
+						<TileAction
+							label={duplicateLabel}
+							onClick={() => onDuplicate(view.id)}
+						>
+							<Copy className="h-3 w-3" />
+						</TileAction>
 						<button
 							type="button"
 							onClick={() => {
@@ -156,31 +204,56 @@ export function SavedViewTile({
 								}
 								onStartEdit(view.id);
 							}}
-							className={`flex h-5 w-5 items-center justify-center rounded-md transition-all duration-200 ease-out ${
+							className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
 								isEditing
-									? "scale-100 bg-emerald-500/20 text-emerald-200 hover:scale-125 hover:bg-emerald-500/30"
-									: "scale-90 text-muted-foreground hover:scale-125 hover:bg-accent/70 hover:text-accent-foreground group-hover:scale-100"
+									? "bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
+									: "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
 							}`}
 							title={isEditing ? finishEditLabel : editLabel}
 						>
 							{isEditing ? (
-								<Check className="h-2.5 w-2.5" />
+								<Check className="h-3.5 w-3.5" />
 							) : (
-								<Pencil className="h-2.5 w-2.5" />
+								<Pencil className="h-3 w-3" />
 							)}
 						</button>
 
 						<button
 							type="button"
 							onClick={() => onDelete(view.id)}
-							className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground transition-all duration-200 ease-out scale-90 hover:scale-125 hover:bg-destructive/10 hover:text-destructive group-hover:scale-100"
+							className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							title={deleteLabel}
 						>
-							<Trash2 className="h-2.5 w-2.5" />
+							<Trash2 className="h-3 w-3" />
 						</button>
 					</div>
-				</div>
+				)}
 			</div>
 		</div>
+	);
+}
+
+function TileAction({
+	label,
+	onClick,
+	disabled,
+	children,
+}: {
+	label: string;
+	onClick: () => void;
+	disabled?: boolean;
+	children: React.ReactNode;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			disabled={disabled}
+			className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-30"
+			title={label}
+			aria-label={label}
+		>
+			{children}
+		</button>
 	);
 }

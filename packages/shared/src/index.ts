@@ -8,6 +8,7 @@ export * from "./skedra-library";
 export * from "./library-urls";
 export * from "./process-env";
 export * from "./presentation-settings";
+export * from "./presentation-live";
 export * from "./ai-providers";
 export * from "./ai-model-filter";
 export * from "./kanban-ai";

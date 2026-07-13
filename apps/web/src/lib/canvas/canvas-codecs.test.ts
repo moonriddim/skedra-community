@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { decodeCanvasElement, encodeCanvasElement } from "./canvas-codecs.js";
+import {
+	decodeCanvasElement,
+	decodeSavedCanvasView,
+	encodeCanvasElement,
+} from "./canvas-codecs.js";
 
 function triangleArrow(): CanvasElement {
 	return {
@@ -41,4 +45,21 @@ test("rejects invalid arrowhead fill values", () => {
 	encoded.arrowHeadFilled = "hollow";
 
 	assert.equal(decodeCanvasElement(encoded), null);
+});
+
+test("strips legacy presenter notes from the shared canvas view model", () => {
+	const decoded = decodeSavedCanvasView({
+		id: "slide-1",
+		name: "Slide 1",
+		x: 0,
+		y: 0,
+		width: 1600,
+		height: 900,
+		createdAt: 1,
+		updatedAt: 1,
+		presenterNotes: "must not be shared",
+	});
+
+	assert.ok(decoded);
+	assert.equal("presenterNotes" in decoded, false);
 });

@@ -39,7 +39,36 @@ const PROCESS_ID = randomUUID();
 const subscribers = new Map<string, Set<Subscriber>>();
 
 let notifyBridgeStarted = false;
+let notifyBridgeClosing = false;
 let notifyClient: ReturnType<typeof postgres> | null = null;
+type NotifySubscription = { unlisten(): Promise<void> };
+let notifyListenRequest: Promise<NotifySubscription> | null = null;
+let notifySubscription: NotifySubscription | null = null;
+let notifyUnlistenPromise: Promise<void> | null = null;
+
+function unlistenNotify(subscription: NotifySubscription) {
+	if (!notifyUnlistenPromise) {
+		notifyUnlistenPromise = subscription.unlisten().catch(() => undefined);
+	}
+	return notifyUnlistenPromise;
+}
+
+async function waitForNotifySubscription() {
+	if (notifySubscription) return notifySubscription;
+	if (!notifyListenRequest) return null;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			notifyListenRequest.catch(() => null),
+			new Promise<null>((resolve) => {
+				timeout = setTimeout(() => resolve(null), 1_000);
+				timeout.unref();
+			}),
+		]);
+	} finally {
+		if (timeout) clearTimeout(timeout);
+	}
+}
 
 /** Liefert das Ereignis an alle lokalen Abonnenten dieses Prozesses aus. */
 function fanoutLocal(event: BoardLiveEvent) {
@@ -60,13 +89,23 @@ function fanoutLocal(event: BoardLiveEvent) {
  * arbeitet dann rein In-Process weiter.
  */
 function ensureNotifyBridge() {
-	if (notifyBridgeStarted) return;
+	if (notifyBridgeStarted || notifyBridgeClosing) return;
 	notifyBridgeStarted = true;
 
 	try {
 		// Eigene Verbindung — LISTEN belegt eine Verbindung dauerhaft.
-		notifyClient = postgres(env.DATABASE_URL, { max: 1 });
-		void notifyClient.listen(NOTIFY_CHANNEL, (payload) => {
+		const client = postgres(env.DATABASE_URL, {
+			max: 1,
+			connect_timeout: env.DATABASE_CONNECT_TIMEOUT_SECONDS,
+			connection: {
+				application_name: "skedra-live-bus",
+				statement_timeout: env.DATABASE_STATEMENT_TIMEOUT_MS,
+				idle_in_transaction_session_timeout:
+					env.DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS,
+			},
+		});
+		notifyClient = client;
+		const listenRequest = client.listen(NOTIFY_CHANNEL, (payload) => {
 			try {
 				const parsed = JSON.parse(payload) as BoardLiveEvent & {
 					origin?: string;
@@ -83,6 +122,22 @@ function ensureNotifyBridge() {
 				// Ungültige Payload ignorieren.
 			}
 		});
+		notifyListenRequest = listenRequest;
+		void listenRequest
+			.then((subscription) => {
+				notifySubscription = subscription;
+				if (notifyBridgeClosing) void unlistenNotify(subscription);
+			})
+			.catch(async (error) => {
+				if (notifyBridgeClosing) return;
+				if (notifyClient === client) notifyClient = null;
+				notifyBridgeStarted = false;
+				console.warn(
+					"[skedra] Live-Bus: Postgres LISTEN/NOTIFY nicht verfuegbar, nutze nur In-Process.",
+					error,
+				);
+				await client.end({ timeout: 1 }).catch(() => undefined);
+			});
 	} catch (error) {
 		console.warn(
 			"[skedra] Live-Bus: Postgres LISTEN/NOTIFY nicht verfügbar, nutze nur In-Process.",
@@ -138,4 +193,18 @@ export function publishBoardLive(event: BoardLiveEvent) {
 	ensureNotifyBridge();
 	fanoutLocal(event);
 	void publishViaNotify(event);
+}
+
+/** Stops LISTEN/NOTIFY and releases its dedicated connection during shutdown. */
+export async function closeBoardLiveBus() {
+	notifyBridgeClosing = true;
+	notifyBridgeStarted = false;
+	subscribers.clear();
+	const subscription = await waitForNotifySubscription();
+	if (subscription) await unlistenNotify(subscription);
+	notifyListenRequest = null;
+	notifySubscription = null;
+	const client = notifyClient;
+	notifyClient = null;
+	if (client) await client.end({ timeout: 5 });
 }

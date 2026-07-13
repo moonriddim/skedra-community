@@ -3,6 +3,7 @@
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"scripts": {
+		"predev": "pnpm --filter @skedra/db db:push",
 		"dev": "turbo dev",
 		"dev:sdk": "pnpm --filter @skedra/react dev",
 		"build": "turbo build",

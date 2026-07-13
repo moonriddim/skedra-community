@@ -36,18 +36,18 @@ function encryptionKeys(mode: CanvasFooterEncryptionMode) {
 			help: "canvas.footer.help",
 		} as const;
 	}
-	if (mode === "server") {
+	if (mode === "e2ee") {
 		return {
 			label: "canvas.footer.encryption.label",
-			title: "canvas.footer.encryption.serverTitle",
-			description: "canvas.footer.encryption.serverDescription",
+			title: "canvas.footer.encryption.e2eeTitle",
+			description: "canvas.footer.encryption.e2eeDescription",
 			help: "canvas.footer.help",
 		} as const;
 	}
 	return {
 		label: "canvas.footer.encryption.label",
-		title: "canvas.footer.encryption.e2eeTitle",
-		description: "canvas.footer.encryption.e2eeDescription",
+		title: "canvas.footer.encryption.serverTitle",
+		description: "canvas.footer.encryption.serverDescription",
 		help: "canvas.footer.help",
 	} as const;
 }
@@ -55,7 +55,7 @@ function encryptionKeys(mode: CanvasFooterEncryptionMode) {
 /** Unten rechts: Verschlüsselungs-Hinweis und Hilfe (Gast- und Board-Canvas). */
 export function CanvasFooter({
 	onOpenHelp,
-	encryptionMode = "e2ee",
+	encryptionMode = "server",
 	annotation,
 }: CanvasFooterProps) {
 	const { t } = useI18n();

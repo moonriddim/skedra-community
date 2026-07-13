@@ -13,6 +13,7 @@ import { getApiWebSocketUrl } from "@/lib/api-url";
 import { decryptYjsUpdate, encryptYjsUpdate } from "@/lib/e2ee";
 import type { Viewport } from "@skedra/canvas-core";
 import type { CanvasRole } from "@skedra/shared";
+import { remoteCanvasPresenceSchema } from "@skedra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RemoteCanvasPresence } from "./canvas-sync-types";
 
@@ -71,6 +72,7 @@ export function useBoardPresence(
 	const [remoteMap, setRemoteMap] = useState<Map<number, RemoteCanvasPresence>>(
 		() => new Map(),
 	);
+	const [isConnected, setIsConnected] = useState(false);
 
 	const sendTimerRef = useRef<number | null>(null);
 	const lastSentRef = useRef(0);
@@ -113,6 +115,7 @@ export function useBoardPresence(
 			wsRef.current = ws;
 			ws.onopen = () => {
 				reconnectAttempt = 0;
+				setIsConnected(true);
 				void flushSendRef.current();
 			};
 
@@ -124,7 +127,9 @@ export function useBoardPresence(
 						encryptionMode === "e2ee"
 							? decoder.decode(await decryptYjsUpdate(data, e2eeKey as string))
 							: data;
-					const parsed = JSON.parse(json) as RemoteCanvasPresence;
+					const parsed = remoteCanvasPresenceSchema.parse(
+						JSON.parse(json),
+					) as RemoteCanvasPresence;
 					// Eigene Nachrichten ignorieren (sollte der Server schon filtern).
 					if (parsed.clientId === clientIdRef.current) return;
 					setRemoteMap((prev) => {
@@ -139,6 +144,7 @@ export function useBoardPresence(
 
 			ws.onclose = (event) => {
 				if (wsRef.current === ws) wsRef.current = null;
+				setIsConnected(false);
 				// Policy violations are permanent (missing session/board access), so
 				// retrying would only flood the console and server.
 				if (!closed && event.code !== 1008) scheduleReconnect();
@@ -157,6 +163,7 @@ export function useBoardPresence(
 			}
 			wsRef.current?.close();
 			wsRef.current = null;
+			setIsConnected(false);
 			setRemoteMap(new Map());
 		};
 	}, [enabled, encryptionMode, whiteboardId, e2eeKey, presentationShareToken]);
@@ -200,7 +207,7 @@ export function useBoardPresence(
 				color: id.color,
 				role: id.role,
 			},
-			selection: stateRef.current.selection,
+			selection: stateRef.current.selection.slice(0, 200),
 			cursor: stateRef.current.cursor,
 			viewport: stateRef.current.viewport,
 			activeViewId: stateRef.current.activeViewId,
@@ -282,6 +289,7 @@ export function useBoardPresence(
 	);
 
 	return {
+		isConnected,
 		remotePresence,
 		setPresenceCursor,
 		setPresenceSelection,

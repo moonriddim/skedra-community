@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import {
 	BookmarkPlus,
+	PanelsTopLeft,
 	Redo2,
 	StickyNote,
 	Undo2,
@@ -38,8 +39,11 @@ interface BottomBarProps {
 	onStartEditView: (id: string) => void;
 	onStopEditView: () => void;
 	onDeleteView: (id: string) => void;
+	onDuplicateView: (id: string) => void;
+	onMoveView: (id: string, direction: -1 | 1) => void;
 	onRenameView: (id: string, name: string) => void;
 	onOpenPresenterNotes: () => void;
+	canUsePresenterNotes?: boolean;
 	resolveAssetUrl?: (src: string) => string;
 }
 
@@ -62,8 +66,11 @@ export function BottomBar({
 	onStartEditView,
 	onStopEditView,
 	onDeleteView,
+	onDuplicateView,
+	onMoveView,
 	onRenameView,
 	onOpenPresenterNotes,
+	canUsePresenterNotes = true,
 	resolveAssetUrl,
 }: BottomBarProps) {
 	const viewportControls = useCanvasStore(
@@ -92,6 +99,9 @@ export function BottomBar({
 		editLabel: t("canvas.bottomBar.editView"),
 		finishEditLabel: t("canvas.bottomBar.finishViewEditing"),
 		deleteLabel: t("canvas.bottomBar.deleteView"),
+		duplicateLabel: t("canvas.bottomBar.duplicateView"),
+		movePreviousLabel: t("canvas.bottomBar.moveViewPrevious"),
+		moveNextLabel: t("canvas.bottomBar.moveViewNext"),
 	};
 
 	return (
@@ -109,6 +119,9 @@ export function BottomBar({
 					onStartEditView={onStartEditView}
 					onStopEditView={onStopEditView}
 					onDeleteView={onDeleteView}
+					onDuplicateView={onDuplicateView}
+					onMoveView={onMoveView}
+					canManageViews={!presenterMode}
 					onRenameView={onRenameView}
 					resolveAssetUrl={resolveAssetUrl}
 					{...viewTileLabels}
@@ -158,6 +171,10 @@ export function BottomBar({
 							</BarButton>
 
 							<div className="mx-1 h-5 w-px bg-border" />
+							<span className="hidden items-center gap-1 px-1 text-xs font-semibold text-foreground sm:inline-flex">
+								<PanelsTopLeft className="h-3.5 w-3.5" />
+								{t("canvas.bottomBar.slides")}
+							</span>
 
 							<BarButton
 								label={
@@ -175,13 +192,15 @@ export function BottomBar({
 									<BookmarkPlus className="h-4 w-4" />
 								)}
 							</BarButton>
-							<BarButton
-								label={t("canvas.bottomBar.presenterNotes")}
-								onClick={onOpenPresenterNotes}
-								disabled={!activeViewId}
-							>
-								<StickyNote className="h-4 w-4" />
-							</BarButton>
+							{canUsePresenterNotes && (
+								<BarButton
+									label={t("canvas.bottomBar.presenterNotes")}
+									onClick={onOpenPresenterNotes}
+									disabled={!activeViewId}
+								>
+									<StickyNote className="h-4 w-4" />
+								</BarButton>
+							)}
 						</>
 					)}
 				</div>
@@ -196,6 +215,9 @@ export function BottomBar({
 					onStartEditView={onStartEditView}
 					onStopEditView={onStopEditView}
 					onDeleteView={onDeleteView}
+					onDuplicateView={onDuplicateView}
+					onMoveView={onMoveView}
+					canManageViews={!presenterMode}
 					onRenameView={onRenameView}
 					resolveAssetUrl={resolveAssetUrl}
 					{...viewTileLabels}
@@ -217,11 +239,17 @@ function SavedViewsRail({
 	onStartEditView,
 	onStopEditView,
 	onDeleteView,
+	onDuplicateView,
+	onMoveView,
+	canManageViews,
 	onRenameView,
 	resolveAssetUrl,
 	editLabel,
 	finishEditLabel,
 	deleteLabel,
+	duplicateLabel,
+	movePreviousLabel,
+	moveNextLabel,
 }: {
 	align: "start" | "end";
 	views: SavedCanvasView[];
@@ -234,11 +262,17 @@ function SavedViewsRail({
 	onStartEditView: (id: string) => void;
 	onStopEditView: () => void;
 	onDeleteView: (id: string) => void;
+	onDuplicateView: (id: string) => void;
+	onMoveView: (id: string, direction: -1 | 1) => void;
+	canManageViews: boolean;
 	onRenameView: (id: string, name: string) => void;
 	resolveAssetUrl?: (src: string) => string;
 	editLabel: string;
 	finishEditLabel: string;
 	deleteLabel: string;
+	duplicateLabel: string;
+	movePreviousLabel: string;
+	moveNextLabel: string;
 }) {
 	const justifyClass = align === "end" ? "justify-end" : "justify-start";
 
@@ -254,7 +288,7 @@ function SavedViewsRail({
 						{capturingLabel}
 					</div>
 				)}
-				{views.map((view) => (
+				{views.map((view, index) => (
 					<SavedViewTile
 						key={view.id}
 						view={view}
@@ -265,11 +299,19 @@ function SavedViewsRail({
 						onStartEdit={onStartEditView}
 						onStopEdit={onStopEditView}
 						onDelete={onDeleteView}
+						onDuplicate={onDuplicateView}
+						onMove={onMoveView}
+						canManage={canManageViews}
+						canMovePrevious={index > 0}
+						canMoveNext={index < views.length - 1}
 						onRename={onRenameView}
 						resolveAssetUrl={resolveAssetUrl}
 						editLabel={editLabel}
 						finishEditLabel={finishEditLabel}
 						deleteLabel={deleteLabel}
+						duplicateLabel={duplicateLabel}
+						movePreviousLabel={movePreviousLabel}
+						moveNextLabel={moveNextLabel}
 					/>
 				))}
 			</div>

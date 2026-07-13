@@ -62,7 +62,6 @@ export function PresentationPage() {
 				forceReadonly
 				presenceEnabled={data.presenceEnabled}
 				audienceBoardName={data.whiteboardName}
-				audienceIsLive={data.isPresentationActive}
 			/>
 		</ShareTokenCanvasFrame>
 	);

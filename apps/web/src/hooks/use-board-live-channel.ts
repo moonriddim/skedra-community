@@ -13,6 +13,8 @@
 import { getApiUrl } from "@/lib/api-url";
 import { useEffect, useRef } from "react";
 
+const LIVE_EVENT_DEBOUNCE_MS = 100;
+
 interface UseBoardLiveChannelOptions {
 	enabled: boolean;
 	/** Wird bei jedem Live-Update-Signal aufgerufen (→ Update-Log nachladen). */
@@ -35,6 +37,7 @@ export function useBoardLiveChannel(
 
 	useEffect(() => {
 		if (!enabled || !whiteboardId) return;
+		let eventTimer: number | null = null;
 
 		const source = new EventSource(
 			getApiUrl(`/api/boards/${whiteboardId}/live`),
@@ -44,7 +47,13 @@ export function useBoardLiveChannel(
 		);
 
 		const handleReady = () => onConnectedRef.current?.(true);
-		const handleUpdate = () => onEventRef.current();
+		const handleUpdate = () => {
+			if (eventTimer != null) return;
+			eventTimer = window.setTimeout(() => {
+				eventTimer = null;
+				onEventRef.current();
+			}, LIVE_EVENT_DEBOUNCE_MS);
+		};
 		const handleError = () => onConnectedRef.current?.(false);
 
 		source.addEventListener("ready", handleReady);
@@ -53,6 +62,7 @@ export function useBoardLiveChannel(
 		source.onerror = handleError;
 
 		return () => {
+			if (eventTimer != null) window.clearTimeout(eventTimer);
 			onConnectedRef.current?.(false);
 			source.removeEventListener("ready", handleReady);
 			source.removeEventListener("update", handleUpdate);

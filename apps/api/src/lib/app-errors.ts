@@ -14,7 +14,7 @@ export const appErrorCodes = {
 type AppErrorCode = (typeof appErrorCodes)[keyof typeof appErrorCodes];
 
 export function createAppError(input: {
-	code: "UNAUTHORIZED" | "NOT_FOUND" | "FORBIDDEN" | "BAD_REQUEST";
+	code: "UNAUTHORIZED" | "NOT_FOUND" | "FORBIDDEN" | "BAD_REQUEST" | "CONFLICT";
 	appErrorCode: AppErrorCode;
 	message: string;
 }) {

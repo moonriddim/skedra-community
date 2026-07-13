@@ -59,6 +59,37 @@ export function resizeViewBounds(
 	};
 }
 
+export function constrainViewBoundsToAspectRatio(
+	bounds: BBox,
+	aspectRatio: number,
+	handle: HandlePosition = "se",
+): BBox {
+	if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) return bounds;
+	let width = Math.max(bounds.width, MIN_VIEW_SIZE);
+	let height = Math.max(bounds.height, MIN_VIEW_SIZE);
+	if (handle === "n" || handle === "s") {
+		width = height * aspectRatio;
+	} else if (handle === "e" || handle === "w") {
+		height = width / aspectRatio;
+	} else if (width / height > aspectRatio) {
+		height = width / aspectRatio;
+	} else {
+		width = height * aspectRatio;
+	}
+
+	let x = bounds.x;
+	let y = bounds.y;
+	if (handle.includes("w")) x = bounds.x + bounds.width - width;
+	if (handle.includes("n")) y = bounds.y + bounds.height - height;
+	if (handle === "e" || handle === "w") {
+		y = bounds.y + (bounds.height - height) / 2;
+	}
+	if (handle === "n" || handle === "s") {
+		x = bounds.x + (bounds.width - width) / 2;
+	}
+	return { x, y, width, height };
+}
+
 export function areViewportsEqual(
 	left: Viewport | null,
 	right: Viewport | null,

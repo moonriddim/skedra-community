@@ -24,6 +24,8 @@ import { type PresenceIdentity, useBoardPresence } from "./use-board-presence";
 const REMOTE_SERVER_ORIGIN = "skedra-server-remote";
 const SERVER_UPDATE_PAGE_SIZE = 500;
 const SERVER_COMPACT_AFTER_UPDATES = 2000;
+const SERVER_UPDATE_BATCH_DELAY_MS = 150;
+const SERVER_UPDATE_BATCH_MAX_BYTES = 2_500_000;
 
 type ServerUpdateCursor = { id: string; createdAt: string };
 
@@ -73,6 +75,8 @@ export function useServerCanvasSync(
 	const syncFrameRef = useRef<number | null>(null);
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
 	const pendingUpdatesRef = useRef<Uint8Array[]>([]);
+	const pendingUpdateBytesRef = useRef(0);
+	const flushTimerRef = useRef<number | null>(null);
 	const flushInFlightRef = useRef<Promise<void> | null>(null);
 	const clientIdRef = useRef(createClientId());
 	const syncReadyRef = useRef(false);
@@ -170,16 +174,40 @@ export function useServerCanvasSync(
 	const flushPendingUpdates = useCallback(() => {
 		if (!enabled || readonly || !whiteboardId) return Promise.resolve();
 		if (flushInFlightRef.current) return flushInFlightRef.current;
+		if (flushTimerRef.current != null) {
+			window.clearTimeout(flushTimerRef.current);
+			flushTimerRef.current = null;
+		}
 
 		const run = (async () => {
 			while (pendingUpdatesRef.current.length > 0) {
-				const update = pendingUpdatesRef.current[0];
-				await appendUpdate.mutateAsync({
-					...accessInput,
-					clientId: clientIdRef.current,
-					update: bytesToBase64(update),
-				});
-				pendingUpdatesRef.current.shift();
+				let batchBytes = 0;
+				let batchSize = 0;
+				for (const update of pendingUpdatesRef.current) {
+					if (
+						batchSize > 0 &&
+						batchBytes + update.byteLength > SERVER_UPDATE_BATCH_MAX_BYTES
+					) {
+						break;
+					}
+					batchBytes += update.byteLength;
+					batchSize += 1;
+				}
+
+				const batch = pendingUpdatesRef.current.splice(0, batchSize);
+				pendingUpdateBytesRef.current -= batchBytes;
+				try {
+					const update = batch.length === 1 ? batch[0] : Y.mergeUpdates(batch);
+					await appendUpdate.mutateAsync({
+						...accessInput,
+						clientId: clientIdRef.current,
+						update: bytesToBase64(update),
+					});
+				} catch (error) {
+					pendingUpdatesRef.current.unshift(...batch);
+					pendingUpdateBytesRef.current += batchBytes;
+					throw error;
+				}
 			}
 			setConnectionError(null);
 		})()
@@ -196,6 +224,14 @@ export function useServerCanvasSync(
 		flushInFlightRef.current = run;
 		return run;
 	}, [accessInput, appendUpdate.mutateAsync, enabled, readonly, whiteboardId]);
+
+	const schedulePendingUpdateFlush = useCallback(() => {
+		if (flushTimerRef.current != null) return;
+		flushTimerRef.current = window.setTimeout(() => {
+			flushTimerRef.current = null;
+			void flushPendingUpdates();
+		}, SERVER_UPDATE_BATCH_DELAY_MS);
+	}, [flushPendingUpdates]);
 
 	useEffect(() => {
 		if (!enabled) {
@@ -225,11 +261,21 @@ export function useServerCanvasSync(
 			const copy = new Uint8Array(update.byteLength);
 			copy.set(update);
 			pendingUpdatesRef.current.push(copy);
-			void flushPendingUpdates();
+			pendingUpdateBytesRef.current += copy.byteLength;
+			if (pendingUpdateBytesRef.current >= SERVER_UPDATE_BATCH_MAX_BYTES) {
+				void flushPendingUpdates();
+			} else {
+				schedulePendingUpdateFlush();
+			}
 		};
 		ydoc.on("update", updateObserver);
 
 		return () => {
+			if (flushTimerRef.current != null) {
+				window.clearTimeout(flushTimerRef.current);
+				flushTimerRef.current = null;
+			}
+			void flushPendingUpdates();
 			if (syncFrameRef.current != null) {
 				window.cancelAnimationFrame(syncFrameRef.current);
 				syncFrameRef.current = null;
@@ -242,15 +288,28 @@ export function useServerCanvasSync(
 			syncReadyRef.current = false;
 			setIsConnected(false);
 		};
-	}, [enabled, flushPendingUpdates, readonly, scheduleSyncFromYjs]);
+	}, [
+		enabled,
+		flushPendingUpdates,
+		readonly,
+		schedulePendingUpdateFlush,
+		scheduleSyncFromYjs,
+	]);
 
 	useEffect(() => {
 		if (!enabled || readonly) return;
 		const retry = () => void flushPendingUpdates();
+		const flushWhenHidden = () => {
+			if (document.visibilityState === "hidden") retry();
+		};
 		window.addEventListener("online", retry);
+		window.addEventListener("pagehide", retry);
+		document.addEventListener("visibilitychange", flushWhenHidden);
 		const interval = window.setInterval(retry, 5_000);
 		return () => {
 			window.removeEventListener("online", retry);
+			window.removeEventListener("pagehide", retry);
+			document.removeEventListener("visibilitychange", flushWhenHidden);
 			window.clearInterval(interval);
 		};
 	}, [enabled, flushPendingUpdates, readonly]);

@@ -221,7 +221,11 @@ export function decodeSavedCanvasView(value: unknown): SavedCanvasView | null {
 		!isFiniteNumber(value.height) ||
 		!isFiniteNumber(value.createdAt) ||
 		!isFiniteNumber(value.updatedAt) ||
-		!isOptionalString(value.presenterNotes)
+		!isOptionalNumber(value.order) ||
+		(value.aspectRatio !== undefined &&
+			value.aspectRatio !== "16:9" &&
+			value.aspectRatio !== "4:3" &&
+			value.aspectRatio !== "free")
 	) {
 		return null;
 	}
@@ -235,7 +239,8 @@ export function decodeSavedCanvasView(value: unknown): SavedCanvasView | null {
 		height: value.height,
 		createdAt: value.createdAt,
 		updatedAt: value.updatedAt,
-		presenterNotes: value.presenterNotes,
+		order: value.order,
+		aspectRatio: value.aspectRatio as SavedCanvasView["aspectRatio"],
 	};
 }
 

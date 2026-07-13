@@ -1,12 +1,20 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
-import { SKEDRA_LIB_MIME, skedraLibrarySchema } from "@skedra/shared";
+import { whiteboards } from "@skedra/db";
+import {
+	SKEDRA_LIB_MIME,
+	presentationFrameContentSchema,
+	presentationPublisherMessageSchema,
+	skedraLibrarySchema,
+} from "@skedra/shared";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { and, eq, gt, isNull, lt, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
+import type { WSContext } from "hono/ws";
 import type Stripe from "stripe";
 import { z } from "zod";
 import { env } from "./env";
@@ -20,22 +28,38 @@ import {
 } from "./lib/assets";
 import { auth } from "./lib/auth";
 import { userHasProductAccess } from "./lib/billing-entitlement";
-import { subscribeBoardLive } from "./lib/board-live-bus";
+import { closeBoardLiveBus, subscribeBoardLive } from "./lib/board-live-bus";
 import {
 	type PresenceMember,
 	broadcastPresence,
+	closeBoardPresence,
 	joinPresenceRoom,
 	leavePresenceRoom,
 } from "./lib/board-presence";
 import { getCollabShareAccess, getEmbedShareAccess } from "./lib/collab-share";
-import { db } from "./lib/db";
+import { closeDatabase, db } from "./lib/db";
 import { getBoardAccess } from "./lib/permissions";
-import { getPresentationShareAccess } from "./lib/presentation";
+import {
+	countPresentationAudience,
+	getPresentationShareAccess,
+	isAuthorizedPresentationSession,
+	presentationFrameAllowsAsset,
+	refreshPresentationAudienceConnection,
+	removePresentationAudienceConnection,
+} from "./lib/presentation";
+import {
+	type PresentationLiveEvent,
+	closePresentationLiveBus,
+	publishPresentationLive,
+	subscribePresentationLive,
+} from "./lib/presentation-live-bus";
 import {
 	assignFirstUserAsInstanceAdmin,
 	canSignUpWithEmail,
+	closeRegistrationLocks,
 	completeRegistrationInvite,
 	normalizeInviteEmail,
+	withRegistrationLock,
 } from "./lib/registration-invites";
 import {
 	getConfiguredPublishedLibraryFile,
@@ -92,7 +116,222 @@ if (isStripeBillingConfigured()) {
 
 // WebSocket-Support für den Presence-Kanal (Phase 2). injectWebSocket wird nach
 // dem serve()-Aufruf unten mit dem Node-Server verbunden.
-const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({ app });
+
+type PresentationViewerConnection = {
+	ws: WSContext;
+	connectionId: string;
+	sessionId: string | null;
+	refreshTimer: ReturnType<typeof setInterval> | null;
+	syncInFlight: boolean;
+};
+
+type PresentationPresenterConnection = {
+	ws: WSContext;
+	sessionId: string;
+	userId: string;
+};
+
+const presentationViewerRooms = new Map<
+	string,
+	Set<PresentationViewerConnection>
+>();
+const presentationPresenterRooms = new Map<
+	string,
+	Set<PresentationPresenterConnection>
+>();
+const presentationRoomUnsubscribers = new Map<string, () => void>();
+const presentationAudienceCountTimers = new Map<
+	string,
+	ReturnType<typeof setTimeout>
+>();
+
+function sendPresentationMessage(ws: WSContext, message: unknown) {
+	try {
+		ws.send(JSON.stringify(message));
+	} catch {
+		// The websocket lifecycle removes disconnected room members.
+	}
+}
+
+async function sendStoredPresentationFrame(
+	whiteboardId: string,
+	viewer: PresentationViewerConnection,
+) {
+	const board = await db.query.whiteboards.findFirst({
+		where: eq(whiteboards.id, whiteboardId),
+		columns: {
+			presentationSessionId: true,
+			presentationActiveUntil: true,
+			presentationFrameSequence: true,
+			presentationFramePayload: true,
+		},
+	});
+	if (
+		!board?.presentationSessionId ||
+		!board.presentationFramePayload ||
+		board.presentationFrameSequence == null ||
+		!board.presentationActiveUntil ||
+		board.presentationActiveUntil.getTime() <= Date.now()
+	) {
+		sendPresentationMessage(viewer.ws, { type: "waiting" });
+		return;
+	}
+	sendPresentationMessage(viewer.ws, {
+		type: "frame",
+		sessionId: board.presentationSessionId,
+		sequence: board.presentationFrameSequence,
+		payload: board.presentationFramePayload,
+	});
+}
+
+async function relayPresentationLiveEvent(event: PresentationLiveEvent) {
+	if (event.type === "frame") {
+		const board = await db.query.whiteboards.findFirst({
+			where: eq(whiteboards.id, event.whiteboardId),
+			columns: {
+				presentationSessionId: true,
+				presentationFrameSequence: true,
+				presentationFramePayload: true,
+			},
+		});
+		if (
+			board?.presentationSessionId !== event.sessionId ||
+			board.presentationFrameSequence !== event.sequence ||
+			!board.presentationFramePayload
+		) {
+			return;
+		}
+		for (const viewer of presentationViewerRooms.get(event.whiteboardId) ??
+			[]) {
+			sendPresentationMessage(viewer.ws, {
+				type: "frame",
+				sessionId: event.sessionId,
+				sequence: event.sequence,
+				payload: board.presentationFramePayload,
+			});
+		}
+		return;
+	}
+
+	if (event.type === "cursor") {
+		for (const viewer of presentationViewerRooms.get(event.whiteboardId) ??
+			[]) {
+			sendPresentationMessage(viewer.ws, {
+				type: "cursor",
+				sessionId: event.sessionId,
+				sequence: event.sequence,
+				cursor: event.cursor,
+			});
+		}
+		return;
+	}
+
+	if (event.type === "camera") {
+		for (const viewer of presentationViewerRooms.get(event.whiteboardId) ??
+			[]) {
+			sendPresentationMessage(viewer.ws, {
+				type: "camera",
+				sessionId: event.sessionId,
+				sequence: event.sequence,
+				viewId: event.viewId,
+				camera: event.camera,
+			});
+		}
+		return;
+	}
+
+	if (event.type === "audience") {
+		for (const presenter of presentationPresenterRooms.get(
+			event.whiteboardId,
+		) ?? []) {
+			if (presenter.sessionId !== event.sessionId) continue;
+			sendPresentationMessage(presenter.ws, {
+				type: "audience",
+				count: event.count,
+			});
+		}
+		return;
+	}
+
+	for (const viewer of presentationViewerRooms.get(event.whiteboardId) ?? []) {
+		if (event.sessionId && viewer.sessionId !== event.sessionId) continue;
+		sendPresentationMessage(viewer.ws, { type: "ended" });
+		viewer.sessionId = null;
+		if (event.type === "revoke") viewer.ws.close(1008, "presentation revoked");
+	}
+	for (const presenter of presentationPresenterRooms.get(event.whiteboardId) ??
+		[]) {
+		if (event.sessionId && presenter.sessionId !== event.sessionId) continue;
+		sendPresentationMessage(presenter.ws, { type: "ended" });
+		if (event.type === "revoke")
+			presenter.ws.close(1008, "presentation revoked");
+	}
+}
+
+function ensurePresentationRoomSubscription(whiteboardId: string) {
+	if (presentationRoomUnsubscribers.has(whiteboardId)) return;
+	presentationRoomUnsubscribers.set(
+		whiteboardId,
+		subscribePresentationLive(whiteboardId, (event) => {
+			void relayPresentationLiveEvent(event);
+		}),
+	);
+}
+
+function cleanupPresentationRoomSubscription(whiteboardId: string) {
+	if (
+		(presentationViewerRooms.get(whiteboardId)?.size ?? 0) > 0 ||
+		(presentationPresenterRooms.get(whiteboardId)?.size ?? 0) > 0
+	) {
+		return;
+	}
+	presentationViewerRooms.delete(whiteboardId);
+	presentationPresenterRooms.delete(whiteboardId);
+	presentationRoomUnsubscribers.get(whiteboardId)?.();
+	presentationRoomUnsubscribers.delete(whiteboardId);
+}
+
+async function publishPresentationAudienceCount(
+	whiteboardId: string,
+	sessionId: string,
+) {
+	publishPresentationLive({
+		type: "audience",
+		whiteboardId,
+		sessionId,
+		count: await countPresentationAudience(db, whiteboardId, sessionId),
+	});
+}
+
+/** Collapse simultaneous viewer lease refreshes into one audience count. */
+function schedulePresentationAudienceCount(
+	whiteboardId: string,
+	sessionId: string,
+) {
+	const key = `${whiteboardId}:${sessionId}`;
+	if (presentationAudienceCountTimers.has(key)) return;
+	const timer = setTimeout(() => {
+		presentationAudienceCountTimers.delete(key);
+		void publishPresentationAudienceCount(whiteboardId, sessionId).catch(
+			(error) => {
+				console.warn(
+					"[skedra] Could not publish presentation audience count.",
+					error,
+				);
+			},
+		);
+	}, 100);
+	timer.unref();
+	presentationAudienceCountTimers.set(key, timer);
+}
+
+function clearScheduledPresentationAudienceCounts() {
+	for (const timer of presentationAudienceCountTimers.values()) {
+		clearTimeout(timer);
+	}
+	presentationAudienceCountTimers.clear();
+}
 
 const publicLibrarySubmissionSchema = z.object({
 	slug: z.string().min(3).max(64),
@@ -231,6 +470,7 @@ async function authorizeAssetUpload(input: {
 }
 
 async function hasShareTokenAssetAccess(input: {
+	assetId: string;
 	whiteboardId: string;
 	presentationShareToken: string;
 	collabShareToken: string;
@@ -250,7 +490,13 @@ async function hasShareTokenAssetAccess(input: {
 				db,
 				input.presentationShareToken,
 			);
-			if (access.whiteboard.id === input.whiteboardId) return true;
+			if (
+				presentationFrameAllowsAsset(access.whiteboard, {
+					whiteboardId: input.whiteboardId,
+					assetId: input.assetId,
+				})
+			)
+				return true;
 		} catch {
 			// Another supplied token may still grant access.
 		}
@@ -288,6 +534,7 @@ async function authorizeAssetRead(input: {
 	}
 	if (
 		await hasShareTokenAssetAccess({
+			assetId: input.asset.id,
 			whiteboardId: input.asset.whiteboardId,
 			presentationShareToken: input.presentationShareToken,
 			collabShareToken: input.collabShareToken,
@@ -318,7 +565,15 @@ app.use(
 	}),
 );
 
-app.get("/api/health", (c) => c.json({ status: "ok" }));
+app.get("/api/health", async (c) => {
+	c.header("Cache-Control", "no-store");
+	try {
+		await db.$client`select 1`;
+		return c.json({ status: "ok", database: "ok" });
+	} catch {
+		return c.json({ status: "error", database: "unavailable" }, 503);
+	}
+});
 
 app.route("/api", restApp);
 
@@ -510,46 +765,48 @@ app.all("/api/auth/*", async (c) => {
 		);
 	}
 
-	const access = await canSignUpWithEmail(db, {
-		email: signUp.email,
-		token: signUp.inviteToken,
-		mode: env.SKEDRA_REGISTRATION_MODE,
-	});
-
-	if (!access.allowed) {
-		return c.json(
-			{
-				code: "REGISTRATION_INVITE_REQUIRED",
-				message:
-					env.SKEDRA_REGISTRATION_MODE === "closed"
-						? "Registrierung ist auf dieser Skedra-Instanz deaktiviert."
-						: "Registrierung ist nur mit einem gueltigen Einladungslink moeglich.",
-			},
-			403,
-		);
-	}
-
-	const response = await auth.handler(
-		createAuthRequestWithoutInviteToken(request, signUp.authBody),
-	);
-	if (response.ok) {
-		const user = await db.query.users.findFirst({
-			where: (users, { eq }) => eq(users.email, signUp.email),
+	return withRegistrationLock(async () => {
+		const access = await canSignUpWithEmail(db, {
+			email: signUp.email,
+			token: signUp.inviteToken,
+			mode: env.SKEDRA_REGISTRATION_MODE,
 		});
 
-		if (user && access.firstUser) {
-			await assignFirstUserAsInstanceAdmin(db, user.id);
+		if (!access.allowed) {
+			return c.json(
+				{
+					code: "REGISTRATION_INVITE_REQUIRED",
+					message:
+						env.SKEDRA_REGISTRATION_MODE === "closed"
+							? "Registrierung ist auf dieser Skedra-Instanz deaktiviert."
+							: "Registrierung ist nur mit einem gueltigen Einladungslink moeglich.",
+				},
+				403,
+			);
 		}
 
-		if (signUp.inviteToken) {
-			await completeRegistrationInvite(db, {
-				email: signUp.email,
-				token: signUp.inviteToken,
+		const response = await auth.handler(
+			createAuthRequestWithoutInviteToken(request, signUp.authBody),
+		);
+		if (response.ok) {
+			const user = await db.query.users.findFirst({
+				where: (users, { eq }) => eq(users.email, signUp.email),
 			});
-		}
-	}
 
-	return response;
+			if (user) {
+				await assignFirstUserAsInstanceAdmin(db, user.id);
+			}
+
+			if (signUp.inviteToken) {
+				await completeRegistrationInvite(db, {
+					email: signUp.email,
+					token: signUp.inviteToken,
+				});
+			}
+		}
+
+		return response;
+	});
 });
 
 app.get("/api/libraries", async (c) => {
@@ -673,12 +930,16 @@ app.get("/api/boards/:id/live", async (c) => {
 		return c.json({ error: "Kein Zugriff auf dieses Board" }, 403);
 	}
 
+	c.header("Cache-Control", "no-cache, no-transform");
+	c.header("X-Accel-Buffering", "no");
 	return streamSSE(c, async (stream) => {
-		const queue: string[] = [];
+		// The event is only a refetch hint. Coalescing prevents slow clients from
+		// accumulating an unbounded queue while the durable update log stays exact.
+		let pendingEvent: string | null = null;
 		let wake: (() => void) | null = null;
 
 		const unsubscribe = subscribeBoardLive(id, (event) => {
-			queue.push(JSON.stringify(event));
+			pendingEvent = JSON.stringify(event);
 			wake?.();
 		});
 		stream.onAbort(() => unsubscribe());
@@ -686,7 +947,7 @@ app.get("/api/boards/:id/live", async (c) => {
 		try {
 			await stream.writeSSE({ event: "ready", data: "ok" });
 			while (!stream.aborted) {
-				if (queue.length === 0) {
+				if (!pendingEvent) {
 					// Auf das nächste Ereignis warten ODER nach 15 s einen Heartbeat senden.
 					await Promise.race([
 						new Promise<void>((resolve) => {
@@ -697,12 +958,13 @@ app.get("/api/boards/:id/live", async (c) => {
 					wake = null;
 				}
 				if (stream.aborted) break;
-				if (queue.length === 0) {
+				if (!pendingEvent) {
 					await stream.writeSSE({ event: "ping", data: String(Date.now()) });
 					continue;
 				}
-				const data = queue.shift();
-				if (data) await stream.writeSSE({ event: "update", data });
+				const data = pendingEvent;
+				pendingEvent = null;
+				await stream.writeSSE({ event: "update", data });
 			}
 		} finally {
 			unsubscribe();
@@ -724,8 +986,6 @@ app.get(
 		const rawId = c.req.param("id");
 		const boardId = isUuid(rawId) ? rawId : null;
 		let authorizedUserId: string | null = null;
-		const presentationShareToken =
-			c.req.query("presentationShareToken")?.trim() ?? "";
 
 		if (boardId) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -748,26 +1008,6 @@ app.get(
 					authorizedUserId = null;
 				}
 			}
-
-			if (!authorizedUserId && presentationShareToken) {
-				try {
-					const access = await getPresentationShareAccess(
-						db,
-						presentationShareToken,
-					);
-					if (
-						access.whiteboard.id === boardId &&
-						access.shareSettings.presenceEnabled
-					) {
-						authorizedUserId = `presentation:${createHash("sha256")
-							.update(presentationShareToken)
-							.digest("hex")
-							.slice(0, 16)}`;
-					}
-				} catch {
-					authorizedUserId = null;
-				}
-			}
 		}
 
 		let member: PresenceMember | null = null;
@@ -784,11 +1024,353 @@ app.get(
 				if (!member || !boardId) return;
 				const data = typeof evt.data === "string" ? evt.data : null;
 				// Größenlimit gegen Missbrauch; Inhalt ist Ciphertext, wird nicht geparst.
-				if (!data || data.length > 64_000) return;
+				if (!data || data.length > 6_000) return;
 				broadcastPresence(boardId, member, data);
 			},
 			onClose() {
 				if (member && boardId) leavePresenceRoom(boardId, member);
+			},
+		};
+	}),
+);
+
+/** Receive-only channel that exposes only the currently published slide. */
+app.get(
+	"/api/presentations/:shareToken/live",
+	upgradeWebSocket(async (c) => {
+		const shareToken = c.req.param("shareToken")?.trim() ?? "";
+		let whiteboardId: string | null = null;
+		try {
+			whiteboardId = (await getPresentationShareAccess(db, shareToken))
+				.whiteboard.id;
+		} catch {
+			whiteboardId = null;
+		}
+
+		let viewer: PresentationViewerConnection | null = null;
+		const synchronizeViewerSession = async () => {
+			const currentViewer = viewer;
+			if (!currentViewer || !whiteboardId || currentViewer.syncInFlight) return;
+			currentViewer.syncInFlight = true;
+			try {
+				const access = await getPresentationShareAccess(db, shareToken);
+				if (viewer !== currentViewer) return;
+				if (access.whiteboard.id !== whiteboardId)
+					throw new Error("wrong board");
+				const activeSessionId =
+					access.whiteboard.presentationSessionId &&
+					access.whiteboard.presentationActiveUntil &&
+					access.whiteboard.presentationActiveUntil.getTime() > Date.now()
+						? access.whiteboard.presentationSessionId
+						: null;
+
+				if (
+					currentViewer.sessionId &&
+					currentViewer.sessionId !== activeSessionId
+				) {
+					const previousSessionId = currentViewer.sessionId;
+					await removePresentationAudienceConnection(
+						db,
+						currentViewer.connectionId,
+					);
+					if (viewer !== currentViewer) return;
+					currentViewer.sessionId = null;
+					schedulePresentationAudienceCount(whiteboardId, previousSessionId);
+				}
+				if (activeSessionId) {
+					currentViewer.sessionId = activeSessionId;
+					await refreshPresentationAudienceConnection(db, {
+						connectionId: currentViewer.connectionId,
+						whiteboardId,
+						sessionId: activeSessionId,
+					});
+					if (viewer !== currentViewer) {
+						void removePresentationAudienceConnection(
+							db,
+							currentViewer.connectionId,
+						).catch((error) => {
+							console.warn(
+								"[skedra] Could not remove presentation audience connection.",
+								error,
+							);
+						});
+						return;
+					}
+					schedulePresentationAudienceCount(whiteboardId, activeSessionId);
+				}
+				await sendStoredPresentationFrame(whiteboardId, currentViewer);
+			} catch (error) {
+				if (
+					error instanceof Error &&
+					error.message === "presentation-share-inactive" &&
+					viewer === currentViewer
+				) {
+					const previousSessionId = currentViewer.sessionId;
+					await removePresentationAudienceConnection(
+						db,
+						currentViewer.connectionId,
+					);
+					if (viewer !== currentViewer) return;
+					currentViewer.sessionId = null;
+					if (previousSessionId) {
+						schedulePresentationAudienceCount(whiteboardId, previousSessionId);
+					}
+					sendPresentationMessage(currentViewer.ws, { type: "ended" });
+					return;
+				}
+				if (viewer === currentViewer) {
+					currentViewer.ws.close(1008, "presentation access expired");
+				}
+			} finally {
+				currentViewer.syncInFlight = false;
+			}
+		};
+
+		return {
+			onOpen(_event, ws) {
+				if (!whiteboardId) {
+					ws.close(1008, "unauthorized");
+					return;
+				}
+				viewer = {
+					ws,
+					connectionId: randomUUID(),
+					sessionId: null,
+					refreshTimer: null,
+					syncInFlight: false,
+				};
+				let room = presentationViewerRooms.get(whiteboardId);
+				if (!room) {
+					room = new Set();
+					presentationViewerRooms.set(whiteboardId, room);
+				}
+				room.add(viewer);
+				ensurePresentationRoomSubscription(whiteboardId);
+				void synchronizeViewerSession();
+				viewer.refreshTimer = setInterval(() => {
+					void synchronizeViewerSession();
+				}, 15_000);
+			},
+			onMessage(_event, ws) {
+				ws.close(1008, "audience channel is receive-only");
+			},
+			onClose() {
+				if (!viewer || !whiteboardId) return;
+				if (viewer.refreshTimer) clearInterval(viewer.refreshTimer);
+				presentationViewerRooms.get(whiteboardId)?.delete(viewer);
+				const { connectionId, sessionId } = viewer;
+				void removePresentationAudienceConnection(db, connectionId)
+					.then(() => {
+						if (sessionId) {
+							schedulePresentationAudienceCount(whiteboardId, sessionId);
+						}
+					})
+					.catch((error) => {
+						console.warn(
+							"[skedra] Could not remove presentation audience connection.",
+							error,
+						);
+					});
+				cleanupPresentationRoomSubscription(whiteboardId);
+				viewer = null;
+			},
+		};
+	}),
+);
+
+/** Session-bound publisher channel for the single authorized presenter. */
+app.get(
+	"/api/boards/:id/presentation-live",
+	upgradeWebSocket(async (c) => {
+		const rawBoardId = c.req.param("id");
+		const whiteboardId = isUuid(rawBoardId) ? rawBoardId : null;
+		const rawSessionId = c.req.query("sessionId")?.trim();
+		const sessionId = isUuid(rawSessionId) ? rawSessionId : null;
+		let authorizedUserId: string | null = null;
+		let cursorEnabled = false;
+		let publisherEncryptionMode: "server" | "e2ee" | null = null;
+
+		if (whiteboardId && sessionId) {
+			const session = await auth.api.getSession({ headers: c.req.raw.headers });
+			if (session?.user && (await userHasProductAccess(db, session.user.id))) {
+				try {
+					const access = await getBoardAccess(
+						{
+							db,
+							user: {
+								id: session.user.id,
+								name: session.user.name,
+								email: session.user.email,
+								image: session.user.image,
+							},
+						},
+						whiteboardId,
+					);
+					if (
+						access.canWrite &&
+						isAuthorizedPresentationSession(access.whiteboard, {
+							sessionId,
+							presenterId: session.user.id,
+						})
+					) {
+						authorizedUserId = session.user.id;
+						cursorEnabled = access.whiteboard.presentationSharePresenceEnabled;
+						publisherEncryptionMode = access.whiteboard.encryptionMode;
+					}
+				} catch {
+					authorizedUserId = null;
+				}
+			}
+		}
+
+		let presenter: PresentationPresenterConnection | null = null;
+		return {
+			async onOpen(_event, ws) {
+				if (!whiteboardId || !sessionId || !authorizedUserId) {
+					ws.close(1008, "unauthorized presenter session");
+					return;
+				}
+				presenter = { ws, sessionId, userId: authorizedUserId };
+				let room = presentationPresenterRooms.get(whiteboardId);
+				if (!room) {
+					room = new Set();
+					presentationPresenterRooms.set(whiteboardId, room);
+				}
+				room.add(presenter);
+				ensurePresentationRoomSubscription(whiteboardId);
+				sendPresentationMessage(ws, {
+					type: "ready",
+					audienceCount: await countPresentationAudience(
+						db,
+						whiteboardId,
+						sessionId,
+					),
+				});
+			},
+			async onMessage(event, ws) {
+				if (!presenter || !whiteboardId || !sessionId || !authorizedUserId)
+					return;
+				const data = typeof event.data === "string" ? event.data : "";
+				if (!data || data.length > 4_100_000) {
+					ws.close(1008, "invalid presentation message");
+					return;
+				}
+				let rawMessage: unknown;
+				try {
+					rawMessage = JSON.parse(data);
+				} catch {
+					ws.close(1008, "invalid presentation message");
+					return;
+				}
+				const parsed = presentationPublisherMessageSchema.safeParse(rawMessage);
+				if (!parsed.success) {
+					ws.close(1008, "invalid presentation message");
+					return;
+				}
+				const message = parsed.data;
+				const now = new Date();
+
+				if (message.type === "heartbeat") {
+					const [renewed] = await db
+						.update(whiteboards)
+						.set({ presentationActiveUntil: new Date(now.getTime() + 90_000) })
+						.where(
+							and(
+								eq(whiteboards.id, whiteboardId),
+								eq(whiteboards.presentationSessionId, sessionId),
+								eq(whiteboards.presentationPresenterId, authorizedUserId),
+								gt(whiteboards.presentationActiveUntil, now),
+							),
+						)
+						.returning({
+							id: whiteboards.id,
+							cursorEnabled: whiteboards.presentationSharePresenceEnabled,
+						});
+					if (!renewed) {
+						sendPresentationMessage(ws, { type: "ended" });
+						ws.close(1008, "presenter session expired");
+					} else {
+						cursorEnabled = renewed.cursorEnabled;
+					}
+					return;
+				}
+
+				if (message.type === "cursor") {
+					if (!cursorEnabled) return;
+					publishPresentationLive({
+						type: "cursor",
+						whiteboardId,
+						sessionId,
+						sequence: message.sequence,
+						cursor: message.cursor,
+					});
+					return;
+				}
+
+				if (message.type === "camera") {
+					publishPresentationLive({
+						type: "camera",
+						whiteboardId,
+						sessionId,
+						sequence: message.sequence,
+						viewId: message.viewId,
+						camera: message.camera,
+					});
+					return;
+				}
+
+				if (publisherEncryptionMode === "server") {
+					let frameContent: unknown;
+					try {
+						frameContent = JSON.parse(message.payload);
+					} catch {
+						ws.close(1008, "invalid presentation frame");
+						return;
+					}
+					if (!presentationFrameContentSchema.safeParse(frameContent).success) {
+						ws.close(1008, "invalid presentation frame");
+						return;
+					}
+				}
+
+				const [stored] = await db
+					.update(whiteboards)
+					.set({
+						presentationFrameSequence: message.sequence,
+						presentationFramePayload: message.payload,
+						presentationFrameAssetIds: JSON.stringify(message.assetIds),
+						presentationFrameUpdatedAt: now,
+					})
+					.where(
+						and(
+							eq(whiteboards.id, whiteboardId),
+							eq(whiteboards.presentationSessionId, sessionId),
+							eq(whiteboards.presentationPresenterId, authorizedUserId),
+							gt(whiteboards.presentationActiveUntil, now),
+							or(
+								isNull(whiteboards.presentationFrameSequence),
+								lt(whiteboards.presentationFrameSequence, message.sequence),
+							),
+						),
+					)
+					.returning({ id: whiteboards.id });
+				if (!stored) return;
+				publishPresentationLive({
+					type: "frame",
+					whiteboardId,
+					sessionId,
+					sequence: message.sequence,
+				});
+				sendPresentationMessage(ws, {
+					type: "ack",
+					sequence: message.sequence,
+				});
+			},
+			onClose() {
+				if (!presenter || !whiteboardId) return;
+				presentationPresenterRooms.get(whiteboardId)?.delete(presenter);
+				cleanupPresentationRoomSubscription(whiteboardId);
+				presenter = null;
 			},
 		};
 	}),
@@ -809,3 +1391,55 @@ const server = serve({ fetch: app.fetch, port: 3001 }, () => {
 
 // WebSocket-Upgrades (Presence) an den Node-Server anhängen.
 injectWebSocket(server);
+
+let shutdownStarted = false;
+
+async function shutdown(signal: NodeJS.Signals) {
+	if (shutdownStarted) return;
+	shutdownStarted = true;
+	console.log(`[Skedra API] ${signal} received, shutting down.`);
+
+	for (const client of wss.clients) {
+		client.close(1001, "Server shutting down");
+	}
+
+	const closeTransports = Promise.all([
+		new Promise<void>((resolve) => {
+			server.close(() => resolve());
+		}),
+		new Promise<void>((resolve) => {
+			wss.close(() => resolve());
+		}),
+	]);
+	await Promise.race([
+		closeTransports,
+		new Promise<void>((resolve) => {
+			const timeout = setTimeout(() => {
+				for (const client of wss.clients) client.terminate();
+				if ("closeAllConnections" in server) server.closeAllConnections();
+				resolve();
+			}, 8_000);
+			timeout.unref();
+		}),
+	]);
+
+	clearScheduledPresentationAudienceCounts();
+	await Promise.allSettled([
+		closeBoardLiveBus(),
+		closeBoardPresence(),
+		closePresentationLiveBus(),
+		closeRegistrationLocks(),
+		closeDatabase(),
+	]);
+}
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+	process.once(signal, () => {
+		void shutdown(signal)
+			.then(() => process.exit(0))
+			.catch((error) => {
+				console.error("[Skedra API] Shutdown failed.", error);
+				process.exit(1);
+			});
+	});
+}

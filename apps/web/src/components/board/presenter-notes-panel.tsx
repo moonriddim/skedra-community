@@ -13,8 +13,9 @@ import { useEffect, useState } from "react";
 interface PresenterNotesPanelProps {
 	open: boolean;
 	activeView: SavedCanvasView | null;
+	activeNotes: string;
 	views: SavedCanvasView[];
-	onUpdateNotes: (viewId: string, notes: string) => void;
+	onUpdateNotes: (viewId: string, notes: string) => void | Promise<void>;
 	onSelectView: (viewId: string) => void;
 	onClose: () => void;
 	className?: string;
@@ -23,6 +24,7 @@ interface PresenterNotesPanelProps {
 export function PresenterNotesPanel({
 	open,
 	activeView,
+	activeNotes,
 	views,
 	onUpdateNotes,
 	onSelectView,
@@ -32,7 +34,7 @@ export function PresenterNotesPanel({
 	const { t } = useI18n();
 	const [draft, setDraft] = useState("");
 	const activeViewKey = activeView?.id ?? "";
-	const activeViewNotes = activeView?.presenterNotes ?? "";
+	const activeViewNotes = activeView ? activeNotes : "";
 
 	useEffect(() => {
 		setDraft(activeViewKey ? activeViewNotes : "");
@@ -49,12 +51,13 @@ export function PresenterNotesPanel({
 				? offset > 0
 					? 0
 					: views.length - 1
-				: (activeIndex + offset + views.length) % views.length;
+				: Math.max(0, Math.min(views.length - 1, activeIndex + offset));
+		if (nextIndex === activeIndex) return;
 		onSelectView(views[nextIndex].id);
 	};
 	const saveDraft = () => {
-		if (!activeView || draft === (activeView.presenterNotes ?? "")) return;
-		onUpdateNotes(activeView.id, draft);
+		if (!activeView || draft === activeNotes) return;
+		void onUpdateNotes(activeView.id, draft);
 	};
 
 	return (
@@ -102,6 +105,7 @@ export function PresenterNotesPanel({
 								size="sm"
 								className="text-white/80 hover:bg-white/10 hover:text-white"
 								onClick={() => goToSlide(-1)}
+								disabled={activeIndex <= 0}
 							>
 								<ChevronLeft className="mr-1 h-4 w-4" />
 								{t("whiteboardPage.presenterNotes.previous")}
@@ -120,6 +124,7 @@ export function PresenterNotesPanel({
 								size="sm"
 								className="text-white/80 hover:bg-white/10 hover:text-white"
 								onClick={() => goToSlide(1)}
+								disabled={activeIndex >= views.length - 1}
 							>
 								{t("whiteboardPage.presenterNotes.next")}
 								<ChevronRight className="ml-1 h-4 w-4" />
@@ -148,7 +153,7 @@ export function PresenterNotesPanel({
 									size="sm"
 									onPointerDown={(event) => event.preventDefault()}
 									onClick={saveDraft}
-									disabled={draft === (activeView.presenterNotes ?? "")}
+									disabled={draft === activeNotes}
 								>
 									{t("whiteboardPage.presenterNotes.save")}
 								</Button>

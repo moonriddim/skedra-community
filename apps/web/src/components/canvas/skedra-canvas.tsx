@@ -15,6 +15,9 @@ import { useE2eeCanvasSync } from "@/hooks/use-e2ee-canvas-sync";
 import { useEncryptedAssetUrls } from "@/hooks/use-encrypted-asset-urls";
 import { useLibraryDeepLink } from "@/hooks/use-library-deep-link";
 import { useLocalCanvasSync } from "@/hooks/use-local-canvas-sync";
+import { usePresentationCanvasSync } from "@/hooks/use-presentation-canvas-sync";
+import { usePresentationPublisher } from "@/hooks/use-presentation-publisher";
+import { usePresenterNotes } from "@/hooks/use-presenter-notes";
 import { useServerCanvasSync } from "@/hooks/use-server-canvas-sync";
 import type { AssetAccessTokens } from "@/lib/canvas/asset-urls";
 import { mergeElementCustomData } from "@/lib/canvas/custom-data-utils";
@@ -28,6 +31,11 @@ import {
 } from "@/lib/canvas/sticky-note-utils";
 import { useI18n } from "@/lib/i18n";
 import type { MentionCandidate } from "@/lib/mention-utils";
+import {
+	createPresentationFrameContent,
+	createPresentationRelativeCamera,
+	viewportFromPresentationCamera,
+} from "@/lib/presentation-frame";
 import { trpc } from "@/lib/trpc";
 import {
 	getFlowchartNodeMeta,
@@ -95,10 +103,15 @@ interface SkedraCanvasProps {
 	/** Editor im Presenter-Modus (?present=1) — Slides + Notes, Heartbeat extern */
 	presenterMode?: boolean;
 	presenterShareUrl?: string;
-	presenterIsLive?: boolean;
+	presenterSessionId?: string | null;
+	presenterStartedAt?: string | null;
+	presenterSessionStarting?: boolean;
+	presenterStartError?: string | null;
+	onStartPresentation?: () => void;
+	onEndPresentation?: () => void;
+	onPresentationSessionEnded?: () => void;
 	/** Audience-View (/present/:token) */
 	audienceBoardName?: string;
-	audienceIsLive?: boolean;
 	/** Excalidraw-ähnliche Board-Kommentare (nur wenn gesetzt). */
 	comments?: {
 		threads: WhiteboardCommentThread[];
@@ -145,7 +158,7 @@ export function SkedraCanvas({
 	collabShareToken,
 	embedShareToken,
 	e2eeKey,
-	encryptionMode = "e2ee",
+	encryptionMode = "server",
 	forceReadonly,
 	presenceEnabled = true,
 	presencePanelOffsetTop,
@@ -155,9 +168,14 @@ export function SkedraCanvas({
 	kanbanAssignmentOptions,
 	presenterMode = false,
 	presenterShareUrl = "",
-	presenterIsLive = false,
+	presenterSessionId,
+	presenterStartedAt,
+	presenterSessionStarting = false,
+	presenterStartError,
+	onStartPresentation,
+	onEndPresentation,
+	onPresentationSessionEnded,
 	audienceBoardName,
-	audienceIsLive = false,
 	comments,
 	focusCanvasPointRef,
 }: SkedraCanvasProps) {
@@ -172,12 +190,43 @@ export function SkedraCanvas({
 	const [aiPanelOpen, setAiPanelOpen] = useState(false);
 	const [presenterNotesOpen, setPresenterNotesOpen] = useState(presenterMode);
 	const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+	const [audienceFollowPresenter, setAudienceFollowPresenter] = useState(true);
+	const [canvasViewportSize, setCanvasViewportSize] = useState({
+		width: 0,
+		height: 0,
+	});
+
+	useEffect(() => {
+		const canvas = svgRef.current;
+		if (!canvas) return;
+		const updateSize = () => {
+			const rect = canvas.getBoundingClientRect();
+			const next = { width: rect.width, height: rect.height };
+			setCanvasViewportSize((current) =>
+				current.width === next.width && current.height === next.height
+					? current
+					: next,
+			);
+		};
+		updateSize();
+		const observer = new ResizeObserver(updateSize);
+		observer.observe(canvas);
+		return () => observer.disconnect();
+	}, []);
 
 	const localSync = useLocalCanvasSync(localMode);
+	const audienceFrameMode =
+		presentationMode && !!presentationShareToken && !localMode;
 	const e2eeRemoteMode =
-		!localMode && !!whiteboardId && encryptionMode === "e2ee";
+		!localMode &&
+		!audienceFrameMode &&
+		!!whiteboardId &&
+		encryptionMode === "e2ee";
 	const serverRemoteMode =
-		!localMode && !!whiteboardId && encryptionMode === "server";
+		!localMode &&
+		!audienceFrameMode &&
+		!!whiteboardId &&
+		encryptionMode === "server";
 	const { data: assetUploadConfig } = trpc.assets.getUploadConfig.useQuery(
 		undefined,
 		{ enabled: e2eeRemoteMode || serverRemoteMode },
@@ -188,8 +237,11 @@ export function SkedraCanvas({
 			e2eeKey,
 			enabled: e2eeRemoteMode,
 			readonly:
-				forceReadonly ??
-				(presentationMode || !!presentationShareToken || !!embedShareToken),
+				!!forceReadonly ||
+				presenterMode ||
+				presentationMode ||
+				!!presentationShareToken ||
+				!!embedShareToken,
 			presentationShareToken,
 			presenceEnabled,
 			collabShareToken,
@@ -201,19 +253,50 @@ export function SkedraCanvas({
 		{
 			enabled: serverRemoteMode,
 			readonly:
-				forceReadonly ??
-				(presentationMode || !!presentationShareToken || !!embedShareToken),
+				!!forceReadonly ||
+				presenterMode ||
+				presentationMode ||
+				!!presentationShareToken ||
+				!!embedShareToken,
 			presentationShareToken,
 			presenceEnabled,
 			collabShareToken,
 			embedShareToken,
 		},
 	);
-	const sync = localMode
-		? localSync
-		: encryptionMode === "server"
-			? serverSync
-			: e2eeSync;
+	const presentationSync = usePresentationCanvasSync({
+		enabled: audienceFrameMode,
+		shareToken: presentationShareToken,
+		encryptionMode,
+		e2eeKey,
+		cursorEnabled: presenceEnabled,
+	});
+	const sync = audienceFrameMode
+		? presentationSync
+		: localMode
+			? localSync
+			: encryptionMode === "server"
+				? serverSync
+				: e2eeSync;
+	const canUsePresenterNotes =
+		!localMode &&
+		!audienceFrameMode &&
+		!forceReadonly &&
+		!collabShareToken &&
+		!embedShareToken;
+	const presenterNotes = usePresenterNotes({
+		whiteboardId,
+		encryptionMode,
+		e2eeKey,
+		enabled: canUsePresenterNotes,
+	});
+	const presentationPublisher = usePresentationPublisher({
+		whiteboardId,
+		sessionId: presenterSessionId,
+		encryptionMode,
+		e2eeKey,
+		enabled: presenterMode && !!presenterSessionId,
+	});
 	const assetAccessTokens = useMemo<AssetAccessTokens>(
 		() => ({
 			presentationShareToken,
@@ -251,6 +334,25 @@ export function SkedraCanvas({
 	});
 	const syncRef = useRef(sync);
 	syncRef.current = sync;
+
+	useEffect(() => {
+		if (
+			!canUsePresenterNotes ||
+			!sync.isConnected ||
+			presenterNotes.isLoading
+		) {
+			return;
+		}
+		const ydoc = sync.getYDoc();
+		if (!ydoc) return;
+		void presenterNotes.migrateLegacyNotes(ydoc).catch(() => undefined);
+	}, [
+		canUsePresenterNotes,
+		presenterNotes.isLoading,
+		presenterNotes.migrateLegacyNotes,
+		sync.getYDoc,
+		sync.isConnected,
+	]);
 
 	useEffect(() => {
 		if (!e2eeStateRef) return;
@@ -337,8 +439,9 @@ export function SkedraCanvas({
 		handleStartEditView,
 		handleStopEditView,
 		handleRenameView,
-		handleUpdatePresenterNotes,
 		handleDeleteView,
+		handleDuplicateView,
+		handleMoveView,
 		handleFitViewport,
 		beginViewMove,
 		beginViewResize,
@@ -368,12 +471,102 @@ export function SkedraCanvas({
 	});
 	const savedViewList = useMemo(
 		() =>
-			Array.from(sync.views.values()).sort((a, b) => a.createdAt - b.createdAt),
+			Array.from(sync.views.values()).sort(
+				(a, b) =>
+					(a.order ?? a.createdAt) - (b.order ?? b.createdAt) ||
+					a.createdAt - b.createdAt,
+			),
 		[sync.views],
 	);
 	const activeView = activeViewId
 		? (sync.views.get(activeViewId) ?? null)
 		: null;
+
+	useEffect(() => {
+		if (!audienceFrameMode || savedViewList.length === 0) return;
+		const currentView = savedViewList[0];
+		setActiveViewId(currentView.id);
+		if (!audienceFollowPresenter || !presentationSync.presentationCamera)
+			return;
+		if (canvasViewportSize.width <= 0 || canvasViewportSize.height <= 0) return;
+		useCanvasStore
+			.getState()
+			.setViewport(
+				viewportFromPresentationCamera(
+					presentationSync.presentationCamera,
+					canvasViewportSize,
+					currentView,
+				),
+			);
+	}, [
+		audienceFollowPresenter,
+		audienceFrameMode,
+		canvasViewportSize,
+		presentationSync.presentationCamera,
+		savedViewList,
+		setActiveViewId,
+	]);
+
+	useEffect(() => {
+		if (!presenterMode || !presenterSessionId || !activeView) return;
+		if (canvasViewportSize.width <= 0 || canvasViewportSize.height <= 0) return;
+		const timer = window.setTimeout(() => {
+			const slideIndex = savedViewList.findIndex(
+				(view) => view.id === activeView.id,
+			);
+			if (slideIndex < 0) return;
+			const frame = createPresentationFrameContent({
+				slide: activeView,
+				slideIndex,
+				totalSlides: savedViewList.length,
+				elements: sync.elements.values(),
+				viewport: useCanvasStore.getState().viewport,
+				viewportSize: canvasViewportSize,
+			});
+			void presentationPublisher.publishFrame(frame);
+		}, 100);
+		return () => window.clearTimeout(timer);
+	}, [
+		activeView,
+		canvasViewportSize,
+		presentationPublisher.publishFrame,
+		presenterMode,
+		presenterSessionId,
+		savedViewList,
+		sync.elements,
+	]);
+
+	useEffect(() => {
+		if (
+			!presenterMode ||
+			!presenterSessionId ||
+			!activeView ||
+			canvasViewportSize.width <= 0 ||
+			canvasViewportSize.height <= 0
+		) {
+			return;
+		}
+		presentationPublisher.publishCamera(
+			createPresentationRelativeCamera(
+				store.viewport,
+				canvasViewportSize,
+				activeView,
+			),
+			activeView.id,
+		);
+	}, [
+		activeView,
+		canvasViewportSize,
+		presentationPublisher.publishCamera,
+		presenterMode,
+		presenterSessionId,
+		store.viewport,
+	]);
+
+	useEffect(() => {
+		if (!presentationPublisher.sessionEnded) return;
+		onPresentationSessionEnded?.();
+	}, [onPresentationSessionEnded, presentationPublisher.sessionEnded]);
 
 	useEffect(() => {
 		if (!presenterMode || activeViewId || savedViewList.length === 0) return;
@@ -576,6 +769,7 @@ export function SkedraCanvas({
 	}, [editingViewId, setEditingViewId, sync.views]);
 
 	const keyboard = useCanvasKeyboard({
+		enabled: !presentationMode && !presenterMode && !sync.isReadonly,
 		elements: sync.elements,
 		createElement: sync.createElement,
 		deleteElements: deleteElementsWithKanbanReflow,
@@ -805,6 +999,22 @@ export function SkedraCanvas({
 		};
 	}, [canvasCommandRef, canvasCommands]);
 
+	const setCanvasPresenceCursor = useCallback(
+		(cursor: { x: number; y: number } | null) => {
+			sync.setPresenceCursor(cursor);
+			if (presenterMode && presenterSessionId && presenceEnabled) {
+				presentationPublisher.publishCursor(cursor);
+			}
+		},
+		[
+			presenceEnabled,
+			presentationPublisher.publishCursor,
+			presenterMode,
+			presenterSessionId,
+			sync.setPresenceCursor,
+		],
+	);
+
 	const {
 		handleContextMenu,
 		handlePointerDown,
@@ -829,7 +1039,7 @@ export function SkedraCanvas({
 		setHoveredMindmapNodeId,
 		setHoveredMindmapButtonId,
 		scheduleMindmapHoverClear,
-		setPresenceCursor: sync.setPresenceCursor,
+		setPresenceCursor: setCanvasPresenceCursor,
 		isMindmapNode,
 		openKanbanCard,
 		openKanbanList,
@@ -983,8 +1193,11 @@ export function SkedraCanvas({
 									onStartEditView: handleStartEditView,
 									onStopEditView: handleStopEditView,
 									onDeleteView: handleDeleteView,
+									onDuplicateView: handleDuplicateView,
+									onMoveView: handleMoveView,
 									onRenameView: handleRenameView,
 									onOpenPresenterNotes: () => setPresenterNotesOpen(true),
+									canUsePresenterNotes,
 									resolveAssetUrl,
 								}
 					}
@@ -1039,13 +1252,27 @@ export function SkedraCanvas({
 					onPresenterNotesOpenChange={setPresenterNotesOpen}
 					activeView={activeView}
 					savedViewList={savedViewList}
-					onUpdatePresenterNotes={handleUpdatePresenterNotes}
+					presenterNotes={presenterNotes.notes}
+					onUpdatePresenterNotes={presenterNotes.saveNote}
 					onSelectView={handleSelectView}
 					presenterShareUrl={presenterShareUrl}
-					presenterIsLive={presenterIsLive}
+					presenterIsLive={presentationPublisher.isBroadcasting}
+					presenterSessionActive={!!presenterSessionId}
+					presenterConnectionReady={presentationPublisher.isConnected}
+					presenterAudienceCount={presentationPublisher.audienceCount}
+					presenterStartedAt={presenterStartedAt}
+					presenterSessionStarting={presenterSessionStarting}
+					presenterStartError={
+						presenterStartError ?? presentationPublisher.publishError
+					}
+					onStartPresentation={onStartPresentation}
+					onEndPresentation={onEndPresentation}
 					presentationShareToken={presentationShareToken}
 					audienceBoardName={audienceBoardName}
-					audienceIsLive={audienceIsLive}
+					audienceIsLive={presentationSync.presentationIsLive}
+					audienceHasError={!!presentationSync.connectionError}
+					audienceFollowPresenter={audienceFollowPresenter}
+					onAudienceFollowPresenterChange={setAudienceFollowPresenter}
 				/>
 
 				<SkedraCanvasFileDialogs

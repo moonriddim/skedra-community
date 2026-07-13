@@ -6,6 +6,7 @@ import {
 	MIN_VIEW_SIZE,
 	VIEW_PADDING,
 	type ViewInteractionState,
+	constrainViewBoundsToAspectRatio,
 	normalizeBounds,
 	resizeViewBounds,
 } from "@/components/canvas/canvas-view-utils";
@@ -39,6 +40,14 @@ interface UseCanvasSavedViewsOptions {
 	svgRef: RefObject<SVGSVGElement | null>;
 	sync: CanvasSyncSlice;
 	store: CanvasStoreSlice;
+}
+
+function orderViews(views: Iterable<SavedCanvasView>) {
+	return Array.from(views).sort(
+		(a, b) =>
+			(a.order ?? a.createdAt) - (b.order ?? b.createdAt) ||
+			a.createdAt - b.createdAt,
+	);
 }
 
 export function useCanvasSavedViews({
@@ -103,16 +112,6 @@ export function useCanvasSavedViews({
 		[sync],
 	);
 
-	const handleUpdatePresenterNotes = useCallback(
-		(viewId: string, notes: string) => {
-			sync.updateView(viewId, {
-				presenterNotes: notes.trim() || undefined,
-				updatedAt: Date.now(),
-			});
-		},
-		[sync],
-	);
-
 	const handleDeleteView = useCallback(
 		(id: string) => {
 			sync.deleteView(id);
@@ -124,6 +123,51 @@ export function useCanvasSavedViews({
 			}
 		},
 		[activeViewId, editingViewId, sync],
+	);
+
+	const handleDuplicateView = useCallback(
+		(id: string) => {
+			const source = sync.views.get(id);
+			if (!source) return;
+			const ordered = orderViews(sync.views.values());
+			const sourceIndex = ordered.findIndex((view) => view.id === id);
+			for (let index = 0; index < ordered.length; index += 1) {
+				sync.updateView(ordered[index].id, {
+					order: index > sourceIndex ? index + 1 : index,
+					updatedAt: Date.now(),
+				});
+			}
+			const now = Date.now();
+			const duplicate: SavedCanvasView = {
+				...source,
+				id: nanoid(),
+				name: t("canvas.bottomBar.duplicateViewName", { name: source.name }),
+				x: source.x + 24,
+				y: source.y + 24,
+				order: sourceIndex + 1,
+				createdAt: now,
+				updatedAt: now,
+			};
+			sync.createView(duplicate);
+			setActiveViewId(duplicate.id);
+		},
+		[sync, t],
+	);
+
+	const handleMoveView = useCallback(
+		(id: string, direction: -1 | 1) => {
+			const ordered = orderViews(sync.views.values());
+			const index = ordered.findIndex((view) => view.id === id);
+			const targetIndex = index + direction;
+			if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return;
+			const [current] = ordered.splice(index, 1);
+			ordered.splice(targetIndex, 0, current);
+			const now = Date.now();
+			for (const [nextIndex, view] of ordered.entries()) {
+				sync.updateView(view.id, { order: nextIndex, updatedAt: now });
+			}
+		},
+		[sync],
 	);
 
 	const handleFitViewport = useCallback(() => {
@@ -246,12 +290,26 @@ export function useCanvasSavedViews({
 			}
 
 			if (interaction.mode === "resize" && interaction.handle) {
-				const nextBounds = resizeViewBounds(
+				const resizedBounds = resizeViewBounds(
 					interaction.startBounds,
 					interaction.handle,
 					dx,
 					dy,
 				);
+				const view = sync.views.get(interaction.viewId);
+				const ratio =
+					view?.aspectRatio === "4:3"
+						? 4 / 3
+						: view?.aspectRatio === "free"
+							? null
+							: 16 / 9;
+				const nextBounds = ratio
+					? constrainViewBoundsToAspectRatio(
+							resizedBounds,
+							ratio,
+							interaction.handle,
+						)
+					: resizedBounds;
 				sync.updateView(interaction.viewId, {
 					x: nextBounds.x,
 					y: nextBounds.y,
@@ -278,17 +336,29 @@ export function useCanvasSavedViews({
 				finalBounds.width >= MIN_VIEW_SIZE &&
 				finalBounds.height >= MIN_VIEW_SIZE
 			) {
-				const nextIndex = sync.views.size + 1;
+				const ordered = orderViews(sync.views.values());
+				const nextIndex = ordered.length + 1;
 				const now = Date.now();
+				for (const [index, view] of ordered.entries()) {
+					if (view.order !== index) {
+						sync.updateView(view.id, { order: index, updatedAt: now });
+					}
+				}
+				const slideBounds = constrainViewBoundsToAspectRatio(
+					finalBounds,
+					16 / 9,
+				);
 				const nextView: SavedCanvasView = {
 					id: nanoid(),
 					name: t("canvas.bottomBar.defaultViewName", { index: nextIndex }),
-					x: finalBounds.x,
-					y: finalBounds.y,
-					width: finalBounds.width,
-					height: finalBounds.height,
+					x: slideBounds.x,
+					y: slideBounds.y,
+					width: slideBounds.width,
+					height: slideBounds.height,
 					createdAt: now,
 					updatedAt: now,
+					order: ordered.length,
+					aspectRatio: "16:9",
 				};
 				sync.createView(nextView);
 				setActiveViewId(nextView.id);
@@ -319,8 +389,9 @@ export function useCanvasSavedViews({
 		handleStartEditView,
 		handleStopEditView,
 		handleRenameView,
-		handleUpdatePresenterNotes,
 		handleDeleteView,
+		handleDuplicateView,
+		handleMoveView,
 		handleFitViewport,
 		beginViewMove,
 		beginViewResize,

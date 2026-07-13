@@ -690,3 +690,107 @@ CREATE TABLE IF NOT EXISTS "two_factors" (
 
 CREATE INDEX IF NOT EXISTS "two_factors_user_idx"
 	ON "two_factors" ("user_id");
+
+-- Query-path and foreign-key indexes. Keep these in sync with packages/db/src/schema.ts.
+CREATE INDEX IF NOT EXISTS "sessions_user_idx"
+	ON "sessions" ("user_id");
+CREATE INDEX IF NOT EXISTS "accounts_user_provider_idx"
+	ON "accounts" ("user_id", "provider_id");
+CREATE INDEX IF NOT EXISTS "accounts_provider_account_idx"
+	ON "accounts" ("provider_id", "account_id");
+CREATE INDEX IF NOT EXISTS "verifications_identifier_idx"
+	ON "verifications" ("identifier");
+
+CREATE INDEX IF NOT EXISTS "whiteboards_owner_archived_idx"
+	ON "whiteboards" ("owner_id", "archived_at");
+CREATE INDEX IF NOT EXISTS "whiteboards_team_archived_idx"
+	ON "whiteboards" ("team_id", "archived_at");
+CREATE INDEX IF NOT EXISTS "whiteboards_folder_idx"
+	ON "whiteboards" ("folder_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_members_user_idx"
+	ON "whiteboard_members" ("user_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_activities_board_created_idx"
+	ON "whiteboard_activities" ("whiteboard_id", "created_at");
+CREATE INDEX IF NOT EXISTS "whiteboard_activities_user_created_idx"
+	ON "whiteboard_activities" ("user_id", "created_at");
+CREATE INDEX IF NOT EXISTS "whiteboard_comment_threads_board_updated_idx"
+	ON "whiteboard_comment_threads" ("whiteboard_id", "updated_at");
+CREATE INDEX IF NOT EXISTS "whiteboard_comment_threads_created_by_idx"
+	ON "whiteboard_comment_threads" ("created_by_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_comment_messages_thread_created_idx"
+	ON "whiteboard_comment_messages" ("thread_id", "created_at");
+CREATE INDEX IF NOT EXISTS "whiteboard_comment_messages_author_idx"
+	ON "whiteboard_comment_messages" ("author_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_ai_messages_board_user_created_idx"
+	ON "whiteboard_ai_messages" ("whiteboard_id", "user_id", "created_at");
+CREATE INDEX IF NOT EXISTS "whiteboard_ai_messages_user_idx"
+	ON "whiteboard_ai_messages" ("user_id");
+CREATE INDEX IF NOT EXISTS "board_integration_sync_user_idx"
+	ON "board_integration_syncs" ("user_id");
+
+CREATE INDEX IF NOT EXISTS "teams_owner_idx"
+	ON "teams" ("owner_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_folders_team_name_idx"
+	ON "whiteboard_folders" ("team_id", "name");
+CREATE INDEX IF NOT EXISTS "whiteboard_folders_owner_idx"
+	ON "whiteboard_folders" ("owner_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_folders_parent_idx"
+	ON "whiteboard_folders" ("parent_id");
+CREATE INDEX IF NOT EXISTS "team_roles_team_created_idx"
+	ON "team_roles" ("team_id", "created_at");
+CREATE INDEX IF NOT EXISTS "whiteboard_team_role_access_role_idx"
+	ON "whiteboard_team_role_access" ("team_role_id");
+CREATE INDEX IF NOT EXISTS "team_members_user_workspace_role_idx"
+	ON "team_members" ("user_id", "workspace_role");
+CREATE INDEX IF NOT EXISTS "team_members_team_role_idx"
+	ON "team_members" ("team_id", "role_id");
+CREATE INDEX IF NOT EXISTS "registration_invites_invited_by_idx"
+	ON "registration_invites" ("invited_by_id");
+CREATE INDEX IF NOT EXISTS "registration_invites_team_idx"
+	ON "registration_invites" ("team_id");
+CREATE INDEX IF NOT EXISTS "registration_invites_team_role_idx"
+	ON "registration_invites" ("team_role_id");
+CREATE INDEX IF NOT EXISTS "registration_invites_whiteboard_idx"
+	ON "registration_invites" ("whiteboard_id");
+CREATE INDEX IF NOT EXISTS "registration_invites_whiteboard_role_idx"
+	ON "registration_invites" ("whiteboard_team_role_id");
+
+-- Isolated presentation sessions, current-slide publication and private notes.
+ALTER TABLE "whiteboards"
+	ADD COLUMN IF NOT EXISTS "presentation_session_id" uuid,
+	ADD COLUMN IF NOT EXISTS "presentation_presenter_id" text REFERENCES "users"("id") ON DELETE set null,
+	ADD COLUMN IF NOT EXISTS "presentation_frame_sequence" bigint,
+	ADD COLUMN IF NOT EXISTS "presentation_frame_payload" text,
+	ADD COLUMN IF NOT EXISTS "presentation_frame_asset_ids" text,
+	ADD COLUMN IF NOT EXISTS "presentation_frame_updated_at" timestamp;
+
+ALTER TABLE "whiteboards"
+	ALTER COLUMN "presentation_frame_sequence" TYPE bigint
+	USING "presentation_frame_sequence"::bigint;
+
+CREATE TABLE IF NOT EXISTS "whiteboard_presenter_notes" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"whiteboard_id" uuid NOT NULL REFERENCES "whiteboards"("id") ON DELETE cascade,
+	"view_id" text NOT NULL,
+	"content" text DEFAULT '' NOT NULL,
+	"encrypted" boolean DEFAULT false NOT NULL,
+	"updated_by_id" text REFERENCES "users"("id") ON DELETE set null,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "whiteboard_presenter_notes_board_view_unique"
+	ON "whiteboard_presenter_notes" ("whiteboard_id", "view_id");
+CREATE INDEX IF NOT EXISTS "whiteboard_presenter_notes_board_idx"
+	ON "whiteboard_presenter_notes" ("whiteboard_id");
+
+CREATE TABLE IF NOT EXISTS "whiteboard_presentation_audience" (
+	"connection_id" uuid PRIMARY KEY NOT NULL,
+	"whiteboard_id" uuid NOT NULL REFERENCES "whiteboards"("id") ON DELETE cascade,
+	"session_id" uuid NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "whiteboard_presentation_audience_session_expiry_idx"
+	ON "whiteboard_presentation_audience" ("whiteboard_id", "session_id", "expires_at");

@@ -30,6 +30,7 @@ const allowedWebCanvasFiles = new Set([
 	"canvas-defaults.ts",
 	"canvas-factory-defaults.ts",
 	"canvas-history-storage.ts",
+	"canvas-undo.test.ts",
 	"canvas-undo.ts",
 	"canvas-viewport-storage.ts",
 	"color-picker-utils.ts",

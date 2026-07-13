@@ -2,7 +2,6 @@
  * Globale Canvas-Events, Viewport-Persistenz und Theme-Sync fuer SkedraCanvas.
  */
 
-import { areViewportsEqual } from "@/components/canvas/canvas-view-utils";
 import {
 	type CanvasStoreState,
 	useCanvasStore,
@@ -79,8 +78,6 @@ export function useSkedraCanvasEffects({
 	const lastAutoFittedWhiteboardIdRef = useRef<string | null>(null);
 	const initialElementCountRef = useRef<number | null>(null);
 	const viewportRestoredRef = useRef(false);
-	const lastFollowedPresenterViewportRef = useRef<Viewport | null>(null);
-	const lastFollowedPresenterViewIdRef = useRef<string | null>(null);
 	const hasSyncedLoadedElementsRef = useRef(false);
 	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
 
@@ -235,50 +232,4 @@ export function useSkedraCanvasEffects({
 			focusCanvasPointRef.current = null;
 		};
 	}, [focusCanvasPointRef, store, svgRef]);
-
-	useEffect(() => {
-		if (!presentationMode || !presentationShareToken || !sync.isReadonly)
-			return;
-
-		const presenter = [...sync.remotePresence]
-			.filter((peer) => peer.canWrite)
-			.sort((left, right) => right.updatedAt - left.updatedAt)[0];
-
-		if (!presenter) return;
-
-		if (presenter.viewport) {
-			if (
-				!areViewportsEqual(
-					lastFollowedPresenterViewportRef.current,
-					presenter.viewport,
-				)
-			) {
-				lastFollowedPresenterViewportRef.current = presenter.viewport;
-				store.setViewport(presenter.viewport);
-			}
-		}
-
-		if (
-			presenter.activeViewId &&
-			presenter.activeViewId !== lastFollowedPresenterViewIdRef.current
-		) {
-			const view = sync.views.get(presenter.activeViewId);
-			if (view) {
-				lastFollowedPresenterViewIdRef.current = presenter.activeViewId;
-				setActiveViewId(presenter.activeViewId);
-				if (!presenter.viewport) {
-					fitViewportToBounds(view);
-				}
-			}
-		}
-	}, [
-		fitViewportToBounds,
-		presentationMode,
-		presentationShareToken,
-		store,
-		sync.isReadonly,
-		sync.remotePresence,
-		sync.views,
-		setActiveViewId,
-	]);
 }

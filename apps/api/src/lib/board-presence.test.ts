@@ -3,6 +3,7 @@ import test from "node:test";
 import type { WSContext } from "hono/ws";
 import {
 	broadcastPresence,
+	closeBoardPresence,
 	joinPresenceRoom,
 	leavePresenceRoom,
 } from "./board-presence";
@@ -17,7 +18,9 @@ function createFakeWebSocket() {
 	return { messages, ws };
 }
 
-test("replays the latest presence state to newly joined viewers", () => {
+test("replays the latest presence state to newly joined viewers", async () => {
+	// Keep this unit test local-only; LISTEN/NOTIFY is covered by integration checks.
+	await closeBoardPresence();
 	const boardId = crypto.randomUUID();
 	const presenterSocket = createFakeWebSocket();
 	const viewerSocket = createFakeWebSocket();

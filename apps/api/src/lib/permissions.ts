@@ -121,6 +121,14 @@ export async function getBoardAccess(
 	ctx: Ctx,
 	whiteboardId: string,
 ): Promise<BoardAccessResult> {
+	if (!ctx.user) {
+		throw createAppError({
+			code: "UNAUTHORIZED",
+			appErrorCode: appErrorCodes.unauthorized,
+			message: "Nicht authentifiziert",
+		});
+	}
+
 	const whiteboard = await ctx.db.query.whiteboards.findFirst({
 		where: eq(whiteboards.id, whiteboardId),
 	});
@@ -141,48 +149,40 @@ export async function getBoardAccess(
 		});
 	}
 
-	if (!ctx.user) {
-		throw createAppError({
-			code: "UNAUTHORIZED",
-			appErrorCode: appErrorCodes.unauthorized,
-			message: "Nicht authentifiziert",
-		});
-	}
-
 	const isOwner = whiteboard.ownerId === ctx.user.id;
-
-	const membership = await ctx.db.query.whiteboardMembers.findFirst({
-		where: and(
-			eq(whiteboardMembers.whiteboardId, whiteboardId),
-			eq(whiteboardMembers.userId, ctx.user.id),
-		),
-	});
-
-	const workspaceMembership = !isOwner
-		? await getWorkspaceMembership(ctx.db, ctx.user.id, whiteboard.teamId)
-		: null;
-	const workspaceAccessAllowed =
-		!!workspaceMembership &&
-		(workspaceMembership.isOwner ||
-			workspaceMembership.workspaceRole === "admin" ||
-			(await hasTeamRoleBoardAccess(
-				ctx.db,
-				whiteboardId,
-				workspaceMembership.memberRole?.id,
-			)));
-
-	if (!isOwner && !membership && !workspaceAccessAllowed) {
-		throw createAppError({
-			code: "FORBIDDEN",
-			appErrorCode: appErrorCodes.whiteboardAccessDenied,
-			message: "Kein Zugriff auf dieses Board",
-		});
-	}
 
 	let resolved: ResolvedBoardAccess;
 	if (isOwner) {
 		resolved = resolveOwnerBoardAccess();
 	} else {
+		const [membership, workspaceMembership] = await Promise.all([
+			ctx.db.query.whiteboardMembers.findFirst({
+				where: and(
+					eq(whiteboardMembers.whiteboardId, whiteboardId),
+					eq(whiteboardMembers.userId, ctx.user.id),
+				),
+				with: { teamRole: true },
+			}),
+			getWorkspaceMembership(ctx.db, ctx.user.id, whiteboard.teamId),
+		]);
+		const workspaceAccessAllowed =
+			!!workspaceMembership &&
+			(workspaceMembership.isOwner ||
+				workspaceMembership.workspaceRole === "admin" ||
+				(await hasTeamRoleBoardAccess(
+					ctx.db,
+					whiteboardId,
+					workspaceMembership.memberRole?.id,
+				)));
+
+		if (!membership && !workspaceAccessAllowed) {
+			throw createAppError({
+				code: "FORBIDDEN",
+				appErrorCode: appErrorCodes.whiteboardAccessDenied,
+				message: "Kein Zugriff auf dieses Board",
+			});
+		}
+
 		const memberAccess = membership
 			? await resolveMemberBoardAccess(ctx.db, whiteboardId, membership)
 			: null;

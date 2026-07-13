@@ -102,10 +102,18 @@ export async function getWorkspaceMembership(
 ) {
 	if (!teamId) return null;
 
-	const team = await db.query.teams.findFirst({
-		where: eq(teams.id, teamId),
-	});
-	if (!team) return null;
+	const [row] = await db
+		.select({ team: teams, member: teamMembers, memberRole: teamRoles })
+		.from(teams)
+		.leftJoin(
+			teamMembers,
+			and(eq(teamMembers.teamId, teams.id), eq(teamMembers.userId, userId)),
+		)
+		.leftJoin(teamRoles, eq(teamMembers.roleId, teamRoles.id))
+		.where(eq(teams.id, teamId))
+		.limit(1);
+	if (!row) return null;
+	const { team, member } = row;
 
 	if (team.ownerId === userId) {
 		return {
@@ -116,16 +124,12 @@ export async function getWorkspaceMembership(
 		};
 	}
 
-	const member = await db.query.teamMembers.findFirst({
-		where: and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)),
-		with: { role: true },
-	});
 	if (!member) return null;
 
 	return {
 		team,
 		isOwner: false as const,
 		workspaceRole: member.workspaceRole,
-		memberRole: member.role,
+		memberRole: row.memberRole,
 	};
 }

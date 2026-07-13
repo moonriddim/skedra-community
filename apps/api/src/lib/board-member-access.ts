@@ -60,12 +60,17 @@ function canManageWorkspaceAdmins(role: typeof teamRoles.$inferSelect | null) {
 export async function resolveMemberBoardAccess(
 	db: Database,
 	_whiteboardId: string,
-	membership: typeof whiteboardMembers.$inferSelect,
+	membership: typeof whiteboardMembers.$inferSelect & {
+		teamRole?: typeof teamRoles.$inferSelect | null;
+	},
 ): Promise<ResolvedBoardAccess> {
 	const teamRoleId = membership.teamRoleId;
-	const role = await db.query.teamRoles.findFirst({
-		where: eq(teamRoles.id, teamRoleId),
-	});
+	const role =
+		membership.teamRole !== undefined
+			? membership.teamRole
+			: await db.query.teamRoles.findFirst({
+					where: eq(teamRoles.id, teamRoleId),
+				});
 	if (!role) {
 		throw new Error("Team-Rolle nicht gefunden.");
 	}

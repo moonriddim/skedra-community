@@ -58,13 +58,25 @@ interface SkedraCanvasChromeProps {
 	onPresenterNotesOpenChange: (open: boolean) => void;
 	activeView: SavedCanvasView | null;
 	savedViewList: SavedCanvasView[];
+	presenterNotes: Map<string, string>;
 	onUpdatePresenterNotes: (viewId: string, notes: string) => void;
 	onSelectView: (viewId: string) => void;
 	presenterShareUrl: string;
 	presenterIsLive: boolean;
+	presenterSessionActive: boolean;
+	presenterConnectionReady: boolean;
+	presenterAudienceCount: number;
+	presenterStartedAt?: string | null;
+	presenterSessionStarting: boolean;
+	presenterStartError?: string | null;
+	onStartPresentation?: () => void;
+	onEndPresentation?: () => void;
 	presentationShareToken?: string;
 	audienceBoardName?: string;
 	audienceIsLive: boolean;
+	audienceHasError: boolean;
+	audienceFollowPresenter: boolean;
+	onAudienceFollowPresenterChange: (follow: boolean) => void;
 }
 
 export function SkedraCanvasChrome({
@@ -89,13 +101,25 @@ export function SkedraCanvasChrome({
 	onPresenterNotesOpenChange,
 	activeView,
 	savedViewList,
+	presenterNotes,
 	onUpdatePresenterNotes,
 	onSelectView,
 	presenterShareUrl,
 	presenterIsLive,
+	presenterSessionActive,
+	presenterConnectionReady,
+	presenterAudienceCount,
+	presenterStartedAt,
+	presenterSessionStarting,
+	presenterStartError,
+	onStartPresentation,
+	onEndPresentation,
 	presentationShareToken,
 	audienceBoardName,
 	audienceIsLive,
+	audienceHasError,
+	audienceFollowPresenter,
+	onAudienceFollowPresenterChange,
 }: SkedraCanvasChromeProps) {
 	const { t } = useI18n();
 
@@ -140,6 +164,9 @@ export function SkedraCanvasChrome({
 						open={presenterNotesOpen}
 						activeView={activeView}
 						views={savedViewList}
+						activeNotes={
+							activeView ? (presenterNotes.get(activeView.id) ?? "") : ""
+						}
 						onUpdateNotes={onUpdatePresenterNotes}
 						onSelectView={onSelectView}
 						onClose={() => onPresenterNotesOpenChange(false)}
@@ -152,10 +179,32 @@ export function SkedraCanvasChrome({
 					<PresenterChrome
 						shareUrl={presenterShareUrl}
 						isLive={presenterIsLive}
+						sessionActive={presenterSessionActive}
+						connectionReady={presenterConnectionReady}
+						audienceCount={presenterAudienceCount}
+						startedAt={presenterStartedAt}
+						isStarting={presenterSessionStarting}
+						startError={presenterStartError}
 						activeSlideName={activeView?.name ?? null}
+						nextSlideName={
+							activeView
+								? (savedViewList[
+										savedViewList.findIndex(
+											(view) => view.id === activeView.id,
+										) + 1
+									]?.name ?? null)
+								: null
+						}
 						slideCount={savedViewList.length}
+						notesCount={
+							savedViewList.filter((view) =>
+								presenterNotes.get(view.id)?.trim(),
+							).length
+						}
 						onOpenNotes={() => onPresenterNotesOpenChange(!presenterNotesOpen)}
 						notesOpen={presenterNotesOpen}
+						onStart={onStartPresentation}
+						onEnd={onEndPresentation}
 					/>
 				</Suspense>
 			)}
@@ -166,7 +215,10 @@ export function SkedraCanvasChrome({
 						boardName={audienceBoardName}
 						activeView={activeView}
 						isLive={audienceIsLive}
+						hasError={audienceHasError}
 						slideCount={savedViewList.length}
+						followPresenter={audienceFollowPresenter}
+						onFollowPresenterChange={onAudienceFollowPresenterChange}
 					/>
 				</Suspense>
 			)}

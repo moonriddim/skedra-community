@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	bigint,
 	boolean,
 	index,
 	integer,
@@ -61,50 +62,63 @@ export const users = pgTable("users", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const sessions = pgTable("sessions", {
-	id: text("id").primaryKey(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	token: text("token").notNull().unique(),
-	expiresAt: timestamp("expires_at").notNull(),
-	ipAddress: text("ip_address"),
-	userAgent: text("user_agent"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [index("sessions_user_idx").on(table.userId)]);
+export const sessions = pgTable(
+	"sessions",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at").notNull(),
+		ipAddress: text("ip_address"),
+		userAgent: text("user_agent"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [index("sessions_user_idx").on(table.userId)],
+);
 
-export const accounts = pgTable("accounts", {
-	id: text("id").primaryKey(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	accountId: text("account_id").notNull(),
-	providerId: text("provider_id").notNull(),
-	accessToken: text("access_token"),
-	refreshToken: text("refresh_token"),
-	accessTokenExpiresAt: timestamp("access_token_expires_at"),
-	refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-	scope: text("scope"),
-	idToken: text("id_token"),
-	password: text("password"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-	index("accounts_user_provider_idx").on(table.userId, table.providerId),
-	index("accounts_provider_account_idx").on(table.providerId, table.accountId),
-]);
+export const accounts = pgTable(
+	"accounts",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		accountId: text("account_id").notNull(),
+		providerId: text("provider_id").notNull(),
+		accessToken: text("access_token"),
+		refreshToken: text("refresh_token"),
+		accessTokenExpiresAt: timestamp("access_token_expires_at"),
+		refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+		scope: text("scope"),
+		idToken: text("id_token"),
+		password: text("password"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("accounts_user_provider_idx").on(table.userId, table.providerId),
+		index("accounts_provider_account_idx").on(
+			table.providerId,
+			table.accountId,
+		),
+	],
+);
 
-export const verifications = pgTable("verifications", {
-	id: text("id").primaryKey(),
-	identifier: text("identifier").notNull(),
-	value: text("value").notNull(),
-	expiresAt: timestamp("expires_at").notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-	index("verifications_identifier_idx").on(table.identifier),
-]);
+export const verifications = pgTable(
+	"verifications",
+	{
+		id: text("id").primaryKey(),
+		identifier: text("identifier").notNull(),
+		value: text("value").notNull(),
+		expiresAt: timestamp("expires_at").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [index("verifications_identifier_idx").on(table.identifier)],
+);
 
 /** TOTP secret and encrypted recovery codes managed by Better Auth's 2FA plugin. */
 export const twoFactors = pgTable(
@@ -232,6 +246,17 @@ export const whiteboards = pgTable(
 			.notNull()
 			.default("always"),
 		presentationActiveUntil: timestamp("presentation_active_until"),
+		presentationSessionId: uuid("presentation_session_id"),
+		presentationPresenterId: text("presentation_presenter_id").references(
+			() => users.id,
+			{ onDelete: "set null" },
+		),
+		presentationFrameSequence: bigint("presentation_frame_sequence", {
+			mode: "number",
+		}),
+		presentationFramePayload: text("presentation_frame_payload"),
+		presentationFrameAssetIds: text("presentation_frame_asset_ids"),
+		presentationFrameUpdatedAt: timestamp("presentation_frame_updated_at"),
 		presentationShareToken: text("presentation_share_token"),
 		/** Excalidraw+-ähnlicher Kollaborations-Link (view/edit, Gäste) */
 		collabShareEnabled: boolean("collab_share_enabled")
@@ -268,15 +293,56 @@ export const whiteboards = pgTable(
 		uniqueIndex("whiteboard_embed_share_token_unique").on(
 			table.embedShareToken,
 		),
-		index("whiteboards_owner_archived_idx").on(
-			table.ownerId,
-			table.archivedAt,
-		),
-		index("whiteboards_team_archived_idx").on(
-			table.teamId,
-			table.archivedAt,
-		),
+		index("whiteboards_owner_archived_idx").on(table.ownerId, table.archivedAt),
+		index("whiteboards_team_archived_idx").on(table.teamId, table.archivedAt),
 		index("whiteboards_folder_idx").on(table.folderId),
+	],
+);
+
+/** Private speaker notes are never stored in the shared Yjs canvas document. */
+export const whiteboardPresenterNotes = pgTable(
+	"whiteboard_presenter_notes",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		viewId: text("view_id").notNull(),
+		content: text("content").notNull().default(""),
+		encrypted: boolean("encrypted").notNull().default(false),
+		updatedById: text("updated_by_id").references(() => users.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("whiteboard_presenter_notes_board_view_unique").on(
+			table.whiteboardId,
+			table.viewId,
+		),
+		index("whiteboard_presenter_notes_board_idx").on(table.whiteboardId),
+	],
+);
+
+/** Expiring rows make viewer counts accurate across multiple API processes. */
+export const whiteboardPresentationAudience = pgTable(
+	"whiteboard_presentation_audience",
+	{
+		connectionId: uuid("connection_id").primaryKey(),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		sessionId: uuid("session_id").notNull(),
+		expiresAt: timestamp("expires_at").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("whiteboard_presentation_audience_session_expiry_idx").on(
+			table.whiteboardId,
+			table.sessionId,
+			table.expiresAt,
+		),
 	],
 );
 
@@ -383,52 +449,60 @@ export const whiteboardMembers = pgTable(
 	],
 );
 
-export const whiteboardActivities = pgTable("whiteboard_activities", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	/** Nullable damit Eintraege nach endgueltigem Loeschen im Feed bleiben */
-	whiteboardId: uuid("whiteboard_id").references(() => whiteboards.id, {
-		onDelete: "set null",
-	}),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	type: whiteboardActivityTypeEnum("type").notNull(),
-	/** Optionale JSON-Metadaten (Name, E-Mail, …) */
-	metadata: text("metadata"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-	index("whiteboard_activities_board_created_idx").on(
-		table.whiteboardId,
-		table.createdAt,
-	),
-	index("whiteboard_activities_user_created_idx").on(
-		table.userId,
-		table.createdAt,
-	),
-]);
+export const whiteboardActivities = pgTable(
+	"whiteboard_activities",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		/** Nullable damit Eintraege nach endgueltigem Loeschen im Feed bleiben */
+		whiteboardId: uuid("whiteboard_id").references(() => whiteboards.id, {
+			onDelete: "set null",
+		}),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		type: whiteboardActivityTypeEnum("type").notNull(),
+		/** Optionale JSON-Metadaten (Name, E-Mail, …) */
+		metadata: text("metadata"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("whiteboard_activities_board_created_idx").on(
+			table.whiteboardId,
+			table.createdAt,
+		),
+		index("whiteboard_activities_user_created_idx").on(
+			table.userId,
+			table.createdAt,
+		),
+	],
+);
 
 /** Excalidraw-ähnliche Kommentar-Threads — verankert an Canvas-Koordinaten. */
-export const whiteboardCommentThreads = pgTable("whiteboard_comment_threads", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	whiteboardId: uuid("whiteboard_id")
-		.notNull()
-		.references(() => whiteboards.id, { onDelete: "cascade" }),
-	/** Welt-Koordinaten auf dem Canvas */
-	x: real("x").notNull(),
-	y: real("y").notNull(),
-	resolvedAt: timestamp("resolved_at"),
-	createdById: text("created_by_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-	index("whiteboard_comment_threads_board_updated_idx").on(
-		table.whiteboardId,
-		table.updatedAt,
-	),
-	index("whiteboard_comment_threads_created_by_idx").on(table.createdById),
-]);
+export const whiteboardCommentThreads = pgTable(
+	"whiteboard_comment_threads",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		/** Welt-Koordinaten auf dem Canvas */
+		x: real("x").notNull(),
+		y: real("y").notNull(),
+		resolvedAt: timestamp("resolved_at"),
+		createdById: text("created_by_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("whiteboard_comment_threads_board_updated_idx").on(
+			table.whiteboardId,
+			table.updatedAt,
+		),
+		index("whiteboard_comment_threads_created_by_idx").on(table.createdById),
+	],
+);
 
 /** Einzelne Nachrichten innerhalb eines Kommentar-Threads. */
 export const whiteboardCommentMessages = pgTable(
@@ -454,27 +528,31 @@ export const whiteboardCommentMessages = pgTable(
 );
 
 /** AI Text-to-Diagram Verlauf pro Board (nur fuer den jeweiligen User sichtbar). */
-export const whiteboardAiMessages = pgTable("whiteboard_ai_messages", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	whiteboardId: uuid("whiteboard_id")
-		.notNull()
-		.references(() => whiteboards.id, { onDelete: "cascade" }),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	role: text("role").notNull(),
-	content: text("content").notNull(),
-	model: text("model"),
-	elementCount: integer("element_count"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-	index("whiteboard_ai_messages_board_user_created_idx").on(
-		table.whiteboardId,
-		table.userId,
-		table.createdAt,
-	),
-	index("whiteboard_ai_messages_user_idx").on(table.userId),
-]);
+export const whiteboardAiMessages = pgTable(
+	"whiteboard_ai_messages",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		whiteboardId: uuid("whiteboard_id")
+			.notNull()
+			.references(() => whiteboards.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		role: text("role").notNull(),
+		content: text("content").notNull(),
+		model: text("model"),
+		elementCount: integer("element_count"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("whiteboard_ai_messages_board_user_created_idx").on(
+			table.whiteboardId,
+			table.userId,
+			table.createdAt,
+		),
+		index("whiteboard_ai_messages_user_idx").on(table.userId),
+	],
+);
 
 // ===== AI Settings (BYOK) =====
 
@@ -554,49 +632,61 @@ export const boardIntegrationSyncs = pgTable(
 
 // ===== Teams (Workspaces) =====
 
-export const teams = pgTable("teams", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull(),
-	ownerId: text("owner_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [index("teams_owner_idx").on(table.ownerId)]);
+export const teams = pgTable(
+	"teams",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		name: text("name").notNull(),
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [index("teams_owner_idx").on(table.ownerId)],
+);
 
 /** Workspace-Ordner/Collections fuer Boards. */
-export const whiteboardFolders = pgTable("whiteboard_folders", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	teamId: uuid("team_id")
-		.notNull()
-		.references(() => teams.id, { onDelete: "cascade" }),
-	ownerId: text("owner_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	name: text("name").notNull(),
-	parentId: uuid("parent_id"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-	index("whiteboard_folders_team_name_idx").on(table.teamId, table.name),
-	index("whiteboard_folders_owner_idx").on(table.ownerId),
-	index("whiteboard_folders_parent_idx").on(table.parentId),
-]);
+export const whiteboardFolders = pgTable(
+	"whiteboard_folders",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		teamId: uuid("team_id")
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		parentId: uuid("parent_id"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("whiteboard_folders_team_name_idx").on(table.teamId, table.name),
+		index("whiteboard_folders_owner_idx").on(table.ownerId),
+		index("whiteboard_folders_parent_idx").on(table.parentId),
+	],
+);
 
 /** Benutzerdefinierte Rollen pro Workspace (Name + Farbe). */
-export const teamRoles = pgTable("team_roles", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	teamId: uuid("team_id")
-		.notNull()
-		.references(() => teams.id, { onDelete: "cascade" }),
-	name: text("name").notNull(),
-	/** Hex-Farbe, z. B. #6366f1 */
-	color: text("color").notNull(),
-	/** JSON: admin, manageWorkspaceAdmins, editCanvas, comment, ... */
-	permissions: text("permissions").notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-	index("team_roles_team_created_idx").on(table.teamId, table.createdAt),
-]);
+export const teamRoles = pgTable(
+	"team_roles",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		teamId: uuid("team_id")
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		/** Hex-Farbe, z. B. #6366f1 */
+		color: text("color").notNull(),
+		/** JSON: admin, manageWorkspaceAdmins, editCanvas, comment, ... */
+		permissions: text("permissions").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("team_roles_team_created_idx").on(table.teamId, table.createdAt),
+	],
+);
 
 /** Welche zentralen Team-Rollen auf ein Board zugreifen duerfen. */
 export const whiteboardTeamRoleAccess = pgTable(
@@ -799,6 +889,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	commentMessagesAuthored: many(whiteboardCommentMessages),
 	aiMessages: many(whiteboardAiMessages),
 	assets: many(assets),
+	presenterNotesUpdated: many(whiteboardPresenterNotes),
 	sessions: many(sessions),
 	accounts: many(accounts),
 	preferences: one(userPreferences),
@@ -852,7 +943,33 @@ export const whiteboardsRelations = relations(whiteboards, ({ one, many }) => ({
 	assets: many(assets),
 	keyRecipients: many(whiteboardKeyRecipients),
 	integrationSyncs: many(boardIntegrationSyncs),
+	presenterNotes: many(whiteboardPresenterNotes),
+	presentationAudience: many(whiteboardPresentationAudience),
 }));
+
+export const whiteboardPresenterNotesRelations = relations(
+	whiteboardPresenterNotes,
+	({ one }) => ({
+		whiteboard: one(whiteboards, {
+			fields: [whiteboardPresenterNotes.whiteboardId],
+			references: [whiteboards.id],
+		}),
+		updatedBy: one(users, {
+			fields: [whiteboardPresenterNotes.updatedById],
+			references: [users.id],
+		}),
+	}),
+);
+
+export const whiteboardPresentationAudienceRelations = relations(
+	whiteboardPresentationAudience,
+	({ one }) => ({
+		whiteboard: one(whiteboards, {
+			fields: [whiteboardPresentationAudience.whiteboardId],
+			references: [whiteboards.id],
+		}),
+	}),
+);
 
 export const whiteboardE2eeUpdatesRelations = relations(
 	whiteboardE2eeUpdates,

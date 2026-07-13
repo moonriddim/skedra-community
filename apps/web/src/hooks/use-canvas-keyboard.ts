@@ -10,6 +10,7 @@ import { useCanvasKeyboardOperations } from "./use-canvas-keyboard/operations";
 import { useCanvasStore, useCanvasStoreRef } from "./use-canvas-store";
 
 interface UseCanvasKeyboardOptions {
+	enabled?: boolean;
 	elements: Map<string, CanvasElement>;
 	createElement: (el: CanvasElement) => void;
 	deleteElements: (ids: string[]) => void;
@@ -22,6 +23,7 @@ interface UseCanvasKeyboardOptions {
 }
 
 export function useCanvasKeyboard({
+	enabled = true,
 	elements,
 	createElement,
 	deleteElements,
@@ -60,13 +62,14 @@ export function useCanvasKeyboard({
 	}, []);
 
 	useEffect(() => {
+		if (!enabled) return;
 		window.addEventListener("keydown", handleKeyDown);
 		window.addEventListener("keyup", handleKeyUp);
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown);
 			window.removeEventListener("keyup", handleKeyUp);
 		};
-	}, [handleKeyDown, handleKeyUp]);
+	}, [enabled, handleKeyDown, handleKeyUp]);
 
 	return {
 		clipboardRef: ops.clipboardRef,
