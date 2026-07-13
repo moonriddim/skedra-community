@@ -1,4 +1,7 @@
-import type { CanvasThemeState } from "@/lib/canvas/canvas-defaults";
+import {
+	CANVAS_DEFAULT_FONT,
+	type CanvasThemeState,
+} from "@/lib/canvas/canvas-defaults";
 import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-defaults";
 import { getDefaultKanbanCardTitle } from "@/lib/canvas/kanban-options";
 import {
@@ -6,7 +9,7 @@ import {
 	createKanbanCardElement,
 	createStickyNoteElement,
 } from "@skedra/canvas-core";
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
+import { DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
 
 import type { useCanvasStore } from "../use-canvas-store";
 
@@ -191,6 +194,7 @@ export function buildSingleArrowPreview(
 		arrowHeadStart: store.arrowHeadStart,
 		arrowHeadEnd: store.arrowHeadEnd,
 		arrowHeadScale: store.arrowHeadScale,
+		arrowHeadFilled: store.arrowHeadFilled,
 		opacity: 100,
 		locked: false,
 		groupId: null,
@@ -224,7 +228,7 @@ export function buildTextBoxPreview(
 		flipY: false,
 		text: "",
 		fontSize: DEFAULT_FONT_SIZE,
-		fontFamily: DEFAULT_FONT_FAMILY,
+		fontFamily: CANVAS_DEFAULT_FONT,
 		textAlign: "left",
 	};
 }

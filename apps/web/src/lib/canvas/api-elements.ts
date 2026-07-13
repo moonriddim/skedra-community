@@ -48,6 +48,9 @@ export function apiElementsToCanvasElements(
 		...(input.arrowHeadScale !== undefined
 			? { arrowHeadScale: input.arrowHeadScale }
 			: {}),
+		...(input.arrowHeadFilled !== undefined
+			? { arrowHeadFilled: input.arrowHeadFilled }
+			: {}),
 		...(input.customData !== undefined ? { customData: input.customData } : {}),
 		...("points" in input && Array.isArray(input.points)
 			? { points: input.points as [number, number][] }

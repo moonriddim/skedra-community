@@ -29,6 +29,7 @@ import type {
 	Viewport,
 } from "@skedra/canvas-core";
 import {
+	DEFAULT_ARROW_HEAD_FILLED,
 	DEFAULT_ARROW_HEAD_SCALE,
 	DEFAULT_ROUGH_FILL_SCALE,
 	MAX_ARROW_HEAD_SCALE,
@@ -105,6 +106,7 @@ export interface CanvasStoreState {
 	arrowHeadStart: ArrowHead;
 	arrowHeadEnd: ArrowHead;
 	arrowHeadScale: number;
+	arrowHeadFilled: boolean;
 	setFillColor: (color: string) => void;
 	setStrokeColor: (color: string) => void;
 	setStrokeWidth: (width: number) => void;
@@ -117,6 +119,7 @@ export interface CanvasStoreState {
 	setArrowHeadStart: (h: ArrowHead) => void;
 	setArrowHeadEnd: (h: ArrowHead) => void;
 	setArrowHeadScale: (scale: number) => void;
+	setArrowHeadFilled: (filled: boolean) => void;
 	shapePresetWidth: number;
 	shapePresetHeight: number;
 	setShapePresetWidth: (width: number) => void;
@@ -306,6 +309,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	arrowHeadStart: "none" as ArrowHead,
 	arrowHeadEnd: "arrow" as ArrowHead,
 	arrowHeadScale: DEFAULT_ARROW_HEAD_SCALE,
+	arrowHeadFilled: DEFAULT_ARROW_HEAD_FILLED,
 	setFillColor: (color) => set({ fillColor: color }),
 	setStrokeColor: (color) => set({ strokeColor: color }),
 	setStrokeWidth: (width) => set({ strokeWidth: width }),
@@ -318,6 +322,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	setArrowMode: (m) => set({ arrowMode: m }),
 	setArrowHeadStart: (h) => set({ arrowHeadStart: h }),
 	setArrowHeadEnd: (h) => set({ arrowHeadEnd: h }),
+	setArrowHeadFilled: (filled) => set({ arrowHeadFilled: filled }),
 	setArrowHeadScale: (scale) =>
 		set({
 			arrowHeadScale: Math.min(

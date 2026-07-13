@@ -762,6 +762,7 @@ export function SkedraCanvas({
 		handlePointerDown,
 		handleCanvasPointerMove,
 		handlePointerUp,
+		handlePointerCancel,
 		handleCanvasPointerLeave,
 	} = useSkedraCanvasPointerBridge({
 		svgRef,
@@ -868,6 +869,7 @@ export function SkedraCanvas({
 					onPointerDown={handlePointerDown}
 					onPointerMove={handleCanvasPointerMove}
 					onPointerUp={handlePointerUp}
+					onPointerCancel={handlePointerCancel}
 					onPointerLeave={handleCanvasPointerLeave}
 					onDoubleClick={handleDoubleClick}
 					onViewMoveStart={(event) => {

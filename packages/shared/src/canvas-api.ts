@@ -37,6 +37,7 @@ export const addCanvasElementSchema = z
 		cornerRadius: z.number().optional(),
 		cornerRadiusPercent: z.number().min(0).max(100).optional(),
 		arrowHeadScale: z.number().min(0.25).max(4).optional(),
+		arrowHeadFilled: z.boolean().optional(),
 		stackIndex: z.string().min(1).optional(),
 		customData: z.record(z.unknown()).optional(),
 	})
@@ -60,6 +61,7 @@ export const updateCanvasElementSchema = z
 		opacity: z.number().min(0).max(100).optional(),
 		text: z.string().optional(),
 		fontSize: z.number().optional(),
+		arrowHeadFilled: z.boolean().optional(),
 		stackIndex: z.string().min(1).optional(),
 		customData: z.record(z.unknown()).optional(),
 	})

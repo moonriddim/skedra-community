@@ -61,3 +61,34 @@ test("path label hit testing is available from core hitTest", () => {
 	assert.equal(hitTest(element, labelX, labelY), true);
 	assert.equal(pathTextLabelHitTest(element, 50, 80), false);
 });
+
+test("hit tests the complete cubic arrow curve", () => {
+	const element = arrow({
+		arrowMode: "curve",
+		points: [
+			[0, 0],
+			[0, 100],
+			[100, 100],
+			[100, 0],
+		],
+	});
+
+	assert.equal(hitTest(element, 50, 75), true);
+	assert.equal(hitTest(element, 50, 40), false);
+});
+
+test("hit tests later segments of rough multi-point arrow curves", () => {
+	const element = arrow({
+		arrowMode: "curve",
+		roughness: 1,
+		points: [
+			[0, 0],
+			[100, 100],
+			[200, 0],
+			[300, 100],
+		],
+	});
+
+	assert.equal(hitTest(element, 256.25, 43.75), true);
+	assert.equal(hitTest(element, 280, 0), false);
+});

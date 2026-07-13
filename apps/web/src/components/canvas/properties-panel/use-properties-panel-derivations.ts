@@ -2,6 +2,7 @@
  * Abgeleiteter Anzeige-State fuer das Eigenschaften-Panel (Selektion, Tools, Werte).
  */
 
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import { readElementCustomData } from "@/lib/canvas/custom-data-utils";
 import {
 	type StickyNoteMode,
@@ -30,6 +31,7 @@ import type {
 	ToolType,
 } from "@skedra/canvas-core";
 import {
+	DEFAULT_ARROW_HEAD_FILLED,
 	DEFAULT_ARROW_HEAD_SCALE,
 	DEFAULT_ROUGH_FILL_SCALE,
 	DEFAULT_ROUGH_FILL_STYLE,
@@ -102,7 +104,9 @@ export interface PropertiesPanelDerivations {
 	currentArrowHeadStart: ArrowHead;
 	currentArrowHeadEnd: ArrowHead;
 	currentArrowHeadScale: number;
+	currentArrowHeadFilled: boolean;
 	showArrowHeadScale: boolean;
+	showArrowHeadFill: boolean;
 	currentArrowTextSide: ArrowTextSide;
 	currentArrowTextOrientation: ArrowTextOrientation;
 	currentFontFamily: string;
@@ -353,9 +357,18 @@ export function derivePropertiesPanelState({
 	const currentArrowHeadScale = hasInspectionTarget
 		? (inspected[0].arrowHeadScale ?? DEFAULT_ARROW_HEAD_SCALE)
 		: store.arrowHeadScale;
+	const currentArrowHeadFilled = hasInspectionTarget
+		? (inspected[0].arrowHeadFilled ?? DEFAULT_ARROW_HEAD_FILLED)
+		: store.arrowHeadFilled;
 	const showArrowHeadScale =
 		isArrowElement &&
 		(currentArrowHeadStart !== "none" || currentArrowHeadEnd !== "none");
+	const showArrowHeadFill =
+		isArrowElement &&
+		(currentArrowHeadStart === "triangle" ||
+			currentArrowHeadStart === "dot" ||
+			currentArrowHeadEnd === "triangle" ||
+			currentArrowHeadEnd === "dot");
 
 	const livePathTextElement = inspectedPathTextElements[0]
 		? (elements.get(inspectedPathTextElements[0].id) ??
@@ -385,8 +398,8 @@ export function derivePropertiesPanelState({
 		: "horizontal";
 
 	const currentFontFamily = hasInspectionTarget
-		? (inspected[0].fontFamily ?? "system-ui, sans-serif")
-		: "system-ui, sans-serif";
+		? (inspected[0].fontFamily ?? CANVAS_DEFAULT_FONT)
+		: CANVAS_DEFAULT_FONT;
 	const currentFontSize = hasInspectionTarget
 		? (inspected[0].fontSize ?? 18)
 		: 18;
@@ -484,7 +497,9 @@ export function derivePropertiesPanelState({
 		currentArrowHeadStart,
 		currentArrowHeadEnd,
 		currentArrowHeadScale,
+		currentArrowHeadFilled,
 		showArrowHeadScale,
+		showArrowHeadFill,
 		currentArrowTextSide,
 		currentArrowTextOrientation,
 		currentFontFamily,

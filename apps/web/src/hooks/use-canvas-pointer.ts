@@ -116,6 +116,15 @@ export function useCanvasPointer({
 		[svgRef, storeRef],
 	);
 
+	const repaintCanvasAfterGesture = useCallback(() => {
+		const svg = svgRef.current;
+		if (!svg) return;
+		const previousVisibility = svg.style.visibility;
+		svg.style.visibility = "hidden";
+		svg.getBoundingClientRect();
+		svg.style.visibility = previousVisibility;
+	}, [svgRef]);
+
 	const {
 		clearSnapVisuals,
 		resolveCenteredPlacementSnap,
@@ -549,6 +558,11 @@ export function useCanvasPointer({
 		(e: React.PointerEvent) => {
 			const store = storeRef.current;
 			const state = stateRef.current;
+			const shouldRepaintAfterGesture =
+				state.action === "move" ||
+				state.action === "draw" ||
+				state.action === "resize" ||
+				state.action === "drag-point";
 			const supportsAnchorSnap = supportsAnchorSnapTool(store.activeTool);
 			const { snappedX, snappedY } = resolvePointerCanvasCoords(
 				e.clientX,
@@ -623,6 +637,7 @@ export function useCanvasPointer({
 			store.setActiveHandle(null);
 			clearSnapVisuals();
 			store.setActivePointIndex(null);
+			if (shouldRepaintAfterGesture) repaintCanvasAfterGesture();
 		},
 		[
 			storeRef,
@@ -638,8 +653,40 @@ export function useCanvasPointer({
 			resolvePathPlacement,
 			clearSnapVisuals,
 			stopUndoCapture,
+			repaintCanvasAfterGesture,
 		],
 	);
+
+	const onPointerCancel = useCallback(() => {
+		const store = storeRef.current;
+		const state = stateRef.current;
+		const shouldRepaintAfterGesture =
+			state.action === "move" ||
+			state.action === "draw" ||
+			state.action === "resize" ||
+			state.action === "drag-point";
+
+		if (state.action === "laser" && state.laserTrailId) {
+			store.closeLaserTrail(state.laserTrailId);
+		}
+		if (
+			state.action === "move" ||
+			state.action === "draw" ||
+			state.action === "resize" ||
+			state.action === "drag-point" ||
+			state.action === "erase"
+		) {
+			stopUndoCapture?.();
+		}
+
+		resetPointerGestureState(stateRef);
+		store.setSelectionBox(null);
+		store.setLassoPath(null);
+		store.setActiveHandle(null);
+		store.setActivePointIndex(null);
+		clearSnapVisuals();
+		if (shouldRepaintAfterGesture) repaintCanvasAfterGesture();
+	}, [clearSnapVisuals, repaintCanvasAfterGesture, stopUndoCapture, storeRef]);
 
 	const onDoubleClick = useCallback(() => {
 		const store = storeRef.current;
@@ -653,6 +700,7 @@ export function useCanvasPointer({
 		onPointerDown,
 		onPointerMove,
 		onPointerUp,
+		onPointerCancel,
 		onDoubleClick,
 		drawingPreview,
 		showKanbanCardPlacementPreview,

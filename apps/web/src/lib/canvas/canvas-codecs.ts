@@ -51,6 +51,10 @@ function isOptionalNumber(value: unknown): value is number | undefined {
 	return value === undefined || isFiniteNumber(value);
 }
 
+function isOptionalBoolean(value: unknown): value is boolean | undefined {
+	return value === undefined || typeof value === "boolean";
+}
+
 function isStringOrNull(value: unknown): value is string | null {
 	return value === null || typeof value === "string";
 }
@@ -151,6 +155,7 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 		(value.arrowHeadEnd !== undefined &&
 			!ARROW_HEADS.has(value.arrowHeadEnd as ArrowHead)) ||
 		!isOptionalNumber(value.arrowHeadScale) ||
+		!isOptionalBoolean(value.arrowHeadFilled) ||
 		!isOptionalNumber(value.cornerRadius) ||
 		!isOptionalNumber(value.cornerRadiusPercent) ||
 		!isOptionalNumber(value.roughness) ||

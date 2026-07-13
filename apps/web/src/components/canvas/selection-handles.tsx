@@ -206,7 +206,7 @@ function PointHandles({
 
 			{segmentMidpoints.map((midpoint) => (
 				<g
-					key={`insert-${midpoint.x}-${midpoint.y}`}
+					key={`insert-${midpoint.index}`}
 					pointerEvents="all"
 					style={{ cursor: "copy" }}
 					onPointerDown={(event) => {

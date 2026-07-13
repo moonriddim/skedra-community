@@ -2,6 +2,7 @@
  * Text-Aenderungen auf Canvas-Elemente anwenden (Inline-Editor).
  */
 
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import {
 	mergeElementCustomData,
 	readElementCustomData,
@@ -43,6 +44,7 @@ export function buildTextElementUpdate({
 		return {
 			text,
 			textColor: el.textColor ?? el.stroke,
+			fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
 			textAlign: "center",
 			customData: mergeElementCustomData(el.customData, {
 				arrowTextSide:
@@ -63,6 +65,7 @@ export function buildTextElementUpdate({
 		return {
 			text,
 			textColor: el.textColor ?? el.stroke,
+			fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
 			...(isCenteredShape ? { textAlign: "center" as const } : {}),
 		};
 	}
@@ -70,6 +73,7 @@ export function buildTextElementUpdate({
 	return {
 		text,
 		textColor: el.textColor ?? el.stroke,
+		fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
 		width: size.width,
 		height: size.height,
 	};

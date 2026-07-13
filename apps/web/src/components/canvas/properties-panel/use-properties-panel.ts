@@ -64,6 +64,7 @@ export type PropertiesPanelStoreSlice = Pick<
 	CanvasStoreState,
 	| "activeTool"
 	| "arrowHeadEnd"
+	| "arrowHeadFilled"
 	| "arrowHeadScale"
 	| "arrowHeadStart"
 	| "arrowMode"
@@ -81,6 +82,7 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "strokeWidth"
 	| "setActiveTool"
 	| "setArrowHeadEnd"
+	| "setArrowHeadFilled"
 	| "setArrowHeadScale"
 	| "setArrowHeadStart"
 	| "setArrowMode"
@@ -118,6 +120,7 @@ export function usePropertiesPanel({
 		useShallow((state) => ({
 			activeTool: state.activeTool,
 			arrowHeadEnd: state.arrowHeadEnd,
+			arrowHeadFilled: state.arrowHeadFilled,
 			arrowHeadScale: state.arrowHeadScale,
 			arrowHeadStart: state.arrowHeadStart,
 			arrowMode: state.arrowMode,
@@ -135,6 +138,7 @@ export function usePropertiesPanel({
 			strokeWidth: state.strokeWidth,
 			setActiveTool: state.setActiveTool,
 			setArrowHeadEnd: state.setArrowHeadEnd,
+			setArrowHeadFilled: state.setArrowHeadFilled,
 			setArrowHeadScale: state.setArrowHeadScale,
 			setArrowHeadStart: state.setArrowHeadStart,
 			setArrowMode: state.setArrowMode,

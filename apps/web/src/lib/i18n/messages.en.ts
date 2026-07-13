@@ -298,6 +298,7 @@ export const enMessages = {
 		exportPng: "Export PNG",
 		exportPdf: "Export PDF",
 		exportPptx: "Export PPTX",
+		infoAndPricing: "Info & pricing",
 		help: "Help",
 		helpDescription: "Quick tips for guest mode.",
 		helpPan:
@@ -2285,6 +2286,9 @@ export const enMessages = {
 			strokeStyle: "Stroke style",
 			arrowType: "Arrow type",
 			arrowHeads: "Arrowheads",
+			arrowHeadFill: "Arrowhead fill",
+			filled: "Filled",
+			hollow: "Hollow",
 			arrowHeadSize: (params: TranslationParams) =>
 				`Arrowhead size (${params.value}%)`,
 			start: "Start",

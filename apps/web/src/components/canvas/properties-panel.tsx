@@ -211,7 +211,9 @@ export function PropertiesPanel({
 				currentArrowHeadStart={panel.currentArrowHeadStart}
 				currentArrowHeadEnd={panel.currentArrowHeadEnd}
 				currentArrowHeadScale={panel.currentArrowHeadScale}
+				currentArrowHeadFilled={panel.currentArrowHeadFilled}
 				showArrowHeadScale={panel.showArrowHeadScale}
+				showArrowHeadFill={panel.showArrowHeadFill}
 				currentArrowTextSide={panel.currentArrowTextSide}
 				currentArrowTextOrientation={panel.currentArrowTextOrientation}
 				onPathDrawModeChange={panel.setPathDrawMode}

@@ -1,8 +1,15 @@
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/lib/i18n";
-import { Github, Menu, X } from "lucide-react";
+import { Github, Languages, Menu, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
@@ -37,6 +44,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 
 					<div className="hidden items-center gap-2 md:flex">
 						<ThemePicker labelSet="guest" />
+						<LanguageMenu />
 						<Button asChild variant="ghost" size="sm">
 							<Link to="/login">{t("publicSite.existingCloudAccount")}</Link>
 						</Button>
@@ -76,6 +84,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 									{t("publicSite.existingCloudAccount")}
 								</Link>
 							</Button>
+							<LanguageMenu className="justify-start" />
 							<Button asChild className="justify-start">
 								<Link to="/" onClick={() => setMenuOpen(false)}>
 									{t("publicSite.freeWhiteboard")}
@@ -135,5 +144,40 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 				</div>
 			</footer>
 		</div>
+	);
+}
+
+function LanguageMenu({ className }: { className?: string }) {
+	const { t, locale, setLocale } = useI18n();
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="ghost"
+					size="sm"
+					className={className}
+					aria-label={t("common.language")}
+				>
+					<Languages className="h-4 w-4" />
+					<span className="uppercase">{locale}</span>
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuLabel>{t("common.language")}</DropdownMenuLabel>
+				<DropdownMenuItem
+					onSelect={() => setLocale("de")}
+					className={locale === "de" ? "bg-accent" : undefined}
+				>
+					{t("common.german")}
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					onSelect={() => setLocale("en")}
+					className={locale === "en" ? "bg-accent" : undefined}
+				>
+					{t("common.english")}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }

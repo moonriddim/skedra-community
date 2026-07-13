@@ -51,6 +51,7 @@ export interface CanvasElement {
 	arrowHeadStart?: ArrowHead;
 	arrowHeadEnd?: ArrowHead;
 	arrowHeadScale?: number;
+	arrowHeadFilled?: boolean;
 	cornerRadius?: number;
 	cornerRadiusPercent?: number;
 	roughness?: number;

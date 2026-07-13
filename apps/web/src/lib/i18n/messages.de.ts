@@ -302,6 +302,7 @@ export const deMessages = {
 		exportPng: "PNG exportieren",
 		exportPdf: "PDF exportieren",
 		exportPptx: "PPTX exportieren",
+		infoAndPricing: "Infos & Preise",
 		help: "Hilfe",
 		helpDescription: "Kurze Hinweise für den Gastmodus.",
 		helpPan:
@@ -2317,6 +2318,9 @@ export const deMessages = {
 			strokeStyle: "Konturstil",
 			arrowType: "Pfeiltyp",
 			arrowHeads: "Pfeilspitzen",
+			arrowHeadFill: "Pfeilspitzen-Füllung",
+			filled: "Gefüllt",
+			hollow: "Leer",
 			arrowHeadSize: (params: TranslationParams) =>
 				`Pfeilspitzen-Größe (${params.value}%)`,
 			start: "Start",

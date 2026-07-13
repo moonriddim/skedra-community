@@ -14,7 +14,7 @@ export const TOOL_FONT_FAMILY = CANVAS_HAND_FONT;
 export const KANBAN_FONT_FAMILY = "system-ui, sans-serif";
 
 /** Standard-Schrift fuer neue Canvas-Texte */
-export const CANVAS_DEFAULT_FONT = "Comic Sans MS, Comic Sans, cursive";
+export const CANVAS_DEFAULT_FONT = CANVAS_HAND_FONT;
 
 export const LIGHT_STROKE = "#1e1e1e";
 const DARK_STROKE = "#f1f3f5";

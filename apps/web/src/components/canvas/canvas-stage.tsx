@@ -48,6 +48,7 @@ interface CanvasStageProps {
 	onPointerDown: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerMove: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerUp: (event: React.PointerEvent<SVGSVGElement>) => void;
+	onPointerCancel: () => void;
 	onPointerLeave: () => void;
 	onDoubleClick: (event: React.MouseEvent<SVGSVGElement>) => void;
 	onViewMoveStart: (event: React.PointerEvent<SVGRectElement>) => void;
@@ -82,6 +83,7 @@ export function CanvasStage({
 	onPointerDown,
 	onPointerMove,
 	onPointerUp,
+	onPointerCancel,
 	onPointerLeave,
 	onDoubleClick,
 	onViewMoveStart,
@@ -131,10 +133,13 @@ export function CanvasStage({
 			style={{
 				cursor,
 				touchAction: "none",
+				backgroundColor: "inherit",
 			}}
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
 			onPointerUp={onPointerUp}
+			onPointerCancel={onPointerCancel}
+			onLostPointerCapture={onPointerCancel}
 			onPointerLeave={onPointerLeave}
 			onDoubleClick={onDoubleClick}
 		>
@@ -228,9 +233,10 @@ export function CanvasStage({
 					/>
 				)}
 
-				{snapGuides.map((guide) => (
+				{snapGuides.map((guide, index) => (
 					<line
-						key={`${guide.orientation}-${guide.pos}-${guide.from}-${guide.to}`}
+						// biome-ignore lint/suspicious/noArrayIndexKey: Snap guides are ordered transient render slots whose coordinates must not define their identity.
+						key={`snap-guide-${index}`}
 						x1={guide.orientation === "v" ? guide.pos : guide.from}
 						y1={guide.orientation === "h" ? guide.pos : guide.from}
 						x2={guide.orientation === "v" ? guide.pos : guide.to}
@@ -242,7 +248,7 @@ export function CanvasStage({
 					/>
 				))}
 
-				{snapPointIndicators.map((point) => {
+				{snapPointIndicators.map((point, index) => {
 					const size = (point.active ? 10 : 7) / viewport.zoom;
 					const strokeWidth = 1.5 / viewport.zoom;
 					const isRoundPoint =
@@ -252,7 +258,8 @@ export function CanvasStage({
 
 					return (
 						<g
-							key={`${point.elementId}-${point.kind}-${point.x}-${point.y}`}
+							// biome-ignore lint/suspicious/noArrayIndexKey: Snap points use stable transient slots so moving coordinates do not remount SVG nodes.
+							key={`snap-point-${index}`}
 							pointerEvents="none"
 						>
 							{isRoundPoint ? (

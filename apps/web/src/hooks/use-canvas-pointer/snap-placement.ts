@@ -10,7 +10,7 @@ import {
 	getVisibleSnapPointIndicators,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useCanvasStore, useCanvasStoreRef } from "../use-canvas-store";
 import {
 	STICKY_NOTE_PLACEMENT_SIZE,
@@ -39,6 +39,19 @@ export function usePointerSnapPlacement({
 			snapState.setSnapPointIndicators([]);
 		}
 	}, []);
+
+	useEffect(() => {
+		const clearAfterGesture = () => clearSnapVisuals();
+		window.addEventListener("pointerup", clearAfterGesture);
+		window.addEventListener("pointercancel", clearAfterGesture);
+		window.addEventListener("blur", clearAfterGesture);
+		return () => {
+			window.removeEventListener("pointerup", clearAfterGesture);
+			window.removeEventListener("pointercancel", clearAfterGesture);
+			window.removeEventListener("blur", clearAfterGesture);
+			clearSnapVisuals();
+		};
+	}, [clearSnapVisuals]);
 
 	const resolveCenteredPlacementSnap = useCallback(
 		(screenX: number, screenY: number, width: number, height: number) => {

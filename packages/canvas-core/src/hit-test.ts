@@ -86,13 +86,12 @@ export function hitTest(
 				el.arrowMode === "curve" &&
 				el.points.length >= 3
 			) {
-				return pointNearQuadraticBezier(
+				return pointNearArrowCurve(
 					px - el.x,
 					py - el.y,
-					el.points[0],
-					el.points[1],
-					el.points[2],
+					el.points,
 					t + el.strokeWidth + 4,
+					(el.roughness ?? 0) > 0,
 				);
 			}
 			for (let i = 0; i < el.points.length - 1; i++) {
@@ -116,6 +115,43 @@ export function hitTest(
 				py <= bbox.y + bbox.height + t
 			);
 	}
+}
+
+function pointNearArrowCurve(
+	px: number,
+	py: number,
+	points: [number, number][],
+	tolerance: number,
+	isRough: boolean,
+): boolean {
+	if (isRough) {
+		return pointNearCatmullRomCurve(px, py, points, tolerance);
+	}
+
+	if (points.length === 3) {
+		return pointNearQuadraticBezier(
+			px,
+			py,
+			points[0],
+			points[1],
+			points[2],
+			tolerance,
+		);
+	}
+
+	if (points.length === 4) {
+		return pointNearCubicBezier(
+			px,
+			py,
+			points[0],
+			points[1],
+			points[2],
+			points[3],
+			tolerance,
+		);
+	}
+
+	return pointNearSmoothCurve(px, py, points, tolerance);
 }
 
 function pointToLineDistance(
@@ -169,5 +205,120 @@ function pointNearQuadraticBezier(
 		}
 		previous = current;
 	}
+	return false;
+}
+
+function pointNearCubicBezier(
+	px: number,
+	py: number,
+	start: [number, number],
+	control1: [number, number],
+	control2: [number, number],
+	end: [number, number],
+	tolerance: number,
+): boolean {
+	let previous = start;
+	for (let step = 1; step <= CURVE_HIT_SEGMENTS; step++) {
+		const t = step / CURVE_HIT_SEGMENTS;
+		const mt = 1 - t;
+		const current: [number, number] = [
+			mt * mt * mt * start[0] +
+				3 * mt * mt * t * control1[0] +
+				3 * mt * t * t * control2[0] +
+				t * t * t * end[0],
+			mt * mt * mt * start[1] +
+				3 * mt * mt * t * control1[1] +
+				3 * mt * t * t * control2[1] +
+				t * t * t * end[1],
+		];
+		if (
+			pointToLineDistance(
+				px,
+				py,
+				previous[0],
+				previous[1],
+				current[0],
+				current[1],
+			) <= tolerance
+		) {
+			return true;
+		}
+		previous = current;
+	}
+	return false;
+}
+
+function pointNearSmoothCurve(
+	px: number,
+	py: number,
+	points: [number, number][],
+	tolerance: number,
+): boolean {
+	let segmentStart = points[0];
+	for (let index = 1; index < points.length - 1; index++) {
+		const control = points[index];
+		const next = points[index + 1];
+		const segmentEnd: [number, number] = [
+			(control[0] + next[0]) / 2,
+			(control[1] + next[1]) / 2,
+		];
+		if (
+			pointNearQuadraticBezier(
+				px,
+				py,
+				segmentStart,
+				control,
+				segmentEnd,
+				tolerance,
+			)
+		) {
+			return true;
+		}
+		segmentStart = segmentEnd;
+	}
+
+	const end = points[points.length - 1];
+	return (
+		pointToLineDistance(
+			px,
+			py,
+			segmentStart[0],
+			segmentStart[1],
+			end[0],
+			end[1],
+		) <= tolerance
+	);
+}
+
+function pointNearCatmullRomCurve(
+	px: number,
+	py: number,
+	points: [number, number][],
+	tolerance: number,
+): boolean {
+	const first = points[0];
+	const last = points[points.length - 1];
+	const extended = [first, ...points, last];
+
+	for (let index = 1; index + 2 < extended.length; index++) {
+		const before = extended[index - 1];
+		const start = extended[index];
+		const end = extended[index + 1];
+		const after = extended[index + 2];
+		const control1: [number, number] = [
+			start[0] + (end[0] - before[0]) / 6,
+			start[1] + (end[1] - before[1]) / 6,
+		];
+		const control2: [number, number] = [
+			end[0] + (start[0] - after[0]) / 6,
+			end[1] + (start[1] - after[1]) / 6,
+		];
+		if (
+			pointNearCubicBezier(px, py, start, control1, control2, end, tolerance)
+		) {
+			return true;
+		}
+	}
+
 	return false;
 }

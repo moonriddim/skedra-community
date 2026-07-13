@@ -32,6 +32,7 @@ interface StoreDrawingDefaults {
 	setArrowHeadStart: (head: ArrowHead) => void;
 	setArrowHeadEnd: (head: ArrowHead) => void;
 	setArrowHeadScale: (scale: number) => void;
+	setArrowHeadFilled: (filled: boolean) => void;
 }
 
 interface ApplyPropertyChangeOptions {
@@ -102,6 +103,8 @@ function syncStoreDrawingDefault(
 	else if (key === "arrowHeadStart")
 		store.setArrowHeadStart(value as ArrowHead);
 	else if (key === "arrowHeadEnd") store.setArrowHeadEnd(value as ArrowHead);
+	else if (key === "arrowHeadFilled")
+		store.setArrowHeadFilled(value as boolean);
 	else if (key === "arrowHeadScale") store.setArrowHeadScale(value as number);
 }
 

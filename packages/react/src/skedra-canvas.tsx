@@ -2138,6 +2138,7 @@ function SdkArrowShape({
 	const end = points[points.length - 1];
 	const beforeEnd = points[points.length - 2] ?? start;
 	if (!start || !end || !beforeEnd) return null;
+	const arrowHeadFilled = element.arrowHeadFilled ?? true;
 	const arrowHead = renderArrowHead(
 		element.arrowHeadEnd ?? "arrow",
 		beforeEnd[0],
@@ -2173,14 +2174,22 @@ function SdkArrowShape({
 				/>
 			)}
 			{arrowHead?.type === "triangle" && arrowHead.polygon && (
-				<polygon points={arrowHead.polygon} fill={element.stroke} />
+				<polygon
+					points={arrowHead.polygon}
+					fill={arrowHeadFilled ? element.stroke : "none"}
+					stroke={arrowHeadFilled ? "none" : element.stroke}
+					strokeWidth={arrowHeadFilled ? 0 : element.strokeWidth}
+					strokeLinejoin="round"
+				/>
 			)}
 			{arrowHead?.type === "dot" && (
 				<circle
 					cx={arrowHead.cx}
 					cy={arrowHead.cy}
 					r={arrowHead.r}
-					fill={element.stroke}
+					fill={arrowHeadFilled ? element.stroke : "none"}
+					stroke={arrowHeadFilled ? "none" : element.stroke}
+					strokeWidth={arrowHeadFilled ? 0 : element.strokeWidth}
 				/>
 			)}
 		</g>

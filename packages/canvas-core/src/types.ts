@@ -81,6 +81,7 @@ export interface CanvasElement {
 	arrowHeadStart?: ArrowHead;
 	arrowHeadEnd?: ArrowHead;
 	arrowHeadScale?: number;
+	arrowHeadFilled?: boolean;
 	cornerRadius?: number;
 	cornerRadiusPercent?: number;
 	roughness?: number;
@@ -122,6 +123,7 @@ export const DEFAULT_FILL = "transparent";
 export const DEFAULT_STROKE_WIDTH = 2;
 export const DEFAULT_STROKE_STYLE: StrokeStyle = "solid";
 export const DEFAULT_ARROW_HEAD_SCALE = 1;
+export const DEFAULT_ARROW_HEAD_FILLED = true;
 export const MIN_ARROW_HEAD_SCALE = 0.25;
 export const MAX_ARROW_HEAD_SCALE = 4;
 export const DEFAULT_ROUGH_FILL_STYLE: RoughFillStyle = "solid";

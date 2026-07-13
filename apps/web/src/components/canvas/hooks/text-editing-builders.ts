@@ -4,6 +4,7 @@
 
 import type { EditingText } from "@/components/canvas/text-editor";
 import {
+	CANVAS_DEFAULT_FONT,
 	KANBAN_FONT_FAMILY,
 	TOOL_FONT_FAMILY,
 } from "@/lib/canvas/canvas-defaults";
@@ -46,7 +47,7 @@ function resolveDefaultFontFamily(el: CanvasElement): string {
 		isMindmapNode(el) || el.customData?.skedraType === "flowchart-node";
 	if (isKanbanCardEl || isKanbanListEl) return KANBAN_FONT_FAMILY;
 	if (isToolTextEl) return TOOL_FONT_FAMILY;
-	return "system-ui, sans-serif";
+	return CANVAS_DEFAULT_FONT;
 }
 
 export function buildEditingTextSession({

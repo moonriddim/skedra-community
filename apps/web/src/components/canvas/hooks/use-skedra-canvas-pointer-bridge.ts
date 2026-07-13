@@ -9,6 +9,7 @@ interface PointerGestureHandlers {
 	onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => void;
+	onPointerCancel: () => void;
 }
 
 interface UseSkedraCanvasPointerBridgeOptions {
@@ -259,12 +260,29 @@ export function useSkedraCanvasPointerBridge({
 		setPresenceCursor(null);
 	}, [scheduleMindmapHoverClear, setPresenceCursor]);
 
+	const handlePointerCancel = useCallback(() => {
+		handleViewPointerUp();
+		pointerHandlers.onPointerCancel();
+		pointerGestureRef.current.clickTargetId = null;
+		pointerGestureRef.current.clickTargetWasSelected = false;
+		pointerGestureRef.current.kanbanClickTargetId = null;
+		pointerGestureRef.current.kanbanClickTargetKind = null;
+		scheduleMindmapHoverClear();
+		setPresenceCursor(null);
+	}, [
+		handleViewPointerUp,
+		pointerHandlers,
+		scheduleMindmapHoverClear,
+		setPresenceCursor,
+	]);
+
 	return {
 		pointerGestureRef,
 		handleContextMenu,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
+		handlePointerCancel,
 		handleCanvasPointerMove,
 		handleCanvasPointerLeave,
 	};

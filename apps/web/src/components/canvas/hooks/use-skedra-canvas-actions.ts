@@ -3,6 +3,7 @@
  */
 
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { pickAndBuildImageElements } from "@/lib/canvas/insert-image";
 import { useThemeStore } from "@/stores/theme";
@@ -15,7 +16,7 @@ import {
 	isFlowchartNode,
 	navigateFlowchartInDirection,
 } from "@skedra/canvas-core";
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
+import { DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { CanvasScene } from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
@@ -123,7 +124,7 @@ export function useSkedraCanvasActions({
 				text,
 				textColor: store.strokeColor,
 				fontSize: DEFAULT_FONT_SIZE,
-				fontFamily: DEFAULT_FONT_FAMILY,
+				fontFamily: CANVAS_DEFAULT_FONT,
 				textAlign: "left",
 				fontWeight: "normal",
 				fontStyle: "normal",

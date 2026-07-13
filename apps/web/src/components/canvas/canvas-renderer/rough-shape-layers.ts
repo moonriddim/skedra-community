@@ -466,6 +466,7 @@ export function roughArrowHeadHtml(
 	stroke: string,
 	strokeWidth: number,
 	seed: number,
+	filled = true,
 ): string | null {
 	if (!head || roughness <= 0) return null;
 
@@ -502,7 +503,8 @@ export function roughArrowHeadHtml(
 		return (
 			rc.polygon(polygonStringToPoints(head.polygon), {
 				...baseOpts,
-				fill: stroke,
+				fill: filled ? stroke : undefined,
+				fillStyle: "solid",
 			})?.innerHTML ?? null
 		);
 	}
@@ -515,7 +517,8 @@ export function roughArrowHeadHtml(
 		return (
 			rc.circle(head.cx, head.cy, head.r * 2, {
 				...baseOpts,
-				fill: stroke,
+				fill: filled ? stroke : undefined,
+				fillStyle: "solid",
 			})?.innerHTML ?? null
 		);
 	}

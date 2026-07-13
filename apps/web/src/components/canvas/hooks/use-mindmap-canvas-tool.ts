@@ -48,6 +48,66 @@ function isHorizontalMindmapDirection(direction: MindmapDirection) {
 	return direction === "left" || direction === "right";
 }
 
+function getMindmapSubtreeBounds(
+	node: CanvasElement,
+	elements: Map<string, CanvasElement>,
+) {
+	let minX = node.x;
+	let minY = node.y;
+	let maxX = node.x + node.width;
+	let maxY = node.y + node.height;
+	for (const id of collectMindmapDescendantIds(node.id, elements)) {
+		const descendant = elements.get(id);
+		if (!descendant) continue;
+		minX = Math.min(minX, descendant.x);
+		minY = Math.min(minY, descendant.y);
+		maxX = Math.max(maxX, descendant.x + descendant.width);
+		maxY = Math.max(maxY, descendant.y + descendant.height);
+	}
+	return { minX, minY, maxX, maxY };
+}
+
+function resolveAlternatingChildAxisPosition(
+	parent: CanvasElement,
+	children: CanvasElement[],
+	elements: Map<string, CanvasElement>,
+	direction: MindmapDirection,
+): number {
+	const horizontalDirection = isHorizontalMindmapDirection(direction);
+	const parentCenter = horizontalDirection
+		? parent.y + parent.height / 2
+		: parent.x + parent.width / 2;
+	let negativeSideCount = 0;
+	let positiveSideCount = 0;
+	let minimum = Number.POSITIVE_INFINITY;
+	let maximum = Number.NEGATIVE_INFINITY;
+
+	for (const child of children) {
+		const bounds = getMindmapSubtreeBounds(child, elements);
+		const childCenter = horizontalDirection
+			? child.y + child.height / 2
+			: child.x + child.width / 2;
+		if (childCenter < parentCenter) negativeSideCount++;
+		else if (childCenter > parentCenter) positiveSideCount++;
+		minimum = Math.min(
+			minimum,
+			horizontalDirection ? bounds.minY : bounds.minX,
+		);
+		maximum = Math.max(
+			maximum,
+			horizontalDirection ? bounds.maxY : bounds.maxX,
+		);
+	}
+
+	const placeOnNegativeSide = negativeSideCount <= positiveSideCount;
+	if (horizontalDirection) {
+		return placeOnNegativeSide
+			? minimum - 32 - MINDMAP_NODE_HEIGHT
+			: maximum + 32;
+	}
+	return placeOnNegativeSide ? minimum - 32 - MINDMAP_NODE_WIDTH : maximum + 32;
+}
+
 export function useMindmapCanvasTool({
 	sync,
 	store,
@@ -182,21 +242,12 @@ export function useMindmapCanvasTool({
 							);
 						}
 					} else {
-						const lastChild = children[children.length - 1];
-						const subtreeIds = collectMindmapDescendantIds(
-							lastChild.id,
+						nextY = resolveAlternatingChildAxisPosition(
+							parent,
+							children,
 							sync.elements,
+							direction,
 						);
-						let subtreeBottom = lastChild.y + lastChild.height;
-						for (const id of subtreeIds) {
-							const descendant = sync.elements.get(id);
-							if (!descendant) continue;
-							subtreeBottom = Math.max(
-								subtreeBottom,
-								descendant.y + descendant.height,
-							);
-						}
-						nextY = subtreeBottom + 32;
 					}
 				}
 				nextX =
@@ -229,21 +280,12 @@ export function useMindmapCanvasTool({
 							);
 						}
 					} else {
-						const lastChild = children[children.length - 1];
-						const subtreeIds = collectMindmapDescendantIds(
-							lastChild.id,
+						nextX = resolveAlternatingChildAxisPosition(
+							parent,
+							children,
 							sync.elements,
+							direction,
 						);
-						let subtreeRight = lastChild.x + lastChild.width;
-						for (const id of subtreeIds) {
-							const descendant = sync.elements.get(id);
-							if (!descendant) continue;
-							subtreeRight = Math.max(
-								subtreeRight,
-								descendant.x + descendant.width,
-							);
-						}
-						nextX = subtreeRight + 32;
 					}
 				}
 				nextY =

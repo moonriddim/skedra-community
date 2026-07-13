@@ -26,6 +26,7 @@ interface FormatClipboard {
 	opacity: number;
 	cornerRadiusPercent?: number;
 	arrowHeadScale?: number;
+	arrowHeadFilled?: boolean;
 	fontSize?: number;
 	fontFamily?: string;
 }
@@ -113,6 +114,8 @@ export function useCanvasKeyboardOperations({
 				el.type === "rectangle" ? getCornerRadiusPercent(el) : undefined,
 			arrowHeadScale:
 				el.type === "arrow" ? (el.arrowHeadScale ?? 1) : undefined,
+			arrowHeadFilled:
+				el.type === "arrow" ? (el.arrowHeadFilled ?? true) : undefined,
 			fontSize: el.fontSize,
 			fontFamily: el.fontFamily,
 		};
@@ -139,6 +142,9 @@ export function useCanvasKeyboardOperations({
 					: {}),
 				...(el.type === "arrow" && fmt.arrowHeadScale !== undefined
 					? { arrowHeadScale: fmt.arrowHeadScale }
+					: {}),
+				...(el.type === "arrow" && fmt.arrowHeadFilled !== undefined
+					? { arrowHeadFilled: fmt.arrowHeadFilled }
 					: {}),
 				...(el.fontSize !== undefined && fmt.fontSize !== undefined
 					? { fontSize: fmt.fontSize }

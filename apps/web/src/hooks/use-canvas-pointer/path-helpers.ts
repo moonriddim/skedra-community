@@ -78,6 +78,7 @@ export function buildPathPreview(
 					arrowHeadStart: store.arrowHeadStart,
 					arrowHeadEnd: store.arrowHeadEnd,
 					arrowHeadScale: store.arrowHeadScale,
+					arrowHeadFilled: store.arrowHeadFilled,
 				}
 			: {}),
 	};

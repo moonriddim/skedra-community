@@ -12,6 +12,7 @@
  * - Auto-resize der Textarea
  */
 
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import { useI18n } from "@/lib/i18n";
 import type { Viewport } from "@skedra/canvas-core";
 import { useCallback, useEffect, useRef } from "react";
@@ -111,7 +112,7 @@ export function TextEditor({
 	const posY = source.y;
 	const elWidth = editingState?.width ?? pending?.width ?? 200;
 	const elFontSize = source.fontSize ?? 18;
-	const elFontFamily = source.fontFamily ?? "system-ui, sans-serif";
+	const elFontFamily = source.fontFamily ?? CANVAS_DEFAULT_FONT;
 	const elTextAlign = editingState?.textAlign ?? pending?.textAlign ?? "left";
 	const elFontWeight =
 		editingState?.fontWeight ?? pending?.fontWeight ?? "normal";

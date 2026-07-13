@@ -2,8 +2,9 @@
  * Zeichnen abschliessen bei PointerUp.
  */
 
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
+import { DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import type { useCanvasStore } from "../use-canvas-store";
 import { appendPreviewPoint, commitPathPoint } from "./path-helpers";
@@ -77,7 +78,7 @@ export function finalizeDrawOnPointerUp(
 			height: h,
 			stroke: drawingPreview.stroke,
 			fontSize: drawingPreview.fontSize ?? DEFAULT_FONT_SIZE,
-			fontFamily: drawingPreview.fontFamily ?? DEFAULT_FONT_FAMILY,
+			fontFamily: drawingPreview.fontFamily ?? CANVAS_DEFAULT_FONT,
 			textAlign: "left",
 			fontWeight: "normal",
 			fontStyle: "normal",

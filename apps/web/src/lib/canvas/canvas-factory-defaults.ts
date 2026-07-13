@@ -1,11 +1,11 @@
 import {
 	type CanvasElementFactoryDefaults,
 	type CreateMindmapNodeOptions,
-	DEFAULT_FONT_FAMILY,
 	FLOWCHART_DEFAULT_STROKE,
 } from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import {
+	CANVAS_DEFAULT_FONT,
 	type CanvasThemeState,
 	KANBAN_FONT_FAMILY,
 	TOOL_FONT_FAMILY,
@@ -26,7 +26,7 @@ export function getCanvasElementFactoryDefaults(
 	return {
 		createId: createCanvasElementId,
 		stroke: getDefaultStrokeColor(theme),
-		fontFamily: DEFAULT_FONT_FAMILY,
+		fontFamily: CANVAS_DEFAULT_FONT,
 		kanbanFontFamily: KANBAN_FONT_FAMILY,
 	};
 }

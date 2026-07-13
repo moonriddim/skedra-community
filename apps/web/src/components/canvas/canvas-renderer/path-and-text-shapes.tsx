@@ -1,3 +1,4 @@
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import { readElementCustomData } from "@/lib/canvas/custom-data-utils";
 import {
 	STICKY_NOTE_TEXT_PADDING,
@@ -33,7 +34,7 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 					width: "100%",
 					height: "100%",
 					fontSize: el.fontSize ?? 16,
-					fontFamily: el.fontFamily ?? "system-ui, sans-serif",
+					fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
 					fontWeight: el.fontWeight ?? "normal",
 					fontStyle: el.fontStyle ?? "normal",
 					textDecoration: el.textDecoration ?? "none",
@@ -73,6 +74,7 @@ export function ArrowShape({
 	const mode = el.arrowMode ?? "straight";
 	const headStart = el.arrowHeadStart ?? "none";
 	const headEnd = el.arrowHeadEnd ?? "arrow";
+	const arrowHeadFilled = el.arrowHeadFilled ?? true;
 
 	const dPath = getArrowPath(pts, mode);
 	const textPathId = `skedra-arrow-text-${el.id}`;
@@ -117,6 +119,7 @@ export function ArrowShape({
 							stroke={el.stroke}
 							strokeWidth={el.strokeWidth}
 							seedKey={`${el.id}-end`}
+							filled={arrowHeadFilled}
 						/>
 						<RoughArrowHeadMarkup
 							head={startHead}
@@ -124,6 +127,7 @@ export function ArrowShape({
 							stroke={el.stroke}
 							strokeWidth={el.strokeWidth}
 							seedKey={`${el.id}-start`}
+							filled={arrowHeadFilled}
 						/>
 					</>
 				) : (
@@ -132,11 +136,13 @@ export function ArrowShape({
 							head={endHead}
 							stroke={el.stroke}
 							strokeWidth={el.strokeWidth}
+							filled={arrowHeadFilled}
 						/>
 						<ArrowHeadSvg
 							head={startHead}
 							stroke={el.stroke}
 							strokeWidth={el.strokeWidth}
+							filled={arrowHeadFilled}
 						/>
 					</>
 				)}
@@ -166,11 +172,13 @@ export function ArrowShape({
 				head={endHead}
 				stroke={el.stroke}
 				strokeWidth={el.strokeWidth}
+				filled={arrowHeadFilled}
 			/>
 			<ArrowHeadSvg
 				head={startHead}
 				stroke={el.stroke}
 				strokeWidth={el.strokeWidth}
+				filled={arrowHeadFilled}
 			/>
 		</g>
 	);
@@ -228,7 +236,7 @@ export function PathTextLabel({
 	const textProps = {
 		fill: el.textColor ?? el.stroke,
 		fontSize,
-		fontFamily: el.fontFamily ?? "system-ui, sans-serif",
+		fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
 		fontWeight: el.fontWeight ?? "normal",
 		fontStyle: el.fontStyle ?? "normal",
 		textDecoration: el.textDecoration ?? "none",
@@ -263,12 +271,14 @@ function RoughArrowHeadMarkup({
 	stroke,
 	strokeWidth,
 	seedKey,
+	filled,
 }: {
 	head: ArrowHeadData | null;
 	roughness: number;
 	stroke: string;
 	strokeWidth: number;
 	seedKey: string;
+	filled: boolean;
 }) {
 	const html = useMemo(() => {
 		let seed = 0;
@@ -281,8 +291,9 @@ function RoughArrowHeadMarkup({
 			stroke,
 			strokeWidth,
 			Math.abs(seed),
+			filled,
 		);
-	}, [head, roughness, stroke, strokeWidth, seedKey]);
+	}, [head, roughness, stroke, strokeWidth, seedKey, filled]);
 
 	if (!html) return null;
 	return <RoughSvgMarkup html={html} />;
@@ -292,10 +303,12 @@ function ArrowHeadSvg({
 	head,
 	stroke,
 	strokeWidth,
+	filled,
 }: {
 	head: ArrowHeadData | null;
 	stroke: string;
 	strokeWidth?: number;
+	filled: boolean;
 }) {
 	if (!head) return null;
 	if (head.type === "lines" && head.lines) {
@@ -313,7 +326,15 @@ function ArrowHeadSvg({
 		);
 	}
 	if (head.type === "triangle" && head.polygon) {
-		return <polygon points={head.polygon} fill={stroke} />;
+		return (
+			<polygon
+				points={head.polygon}
+				fill={filled ? stroke : "none"}
+				stroke={filled ? "none" : stroke}
+				strokeWidth={filled ? 0 : (strokeWidth ?? 2)}
+				strokeLinejoin="round"
+			/>
+		);
 	}
 	if (
 		head.type === "dot" &&
@@ -321,7 +342,16 @@ function ArrowHeadSvg({
 		head.cy != null &&
 		head.r != null
 	) {
-		return <circle cx={head.cx} cy={head.cy} r={head.r} fill={stroke} />;
+		return (
+			<circle
+				cx={head.cx}
+				cy={head.cy}
+				r={head.r}
+				fill={filled ? stroke : "none"}
+				stroke={filled ? "none" : stroke}
+				strokeWidth={filled ? 0 : (strokeWidth ?? 2)}
+			/>
+		);
 	}
 	return null;
 }
@@ -372,7 +402,7 @@ export function RectText({ el }: { el: CanvasElement }) {
 					style={{
 						width: "100%",
 						fontSize: el.fontSize ?? 16,
-						fontFamily: el.fontFamily ?? "system-ui, sans-serif",
+						fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
 						fontWeight: el.fontWeight ?? "normal",
 						fontStyle: el.fontStyle ?? "normal",
 						textDecoration: el.textDecoration ?? "none",

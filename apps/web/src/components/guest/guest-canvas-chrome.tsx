@@ -16,6 +16,7 @@ import { useCanvasStore } from "@/hooks/use-canvas-store";
 import { useI18n } from "@/lib/i18n";
 import { useThemeStore } from "@/stores/theme";
 import {
+	BadgeInfo,
 	Download,
 	FileText,
 	FolderOpen,
@@ -121,6 +122,15 @@ export function GuestCanvasChrome({
 						<DropdownMenuItem onClick={onExportPptx}>
 							<MonitorPlay className="mr-2 h-4 w-4" />
 							{t("guestCanvas.exportPptx")}
+						</DropdownMenuItem>
+
+						<DropdownMenuSeparator />
+
+						<DropdownMenuItem asChild>
+							<Link to="/pricing">
+								<BadgeInfo className="mr-2 h-4 w-4" />
+								{t("guestCanvas.infoAndPricing")}
+							</Link>
 						</DropdownMenuItem>
 
 						<DropdownMenuSeparator />

@@ -22,7 +22,9 @@ interface ArrowPropertiesProps {
 	currentArrowHeadStart: ArrowHead;
 	currentArrowHeadEnd: ArrowHead;
 	currentArrowHeadScale: number;
+	currentArrowHeadFilled: boolean;
 	showArrowHeadScale: boolean;
+	showArrowHeadFill: boolean;
 	currentArrowTextSide: ArrowTextSide;
 	currentArrowTextOrientation: ArrowTextOrientation;
 	onPathDrawModeChange: (mode: "normal" | "multi") => void;
@@ -40,7 +42,9 @@ export function ArrowProperties({
 	currentArrowHeadStart,
 	currentArrowHeadEnd,
 	currentArrowHeadScale,
+	currentArrowHeadFilled,
 	showArrowHeadScale,
+	showArrowHeadFill,
 	currentArrowTextSide,
 	currentArrowTextOrientation,
 	onPathDrawModeChange,
@@ -172,6 +176,40 @@ export function ArrowProperties({
 								}
 								className="w-full h-1 rounded-full appearance-none bg-muted accent-primary cursor-pointer"
 							/>
+						</div>
+					)}
+					{showArrowHeadFill && (
+						<div className="mt-2">
+							<p className="mb-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+								{t("canvas.properties.arrowHeadFill")}
+							</p>
+							<div className="flex gap-1">
+								{[
+									{
+										value: true,
+										label: t("canvas.properties.filled"),
+									},
+									{
+										value: false,
+										label: t("canvas.properties.hollow"),
+									},
+								].map((option) => (
+									<button
+										key={String(option.value)}
+										type="button"
+										onClick={() =>
+											onPropertyChange("arrowHeadFilled", option.value)
+										}
+										className={`flex-1 rounded border py-1 text-[10px] font-medium transition-all cursor-pointer ${
+											currentArrowHeadFilled === option.value
+												? "border-primary bg-primary/20 text-card-foreground"
+												: "border-border text-muted-foreground hover:border-muted-foreground"
+										}`}
+									>
+										{option.label}
+									</button>
+								))}
+							</div>
 						</div>
 					)}
 				</Section>
