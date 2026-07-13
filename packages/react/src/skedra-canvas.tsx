@@ -2459,22 +2459,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 											</button>
 											<button
 												type="button"
-												aria-label={`Edit notes for ${view.name}`}
-												onClick={() => {
-													const notes = window.prompt(
-														"Presenter notes",
-														view.presenterNotes ?? "",
-													);
-													if (notes != null)
-														updateView(view.id, {
-															presenterNotes: notes || undefined,
-														});
-												}}
-											>
-												Notes
-											</button>
-											<button
-												type="button"
 												aria-label={`Delete ${view.name}`}
 												onClick={() => deleteView(view.id)}
 											>

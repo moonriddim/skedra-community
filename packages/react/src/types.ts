@@ -84,7 +84,10 @@ export interface SavedCanvasView {
 	height: number;
 	createdAt: number;
 	updatedAt: number;
-	presenterNotes?: string;
+	/** Explicit slide ordering. Legacy views without an order fall back to createdAt. */
+	order?: number;
+	/** Slides default to a stable widescreen frame. */
+	aspectRatio?: "16:9" | "4:3" | "free";
 }
 
 type IsExact<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <

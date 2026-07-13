@@ -166,7 +166,7 @@
 
 .skedra-sdk__view-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+	grid-template-columns: minmax(0, 1fr) repeat(2, auto);
 	gap: 3px;
 }
 
