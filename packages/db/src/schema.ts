@@ -684,6 +684,11 @@ export const registrationInvites = pgTable(
 			},
 		),
 		acceptedAt: timestamp("accepted_at"),
+		complimentaryAccessReason: text("complimentary_access_reason"),
+		complimentaryAccessExpiresAt: timestamp("complimentary_access_expires_at"),
+		complimentaryAccessGrantedByEmail: text(
+			"complimentary_access_granted_by_email",
+		),
 		expiresAt: timestamp("expires_at").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},

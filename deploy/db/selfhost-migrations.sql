@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS "registration_invites" (
 	"whiteboard_id" uuid REFERENCES "whiteboards"("id") ON DELETE cascade,
 	"whiteboard_team_role_id" uuid REFERENCES "team_roles"("id") ON DELETE set null,
 	"accepted_at" timestamp,
+	"complimentary_access_reason" text,
+	"complimentary_access_expires_at" timestamp,
+	"complimentary_access_granted_by_email" text,
 	"expires_at" timestamp NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
@@ -85,6 +88,11 @@ CREATE INDEX IF NOT EXISTS "registration_invite_email_idx"
 
 ALTER TABLE "registration_invites"
 	ADD COLUMN IF NOT EXISTS "whiteboard_team_role_id" uuid REFERENCES "team_roles"("id") ON DELETE set null;
+
+ALTER TABLE "registration_invites"
+	ADD COLUMN IF NOT EXISTS "complimentary_access_reason" text,
+	ADD COLUMN IF NOT EXISTS "complimentary_access_expires_at" timestamp,
+	ADD COLUMN IF NOT EXISTS "complimentary_access_granted_by_email" text;
 
 ALTER TABLE "whiteboard_members"
 	ADD COLUMN IF NOT EXISTS "team_role_id" uuid;

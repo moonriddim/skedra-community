@@ -3,6 +3,7 @@ import { getBBox } from "./geometry";
 import {
 	buildKanbanDeletionReflowUpdates,
 	buildKanbanReflowUpdates,
+	elementCenter,
 	findListAtPoint,
 	isKanbanCard,
 	isKanbanList,
@@ -24,6 +25,12 @@ import {
 	createStackIndexBeforeElement,
 } from "./ordering";
 import type { ArrowTextOrientation, ArrowTextSide } from "./path-rendering";
+import {
+	buildTemplateSectionLayoutSyncUpdates,
+	findTemplateSectionAtPoint,
+	getTemplateStickyAssignmentChanges,
+	getTemplateStickyNoteMeta,
+} from "./templates";
 import {
 	type CanvasElement,
 	DEFAULT_FONT_FAMILY,
@@ -145,9 +152,13 @@ export function applyCanvasElementUpdates(
 	updates: readonly CanvasElementUpdate[],
 ): CanvasElement[] {
 	if (updates.length === 0) return [...elements];
-	const updatesById = new Map(
-		updates.map((update) => [update.id, update.changes]),
-	);
+	const updatesById = new Map<string, Partial<CanvasElement>>();
+	for (const update of updates) {
+		updatesById.set(update.id, {
+			...(updatesById.get(update.id) ?? {}),
+			...update.changes,
+		});
+	}
 	return elements.map((element) => {
 		const changes = updatesById.get(element.id);
 		return changes ? { ...element, ...changes } : element;
@@ -160,13 +171,16 @@ export function applyCanvasMutationPlan(
 	plan: CanvasMutationPlan,
 ): CanvasElement[] {
 	const deleted = new Set(plan.deleteIds);
-	const remaining = elements.filter((element) => !deleted.has(element.id));
-	const updated = applyCanvasElementUpdates(remaining, plan.update);
 	const createdIds = new Set(plan.create.map((element) => element.id));
-	const next = [
-		...updated.filter((element) => !createdIds.has(element.id)),
-		...plan.create,
-	];
+	const next = applyCanvasElementUpdates(
+		[
+			...elements.filter(
+				(element) => !deleted.has(element.id) && !createdIds.has(element.id),
+			),
+			...plan.create,
+		],
+		plan.update,
+	);
 	const normalization = planCanvasNormalization(toCanvasElementMap(next));
 	const normalizedDeletes = new Set(normalization.deleteIds);
 	return applyCanvasElementUpdates(
@@ -181,8 +195,8 @@ export function executeCanvasMutationPlan(
 	adapter: CanvasMutationAdapter,
 ): void {
 	if (plan.deleteIds.length > 0) adapter.deleteElements(plan.deleteIds);
-	if (plan.update.length > 0) adapter.updateElements(plan.update);
 	for (const element of plan.create) adapter.createElement(element);
+	if (plan.update.length > 0) adapter.updateElements(plan.update);
 	if (plan.selectedIds) adapter.setSelectedIds?.(new Set(plan.selectedIds));
 	if (plan.editingTextId !== undefined) {
 		adapter.setEditingTextId?.(plan.editingTextId);
@@ -205,9 +219,14 @@ export function planCanvasNormalization(
 	}
 	return {
 		create: [],
-		update: buildMindmapSyncUpdates(elements).filter(
-			(update) => !orphanEdges.includes(update.id),
-		),
+		update: [
+			...buildMindmapSyncUpdates(elements).filter(
+				(update) => !orphanEdges.includes(update.id),
+			),
+			...buildTemplateSectionLayoutSyncUpdates(elements, {
+				excludeIds: orphanEdges,
+			}),
+		],
 		deleteIds: orphanEdges,
 	};
 }
@@ -365,6 +384,27 @@ export function resizeCanvasElement(
 		width: Math.max(minimumSize, width),
 		height: Math.max(minimumSize, height),
 	};
+}
+
+export function getCanvasKeyboardResizeChanges(options: {
+	element: CanvasElement;
+	handle: "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
+	key: string;
+	shiftKey?: boolean;
+	readOnly?: boolean;
+}): Pick<CanvasElement, "x" | "y" | "width" | "height"> | null {
+	if (options.readOnly || options.element.locked) return null;
+	const step = options.shiftKey ? 10 : 1;
+	const dx =
+		options.key === "ArrowLeft"
+			? -step
+			: options.key === "ArrowRight"
+				? step
+				: 0;
+	const dy =
+		options.key === "ArrowUp" ? -step : options.key === "ArrowDown" ? step : 0;
+	if (dx === 0 && dy === 0) return null;
+	return resizeCanvasElement(options.element, options.handle, dx, dy);
 }
 
 export function translateCanvasElements(
@@ -589,6 +629,26 @@ export function buildKanbanDropUpdates(
 		: [];
 }
 
+export function buildTemplateDropUpdates(
+	elements: Map<string, CanvasElement>,
+	movedIds: Iterable<string>,
+): CanvasElementUpdate[] {
+	const updates: CanvasElementUpdate[] = [];
+	for (const id of movedIds) {
+		const note = elements.get(id);
+		if (!note || !getTemplateStickyNoteMeta(note)) continue;
+		const center = elementCenter(note);
+		const section = findTemplateSectionAtPoint(
+			elements.values(),
+			center.x,
+			center.y,
+		);
+		const changes = getTemplateStickyAssignmentChanges(note, section);
+		if (Object.keys(changes).length > 0) updates.push({ id, changes });
+	}
+	return updates;
+}
+
 export function planKanbanCardInsertion(options: {
 	elements: Map<string, CanvasElement>;
 	listId: string;
@@ -601,7 +661,11 @@ export function planKanbanCardInsertion(options: {
 	nextElements.set(card.id, card);
 	return {
 		create: [card],
-		update: buildKanbanDropUpdates(nextElements, [card.id]),
+		update: buildKanbanReflowUpdates(
+			nextElements,
+			new Set([card.id]),
+			new Map([[card.id, list.id]]),
+		),
 		deleteIds: [],
 		selectedIds: [card.id],
 		editingTextId: null,

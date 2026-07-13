@@ -1,20 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	type CanvasMutationPlan,
 	applyCanvasElementUpdates,
 	applyCanvasMutationPlan,
 	buildCanvasDrawingElement,
 	collectCanvasSelectionRectIds,
 	executeCanvasMutationPlan,
 	getCanvasKeyboardCommand,
+	getCanvasKeyboardResizeChanges,
 	planCanvasDeletion,
+	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
 	shouldKeepCanvasDrawing,
 	toCanvasElementMap,
 	translateCanvasElements,
 } from "./editor-operations";
-import { createKanbanListElements } from "./element-factory";
+import {
+	createBaseCanvasElement,
+	createKanbanCardElement,
+	createKanbanListElements,
+} from "./element-factory";
 import { createMindmapEdge, createMindmapNode } from "./mindmap";
 import type { CanvasElement } from "./types";
 
@@ -25,7 +32,7 @@ function idFactory(prefix = "id") {
 
 function applyThroughAdapter(
 	elements: CanvasElement[],
-	plan: NonNullable<ReturnType<typeof planMindmapChildMutation>>,
+	plan: CanvasMutationPlan,
 ) {
 	let current = [...elements];
 	executeCanvasMutationPlan(plan, {
@@ -42,6 +49,58 @@ function applyThroughAdapter(
 	});
 	return current;
 }
+
+test("multiple updates for one element are merged in mutation order", () => {
+	const element = createBaseCanvasElement(
+		{ createId: () => "shape", stroke: "#111" },
+		{ type: "rectangle", x: 10, y: 20, width: 77, height: 55 },
+	);
+	const plan: CanvasMutationPlan = {
+		create: [],
+		update: [
+			{ id: element.id, changes: { width: 160, height: 124 } },
+			{ id: element.id, changes: { x: 80, y: 90 } },
+		],
+		deleteIds: [],
+	};
+	const expected = applyThroughAdapter([element], plan);
+
+	assert.deepEqual(applyCanvasMutationPlan([element], plan), expected);
+	assert.deepEqual(
+		expected.map(({ x, y, width, height }) => ({ x, y, width, height })),
+		[{ x: 80, y: 90, width: 160, height: 124 }],
+	);
+});
+
+test("kanban insertion updates the newly-created card inside its target list", () => {
+	const defaults = { createId: idFactory("kanban"), stroke: "#111" };
+	const elements = createKanbanListElements(defaults, {
+		x: 100,
+		y: 100,
+		name: "Todo",
+		cardTitles: ["Existing"],
+	});
+	const list = elements[0];
+	const card = createKanbanCardElement(defaults, {
+		x: list.x,
+		y: list.y + list.height + 1_000,
+		title: "New card",
+	});
+	const plan = planKanbanCardInsertion({
+		elements: toCanvasElementMap(elements),
+		listId: list.id,
+		card,
+	});
+	assert.ok(plan);
+
+	const local = applyCanvasMutationPlan(elements, plan);
+	const adapterBacked = applyThroughAdapter(elements, plan);
+	const inserted = local.find((element) => element.id === card.id);
+	assert.ok(inserted);
+	assert.equal(inserted.frameId, list.id);
+	assert.ok(inserted.y >= list.y && inserted.y < list.y + list.height);
+	assert.deepEqual(adapterBacked, local);
+});
 
 test("mutation plans produce identical local and adapter-backed state", () => {
 	const root = createMindmapNode({
@@ -191,5 +250,28 @@ test("drawing, selection, movement, and keyboard commands use one contract", () 
 			altKey: false,
 		}),
 		"delete-selection",
+	);
+});
+
+test("keyboard resize rejects locked elements", () => {
+	const element = createBaseCanvasElement(
+		{ createId: () => "locked", stroke: "#111" },
+		{ type: "rectangle", locked: true },
+	);
+	assert.equal(
+		getCanvasKeyboardResizeChanges({
+			element,
+			handle: "se",
+			key: "ArrowRight",
+		}),
+		null,
+	);
+	assert.deepEqual(
+		getCanvasKeyboardResizeChanges({
+			element: { ...element, locked: false },
+			handle: "se",
+			key: "ArrowRight",
+		}),
+		{ x: 0, y: 0, width: 101, height: 100 },
 	);
 });

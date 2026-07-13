@@ -5,6 +5,7 @@ import {
 	buildCanvasTextElement,
 	buildCanvasTextUpdate,
 	buildKanbanDropUpdates,
+	buildTemplateDropUpdates,
 	buildTemplateSectionLayoutSyncUpdates,
 	clientPointToCanvas,
 	collectCanvasSelectionRectIds,
@@ -13,6 +14,7 @@ import {
 	createStackIndexAfter,
 	getBBox,
 	getCanvasKeyboardCommand,
+	getCanvasKeyboardResizeChanges,
 	getCanvasViewportCenter,
 	getCombinedBBox,
 	isKanbanCard,
@@ -830,7 +832,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (drag.type === "select-move") {
 				const dx = world.x - drag.startWorld.x;
 				const dy = world.y - drag.startWorld.y;
-				commitCanvasElements(
+				commitElements(
 					translateCanvasElements(drag.startElements, selectedIds, dx, dy),
 				);
 				return;
@@ -862,19 +864,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			setSelectionBox(null);
 
 			if (drag?.type === "select-move") {
-				const updates = buildKanbanDropUpdates(
-					toCanvasElementMap(currentElements),
-					selectedIds,
+				const elementMap = toCanvasElementMap(currentElements);
+				const updates = [
+					...buildKanbanDropUpdates(elementMap, selectedIds),
+					...buildTemplateDropUpdates(elementMap, selectedIds),
+				];
+				commitCanvasElements(
+					applyCanvasMutationPlan(currentElements, {
+						create: [],
+						update: updates,
+						deleteIds: [],
+					}),
 				);
-				if (updates.length > 0) {
-					commitCanvasElements(
-						applyCanvasMutationPlan(currentElements, {
-							create: [],
-							update: updates,
-							deleteIds: [],
-						}),
-					);
-				}
 				setDraftElement(null);
 				return;
 			}
@@ -923,18 +924,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			element: CanvasElement,
 			handle: (typeof SDK_RESIZE_HANDLES)[number],
 		) => {
-			const step = event.shiftKey ? 10 : 1;
-			const dx =
-				event.key === "ArrowLeft"
-					? -step
-					: event.key === "ArrowRight"
-						? step
-						: 0;
-			const dy =
-				event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
-			if (dx === 0 && dy === 0) return;
+			const changes = getCanvasKeyboardResizeChanges({
+				element,
+				handle,
+				key: event.key,
+				shiftKey: event.shiftKey,
+				readOnly,
+			});
+			if (!changes) return;
 			event.preventDefault();
-			const changes = resizeCanvasElement(element, handle, dx, dy);
 			commitCanvasElements(
 				currentElements.map((current) =>
 					current.id === element.id ? { ...current, ...changes } : current,
@@ -1280,6 +1278,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						})}
 						{!readOnly &&
 							selectedElements.length === 1 &&
+							!selectedElements[0].locked &&
 							SDK_RESIZE_HANDLES.map((handle) => {
 								const element = selectedElements[0];
 								const bbox = getBBox(element);
