@@ -26,8 +26,7 @@ export function createDb(
 		connection: {
 			application_name: options.applicationName ?? "skedra-api",
 			statement_timeout: options.statementTimeoutMs,
-			idle_in_transaction_session_timeout:
-				options.idleInTransactionTimeoutMs,
+			idle_in_transaction_session_timeout: options.idleInTransactionTimeoutMs,
 		},
 	});
 	return drizzle(client, { schema });

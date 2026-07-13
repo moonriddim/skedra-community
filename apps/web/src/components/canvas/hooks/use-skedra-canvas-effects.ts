@@ -14,7 +14,7 @@ import {
 } from "@/lib/canvas/canvas-viewport-storage";
 import { collectThemeElementPatches } from "@/lib/canvas/theme-element-sync";
 import { useThemeStore } from "@/stores/theme";
-import type { CanvasElement, CanvasScene, Viewport } from "@skedra/canvas-core";
+import type { CanvasElement, CanvasScene } from "@skedra/canvas-core";
 import type { SavedCanvasView } from "@skedra/canvas-core";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type * as Y from "yjs";
@@ -29,12 +29,6 @@ type CanvasSyncApi = {
 	updateElements: (
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
-	remotePresence: Array<{
-		canWrite: boolean;
-		viewport: Viewport | null;
-		activeViewId: string | null;
-		updatedAt: number;
-	}>;
 	isReadonly: boolean;
 };
 
@@ -52,11 +46,6 @@ interface UseSkedraCanvasEffectsOptions {
 	focusCanvasPointRef?: React.MutableRefObject<
 		((x: number, y: number) => void) | null
 	>;
-	presentationMode: boolean;
-	presentationShareToken?: string;
-	presenterMode: boolean;
-	activeViewId: string | null;
-	setActiveViewId: (id: string | null) => void;
 }
 
 export function useSkedraCanvasEffects({
@@ -68,11 +57,6 @@ export function useSkedraCanvasEffects({
 	store,
 	fitViewportToBounds,
 	focusCanvasPointRef,
-	presentationMode,
-	presentationShareToken,
-	presenterMode,
-	activeViewId,
-	setActiveViewId,
 }: UseSkedraCanvasEffectsOptions) {
 	const hasAutoFittedRef = useRef(false);
 	const lastAutoFittedWhiteboardIdRef = useRef<string | null>(null);

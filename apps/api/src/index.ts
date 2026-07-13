@@ -129,7 +129,6 @@ type PresentationViewerConnection = {
 type PresentationPresenterConnection = {
 	ws: WSContext;
 	sessionId: string;
-	userId: string;
 };
 
 const presentationViewerRooms = new Map<
@@ -975,10 +974,10 @@ app.get("/api/boards/:id/live", async (c) => {
 /**
  * WebSocket-Presence-Kanal für Realtime-E2EE (Phase 2).
  *
- * Relayt ausschließlich CLIENTSEITIG verschlüsselte Presence-Nachrichten
- * (Cursor/Auswahl/Name) an die anderen Teilnehmer eines Boards. Nichts wird
- * persistiert, nichts entschlüsselt. Zugriff: eingeloggte Nutzer mit Board-Lesezugriff
- * oder Presentation-Viewer, wenn Presence für den Share-Link aktiviert ist.
+ * Relayt ephemere Presence-Nachrichten (Cursor/Auswahl/Name) an andere
+ * authentifizierte Board-Mitglieder. E2EE-Boards verschlüsseln den Inhalt im
+ * Browser; serververschlüsselte Boards validieren ihn vor dem Rendering im Client.
+ * Die Publikumsansicht nutzt ausschließlich den separaten Receive-only-Kanal.
  */
 app.get(
 	"/api/boards/:id/presence",
@@ -1230,7 +1229,7 @@ app.get(
 					ws.close(1008, "unauthorized presenter session");
 					return;
 				}
-				presenter = { ws, sessionId, userId: authorizedUserId };
+				presenter = { ws, sessionId };
 				let room = presentationPresenterRooms.get(whiteboardId);
 				if (!room) {
 					room = new Set();
@@ -1251,7 +1250,7 @@ app.get(
 				if (!presenter || !whiteboardId || !sessionId || !authorizedUserId)
 					return;
 				const data = typeof event.data === "string" ? event.data : "";
-				if (!data || data.length > 4_100_000) {
+				if (!data || data.length > 4_500_000) {
 					ws.close(1008, "invalid presentation message");
 					return;
 				}

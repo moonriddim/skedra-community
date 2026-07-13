@@ -841,11 +841,6 @@ export function SkedraCanvas({
 		store,
 		fitViewportToBounds,
 		focusCanvasPointRef,
-		presentationMode,
-		presentationShareToken,
-		presenterMode,
-		activeViewId,
-		setActiveViewId,
 	});
 
 	useEffect(() => {
