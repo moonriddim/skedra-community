@@ -53,6 +53,11 @@ export function LoginPage() {
 				setError(result.error.message ?? t("auth.login.failed"));
 				return;
 			}
+			if (
+				(result.data as { twoFactorRedirect?: boolean } | null)
+					?.twoFactorRedirect
+			)
+				return;
 			try {
 				const identityResult = await identityQuery.refetch();
 				await unlockOrCreateUserE2eeIdentity({

@@ -169,10 +169,44 @@
 	outline: none;
 }
 
+.skedra-sdk__surface[data-tool="pan"] {
+	cursor: grab;
+}
+
+.skedra-sdk__surface:is(
+		[data-tool="lasso"],
+		[data-tool="eraser"],
+		[data-tool="laser"],
+		[data-tool="eyedropper"]
+	) {
+	cursor: crosshair;
+}
+
 .skedra-sdk__selection {
 	fill: rgba(15, 118, 110, 0.08);
 	stroke: var(--skedra-sdk-primary);
 	stroke-dasharray: 5 4;
+}
+
+.skedra-sdk__lasso {
+	pointer-events: none;
+	fill: color-mix(in srgb, var(--skedra-sdk-primary) 8%, transparent);
+	stroke: var(--skedra-sdk-primary);
+	stroke-dasharray: 5 4;
+}
+
+.skedra-sdk__laser {
+	pointer-events: none;
+	fill: none;
+	stroke: #e11d48;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	filter: drop-shadow(0 0 3px rgba(225, 29, 72, 0.65));
+	transition: opacity 450ms ease-out;
+}
+
+.skedra-sdk__laser[data-finished="true"] {
+	opacity: 0;
 }
 
 .skedra-sdk__selected-outline {

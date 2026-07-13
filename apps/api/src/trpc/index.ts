@@ -1,4 +1,5 @@
 import { router } from "./init";
+import { accountRouter } from "./routers/account";
 import { aiRouter } from "./routers/ai";
 import { apiKeyRouter } from "./routers/api-key";
 import { assetsRouter } from "./routers/assets";
@@ -15,6 +16,7 @@ import { whiteboardRouter } from "./routers/whiteboard";
 export { createContext } from "./context";
 
 export const appRouter = router({
+	account: accountRouter,
 	whiteboard: whiteboardRouter,
 	apiKey: apiKeyRouter,
 	assets: assetsRouter,

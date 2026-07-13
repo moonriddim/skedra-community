@@ -101,6 +101,10 @@ pnpm dev
 
 Open [http://localhost:5174](http://localhost:5174).
 
+`pnpm dev` also keeps the public React SDK artifacts current while shared
+canvas code changes. Use `pnpm dev:sdk` for the SDK watcher alone and
+`pnpm sdk:verify` to run the focused Web/SDK parity, package, and build checks.
+
 ## Contributing
 
 Skedra is built in the open, and contributions are welcome.

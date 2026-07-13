@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 
 test("package root exports the canvas component and SDK factories", async () => {
@@ -7,6 +8,25 @@ test("package root exports the canvas component and SDK factories", async () => 
 	assert.ok(sdk.SkedraCanvas);
 	assert.equal(typeof sdk.createSkedraTemplateElements, "function");
 	assert.equal(typeof sdk.createSkedraStickyNoteElement, "function");
+	assert.deepEqual([...sdk.SKEDRA_SDK_TOOL_IDS].sort(), [
+		"arrow",
+		"diamond",
+		"ellipse",
+		"eraser",
+		"eyedropper",
+		"frame",
+		"freehand",
+		"kanban",
+		"laser",
+		"lasso",
+		"line",
+		"mindmap",
+		"pan",
+		"rectangle",
+		"select",
+		"sticky-note",
+		"text",
+	]);
 });
 
 test("factories subpath creates full canvas SDK elements", async () => {
@@ -55,4 +75,12 @@ test("workspace hook subpath exposes status-only integration contracts", async (
 		isScreenSharing: false,
 		roomUrl: null,
 	});
+});
+
+test("published runtime and declarations are self-contained", () => {
+	for (const filename of readdirSync("dist")) {
+		if (!filename.endsWith(".js") && !filename.endsWith(".d.ts")) continue;
+		const source = readFileSync(`dist/${filename}`, "utf8");
+		assert.doesNotMatch(source, /@skedra\/canvas-(?:core|react)/u, filename);
+	}
 });

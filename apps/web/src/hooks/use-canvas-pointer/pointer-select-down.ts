@@ -2,10 +2,6 @@
  * Selektions- und Verschiebe-Logik bei PointerDown (Select/Lasso-Tool).
  */
 
-import {
-	collectMindmapDescendantIds,
-	isMindmapNode,
-} from "@skedra/canvas-core";
 import { createStackIndexAfter } from "@skedra/canvas-core";
 import { isKanbanCard, isKanbanList } from "@skedra/canvas-core";
 import { isMultiSelectModifier } from "@skedra/canvas-core";
@@ -153,17 +149,6 @@ export function handleSelectPointerDown(
 		for (const id of selectionForMove) {
 			const el = elements.get(id);
 			if (el) moveStart.set(id, { x: el.x, y: el.y });
-		}
-		for (const id of Array.from(moveStart.keys())) {
-			const el = elements.get(id);
-			if (!isMindmapNode(el)) continue;
-			for (const descendantId of collectMindmapDescendantIds(id, elements)) {
-				if (moveStart.has(descendantId)) continue;
-				const descendant = elements.get(descendantId);
-				if (descendant) {
-					moveStart.set(descendantId, { x: descendant.x, y: descendant.y });
-				}
-			}
 		}
 		if (!moveStart.has(hit.id)) {
 			moveStart.set(hit.id, { x: hit.x, y: hit.y });

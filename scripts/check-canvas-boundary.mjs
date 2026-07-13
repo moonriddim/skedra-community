@@ -96,6 +96,110 @@ checkSharedRendererConsumer(
 	"The SDK must render elements through the shared React canvas renderer.",
 );
 
+const sharedEditorOperationConsumers = [
+	{
+		operation: "planMindmapChildMutation",
+		files: [
+			"apps/web/src/components/canvas/hooks/use-mindmap-canvas-tool.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "planKanbanCardInsertion",
+		files: [
+			"apps/web/src/components/canvas/hooks/use-kanban-canvas-tool.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildCanvasDrawingElement",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/preview-builders.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildCanvasMoveUpdates",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/pointer-move-gesture.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "resizeCanvasElement",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/geometry-helpers.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "zoomCanvasViewportAtPoint",
+		files: [
+			"apps/web/src/hooks/use-canvas-store.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "planCanvasDeletion",
+		files: [
+			"apps/web/src/components/canvas/hooks/use-kanban-canvas-tool.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildCanvasTextUpdate",
+		files: [
+			"apps/web/src/components/canvas/hooks/text-element-updates.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "collectCanvasSelectionRectIds",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/pointer-selection.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getElementsInLassoPath",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/pointer-selection.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getElementsToEraseAtPosition",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/pointer-tools.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "lassoPathToSvgD",
+		files: [
+			"apps/web/src/components/canvas/canvas-stage.tsx",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildTemplateDropUpdates",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/pointer-drop-updates.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+];
+
+for (const { operation, files } of sharedEditorOperationConsumers) {
+	for (const relative of files) {
+		if (!new RegExp(`\\b${operation}\\b`, "u").test(readRepoFile(relative))) {
+			errors.push(
+				`${relative} must consume the shared canvas-core operation ${operation}.`,
+			);
+		}
+	}
+}
+
 const sdkCanvasSource = readRepoFile("packages/react/src/skedra-canvas.tsx");
 if (/\bSdkElementShape\b/u.test(sdkCanvasSource)) {
 	errors.push("The SDK must not contain its legacy element renderer.");
@@ -111,6 +215,7 @@ const centralizedEditorPatterns = [
 	/\bfunction\s+applyElementUpdates\b/u,
 	/\bfunction\s+collectDeletedElementIds\b/u,
 	/\bfunction\s+deleteRelatedElements\b/u,
+	/\bfunction\s+buildCanvasMoveUpdates\b/u,
 	/\bfunction\s+moveElements\b/u,
 	/\bfunction\s+shouldKeepDraft\b/u,
 	/\bfunction\s+getNextTemplateStickyPosition\b/u,

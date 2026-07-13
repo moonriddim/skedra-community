@@ -1,7 +1,9 @@
 import {
 	CanvasScene,
+	applyCanvasElementUpdates,
 	applyCanvasMutationPlan,
 	buildCanvasDrawingElement,
+	buildCanvasMoveUpdates,
 	buildCanvasTextElement,
 	buildCanvasTextUpdate,
 	buildKanbanDropUpdates,
@@ -20,6 +22,7 @@ import {
 	isKanbanCard,
 	isKanbanList,
 	isMindmapNode,
+	lassoPathToSvgD,
 	normalizeCanvasRect,
 	planCanvasDeletion,
 	planKanbanCardInsertion,
@@ -28,9 +31,9 @@ import {
 	resizeCanvasElement,
 	shouldKeepCanvasDrawing,
 	toCanvasElementMap,
-	translateCanvasElements,
 	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
+import type { ToolType } from "@skedra/canvas-core";
 import {
 	CanvasElementRenderer,
 	type CanvasRendererConfig,
@@ -40,19 +43,23 @@ import {
 	ArrowRight,
 	Circle,
 	Diamond,
+	Eraser,
 	Frame,
 	GitBranch,
 	Hand,
 	Kanban,
+	Lasso,
 	LayoutTemplate,
 	Minus,
 	MousePointer2,
 	PenLine,
+	Pipette,
 	Plus,
 	Square,
 	StickyNote,
 	TextCursorInput,
 	Trash2,
+	Zap,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -87,6 +94,7 @@ import type { CanvasElement, Viewport } from "./types.js";
 
 export type SkedraSdkTool =
 	| "select"
+	| "lasso"
 	| "pan"
 	| "rectangle"
 	| "ellipse"
@@ -98,7 +106,10 @@ export type SkedraSdkTool =
 	| "frame"
 	| "sticky-note"
 	| "kanban"
-	| "mindmap";
+	| "mindmap"
+	| "eraser"
+	| "laser"
+	| "eyedropper";
 
 export type SkedraCanvasTheme = "light" | "dark";
 
@@ -175,11 +186,25 @@ type DragState =
 			type: "select-move";
 			startWorld: Point;
 			startElements: CanvasElement[];
+			moveStart: Map<string, Point>;
 	  }
 	| {
 			type: "selection";
 			startWorld: Point;
 			currentWorld: Point;
+	  }
+	| {
+			type: "lasso";
+			points: Point[];
+	  }
+	| {
+			type: "erase";
+			startElements: CanvasElement[];
+			erasedIds: Set<string>;
+	  }
+	| {
+			type: "laser";
+			points: Point[];
 	  }
 	| {
 			type: "resize";
@@ -203,25 +228,49 @@ type DrawingTool =
 	| "freehand"
 	| "frame";
 
-const SDK_TOOLS: Array<{
+interface SdkToolDefinition {
 	id: SkedraSdkTool;
 	label: string;
 	icon: ComponentType<{ size?: number; strokeWidth?: number }>;
-}> = [
-	{ id: "select", label: "Select", icon: MousePointer2 },
-	{ id: "pan", label: "Pan", icon: Hand },
-	{ id: "rectangle", label: "Rectangle", icon: Square },
-	{ id: "ellipse", label: "Ellipse", icon: Circle },
-	{ id: "diamond", label: "Diamond", icon: Diamond },
-	{ id: "line", label: "Line", icon: Minus },
-	{ id: "arrow", label: "Arrow", icon: ArrowRight },
-	{ id: "freehand", label: "Freehand", icon: PenLine },
-	{ id: "text", label: "Text", icon: TextCursorInput },
-	{ id: "frame", label: "Frame", icon: Frame },
+}
+
+// This exhaustive record is the compile-time parity gate for the web/core tool
+// contract. Adding a ToolType to canvas-core requires an SDK implementation.
+const SDK_CORE_TOOLS: Record<ToolType, SdkToolDefinition> = {
+	select: { id: "select", label: "Select", icon: MousePointer2 },
+	lasso: { id: "lasso", label: "Lasso", icon: Lasso },
+	pan: { id: "pan", label: "Pan", icon: Hand },
+	rectangle: { id: "rectangle", label: "Rectangle", icon: Square },
+	ellipse: { id: "ellipse", label: "Ellipse", icon: Circle },
+	diamond: { id: "diamond", label: "Diamond", icon: Diamond },
+	line: { id: "line", label: "Line", icon: Minus },
+	arrow: { id: "arrow", label: "Arrow", icon: ArrowRight },
+	freehand: { id: "freehand", label: "Freehand", icon: PenLine },
+	text: { id: "text", label: "Text", icon: TextCursorInput },
+	frame: { id: "frame", label: "Frame", icon: Frame },
+	eraser: { id: "eraser", label: "Eraser", icon: Eraser },
+	laser: { id: "laser", label: "Laser", icon: Zap },
+	eyedropper: { id: "eyedropper", label: "Eyedropper", icon: Pipette },
+};
+
+const SDK_TOOLS: SdkToolDefinition[] = [
+	...Object.values(SDK_CORE_TOOLS),
 	{ id: "sticky-note", label: "Sticky note", icon: StickyNote },
 	{ id: "kanban", label: "Kanban board", icon: Kanban },
 	{ id: "mindmap", label: "Mindmap", icon: GitBranch },
 ];
+
+export const SKEDRA_SDK_TOOL_IDS: readonly SkedraSdkTool[] = SDK_TOOLS.map(
+	(tool) => tool.id,
+);
+
+const SDK_READ_ONLY_TOOLS = new Set<SkedraSdkTool>([
+	"select",
+	"lasso",
+	"pan",
+	"laser",
+	"eyedropper",
+]);
 
 const DEFAULT_STROKE = "#17211d";
 const DEFAULT_FILL = "transparent";
@@ -337,6 +386,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			start: Point;
 			end: Point;
 		} | null>(null);
+		const [lassoPath, setLassoPath] = useState<Point[] | null>(null);
+		const [laserTrail, setLaserTrail] = useState<{
+			points: Point[];
+			finished: boolean;
+		} | null>(null);
 		const [stroke, setStroke] = useState(strokeColor);
 		const [fill, setFill] = useState(fillColor);
 
@@ -350,6 +404,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const selectionRect = selectionBox
 			? normalizeCanvasRect(selectionBox.start, selectionBox.end)
 			: null;
+		const lassoPathData = lassoPath
+			? lassoPathToSvgD(lassoPath.map((point) => [point.x, point.y]))
+			: null;
+
+		useEffect(() => {
+			if (!laserTrail?.finished) return;
+			const timeout = window.setTimeout(() => setLaserTrail(null), 450);
+			return () => window.clearTimeout(timeout);
+		}, [laserTrail?.finished]);
 
 		const commitElements = useCallback(
 			(next: CanvasElement[]) => {
@@ -693,7 +756,64 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return;
 			}
 
-			if (readOnly) return;
+			if (tool === "laser") {
+				const points = [world];
+				dragRef.current = { type: "laser", points };
+				setLaserTrail({ points, finished: false });
+				return;
+			}
+
+			if (tool === "eyedropper") {
+				const hit = scene.getElementAtPosition(world.x, world.y, {
+					tolerance: 6 / viewport.zoom,
+				});
+				if (hit) {
+					setStroke(hit.stroke);
+					setFill(hit.fill);
+				}
+				setTool("select");
+				return;
+			}
+
+			if (tool === "lasso" || (tool === "select" && event.altKey)) {
+				const points = [world];
+				dragRef.current = { type: "lasso", points };
+				setLassoPath(points);
+				setSelectedIds(new Set());
+				return;
+			}
+
+			if (readOnly && tool !== "select") return;
+
+			if (tool === "eraser") {
+				const drag: Extract<DragState, { type: "erase" }> = {
+					type: "erase",
+					startElements: currentElements,
+					erasedIds: new Set(),
+				};
+				dragRef.current = drag;
+				for (const element of scene.getElementsToEraseAtPosition(
+					world.x,
+					world.y,
+					12 / viewport.zoom,
+					drag.erasedIds,
+				)) {
+					drag.erasedIds.add(element.id);
+				}
+				if (drag.erasedIds.size > 0) {
+					commitCanvasElements(
+						applyCanvasMutationPlan(
+							drag.startElements,
+							planCanvasDeletion(
+								toCanvasElementMap(drag.startElements),
+								drag.erasedIds,
+							),
+						),
+					);
+				}
+				setSelectedIds(new Set());
+				return;
+			}
 
 			if (tool === "text") {
 				const text = resolveText(null);
@@ -745,10 +865,21 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						? selectedIds
 						: new Set([hit.id]);
 					setSelectedIds(nextSelection);
+					if (readOnly) return;
 					dragRef.current = {
 						type: "select-move",
 						startWorld: world,
 						startElements: currentElements,
+						moveStart: new Map(
+							Array.from(nextSelection).flatMap((id) => {
+								const element = currentElements.find(
+									(candidate) => candidate.id === id,
+								);
+								return element && !element.locked
+									? [[id, { x: element.x, y: element.y }] as const]
+									: [];
+							}),
+						),
 					};
 					return;
 				}
@@ -816,6 +947,64 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return;
 			}
 
+			if (drag.type === "laser") {
+				const previous = drag.points[drag.points.length - 1];
+				if (
+					!previous ||
+					Math.hypot(world.x - previous.x, world.y - previous.y) > 2
+				) {
+					drag.points.push(world);
+					setLaserTrail({ points: [...drag.points], finished: false });
+				}
+				return;
+			}
+
+			if (drag.type === "lasso") {
+				const previous = drag.points[drag.points.length - 1];
+				if (
+					!previous ||
+					Math.hypot(world.x - previous.x, world.y - previous.y) > 2
+				) {
+					drag.points.push(world);
+					const points = [...drag.points];
+					setLassoPath(points);
+					setSelectedIds(
+						new Set(
+							CanvasScene.from(currentElements)
+								.getElementsInLassoPath(
+									points.map((point) => [point.x, point.y]),
+								)
+								.map((element) => element.id),
+						),
+					);
+				}
+				return;
+			}
+
+			if (drag.type === "erase") {
+				const startScene = CanvasScene.from(drag.startElements);
+				for (const element of startScene.getElementsToEraseAtPosition(
+					world.x,
+					world.y,
+					12 / viewport.zoom,
+					drag.erasedIds,
+				)) {
+					drag.erasedIds.add(element.id);
+				}
+				if (drag.erasedIds.size > 0) {
+					commitCanvasElements(
+						applyCanvasMutationPlan(
+							drag.startElements,
+							planCanvasDeletion(
+								toCanvasElementMap(drag.startElements),
+								drag.erasedIds,
+							),
+						),
+					);
+				}
+				return;
+			}
+
 			if (drag.type === "selection") {
 				drag.currentWorld = world;
 				setSelectionBox({ start: drag.startWorld, end: world });
@@ -832,8 +1021,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (drag.type === "select-move") {
 				const dx = world.x - drag.startWorld.x;
 				const dy = world.y - drag.startWorld.y;
+				const startMap = toCanvasElementMap(drag.startElements);
 				commitElements(
-					translateCanvasElements(drag.startElements, selectedIds, dx, dy),
+					applyCanvasElementUpdates(
+						drag.startElements,
+						buildCanvasMoveUpdates(startMap, drag.moveStart, dx, dy),
+					),
 				);
 				return;
 			}
@@ -862,12 +1055,22 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			const drag = dragRef.current;
 			dragRef.current = null;
 			setSelectionBox(null);
+			setLassoPath(null);
+
+			if (drag?.type === "laser") {
+				setLaserTrail({ points: [...drag.points], finished: true });
+				return;
+			}
+
+			if (drag?.type === "erase" || drag?.type === "lasso") {
+				return;
+			}
 
 			if (drag?.type === "select-move") {
 				const elementMap = toCanvasElementMap(currentElements);
 				const updates = [
-					...buildKanbanDropUpdates(elementMap, selectedIds),
-					...buildTemplateDropUpdates(elementMap, selectedIds),
+					...buildKanbanDropUpdates(elementMap, drag.moveStart.keys()),
+					...buildTemplateDropUpdates(elementMap, drag.moveStart.keys()),
 				];
 				commitCanvasElements(
 					applyCanvasMutationPlan(currentElements, {
@@ -1129,9 +1332,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 									data-active={tool === entry.id}
 									title={entry.label}
 									aria-label={entry.label}
-									disabled={
-										readOnly && entry.id !== "pan" && entry.id !== "select"
-									}
+									disabled={readOnly && !SDK_READ_ONLY_TOOLS.has(entry.id)}
 									onClick={() => {
 										setTemplateMenuOpen(false);
 										setTool(entry.id);
@@ -1214,6 +1415,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				<svg
 					ref={svgRef}
 					className="skedra-sdk__surface"
+					data-tool={tool}
 					onPointerDown={handlePointerDown}
 					onPointerMove={handlePointerMove}
 					onPointerUp={handlePointerUp}
@@ -1321,6 +1523,23 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								width={selectionRect.width}
 								height={selectionRect.height}
 								strokeWidth={1 / viewport.zoom}
+							/>
+						)}
+						{lassoPathData && (
+							<path
+								className="skedra-sdk__lasso"
+								d={lassoPathData}
+								strokeWidth={1.5 / viewport.zoom}
+							/>
+						)}
+						{laserTrail && laserTrail.points.length > 1 && (
+							<polyline
+								className="skedra-sdk__laser"
+								data-finished={laserTrail.finished}
+								points={laserTrail.points
+									.map((point) => `${point.x},${point.y}`)
+									.join(" ")}
+								strokeWidth={4 / viewport.zoom}
 							/>
 						)}
 						{!readOnly &&

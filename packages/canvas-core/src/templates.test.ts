@@ -62,3 +62,31 @@ test("template sticky placement and section layout share one implementation", ()
 	assert.ok(updates.some((update) => update.id === section.id));
 	assert.equal(note?.frameId, section.id);
 });
+
+test("SWOT layout normalization is idempotent", () => {
+	const template = createCanvasTemplateElements({
+		id: "swot",
+		x: 0,
+		y: 0,
+		defaults: defaults(),
+	});
+	const elements = new Map(template.map((element) => [element.id, element]));
+	const strengths = template.find(
+		(element) =>
+			getTemplateSectionMeta(element)?.templateSectionId === "strengths",
+	);
+	assert.ok(strengths);
+	elements.set(strengths.id, {
+		...strengths,
+		height: strengths.height + 100,
+	});
+
+	const firstUpdates = buildTemplateSectionLayoutSyncUpdates(elements);
+	assert.ok(firstUpdates.length > 0);
+	for (const update of firstUpdates) {
+		const current = elements.get(update.id);
+		if (current) elements.set(update.id, { ...current, ...update.changes });
+	}
+
+	assert.deepEqual(buildTemplateSectionLayoutSyncUpdates(elements), []);
+});

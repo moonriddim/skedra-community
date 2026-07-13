@@ -4,10 +4,12 @@
 	"license": "AGPL-3.0-only",
 	"scripts": {
 		"dev": "turbo dev",
+		"dev:sdk": "pnpm --filter @skedra/react dev",
 		"build": "turbo build",
 		"test": "turbo test && node --test scripts/*.test.mjs",
 		"lint": "node scripts/check-canvas-boundary.mjs && biome check .",
 		"lint:canvas-boundary": "node scripts/check-canvas-boundary.mjs",
+		"sdk:verify": "pnpm lint:canvas-boundary && pnpm --filter @skedra/canvas-core test && node --test scripts/canvas-parity.test.mjs && pnpm --filter @skedra/react test && pnpm --filter @skedra/web build",
 		"analyze": "fallow",
 		"analyze:fix": "fallow fix --yes",
 		"format": "biome format --write .",

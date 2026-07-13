@@ -14,6 +14,9 @@ const GuestCanvasPage = lazy(() =>
 const LoginPage = lazy(() =>
 	import("@/routes/login").then((m) => ({ default: m.LoginPage })),
 );
+const TwoFactorPage = lazy(() =>
+	import("@/routes/two-factor").then((m) => ({ default: m.TwoFactorPage })),
+);
 const RegisterPage = lazy(() =>
 	import("@/routes/register").then((m) => ({ default: m.RegisterPage })),
 );
@@ -126,6 +129,14 @@ export function App() {
 								element={
 									<Suspense fallback={<PageLoader />}>
 										<RegisterPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/two-factor"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<TwoFactorPage />
 									</Suspense>
 								}
 							/>

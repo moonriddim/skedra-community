@@ -3,6 +3,11 @@
 	"version": "0.1.0",
 	"private": false,
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/moonriddim/Skedra.git",
+		"directory": "packages/react"
+	},
 	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
@@ -29,6 +34,7 @@
 	"sideEffects": ["**/*.css"],
 	"scripts": {
 		"build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly --outDir dist && node scripts/copy-css-assets.mjs",
+		"dev": "node scripts/dev.mjs",
 		"prepack": "pnpm run build",
 		"test": "pnpm run build && node --test \"scripts/*.test.mjs\""
 	},

@@ -288,6 +288,19 @@ async function decryptUserPrivateKeyJwk(
 	return privateKey as JsonWebKey;
 }
 
+/** Re-wraps the E2EE private key when the account password changes. */
+export async function reencryptUserE2eeIdentity(
+	currentPassword: string,
+	newPassword: string,
+	identity: UserE2eeIdentityRecord,
+) {
+	const privateKeyJwk = await decryptUserPrivateKeyJwk(
+		currentPassword,
+		identity.encryptedPrivateKey,
+	);
+	return encryptUserPrivateKeyJwk(newPassword, privateKeyJwk);
+}
+
 export async function createEncryptedUserE2eeIdentity(
 	email: string,
 	password: string,

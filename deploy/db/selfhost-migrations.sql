@@ -675,3 +675,18 @@ CREATE TABLE IF NOT EXISTS "stripe_webhook_events" (
 	"livemode" boolean NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
+
+-- Account security: Better Auth TOTP/backup-code storage.
+ALTER TABLE "users"
+	ADD COLUMN IF NOT EXISTS "two_factor_enabled" boolean DEFAULT false NOT NULL;
+
+CREATE TABLE IF NOT EXISTS "two_factors" (
+	"id" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+	"secret" text NOT NULL,
+	"backup_codes" text NOT NULL,
+	"verified" boolean DEFAULT true NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "two_factors_user_idx"
+	ON "two_factors" ("user_id");

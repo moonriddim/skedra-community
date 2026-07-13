@@ -7,7 +7,9 @@ import {
 	decryptBoardKeyFromRecipientEnvelope,
 	encryptBoardKeyForRecipient,
 	generateE2eeKey,
+	reencryptUserE2eeIdentity,
 	unlockOrCreateUserE2eeIdentity,
+	unlockUserE2eeIdentity,
 } from "./e2ee";
 
 test("board key recipient envelopes are bound to board, recipient, and key hash", async () => {
@@ -100,4 +102,34 @@ test("new user E2EE identities pass the account password to the save call", asyn
 	});
 
 	assert.equal(savedAccountPassword, "correct horse battery staple");
+});
+
+test("password changes re-wrap the existing E2EE identity", async () => {
+	const original = await createEncryptedUserE2eeIdentity(
+		"owner@example.com",
+		"old account password",
+	);
+	const encryptedPrivateKey = await reencryptUserE2eeIdentity(
+		"old account password",
+		"new account password",
+		original,
+	);
+	const rewrapped = {
+		publicKey: original.publicKey,
+		encryptedPrivateKey,
+	};
+
+	const unlocked = await unlockUserE2eeIdentity(
+		"owner@example.com",
+		"new account password",
+		rewrapped,
+	);
+	assert.equal(unlocked.publicKey, original.publicKey);
+	await assert.rejects(() =>
+		unlockUserE2eeIdentity(
+			"owner@example.com",
+			"old account password",
+			rewrapped,
+		),
+	);
 });

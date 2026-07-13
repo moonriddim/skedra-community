@@ -434,6 +434,8 @@ export const deMessages = {
 			title: "Zwei-Faktor-Anmeldung",
 			description:
 				"Bestätige den Login mit deinem Authenticator-Code oder einem Backup-Code.",
+			backupDescription:
+				"Gib einen deiner einmal verwendbaren Wiederherstellungscodes ein.",
 			code: "Authenticator-Code",
 			codePlaceholder: "123456",
 			backupCode: "Backup-Code",
@@ -756,8 +758,22 @@ export const deMessages = {
 				"E-Mail-Änderungen werden in der aktuellen Konfiguration direkt übernommen.",
 			save: "Profil speichern",
 		},
+		emailCard: {
+			title: "E-Mail-Adresse",
+			description:
+				"Ändere die Adresse, mit der du dich anmeldest und Benachrichtigungen erhältst.",
+			currentEmail: "Aktuelle E-Mail",
+			newEmail: "Neue E-Mail",
+			verificationNote:
+				"Bei verifizierten Konten wird die Änderung erst nach Bestätigung der neuen Adresse wirksam.",
+			save: "E-Mail ändern",
+		},
 		passwordCard: {
 			title: "Passwort",
+			description:
+				"Ändere dein Passwort. Andere angemeldete Geräte werden dabei abgemeldet.",
+			noPasswordDescription:
+				"Lege zusätzlich zu deinem SSO-Login ein Passwort als alternative Anmeldemethode fest.",
 			signedInAsPrefix: "Du bist aktuell mit",
 			signedInAsSuffix: "angemeldet.",
 			currentPassword: "Aktuelles Passwort",
@@ -765,8 +781,24 @@ export const deMessages = {
 			confirmPassword: "Neues Passwort bestätigen",
 			sendResetLink: "Reset-Link senden",
 			save: "Passwort aktualisieren",
+			setPassword: "Passwort festlegen",
 			compatibilityNote:
 				"Passwortänderungen verwenden direkt die Better-Auth-Credential-Route und bleiben mit Self-Hosting kompatibel.",
+		},
+		accessCard: {
+			title: "Anmeldemethoden und SSO",
+			description:
+				"Verknüpfe oder trenne die Anbieter, mit denen du auf dieses Konto zugreifen kannst.",
+			emailPassword: "E-Mail und Passwort",
+			connected: "Verknüpft",
+			notConnected: "Nicht verknüpft",
+			connect: "Verknüpfen",
+			disconnect: "Trennen",
+			lastMethodHint:
+				"Die letzte Anmeldemethode kann nicht getrennt werden. Lege zuerst ein Passwort fest oder verknüpfe einen anderen Anbieter.",
+			loadFailed: "Anmeldemethoden konnten nicht geladen werden.",
+			linkFailed: "Der Anbieter konnte nicht verknüpft werden.",
+			unlinkFailed: "Der Anbieter konnte nicht getrennt werden.",
 		},
 		preferencesCard: {
 			title: "Darstellung und Sprache",
@@ -803,6 +835,10 @@ export const deMessages = {
 			twoFactorEnabled: "2FA ist aktiv",
 			twoFactorDisabled: "2FA ist nicht aktiv",
 			currentPassword: "Aktuelles Passwort",
+			authenticatorAndBackup:
+				"Authenticator-App mit einmal verwendbaren Wiederherstellungscodes.",
+			passwordRequired:
+				"Lege zuerst eine Passwort-Anmeldemethode fest und bestätige dann dein aktuelles Passwort.",
 			enable: "2FA einrichten",
 			disable: "2FA deaktivieren",
 			enableFailed: "2FA konnte nicht eingerichtet werden",
@@ -833,6 +869,26 @@ export const deMessages = {
 			mobileDevice: "Mobiles Gerät",
 			unknownUserAgent: "Unbekannter Browser",
 		},
+		dangerZone: {
+			title: "Account schließen und Daten löschen",
+			description:
+				"Löscht dein Konto, deine eigenen Workspaces und Boards, Dateien, Schlüssel, Integrationen und persönlichen Einstellungen dauerhaft.",
+			deleteAccount: "Account löschen",
+			dialogTitle: "Account endgültig löschen?",
+			dialogDescription: "Dieser Vorgang kann nicht rückgängig gemacht werden.",
+			dataWarning:
+				"Alle von dir besessenen Boards und Workspaces sowie die darin gespeicherten Dateien werden dauerhaft gelöscht. Inhalte anderer Personen, die dir nur freigegeben wurden, bleiben erhalten.",
+			confirmationLabel: (params: TranslationParams) =>
+				`Gib zur Bestätigung ${params.email ?? "deine E-Mail-Adresse"} ein`,
+			passwordLabel: "Aktuelles Passwort",
+			legalRetention:
+				"Gesetzlich vorgeschriebene Rechnungs- und Zahlungsnachweise können beim Zahlungsanbieter für die vorgeschriebene Dauer aufbewahrt werden.",
+			cancel: "Abbrechen",
+			confirmDelete: "Alles endgültig löschen",
+			deleting: "Wird gelöscht...",
+			deleteFailed:
+				"Der Account konnte nicht vollständig gelöscht werden. Es wurden keine unvollständigen Löschungen bestätigt; versuche es erneut.",
+		},
 		messages: {
 			avatarUploadFailed: "Avatar-Upload fehlgeschlagen",
 			avatarUploadedPendingSave:
@@ -842,10 +898,14 @@ export const deMessages = {
 			profileSavedRefreshing:
 				"Profil gespeichert. Die Ansicht wird aktualisiert.",
 			profileSaveFailed: "Profil konnte nicht gespeichert werden",
+			emailChangeRequested:
+				"E-Mail-Änderung gestartet. Prüfe gegebenenfalls dein neues Postfach zur Bestätigung.",
+			emailChangeFailed: "E-Mail-Adresse konnte nicht geändert werden.",
 			newPasswordTooShort:
 				"Das neue Passwort muss mindestens 8 Zeichen lang sein",
 			passwordMismatch: "Die neue Passwortbestätigung stimmt nicht überein",
 			passwordUpdated: "Passwort erfolgreich aktualisiert.",
+			passwordSet: "Passwort erfolgreich als Anmeldemethode hinzugefügt.",
 			passwordUpdateFailed: "Passwort konnte nicht aktualisiert werden",
 			passwordResetSent: "Reset-Link angefordert. Prüfe deine E-Mails.",
 			passwordResetLocalLinkReady:
@@ -859,6 +919,8 @@ export const deMessages = {
 				"2FA-Setup vorbereitet. Bestätige jetzt den Code aus deiner Authenticator-App.",
 			twoFactorEnabled: "Zwei-Faktor-Authentifizierung aktiviert.",
 			twoFactorDisabled: "Zwei-Faktor-Authentifizierung deaktiviert.",
+			providerUnlinked: (params: TranslationParams) =>
+				`${params.provider ?? "Anbieter"} wurde vom Konto getrennt.`,
 		},
 	},
 	systemSettings: {

@@ -975,8 +975,47 @@ export function buildTemplateSectionLayoutSyncUpdates(
 		}
 	}
 	applyTemplateUpdates(nextElements, updates);
-	updates.push(...buildTemplateBoardLayoutUpdates(nextElements));
+	updates.push(
+		...buildTemplateBoardLayoutUpdates(nextElements).filter((update) => {
+			const current = nextElements.get(update.id);
+			return (
+				current != null &&
+				Object.entries(update.changes).some(
+					([key, value]) =>
+						!templateLayoutValueEquals(
+							current[key as keyof CanvasElement],
+							value,
+						),
+				)
+			);
+		}),
+	);
 	return updates;
+}
+
+function templateLayoutValueEquals(left: unknown, right: unknown): boolean {
+	if (Object.is(left, right)) return true;
+	if (Array.isArray(left) && Array.isArray(right)) {
+		return (
+			left.length === right.length &&
+			left.every((value, index) =>
+				templateLayoutValueEquals(value, right[index]),
+			)
+		);
+	}
+	if (isRecord(left) && isRecord(right)) {
+		const leftKeys = Object.keys(left);
+		const rightKeys = Object.keys(right);
+		return (
+			leftKeys.length === rightKeys.length &&
+			leftKeys.every(
+				(key) =>
+					Object.hasOwn(right, key) &&
+					templateLayoutValueEquals(left[key], right[key]),
+			)
+		);
+	}
+	return false;
 }
 
 function applyTemplateUpdates(

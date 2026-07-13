@@ -325,20 +325,18 @@ export function ApiKeysSettingsPage() {
 					</div>
 
 					<nav className="flex flex-row gap-1 border-b border-border pb-2 lg:flex-col lg:border-none lg:pb-0 overflow-x-auto">
-						{showBillingTab ? (
-							<button
-								type="button"
-								onClick={() => setActiveTab("profile")}
-								className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
-									activeTab === "profile"
-										? "bg-primary/10 text-primary"
-										: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-								}`}
-							>
-								<User className="h-4 w-4" />
-								<span>Mein Profil</span>
-							</button>
-						) : null}
+						<button
+							type="button"
+							onClick={() => setActiveTab("profile")}
+							className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
+								activeTab === "profile"
+									? "bg-primary/10 text-primary"
+									: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+							}`}
+						>
+							<User className="h-4 w-4" />
+							<span>Mein Profil</span>
+						</button>
 						{showTeamTab ? (
 							<button
 								type="button"
@@ -353,18 +351,20 @@ export function ApiKeysSettingsPage() {
 								<span>Team-Mitglieder</span>
 							</button>
 						) : null}
-						<button
-							type="button"
-							onClick={() => setActiveTab("billing")}
-							className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
-								activeTab === "billing"
-									? "bg-primary/10 text-primary"
-									: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-							}`}
-						>
-							<CreditCard className="h-4 w-4" />
-							<span>Abrechnung</span>
-						</button>
+						{showBillingTab ? (
+							<button
+								type="button"
+								onClick={() => setActiveTab("billing")}
+								className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
+									activeTab === "billing"
+										? "bg-primary/10 text-primary"
+										: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+								}`}
+							>
+								<CreditCard className="h-4 w-4" />
+								<span>Abrechnung</span>
+							</button>
+						) : null}
 						<button
 							type="button"
 							onClick={() => setActiveTab("api-keys")}

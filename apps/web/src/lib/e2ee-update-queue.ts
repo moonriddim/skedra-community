@@ -107,3 +107,21 @@ export async function deletePendingE2eeUpdate(id: string) {
 	transaction.objectStore(STORE_NAME).delete(id);
 	await transactionDone(transaction);
 }
+
+/** Closes and removes the complete offline queue when a user deletes the account. */
+export async function deletePendingE2eeUpdateDatabase() {
+	if (!("indexedDB" in window)) return;
+
+	const openDb = dbPromise ? await dbPromise.catch(() => null) : null;
+	openDb?.close();
+	dbPromise = null;
+
+	await new Promise<void>((resolve, reject) => {
+		const request = indexedDB.deleteDatabase(DB_NAME);
+		request.onsuccess = () => resolve();
+		request.onerror = () =>
+			reject(request.error ?? new Error("IndexedDB delete failed"));
+		request.onblocked = () =>
+			reject(new Error("IndexedDB delete was blocked by another tab"));
+	});
+}

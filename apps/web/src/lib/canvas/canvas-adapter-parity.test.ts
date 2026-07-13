@@ -5,17 +5,27 @@ import {
 	type CanvasMutationAdapter,
 	type CanvasMutationPlan,
 	applyCanvasMutationPlan,
+	buildCanvasDrawingElement,
+	buildCanvasMoveUpdates,
+	buildCanvasTextElement,
+	buildCanvasTextUpdate,
 	buildTemplateDropUpdates,
+	collectCanvasSelectionRectIds,
 	createBaseCanvasElement,
 	createCanvasTemplateElements,
 	createCanvasTemplateStickyNote,
 	createKanbanCardElement,
 	createKanbanListElements,
+	createMindmapNode,
 	executeCanvasMutationPlan,
+	getCanvasKeyboardResizeChanges,
 	getTemplateSectionMeta,
+	planCanvasDeletion,
 	planCanvasNormalization,
 	planKanbanCardInsertion,
+	planMindmapChildMutation,
 	toCanvasElementMap,
+	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
 import * as Y from "yjs";
 import {
@@ -114,6 +124,159 @@ test("multiple updates for one id preserve every changed field in both adapters"
 	);
 });
 
+test("mindmap insertion runs the same mutation plan through both adapters", () => {
+	const root = createMindmapNode({
+		id: "mindmap-root",
+		x: 100,
+		y: 100,
+		text: "Root",
+		treeId: "mindmap-tree",
+		parentId: null,
+		direction: "right",
+		depth: 0,
+	});
+	const plan = planMindmapChildMutation({
+		parentId: root.id,
+		elements: toCanvasElementMap([root]),
+		createId: idFactory("mindmap"),
+		text: "Child",
+		startEditing: false,
+	});
+	assert.ok(plan);
+
+	const result = assertAdapterParity([root], plan);
+	assert.equal(result.length, 3);
+	assert.equal(
+		result.filter(
+			(element) => element.customData?.skedraType === "mindmap-node",
+		).length,
+		2,
+	);
+});
+
+test("drawing and text creation and text updates stay adapter-identical", () => {
+	const drawing = buildCanvasDrawingElement({
+		id: "drawing",
+		tool: "freehand",
+		start: { x: 20, y: 30 },
+		end: { x: 80, y: 90 },
+		points: [
+			{ x: 20, y: 30 },
+			{ x: 40, y: 55 },
+			{ x: 80, y: 90 },
+		],
+		style: { stroke: "#111" },
+	});
+	const text = buildCanvasTextElement({
+		id: "text",
+		point: { x: 120, y: 160 },
+		text: "Draft",
+		stroke: "#222",
+	});
+	const result = assertAdapterParity([], {
+		create: [drawing, text],
+		update: [
+			{
+				id: text.id,
+				changes: buildCanvasTextUpdate({
+					element: text,
+					text: "Shared text",
+					size: { width: 180, height: 48 },
+				}),
+			},
+		],
+		deleteIds: [],
+		selectedIds: [text.id],
+		editingTextId: text.id,
+	});
+
+	assert.equal(
+		result.find((element) => element.id === text.id)?.text,
+		"Shared text",
+	);
+});
+
+test("frame movement, resize, and deletion stay adapter-identical", () => {
+	const frame = createBaseCanvasElement(
+		{ createId: () => "frame", stroke: "#111" },
+		{ type: "frame", x: 10, y: 20, width: 300, height: 220 },
+	);
+	const child = createBaseCanvasElement(
+		{ createId: () => "frame-child", stroke: "#111" },
+		{
+			type: "rectangle",
+			x: 40,
+			y: 70,
+			width: 80,
+			height: 60,
+			frameId: frame.id,
+		},
+	);
+	const initialElements = [frame, child];
+	const moveStart = new Map([[frame.id, { x: frame.x, y: frame.y }]]);
+	const moveUpdates = buildCanvasMoveUpdates(
+		toCanvasElementMap(initialElements),
+		moveStart,
+		35,
+		25,
+	);
+	const afterMove = applyCanvasMutationPlan(initialElements, {
+		create: [],
+		update: moveUpdates,
+		deleteIds: [],
+	});
+	const movedChild = afterMove.find((element) => element.id === child.id);
+	assert.ok(movedChild);
+	const resizeChanges = getCanvasKeyboardResizeChanges({
+		element: movedChild,
+		handle: "se",
+		key: "ArrowRight",
+		shiftKey: true,
+	});
+	assert.ok(resizeChanges);
+
+	const result = assertAdapterParity(initialElements, {
+		create: [],
+		update: [...moveUpdates, { id: child.id, changes: resizeChanges }],
+		deleteIds: [],
+	});
+	const movedAndResizedChild = result.find(
+		(element) => element.id === child.id,
+	);
+	assert.ok(movedAndResizedChild);
+	assert.equal(movedAndResizedChild.x, child.x + 35);
+	assert.equal(movedAndResizedChild.y, child.y + 25);
+	assert.equal(movedAndResizedChild.width, child.width + 10);
+
+	const afterDeletion = assertAdapterParity(
+		result,
+		planCanvasDeletion(toCanvasElementMap(result), [child.id]),
+	);
+	assert.equal(
+		afterDeletion.some((element) => element.id === child.id),
+		false,
+	);
+});
+
+test("selection and zoom use the same shared contracts", () => {
+	const element = createBaseCanvasElement(
+		{ createId: () => "selected", stroke: "#111" },
+		{ type: "rectangle", x: 50, y: 60, width: 100, height: 80 },
+	);
+	assert.deepEqual(
+		collectCanvasSelectionRectIds(
+			[element],
+			{ x: 0, y: 0 },
+			{ x: 200, y: 200 },
+		),
+		new Set([element.id]),
+	);
+	assert.deepEqual(
+		zoomCanvasViewportAtPoint({ x: 10, y: 20, zoom: 1 }, { x: 110, y: 120 }, 2),
+		{ x: -90, y: -80, zoom: 2 },
+	);
+});
+
 test("expanding SWOT layout keeps note size and position identical", () => {
 	const defaults = {
 		createId: idFactory("swot"),
@@ -168,6 +331,10 @@ test("expanding SWOT layout keeps note size and position identical", () => {
 	assert.equal(normalizedNote.width, 160);
 	assert.equal(normalizedNote.height, 124);
 	assert.ok(normalizedNote.y > lowerNote.y);
+	assert.deepEqual(
+		planCanvasNormalization(toCanvasElementMap(result)).update,
+		[],
+	);
 });
 
 test("template move, resize, and deletion normalize through both adapters", () => {

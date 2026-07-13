@@ -2,12 +2,7 @@
  * Verschiebe-Geste: Position-Updates inkl. Snap, Frame-Kinder, Mindmap-Kanten.
  */
 
-import {
-	buildMindmapEdgeChanges,
-	collectConnectedMindmapEdgeIds,
-	getMindmapEdgeMeta,
-} from "@skedra/canvas-core";
-import { calcSnap } from "@skedra/canvas-core";
+import { buildCanvasMoveUpdates, calcSnap } from "@skedra/canvas-core";
 import type { SnapGuide } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { PointerState } from "./pointer-types";
@@ -49,55 +44,7 @@ export function buildMoveGestureUpdates(
 		}
 	}
 
-	const updates: Array<{ id: string; changes: Partial<CanvasElement> }> = [];
-	const movedIds = new Set(state.moveStart.keys());
-	const virtualElements = new Map(elements);
-
-	for (const [id, start] of state.moveStart) {
-		const nextX = start.x + dx;
-		const nextY = start.y + dy;
-		updates.push({ id, changes: { x: nextX, y: nextY } });
-		const current = virtualElements.get(id);
-		if (current) {
-			virtualElements.set(id, { ...current, x: nextX, y: nextY });
-		}
-	}
-
-	for (const [id] of state.moveStart) {
-		const el = elements.get(id);
-		if (el?.type === "frame") {
-			for (const [childId, child] of elements) {
-				if (child.frameId === id && !movedIds.has(childId)) {
-					if (!state.moveStart.has(childId)) {
-						state.moveStart.set(childId, { x: child.x, y: child.y });
-					}
-					const cStart = state.moveStart.get(childId);
-					if (!cStart) continue;
-					const nextX = cStart.x + dx;
-					const nextY = cStart.y + dy;
-					updates.push({ id: childId, changes: { x: nextX, y: nextY } });
-					virtualElements.set(childId, { ...child, x: nextX, y: nextY });
-					movedIds.add(childId);
-				}
-			}
-		}
-	}
-
-	const connectedEdgeIds = collectConnectedMindmapEdgeIds(movedIds, elements);
-	for (const edgeId of connectedEdgeIds) {
-		const edge = elements.get(edgeId);
-		const meta = getMindmapEdgeMeta(edge);
-		if (!meta) continue;
-		const source = virtualElements.get(meta.mindmapSourceId);
-		const target = virtualElements.get(meta.mindmapTargetId);
-		if (!source || !target) continue;
-		updates.push({
-			id: edgeId,
-			changes: buildMindmapEdgeChanges(source, target),
-		});
-	}
-
-	return updates;
+	return buildCanvasMoveUpdates(elements, state.moveStart, dx, dy);
 }
 
 export function buildDragPointUpdate(

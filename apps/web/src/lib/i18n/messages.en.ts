@@ -428,6 +428,7 @@ export const enMessages = {
 			title: "Two-factor sign-in",
 			description:
 				"Confirm your sign-in with an authenticator code or a backup code.",
+			backupDescription: "Enter one of your single-use recovery codes.",
 			code: "Authenticator code",
 			codePlaceholder: "123456",
 			backupCode: "Backup code",
@@ -746,8 +747,22 @@ export const enMessages = {
 				"Email changes are applied directly in the current configuration.",
 			save: "Save profile",
 		},
+		emailCard: {
+			title: "Email address",
+			description:
+				"Change the address you use to sign in and receive notifications.",
+			currentEmail: "Current email",
+			newEmail: "New email",
+			verificationNote:
+				"For verified accounts, the change takes effect only after the new address is confirmed.",
+			save: "Change email",
+		},
 		passwordCard: {
 			title: "Password",
+			description:
+				"Change your password. Other signed-in devices will be signed out.",
+			noPasswordDescription:
+				"Add a password as an alternative sign-in method alongside SSO.",
 			signedInAsPrefix: "You are currently signed in with",
 			signedInAsSuffix: ".",
 			currentPassword: "Current password",
@@ -755,8 +770,24 @@ export const enMessages = {
 			confirmPassword: "Confirm new password",
 			sendResetLink: "Send reset link",
 			save: "Update password",
+			setPassword: "Set password",
 			compatibilityNote:
 				"Password changes use the Better Auth credential route directly and remain compatible with self-hosting.",
+		},
+		accessCard: {
+			title: "Sign-in methods and SSO",
+			description:
+				"Connect or disconnect the providers that can access this account.",
+			emailPassword: "Email and password",
+			connected: "Connected",
+			notConnected: "Not connected",
+			connect: "Connect",
+			disconnect: "Disconnect",
+			lastMethodHint:
+				"The final sign-in method cannot be disconnected. Set a password or connect another provider first.",
+			loadFailed: "Sign-in methods could not be loaded.",
+			linkFailed: "The provider could not be connected.",
+			unlinkFailed: "The provider could not be disconnected.",
 		},
 		preferencesCard: {
 			title: "Appearance and language",
@@ -793,6 +824,10 @@ export const enMessages = {
 			twoFactorEnabled: "2FA is enabled",
 			twoFactorDisabled: "2FA is not enabled",
 			currentPassword: "Current password",
+			authenticatorAndBackup:
+				"Authenticator app with single-use recovery codes.",
+			passwordRequired:
+				"Set up a password sign-in method first, then confirm your current password.",
 			enable: "Set up 2FA",
 			disable: "Disable 2FA",
 			enableFailed: "Could not set up 2FA",
@@ -823,6 +858,26 @@ export const enMessages = {
 			mobileDevice: "Mobile device",
 			unknownUserAgent: "Unknown browser",
 		},
+		dangerZone: {
+			title: "Close account and delete data",
+			description:
+				"Permanently deletes your account, owned workspaces and boards, files, keys, integrations, and personal settings.",
+			deleteAccount: "Delete account",
+			dialogTitle: "Permanently delete account?",
+			dialogDescription: "This action cannot be undone.",
+			dataWarning:
+				"All boards and workspaces you own, including their stored files, will be permanently deleted. Content owned by others and merely shared with you is retained.",
+			confirmationLabel: (params: TranslationParams) =>
+				`Enter ${params.email ?? "your email address"} to confirm`,
+			passwordLabel: "Current password",
+			legalRetention:
+				"Legally required billing and payment records may be retained by the payment provider for the required period.",
+			cancel: "Cancel",
+			confirmDelete: "Permanently delete everything",
+			deleting: "Deleting...",
+			deleteFailed:
+				"The account could not be deleted completely. No incomplete deletion was confirmed; please try again.",
+		},
 		messages: {
 			avatarUploadFailed: "Avatar upload failed",
 			avatarUploadedPendingSave:
@@ -831,10 +886,14 @@ export const enMessages = {
 			nameTooShort: "Name must be at least 2 characters long",
 			profileSavedRefreshing: "Profile saved. Refreshing the view.",
 			profileSaveFailed: "Could not save profile",
+			emailChangeRequested:
+				"Email change started. Check your new inbox for a confirmation if required.",
+			emailChangeFailed: "Email address could not be changed.",
 			newPasswordTooShort:
 				"The new password must be at least 8 characters long",
 			passwordMismatch: "The new password confirmation does not match",
 			passwordUpdated: "Password updated successfully.",
+			passwordSet: "Password added successfully as a sign-in method.",
 			passwordUpdateFailed: "Could not update password",
 			passwordResetSent: "Reset link requested. Check your email.",
 			passwordResetLocalLinkReady:
@@ -848,6 +907,8 @@ export const enMessages = {
 				"2FA setup is ready. Confirm the code from your authenticator app now.",
 			twoFactorEnabled: "Two-factor authentication enabled.",
 			twoFactorDisabled: "Two-factor authentication disabled.",
+			providerUnlinked: (params: TranslationParams) =>
+				`${params.provider ?? "Provider"} was disconnected from the account.`,
 		},
 	},
 	systemSettings: {

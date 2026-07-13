@@ -1,9 +1,10 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	plugins: [react()],
 	build: {
+		emptyOutDir: mode !== "sdk-watch",
 		lib: {
 			entry: {
 				index: "src/index.ts",
@@ -18,4 +19,4 @@ export default defineConfig({
 			external: ["react", "react/jsx-runtime", "react-dom"],
 		},
 	},
-});
+}));

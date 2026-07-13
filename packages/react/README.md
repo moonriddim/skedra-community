@@ -57,6 +57,12 @@ export function Board() {
 
 The ref exposes `insertStickyNote`, `insertFrame`, `insertKanbanBoard`, `insertKanbanCard`, `insertMindmap`, `insertMindmapChild`, `insertMindmapSibling`, and `insertTemplate`.
 
+The built-in toolbar covers the complete shared `ToolType` contract: select,
+lasso, pan, shapes, line/arrow, freehand, text, frame, eraser, laser, and
+eyedropper. SDK-specific insertion tools add sticky notes, Kanban boards,
+mindmaps, and all shared templates. `SKEDRA_SDK_TOOL_IDS` exposes the supported
+tool IDs to host applications.
+
 ## Canvas parity
 
 The SDK and the Skedra web application use the same SDK-scoped canvas

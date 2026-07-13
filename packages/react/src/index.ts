@@ -1,4 +1,4 @@
-export { SkedraCanvas } from "./skedra-canvas.js";
+export { SKEDRA_SDK_TOOL_IDS, SkedraCanvas } from "./skedra-canvas.js";
 export {
 	SKEDRA_WORKSPACE_CALL_DISABLED,
 	SKEDRA_WORKSPACE_HOOKS_DISABLED,

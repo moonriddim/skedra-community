@@ -1,7 +1,15 @@
-import { accounts, sessions, users, verifications } from "@skedra/db";
+import {
+	accounts,
+	sessions,
+	twoFactors,
+	users,
+	verifications,
+} from "@skedra/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { twoFactor } from "better-auth/plugins";
 import { env } from "../env";
+import { prepareCompleteAccountDeletion } from "./account-deletion";
 import { db } from "./db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mail";
 
@@ -39,6 +47,7 @@ export const auth = betterAuth({
 			session: sessions,
 			account: accounts,
 			verification: verifications,
+			twoFactor: twoFactors,
 		},
 	}),
 	secret: env.AUTH_SECRET,
@@ -50,6 +59,18 @@ export const auth = betterAuth({
 		encryptOAuthTokens: true,
 		accountLinking: {
 			enabled: true,
+		},
+	},
+	user: {
+		changeEmail: {
+			enabled: true,
+			// Self-hosted password accounts commonly run without SMTP and start
+			// unverified. Managed/verified accounts still confirm the new address.
+			updateEmailWithoutVerification: !requireEmailVerification,
+		},
+		deleteUser: {
+			enabled: true,
+			beforeDelete: prepareCompleteAccountDeletion,
 		},
 	},
 	// Fix A5: Rate-Limiting gegen Brute-Force und Reset-/Mail-Bombing. Sensible
@@ -91,4 +112,9 @@ export const auth = betterAuth({
 			});
 		},
 	},
+	plugins: [
+		twoFactor({
+			issuer: "Skedra",
+		}),
+	],
 });

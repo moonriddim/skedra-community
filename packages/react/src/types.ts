@@ -1,3 +1,10 @@
+import type {
+	CanvasElement as CoreCanvasElement,
+	ElementType as CoreElementType,
+	SavedCanvasView as CoreSavedCanvasView,
+	Viewport as CoreViewport,
+} from "@skedra/canvas-core";
+
 export type ElementType =
 	| "rectangle"
 	| "ellipse"
@@ -79,3 +86,22 @@ export interface SavedCanvasView {
 	updatedAt: number;
 	presenterNotes?: string;
 }
+
+type IsExact<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
+	Value,
+>() => Value extends Right ? 1 : 2
+	? true
+	: false;
+
+// Keep the published declarations self-contained while making any drift from
+// canvas-core a compile error during every SDK build and watch session.
+const canvasElementTypeParity: IsExact<CanvasElement, CoreCanvasElement> = true;
+const elementTypeParity: IsExact<ElementType, CoreElementType> = true;
+const savedCanvasViewTypeParity: IsExact<SavedCanvasView, CoreSavedCanvasView> =
+	true;
+const viewportTypeParity: IsExact<Viewport, CoreViewport> = true;
+
+void canvasElementTypeParity;
+void elementTypeParity;
+void savedCanvasViewTypeParity;
+void viewportTypeParity;

@@ -9,7 +9,9 @@ import {
 	isKanbanList,
 } from "./kanban";
 import {
+	buildMindmapEdgeChanges,
 	buildMindmapSyncUpdates,
+	collectConnectedMindmapEdgeIds,
 	collectMindmapDescendantIds,
 	createMindmapEdge,
 	createMindmapNode,
@@ -418,6 +420,69 @@ export function translateCanvasElements(
 			? { ...element, x: element.x + dx, y: element.y + dy }
 			: element,
 	);
+}
+
+/**
+ * Builds the shared movement updates used by both canvas consumers.
+ * The supplied start map is expanded in place so drop handling can use the
+ * complete set of moved frame children and mindmap descendants.
+ */
+export function buildCanvasMoveUpdates(
+	elements: Map<string, CanvasElement>,
+	moveStart: Map<string, CanvasPoint>,
+	dx: number,
+	dy: number,
+): CanvasElementUpdate[] {
+	const pendingIds = Array.from(moveStart.keys());
+	for (let index = 0; index < pendingIds.length; index++) {
+		const id = pendingIds[index];
+		const element = elements.get(id);
+		if (!element) continue;
+
+		if (isMindmapNode(element)) {
+			for (const descendantId of collectMindmapDescendantIds(id, elements)) {
+				if (moveStart.has(descendantId)) continue;
+				const descendant = elements.get(descendantId);
+				if (!descendant) continue;
+				moveStart.set(descendantId, { x: descendant.x, y: descendant.y });
+				pendingIds.push(descendantId);
+			}
+		}
+
+		if (element.type === "frame") {
+			for (const [childId, child] of elements) {
+				if (child.frameId !== id || moveStart.has(childId)) continue;
+				moveStart.set(childId, { x: child.x, y: child.y });
+				pendingIds.push(childId);
+			}
+		}
+	}
+
+	const movedIds = new Set(moveStart.keys());
+	const virtualElements = new Map(elements);
+	const updates: CanvasElementUpdate[] = [];
+	for (const [id, start] of moveStart) {
+		const current = virtualElements.get(id);
+		if (!current) continue;
+		const changes = { x: start.x + dx, y: start.y + dy };
+		updates.push({ id, changes });
+		virtualElements.set(id, { ...current, ...changes });
+	}
+
+	for (const edgeId of collectConnectedMindmapEdgeIds(movedIds, elements)) {
+		const edge = elements.get(edgeId);
+		const meta = getMindmapEdgeMeta(edge);
+		if (!meta) continue;
+		const source = virtualElements.get(meta.mindmapSourceId);
+		const target = virtualElements.get(meta.mindmapTargetId);
+		if (!source || !target) continue;
+		updates.push({
+			id: edgeId,
+			changes: buildMindmapEdgeChanges(source, target),
+		});
+	}
+
+	return updates;
 }
 
 export function collectCanvasSelectionRectIds(

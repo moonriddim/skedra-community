@@ -5,6 +5,7 @@ import {
 	applyCanvasElementUpdates,
 	applyCanvasMutationPlan,
 	buildCanvasDrawingElement,
+	buildCanvasMoveUpdates,
 	collectCanvasSelectionRectIds,
 	executeCanvasMutationPlan,
 	getCanvasKeyboardCommand,
@@ -251,6 +252,78 @@ test("drawing, selection, movement, and keyboard commands use one contract", () 
 		}),
 		"delete-selection",
 	);
+});
+
+test("shared movement expands frame children and mindmap descendants", () => {
+	const frame = createBaseCanvasElement(
+		{ createId: () => "frame", stroke: "#111" },
+		{ type: "frame", x: 10, y: 20, width: 300, height: 200 },
+	);
+	const frameChild = createBaseCanvasElement(
+		{ createId: () => "frame-child", stroke: "#111" },
+		{
+			type: "rectangle",
+			x: 40,
+			y: 60,
+			width: 80,
+			height: 50,
+			frameId: frame.id,
+		},
+	);
+	const root = createMindmapNode({
+		id: "move-root",
+		x: 500,
+		y: 100,
+		text: "Root",
+		treeId: "move-tree",
+		parentId: null,
+		direction: "right",
+		depth: 0,
+	});
+	const child = createMindmapNode({
+		id: "move-child",
+		x: 800,
+		y: 100,
+		text: "Child",
+		treeId: "move-tree",
+		parentId: root.id,
+		direction: "right",
+		depth: 1,
+	});
+	const edge = createMindmapEdge({
+		id: "move-edge",
+		treeId: "move-tree",
+		source: root,
+		target: child,
+		stroke: "#111",
+	});
+	const elements = [frame, frameChild, root, child, edge];
+	const moveStart = new Map([
+		[frame.id, { x: frame.x, y: frame.y }],
+		[root.id, { x: root.x, y: root.y }],
+	]);
+
+	const updates = buildCanvasMoveUpdates(
+		toCanvasElementMap(elements),
+		moveStart,
+		25,
+		-15,
+	);
+	const moved = toCanvasElementMap(
+		applyCanvasElementUpdates(elements, updates),
+	);
+
+	assert.equal(moveStart.has(frameChild.id), true);
+	assert.equal(moveStart.has(child.id), true);
+	assert.deepEqual(
+		{ x: moved.get(frameChild.id)?.x, y: moved.get(frameChild.id)?.y },
+		{ x: frameChild.x + 25, y: frameChild.y - 15 },
+	);
+	assert.deepEqual(
+		{ x: moved.get(child.id)?.x, y: moved.get(child.id)?.y },
+		{ x: child.x + 25, y: child.y - 15 },
+	);
+	assert.ok(updates.some((update) => update.id === edge.id));
 });
 
 test("keyboard resize rejects locked elements", () => {

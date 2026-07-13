@@ -55,6 +55,7 @@ export const users = pgTable("users", {
 	name: text("name").notNull(),
 	email: text("email").notNull().unique(),
 	emailVerified: boolean("email_verified").default(false).notNull(),
+	twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
 	image: text("image"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -99,6 +100,21 @@ export const verifications = pgTable("verifications", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/** TOTP secret and encrypted recovery codes managed by Better Auth's 2FA plugin. */
+export const twoFactors = pgTable(
+	"two_factors",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		secret: text("secret").notNull(),
+		backupCodes: text("backup_codes").notNull(),
+		verified: boolean("verified").default(true).notNull(),
+	},
+	(table) => [index("two_factors_user_idx").on(table.userId)],
+);
 
 // ===== Instanz (Self-Hosting: SMTP, Admin) =====
 
