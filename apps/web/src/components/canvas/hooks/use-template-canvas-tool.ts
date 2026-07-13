@@ -1,8 +1,7 @@
-import {
-	buildTemplateSectionLayoutSyncUpdates,
-	createTemplateStickyNote,
-} from "@/lib/canvas/template-tool-utils";
+import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-defaults";
+import { buildTemplateSectionLayoutSyncUpdates } from "@/lib/canvas/template-tool-utils";
 import { useThemeStore } from "@/stores/theme";
+import { createCanvasTemplateStickyNote } from "@skedra/canvas-core";
 import { useCallback, useEffect } from "react";
 import type { CanvasStore, CanvasSync } from "../canvas-tool-types";
 
@@ -30,20 +29,18 @@ export function useTemplateCanvasTool({
 			const section = sync.elements.get(sectionId);
 			if (!section) return;
 
-			const notes = createTemplateStickyNote({
+			const note = createCanvasTemplateStickyNote({
+				defaults: getCanvasElementFactoryDefaults({ resolvedTheme }),
 				section,
 				existingElements: sync.elements.values(),
-				theme: { resolvedTheme },
 			});
-			if (notes.length === 0) return;
-
-			const [note] = notes;
+			if (!note) return;
 			const requiredHeight = note.y + note.height + 18 - section.y;
 			if (requiredHeight > section.height) {
 				sync.updateElement(section.id, { height: requiredHeight });
 			}
 
-			for (const element of notes) sync.createElement(element);
+			sync.createElement(note);
 			store.setSelectedIds(new Set([note.id]));
 			store.setEditingTextId(note.id);
 		},

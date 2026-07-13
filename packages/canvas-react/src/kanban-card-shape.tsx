@@ -1,18 +1,10 @@
-import { KANBAN_FONT_FAMILY } from "@/lib/canvas/canvas-defaults";
-import {
-	formatKanbanDateTime,
-	getKanbanDueStatus,
-} from "@/lib/canvas/kanban-due-status";
-import { translate } from "@/lib/i18n";
-import { getUserInitials } from "@/lib/user-initials";
-import { getCurrentLocale } from "@/stores/locale";
 import {
 	normalizeKanbanAttachments,
 	normalizeKanbanChecklist,
 	normalizeKanbanCoverImage,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useCanvasCommands } from "../canvas-commands";
+import { useCanvasRendererConfig } from "./renderer-config";
 
 export function KanbanCardShape({
 	el,
@@ -25,7 +17,15 @@ export function KanbanCardShape({
 	commonProps: { "data-element-id": string; opacity: number };
 	resolveAssetUrl?: (src: string) => string;
 }) {
-	const canvasCommands = useCanvasCommands();
+	const {
+		actions,
+		formatDateTime,
+		getDueStatus,
+		getUserInitials,
+		interactive,
+		kanbanFontFamily,
+		translate,
+	} = useCanvasRendererConfig();
 	const priority = el.customData?.priority as
 		| "low"
 		| "medium"
@@ -77,16 +77,12 @@ export function KanbanCardShape({
 	const completedChecklistItems = checklist.filter(
 		(item) => item.completed,
 	).length;
-	const dueStatus = getKanbanDueStatus(dueDate, dueComplete);
+	const dueStatus = getDueStatus(dueDate, dueComplete);
 	const w = Math.max(1, el.width);
 	const h = Math.max(1, el.height);
-	const attachmentCountLabel = translate(
-		getCurrentLocale(),
-		"canvas.kanban.attachmentCount",
-		{
-			count: attachments.length,
-		},
-	);
+	const attachmentCountLabel = translate("canvas.kanban.attachmentCount", {
+		count: attachments.length,
+	});
 	const hasCoverImage = coverImage != null;
 	const contentX = hasCoverImage ? el.x : el.x + (priorityVar ? 18 : 12);
 	const contentY = hasCoverImage ? el.y : el.y + 8;
@@ -106,11 +102,15 @@ export function KanbanCardShape({
 	const openDetail = (event: React.MouseEvent) => {
 		event.preventDefault();
 		event.stopPropagation();
-		canvasCommands.openKanbanCard(el.id);
+		actions.openKanbanCard(el.id);
 	};
 
 	return (
-		<g transform={transform} {...commonProps} onDoubleClick={openDetail}>
+		<g
+			transform={transform}
+			{...commonProps}
+			onDoubleClick={interactive ? openDetail : undefined}
+		>
 			<rect
 				x={el.x + 1}
 				y={el.y + 2}
@@ -163,7 +163,7 @@ export function KanbanCardShape({
 							? `12px 12px 12px ${priorityVar ? 18 : 12}px`
 							: undefined,
 						justifyContent: hasCoverImage ? "flex-end" : undefined,
-						fontFamily: el.fontFamily ?? KANBAN_FONT_FAMILY,
+						fontFamily: el.fontFamily ?? kanbanFontFamily,
 						color: hasCoverImage ? "#ffffff" : "var(--kanban-card-text)",
 					}}
 					onDoubleClick={(event) => {
@@ -231,8 +231,7 @@ export function KanbanCardShape({
 								backdropFilter: hasCoverImage ? "blur(4px)" : undefined,
 							}}
 						>
-							{el.text ||
-								translate(getCurrentLocale(), "canvas.kanban.newCard")}
+							{el.text || translate("canvas.kanban.newCard")}
 						</div>
 						{description && (
 							<div
@@ -287,7 +286,7 @@ export function KanbanCardShape({
 								))}
 								{remainingChecklistItems > 0 && (
 									<div style={{ fontSize: 10, color: mutedTextColor }}>
-										{translate(getCurrentLocale(), "canvas.kanban.moreTasks", {
+										{translate("canvas.kanban.moreTasks", {
 											count: remainingChecklistItems,
 										})}
 									</div>
@@ -408,8 +407,8 @@ export function KanbanCardShape({
 									>
 										<span>⏳</span>
 										<span>
-											{translate(getCurrentLocale(), "canvas.kanban.start")}{" "}
-											{formatKanbanDateTime(startDate)}
+											{translate("canvas.kanban.start")}{" "}
+											{formatDateTime(startDate)}
 										</span>
 									</div>
 								)}
@@ -429,7 +428,7 @@ export function KanbanCardShape({
 									>
 										<span>{dueStatus.icon}</span>
 										<span>
-											{dueStatus.label} {formatKanbanDateTime(dueDate)}
+											{dueStatus.label} {formatDateTime(dueDate)}
 										</span>
 									</div>
 								)}
@@ -456,7 +455,7 @@ export function KanbanCardShape({
 										<span>☑</span>
 										<span>
 											{completedChecklistItems}/{checklist.length}{" "}
-											{translate(getCurrentLocale(), "canvas.kanban.tasks")}
+											{translate("canvas.kanban.tasks")}
 										</span>
 									</div>
 								)}

@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
 	index,
@@ -621,6 +621,33 @@ export const userSubscriptions = pgTable(
 	(table) => [index("user_subscriptions_status_idx").on(table.status)],
 );
 
+/**
+ * Founder-managed product access that doesn't create a Stripe customer or
+ * invoice. Revoked grants are retained as an audit trail.
+ */
+export const complimentaryAccessGrants = pgTable(
+	"complimentary_access_grants",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		reason: text("reason").notNull(),
+		expiresAt: timestamp("expires_at"),
+		grantedByEmail: text("granted_by_email").notNull(),
+		revokedAt: timestamp("revoked_at"),
+		revokedByEmail: text("revoked_by_email"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("complimentary_access_grants_user_idx").on(table.userId),
+		index("complimentary_access_grants_revoked_idx").on(table.revokedAt),
+		uniqueIndex("complimentary_access_grants_one_current_idx")
+			.on(table.userId)
+			.where(sql`${table.revokedAt} IS NULL`),
+	],
+);
+
 /** Webhook event IDs make Stripe's at-least-once delivery safe to retry. */
 export const stripeWebhookEvents = pgTable("stripe_webhook_events", {
 	id: text("id").primaryKey(),
@@ -689,6 +716,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	accounts: many(accounts),
 	preferences: one(userPreferences),
 	subscription: one(userSubscriptions),
+	complimentaryAccessGrants: many(complimentaryAccessGrants),
 }));
 
 export const instanceSettingsRelations = relations(
@@ -995,6 +1023,16 @@ export const userSubscriptionsRelations = relations(
 	({ one }) => ({
 		user: one(users, {
 			fields: [userSubscriptions.userId],
+			references: [users.id],
+		}),
+	}),
+);
+
+export const complimentaryAccessGrantsRelations = relations(
+	complimentaryAccessGrants,
+	({ one }) => ({
+		user: one(users, {
+			fields: [complimentaryAccessGrants.userId],
 			references: [users.id],
 		}),
 	}),

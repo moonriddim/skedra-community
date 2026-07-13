@@ -1,14 +1,10 @@
-/**
- * Text-Aenderungen auf Canvas-Elemente anwenden (Inline-Editor).
- */
-
 import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import {
-	mergeElementCustomData,
-	readElementCustomData,
-} from "@/lib/canvas/custom-data-utils";
-import type { ArrowTextOrientation, ArrowTextSide } from "@skedra/canvas-core";
-import type { CanvasElement } from "@skedra/canvas-core";
+	type ArrowTextOrientation,
+	type ArrowTextSide,
+	type CanvasElement,
+	buildCanvasTextUpdate,
+} from "@skedra/canvas-core";
 
 interface ApplyTextUpdateOptions {
 	element: CanvasElement;
@@ -18,63 +14,9 @@ interface ApplyTextUpdateOptions {
 	arrowTextOrientation: ArrowTextOrientation | null;
 }
 
-export function buildTextElementUpdate({
-	element: el,
-	text,
-	size,
-	arrowTextSide,
-	arrowTextOrientation,
-}: ApplyTextUpdateOptions): Partial<CanvasElement> {
-	const isShape =
-		el.type === "rectangle" ||
-		el.type === "ellipse" ||
-		el.type === "diamond" ||
-		el.type === "frame";
-	const isCenteredShape =
-		el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond";
-	const isKanbanListEl = el.customData?.skedraType === "kanban-list";
-	const isPathTextElement = el.type === "arrow" || el.type === "line";
-
-	if (isKanbanListEl) {
-		return { frameLabel: text };
-	}
-
-	if (isPathTextElement) {
-		const liveCustomData = readElementCustomData(el.customData);
-		return {
-			text,
-			textColor: el.textColor ?? el.stroke,
-			fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
-			textAlign: "center",
-			customData: mergeElementCustomData(el.customData, {
-				arrowTextSide:
-					arrowTextSide ??
-					(liveCustomData.arrowTextSide as ArrowTextSide | undefined) ??
-					"above",
-				arrowTextOrientation:
-					arrowTextOrientation ??
-					(liveCustomData.arrowTextOrientation as
-						| ArrowTextOrientation
-						| undefined) ??
-					"horizontal",
-			}),
-		};
-	}
-
-	if (isShape) {
-		return {
-			text,
-			textColor: el.textColor ?? el.stroke,
-			fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
-			...(isCenteredShape ? { textAlign: "center" as const } : {}),
-		};
-	}
-
-	return {
-		text,
-		textColor: el.textColor ?? el.stroke,
-		fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
-		width: size.width,
-		height: size.height,
-	};
+export function buildTextElementUpdate(options: ApplyTextUpdateOptions) {
+	return buildCanvasTextUpdate({
+		...options,
+		fontFamily: options.element.fontFamily ?? CANVAS_DEFAULT_FONT,
+	});
 }

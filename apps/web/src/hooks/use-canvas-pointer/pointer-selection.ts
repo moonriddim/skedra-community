@@ -3,6 +3,7 @@
  */
 
 import {
+	collectCanvasSelectionRectIds,
 	isLassoPathLargeEnough,
 	isMultiSelectModifier,
 } from "@skedra/canvas-core";
@@ -12,7 +13,11 @@ export function collectSelectionBoxIds(
 	scene: CanvasScene,
 	box: { startX: number; startY: number; endX: number; endY: number },
 ): Set<string> {
-	return new Set(scene.getElementsInRect(box).map((element) => element.id));
+	return collectCanvasSelectionRectIds(
+		scene.getElementsMap().values(),
+		{ x: box.startX, y: box.startY },
+		{ x: box.endX, y: box.endY },
+	);
 }
 
 export function collectLassoSelectionIds(

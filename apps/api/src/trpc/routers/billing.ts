@@ -76,9 +76,11 @@ export const billingRouter = router({
 				available: false,
 				configured: true,
 				accessGranted: true,
+				accessSource: "selfhost" as const,
 				canManageWorkspace: true,
 				workspaceName: null,
 				subscription: null,
+				complimentaryAccess: null,
 			};
 		}
 
@@ -90,9 +92,16 @@ export const billingRouter = router({
 			available: true,
 			configured: isStripeBillingConfigured(),
 			accessGranted: entitlement.accessGranted,
+			accessSource: entitlement.accessSource,
 			canManageWorkspace: true,
 			workspaceName: ctx.user.name,
 			subscription: entitlement.subscription,
+			complimentaryAccess: entitlement.complimentaryAccess
+				? {
+						reason: entitlement.complimentaryAccess.reason,
+						expiresAt: entitlement.complimentaryAccess.expiresAt,
+					}
+				: null,
 		};
 	}),
 

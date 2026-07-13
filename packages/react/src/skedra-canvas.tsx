@@ -1,33 +1,39 @@
 import {
 	CanvasScene,
-	MINDMAP_HORIZONTAL_GAP,
-	MINDMAP_NODE_HEIGHT,
-	MINDMAP_NODE_WIDTH,
-	MINDMAP_VERTICAL_GAP,
-	buildKanbanDeletionReflowUpdates,
-	buildKanbanReflowUpdates,
-	buildMindmapSyncUpdates,
-	collectMindmapDescendantIds,
-	createBaseCanvasElement,
-	createMindmapEdge,
-	createMindmapNode,
+	applyCanvasMutationPlan,
+	buildCanvasDrawingElement,
+	buildCanvasTextElement,
+	buildCanvasTextUpdate,
+	buildKanbanDropUpdates,
+	buildTemplateSectionLayoutSyncUpdates,
+	clientPointToCanvas,
+	collectCanvasSelectionRectIds,
+	computeViewportForBounds,
+	createCanvasTemplateStickyNote,
 	createStackIndexAfter,
-	createStackIndexBeforeElement,
-	findListAtPoint,
-	getArrowPath,
 	getBBox,
+	getCanvasKeyboardCommand,
+	getCanvasViewportCenter,
 	getCombinedBBox,
-	getImageRenderGeometry,
-	getMindmapBranchColorForNewNode,
-	getMindmapEdgeMeta,
-	getMindmapNodeMeta,
 	isKanbanCard,
 	isKanbanList,
 	isMindmapNode,
-	linePath,
-	renderArrowHead,
-	smoothPath,
+	normalizeCanvasRect,
+	planCanvasDeletion,
+	planKanbanCardInsertion,
+	planMindmapChildMutation,
+	planMindmapSiblingMutation,
+	resizeCanvasElement,
+	shouldKeepCanvasDrawing,
+	toCanvasElementMap,
+	translateCanvasElements,
+	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
+import {
+	CanvasElementRenderer,
+	type CanvasRendererConfig,
+	CanvasRendererProvider,
+} from "@skedra/canvas-react";
 import {
 	ArrowRight,
 	Circle,
@@ -49,6 +55,7 @@ import {
 import {
 	type CSSProperties,
 	type ComponentType,
+	type KeyboardEvent as ReactKeyboardEvent,
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
 	type WheelEvent,
@@ -70,6 +77,8 @@ import {
 	createSkedraMindmapElements,
 	createSkedraStickyNoteElement,
 	createSkedraTemplateElements,
+	getSkedraElementFactoryDefaults,
+	getSkedraMindmapAppearance,
 	withSkedraStackIndexes,
 } from "./factories.js";
 import type { CanvasElement, Viewport } from "./types.js";
@@ -116,6 +125,10 @@ export interface SkedraCanvasApi {
 	insertMindmapChild: (
 		parentId: string,
 		options?: { direction?: "left" | "right" | "up" | "down"; text?: string },
+	) => CanvasElement | null;
+	insertMindmapSibling: (
+		nodeId: string,
+		options?: { position?: "before" | "after"; text?: string },
 	) => CanvasElement | null;
 	insertTemplate: (
 		templateId: SkedraSdkTemplateId,
@@ -167,6 +180,12 @@ type DragState =
 			currentWorld: Point;
 	  }
 	| {
+			type: "resize";
+			handle: "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
+			startWorld: Point;
+			startElement: CanvasElement;
+	  }
+	| {
 			type: "draw";
 			tool: DrawingTool;
 			startWorld: Point;
@@ -204,9 +223,16 @@ const SDK_TOOLS: Array<{
 
 const DEFAULT_STROKE = "#17211d";
 const DEFAULT_FILL = "transparent";
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 8;
-
+const SDK_RESIZE_HANDLES = [
+	"nw",
+	"n",
+	"ne",
+	"w",
+	"e",
+	"sw",
+	"s",
+	"se",
+] as const;
 function createId() {
 	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
 		return crypto.randomUUID();
@@ -214,10 +240,6 @@ function createId() {
 	return `skedra-${Date.now().toString(36)}-${Math.random()
 		.toString(36)
 		.slice(2)}`;
-}
-
-function clampZoom(zoom: number) {
-	return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
 function normalizeClassName(className?: string) {
@@ -230,10 +252,7 @@ function toSvgIdPart(value: string) {
 }
 
 function toLocalPoint(
-	event:
-		| ReactPointerEvent<SVGSVGElement>
-		| ReactMouseEvent<SVGSVGElement>
-		| WheelEvent<SVGSVGElement>,
+	event: { clientX: number; clientY: number },
 	svg: SVGSVGElement,
 ) {
 	const rect = svg.getBoundingClientRect();
@@ -244,148 +263,16 @@ function toLocalPoint(
 }
 
 function toWorldPoint(
-	event:
-		| ReactPointerEvent<SVGSVGElement>
-		| ReactMouseEvent<SVGSVGElement>
-		| WheelEvent<SVGSVGElement>,
+	event: { clientX: number; clientY: number },
 	svg: SVGSVGElement,
 	viewport: Viewport,
 ) {
-	const local = toLocalPoint(event, svg);
-	return {
-		x: (local.x - viewport.x) / viewport.zoom,
-		y: (local.y - viewport.y) / viewport.zoom,
-	};
-}
-
-function normalizeRect(start: Point, end: Point) {
-	return {
-		x: Math.min(start.x, end.x),
-		y: Math.min(start.y, end.y),
-		width: Math.abs(end.x - start.x),
-		height: Math.abs(end.y - start.y),
-	};
-}
-
-function pointToTuple(point: Point): [number, number] {
-	return [point.x, point.y];
-}
-
-function makeElementDefaults(stroke: string) {
-	return { createId, stroke };
-}
-
-function buildShapeElement(options: {
-	type: "rectangle" | "ellipse" | "diamond";
-	start: Point;
-	end: Point;
-	stroke: string;
-	fill: string;
-	stackIndex?: string;
-}) {
-	const rect = normalizeRect(options.start, options.end);
-	return createBaseCanvasElement(makeElementDefaults(options.stroke), {
-		type: options.type,
-		x: rect.x,
-		y: rect.y,
-		width: Math.max(1, rect.width),
-		height: Math.max(1, rect.height),
-		fill: options.fill,
-		stroke: options.stroke,
-		stackIndex: options.stackIndex,
-	});
-}
-
-function buildFrameElement(options: {
-	start: Point;
-	end: Point;
-	stroke: string;
-	stackIndex?: string;
-}) {
-	const rect = normalizeRect(options.start, options.end);
-	return createSkedraFrameElement({
-		x: rect.x,
-		y: rect.y,
-		width: Math.max(1, rect.width),
-		height: Math.max(1, rect.height),
-		stroke: options.stroke,
-		label: "Frame",
-		customData: undefined,
-		createId,
-	});
-}
-
-function buildLineElement(options: {
-	type: "line" | "arrow";
-	start: Point;
-	end: Point;
-	stroke: string;
-	stackIndex?: string;
-}) {
-	const dx = options.end.x - options.start.x;
-	const dy = options.end.y - options.start.y;
-	return createBaseCanvasElement(makeElementDefaults(options.stroke), {
-		type: options.type,
-		x: options.start.x,
-		y: options.start.y,
-		width: Math.abs(dx),
-		height: Math.abs(dy),
-		fill: "transparent",
-		stroke: options.stroke,
-		points: [
-			[0, 0],
-			[dx, dy],
-		],
-		arrowHeadEnd: options.type === "arrow" ? "arrow" : "none",
-		stackIndex: options.stackIndex,
-	});
-}
-
-function buildFreehandElement(options: {
-	points: Point[];
-	stroke: string;
-	stackIndex?: string;
-}) {
-	const minX = Math.min(...options.points.map((point) => point.x));
-	const minY = Math.min(...options.points.map((point) => point.y));
-	const maxX = Math.max(...options.points.map((point) => point.x));
-	const maxY = Math.max(...options.points.map((point) => point.y));
-	return createBaseCanvasElement(makeElementDefaults(options.stroke), {
-		type: "freehand",
-		x: minX,
-		y: minY,
-		width: Math.max(1, maxX - minX),
-		height: Math.max(1, maxY - minY),
-		fill: "transparent",
-		stroke: options.stroke,
-		strokeWidth: 2,
-		points: options.points.map((point) => [point.x - minX, point.y - minY]),
-		stackIndex: options.stackIndex,
-	});
-}
-
-function buildTextElement(options: {
-	point: Point;
-	text: string;
-	stroke: string;
-	stackIndex?: string;
-}) {
-	const lines = options.text.split("\n");
-	const longest = lines.reduce((max, line) => Math.max(max, line.length), 1);
-	return createBaseCanvasElement(makeElementDefaults(options.stroke), {
-		type: "text",
-		x: options.point.x,
-		y: options.point.y,
-		width: Math.max(56, longest * 11),
-		height: Math.max(28, lines.length * 24),
-		fill: "transparent",
-		stroke: "transparent",
-		text: options.text,
-		textColor: options.stroke,
-		fontSize: 20,
-		fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
-		stackIndex: options.stackIndex,
-	});
+	const rect = svg.getBoundingClientRect();
+	return clientPointToCanvas(
+		{ x: event.clientX, y: event.clientY },
+		{ left: rect.left, top: rect.top },
+		viewport,
+	);
 }
 
 function buildDraftElement(
@@ -394,140 +281,14 @@ function buildDraftElement(
 	fill: string,
 ) {
 	const end = drag.points[drag.points.length - 1] ?? drag.startWorld;
-	if (
-		drag.tool === "rectangle" ||
-		drag.tool === "ellipse" ||
-		drag.tool === "diamond"
-	) {
-		return buildShapeElement({
-			type: drag.tool,
-			start: drag.startWorld,
-			end,
-			stroke,
-			fill,
-		});
-	}
-	if (drag.tool === "frame") {
-		return buildFrameElement({
-			start: drag.startWorld,
-			end,
-			stroke,
-		});
-	}
-	if (drag.tool === "line" || drag.tool === "arrow") {
-		return buildLineElement({
-			type: drag.tool,
-			start: drag.startWorld,
-			end,
-			stroke,
-		});
-	}
-	return buildFreehandElement({ points: drag.points, stroke });
-}
-
-function shouldKeepDraft(element: CanvasElement) {
-	if (element.type === "freehand") return (element.points?.length ?? 0) > 2;
-	if (element.type === "line" || element.type === "arrow") {
-		const [start, end] = element.points ?? [];
-		if (!start || !end) return false;
-		return Math.hypot(end[0] - start[0], end[1] - start[1]) > 4;
-	}
-	return element.width > 4 || element.height > 4;
-}
-
-function elementMap(elements: CanvasElement[]) {
-	return new Map(elements.map((element) => [element.id, element]));
-}
-
-function applyElementUpdates(
-	elements: CanvasElement[],
-	updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
-) {
-	if (updates.length === 0) return elements;
-	const updatesById = new Map(
-		updates.map((update) => [update.id, update.changes]),
-	);
-	return elements.map((element) => {
-		const changes = updatesById.get(element.id);
-		return changes ? { ...element, ...changes } : element;
+	return buildCanvasDrawingElement({
+		id: "__draft",
+		tool: drag.tool,
+		start: drag.startWorld,
+		end,
+		points: drag.points,
+		style: { stroke, fill },
 	});
-}
-
-function collectDeletedElementIds(
-	elements: CanvasElement[],
-	selectedIds: Set<string>,
-) {
-	const map = elementMap(elements);
-	const deletedIds = new Set<string>();
-
-	for (const element of elements) {
-		if (!selectedIds.has(element.id) || element.locked) continue;
-		deletedIds.add(element.id);
-		if (isMindmapNode(element)) {
-			for (const id of collectMindmapDescendantIds(element.id, map)) {
-				deletedIds.add(id);
-			}
-		}
-	}
-
-	return deletedIds;
-}
-
-function deleteRelatedElements(
-	elements: CanvasElement[],
-	deletedIds: Set<string>,
-) {
-	const listIds = new Set(
-		elements
-			.filter((element) => deletedIds.has(element.id) && isKanbanList(element))
-			.map((element) => element.id),
-	);
-	return elements.filter((element) => {
-		if (deletedIds.has(element.id)) return false;
-		if (element.frameId && listIds.has(element.frameId)) return false;
-		const edgeMeta = getMindmapEdgeMeta(element);
-		return (
-			!edgeMeta ||
-			(!deletedIds.has(edgeMeta.mindmapSourceId) &&
-				!deletedIds.has(edgeMeta.mindmapTargetId))
-		);
-	});
-}
-
-function moveElements(
-	elements: CanvasElement[],
-	selectedIds: Set<string>,
-	dx: number,
-	dy: number,
-) {
-	return elements.map((element) =>
-		selectedIds.has(element.id) && !element.locked
-			? { ...element, x: element.x + dx, y: element.y + dy }
-			: element,
-	);
-}
-
-function getElementText(element: CanvasElement) {
-	return element.text ?? "";
-}
-
-function renderTextLines(text: string) {
-	const lines = text.split("\n");
-	return lines.length > 0 ? lines : [""];
-}
-
-function getElementTransform(element: CanvasElement) {
-	const cx = element.x + element.width / 2;
-	const cy = element.y + element.height / 2;
-	const transforms: string[] = [];
-	if (element.rotation)
-		transforms.push(`rotate(${element.rotation} ${cx} ${cy})`);
-	if (element.flipX || element.flipY) {
-		transforms.push(
-			`translate(${cx}, ${cy}) scale(${element.flipX ? -1 : 1}, ${element.flipY ? -1 : 1}) translate(${-cx}, ${-cy})`,
-		);
-	}
-	return transforms.length > 0 ? transforms.join(" ") : undefined;
 }
 
 export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
@@ -584,6 +345,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 		const sortedElements = scene.getSortedElements();
 		const selectedElements = scene.getSelectedElements(selectedIds);
+		const selectionRect = selectionBox
+			? normalizeCanvasRect(selectionBox.start, selectionBox.end)
+			: null;
 
 		const commitElements = useCallback(
 			(next: CanvasElement[]) => {
@@ -596,9 +360,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 
 		const applyDerivedUpdates = useCallback((next: CanvasElement[]) => {
-			const map = elementMap(next);
-			const mindmapUpdates = buildMindmapSyncUpdates(map);
-			return applyElementUpdates(next, mindmapUpdates);
+			return applyCanvasMutationPlan(next, {
+				create: [],
+				update: [],
+				deleteIds: [],
+			});
 		}, []);
 
 		const commitCanvasElements = useCallback(
@@ -612,10 +378,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			const svg = svgRef.current;
 			if (!svg) return { x: 0, y: 0 };
 			const rect = svg.getBoundingClientRect();
-			return {
-				x: (rect.width / 2 - viewport.x) / viewport.zoom,
-				y: (rect.height / 2 - viewport.y) / viewport.zoom,
-			};
+			return getCanvasViewportCenter(rect, viewport);
 		}, [viewport]);
 
 		const addSdkElements = useCallback(
@@ -732,15 +495,13 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					],
 					currentElements,
 				)[0];
-				const next = [...currentElements, card];
-				const moved = new Set([card.id]);
-				const target = new Map<string, string | null>([[card.id, listId]]);
-				const updates = buildKanbanReflowUpdates(
-					elementMap(next),
-					moved,
-					target,
-				);
-				commitCanvasElements(applyElementUpdates(next, updates));
+				const plan = planKanbanCardInsertion({
+					elements: toCanvasElementMap(currentElements),
+					listId,
+					card,
+				});
+				if (!plan) return null;
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
 				setSelectedIds(new Set([card.id]));
 				return card;
 			},
@@ -779,81 +540,47 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					text?: string;
 				} = {},
 			) => {
-				const parent = currentElements.find(
-					(element) => element.id === parentId,
-				);
-				const parentMeta = getMindmapNodeMeta(parent);
-				if (!parent || !parentMeta) return null;
-				const direction =
-					options.direction ??
-					(parentMeta.mindmapDepth === 0
-						? "right"
-						: parentMeta.mindmapDirection);
-				const isHorizontal = direction === "left" || direction === "right";
-				const currentMap = elementMap(currentElements);
-				const children = scene.getMindmapChildNodes(parent.id, direction);
-				let x = parent.x;
-				let y = parent.y;
-				if (isHorizontal) {
-					x =
-						direction === "right"
-							? parent.x + parent.width + MINDMAP_HORIZONTAL_GAP
-							: parent.x - MINDMAP_HORIZONTAL_GAP - MINDMAP_NODE_WIDTH;
-					if (children.length > 0) {
-						const lastChild = children[children.length - 1];
-						const subtreeIds = collectMindmapDescendantIds(
-							lastChild.id,
-							currentMap,
-						);
-						let bottom = lastChild.y + lastChild.height;
-						for (const id of subtreeIds) {
-							const descendant = currentMap.get(id);
-							if (descendant)
-								bottom = Math.max(bottom, descendant.y + descendant.height);
-						}
-						y = bottom + 32;
-					} else {
-						y = parent.y + parent.height / 2 - MINDMAP_NODE_HEIGHT / 2;
-					}
-				} else {
-					x = parent.x + parent.width / 2 - MINDMAP_NODE_WIDTH / 2;
-					y =
-						direction === "down"
-							? parent.y + parent.height + MINDMAP_VERTICAL_GAP
-							: parent.y - MINDMAP_VERTICAL_GAP - MINDMAP_NODE_HEIGHT;
-				}
-				const branchColor = getMindmapBranchColorForNewNode(parent, currentMap);
-				const nodeId = createId();
-				const edgeId = createId();
-				const node = createMindmapNode({
-					id: nodeId,
-					x,
-					y,
+				const plan = planMindmapChildMutation({
+					parentId,
+					elements: toCanvasElementMap(currentElements),
+					direction: options.direction,
 					text: options.text ?? "New node",
-					treeId: parentMeta.mindmapTreeId,
-					parentId: parent.id,
-					direction,
-					depth: parentMeta.mindmapDepth + 1,
-					stroke: branchColor,
-					stackIndex: createStackIndexAfter(currentElements, nodeId),
+					createId,
+					appearance: getSkedraMindmapAppearance({ theme }),
+					startEditing: false,
 				});
-				const edge = createMindmapEdge({
-					id: edgeId,
-					treeId: parentMeta.mindmapTreeId,
-					source: parent,
-					target: node,
-					stroke: branchColor,
-					stackIndex: createStackIndexBeforeElement(
-						[...currentElements, node],
-						node.id,
-						edgeId,
-					),
-				});
-				commitCanvasElements([...currentElements, edge, node]);
+				if (!plan) return null;
+				const node = plan.create.find(isMindmapNode);
+				if (!node) return null;
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
 				setSelectedIds(new Set([node.id]));
 				return node;
 			},
-			[commitCanvasElements, currentElements, scene],
+			[commitCanvasElements, currentElements, theme],
+		);
+
+		const insertMindmapSibling = useCallback(
+			(
+				nodeId: string,
+				options: { position?: "before" | "after"; text?: string } = {},
+			) => {
+				const plan = planMindmapSiblingMutation({
+					nodeId,
+					elements: toCanvasElementMap(currentElements),
+					position: options.position,
+					text: options.text ?? "New node",
+					createId,
+					appearance: getSkedraMindmapAppearance({ theme }),
+					startEditing: false,
+				});
+				if (!plan) return null;
+				const node = plan.create.find(isMindmapNode);
+				if (!node) return null;
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
+				setSelectedIds(new Set([node.id]));
+				return node;
+			},
+			[commitCanvasElements, currentElements, theme],
 		);
 
 		const insertTemplate = useCallback(
@@ -887,19 +614,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				setViewport({ x: 0, y: 0, zoom: 1 });
 				return;
 			}
-			const rect = svg.getBoundingClientRect();
-			const padding = 72;
-			const zoom = clampZoom(
-				Math.min(
-					(rect.width - padding * 2) / Math.max(bounds.width, 1),
-					(rect.height - padding * 2) / Math.max(bounds.height, 1),
-				),
+			setViewport(
+				computeViewportForBounds(svg.getBoundingClientRect(), bounds, 72),
 			);
-			setViewport({
-				zoom,
-				x: rect.width / 2 - (bounds.x + bounds.width / 2) * zoom,
-				y: rect.height / 2 - (bounds.y + bounds.height / 2) * zoom,
-			});
 		}, [currentElements]);
 
 		useImperativeHandle(
@@ -921,6 +638,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				insertKanbanCard,
 				insertMindmap,
 				insertMindmapChild,
+				insertMindmapSibling,
 				insertTemplate,
 				clear: () => {
 					commitElements([]);
@@ -940,6 +658,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				insertKanbanCard,
 				insertMindmap,
 				insertMindmapChild,
+				insertMindmapSibling,
 				insertStickyNote,
 				insertTemplate,
 				selectedIds,
@@ -948,7 +667,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const resolveText = useCallback(
 			(element: CanvasElement | null) => {
-				const currentText = element ? getElementText(element) : "Text";
+				const currentText = element?.text ?? "Text";
 				if (textPrompt) return textPrompt({ currentText, element });
 				if (typeof window === "undefined") return currentText;
 				return window.prompt("Text", currentText);
@@ -977,11 +696,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (tool === "text") {
 				const text = resolveText(null);
 				if (!text) return;
-				const nextElement = buildTextElement({
+				const id = createId();
+				const nextElement = buildCanvasTextElement({
+					id,
 					point: world,
 					text,
 					stroke,
-					stackIndex: createStackIndexAfter(currentElements, createId()),
+					fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
+					stackIndex: createStackIndexAfter(currentElements, id),
 				});
 				commitCanvasElements([...currentElements, nextElement]);
 				setSelectedIds(new Set([nextElement.id]));
@@ -1075,21 +797,33 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 			const world = toWorldPoint(event, svg, viewport);
 
+			if (drag.type === "resize") {
+				const changes = resizeCanvasElement(
+					drag.startElement,
+					drag.handle,
+					world.x - drag.startWorld.x,
+					world.y - drag.startWorld.y,
+				);
+				commitCanvasElements(
+					currentElements.map((element) =>
+						element.id === drag.startElement.id
+							? { ...element, ...changes }
+							: element,
+					),
+				);
+				return;
+			}
+
 			if (drag.type === "selection") {
 				drag.currentWorld = world;
 				setSelectionBox({ start: drag.startWorld, end: world });
-				const box = normalizeRect(drag.startWorld, world);
-				const matches = currentElements.filter((element) => {
-					if (element.locked) return false;
-					const bbox = getBBox(element);
-					return (
-						bbox.x >= box.x &&
-						bbox.y >= box.y &&
-						bbox.x + bbox.width <= box.x + box.width &&
-						bbox.y + bbox.height <= box.y + box.height
-					);
-				});
-				setSelectedIds(new Set(matches.map((element) => element.id)));
+				setSelectedIds(
+					collectCanvasSelectionRectIds(
+						currentElements,
+						drag.startWorld,
+						world,
+					),
+				);
 				return;
 			}
 
@@ -1097,7 +831,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				const dx = world.x - drag.startWorld.x;
 				const dy = world.y - drag.startWorld.y;
 				commitCanvasElements(
-					moveElements(drag.startElements, selectedIds, dx, dy),
+					translateCanvasElements(drag.startElements, selectedIds, dx, dy),
 				);
 				return;
 			}
@@ -1128,29 +862,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			setSelectionBox(null);
 
 			if (drag?.type === "select-move") {
-				const map = elementMap(currentElements);
-				const movedCards = new Set<string>();
-				const targetByCard = new Map<string, string | null>();
-				for (const id of selectedIds) {
-					const card = map.get(id);
-					if (!card || !isKanbanCard(card)) continue;
-					const center = {
-						x: card.x + card.width / 2,
-						y: card.y + card.height / 2,
-					};
-					const targetList = findListAtPoint(map, center.x, center.y);
-					movedCards.add(card.id);
-					targetByCard.set(card.id, targetList?.id ?? null);
-				}
-				if (movedCards.size > 0) {
-					const updates = buildKanbanReflowUpdates(
-						map,
-						movedCards,
-						targetByCard,
+				const updates = buildKanbanDropUpdates(
+					toCanvasElementMap(currentElements),
+					selectedIds,
+				);
+				if (updates.length > 0) {
+					commitCanvasElements(
+						applyCanvasMutationPlan(currentElements, {
+							create: [],
+							update: updates,
+							deleteIds: [],
+						}),
 					);
-					if (updates.length > 0) {
-						commitCanvasElements(applyElementUpdates(currentElements, updates));
-					}
 				}
 				setDraftElement(null);
 				return;
@@ -1161,7 +884,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return;
 			}
 
-			if (!shouldKeepDraft(draftElement)) {
+			if (!shouldKeepCanvasDrawing(draftElement)) {
 				setDraftElement(null);
 				return;
 			}
@@ -1177,6 +900,48 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			setDraftElement(null);
 		};
 
+		const startResize = (
+			event: ReactPointerEvent<SVGCircleElement>,
+			element: CanvasElement,
+			handle: (typeof SDK_RESIZE_HANDLES)[number],
+		) => {
+			if (readOnly || element.locked) return;
+			event.preventDefault();
+			event.stopPropagation();
+			const svg = svgRef.current;
+			if (!svg) return;
+			dragRef.current = {
+				type: "resize",
+				handle,
+				startWorld: toWorldPoint(event, svg, viewport),
+				startElement: element,
+			};
+		};
+
+		const resizeWithKeyboard = (
+			event: ReactKeyboardEvent<SVGCircleElement>,
+			element: CanvasElement,
+			handle: (typeof SDK_RESIZE_HANDLES)[number],
+		) => {
+			const step = event.shiftKey ? 10 : 1;
+			const dx =
+				event.key === "ArrowLeft"
+					? -step
+					: event.key === "ArrowRight"
+						? step
+						: 0;
+			const dy =
+				event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+			if (dx === 0 && dy === 0) return;
+			event.preventDefault();
+			const changes = resizeCanvasElement(element, handle, dx, dy);
+			commitCanvasElements(
+				currentElements.map((current) =>
+					current.id === element.id ? { ...current, ...changes } : current,
+				),
+			);
+		};
+
 		const handleDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
 			if (readOnly) return;
 			const svg = svgRef.current;
@@ -1189,7 +954,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			const currentText =
 				hit.type === "frame"
 					? (hit.frameLabel ?? hit.text ?? "")
-					: getElementText(hit);
+					: (hit.text ?? "");
 			const nextText = textPrompt
 				? textPrompt({ currentText, element: hit })
 				: typeof window === "undefined"
@@ -1210,12 +975,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					element.id === hit.id
 						? {
 								...element,
-								...(element.type === "frame"
-									? { frameLabel: nextText }
-									: { text: nextText }),
-								...(element.type === "text"
-									? { width: Math.max(56, nextText.length * 11) }
-									: {}),
+								...buildCanvasTextUpdate({
+									element,
+									text: nextText,
+									fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
+									size:
+										element.type === "text"
+											? {
+													width: Math.max(56, nextText.length * 11),
+													height: element.height,
+												}
+											: undefined,
+								}),
 							}
 						: element,
 				),
@@ -1228,15 +999,13 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			event.preventDefault();
 			if (event.ctrlKey || event.metaKey) {
 				const local = toLocalPoint(event, svg);
-				const nextZoom = clampZoom(
-					viewport.zoom * Math.exp((-event.deltaY / 100) * 0.18),
+				setViewport(
+					zoomCanvasViewportAtPoint(
+						viewport,
+						local,
+						viewport.zoom * Math.exp((-event.deltaY / 100) * 0.18),
+					),
 				);
-				const scale = nextZoom / viewport.zoom;
-				setViewport({
-					zoom: nextZoom,
-					x: local.x - (local.x - viewport.x) * scale,
-					y: local.y - (local.y - viewport.y) * scale,
-				});
 				return;
 			}
 			setViewport((current) => ({
@@ -1248,24 +1017,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const clearSelected = useCallback(() => {
 			if (selectedIds.size === 0) return;
-			const deletedIds = collectDeletedElementIds(currentElements, selectedIds);
-			if (deletedIds.size === 0) return;
-			const reflowUpdates = buildKanbanDeletionReflowUpdates(
-				elementMap(currentElements),
-				deletedIds,
+			const plan = planCanvasDeletion(
+				toCanvasElementMap(currentElements),
+				selectedIds,
 			);
-			const nextElements = applyElementUpdates(
-				deleteRelatedElements(currentElements, deletedIds),
-				reflowUpdates,
-			);
-			if (nextElements.length !== currentElements.length) {
-				commitCanvasElements(nextElements);
+			if (plan.deleteIds.length > 0) {
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
 			}
 			setSelectedIds(new Set());
 		}, [commitCanvasElements, currentElements, selectedIds]);
 
 		useEffect(() => {
-			if (readOnly || selectedIds.size === 0) return;
+			if (readOnly) return;
 
 			const handleKeyDown = (event: globalThis.KeyboardEvent) => {
 				const target = event.target as HTMLElement | null;
@@ -1274,14 +1037,33 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				) {
 					return;
 				}
-				if (event.key !== "Delete" && event.key !== "Backspace") return;
-				event.preventDefault();
-				clearSelected();
+				const command = getCanvasKeyboardCommand(event);
+				if (!command) return;
+				if (command === "delete-selection" && selectedIds.size > 0) {
+					event.preventDefault();
+					clearSelected();
+				} else if (command === "clear-canvas") {
+					event.preventDefault();
+					commitElements([]);
+					setSelectedIds(new Set());
+				} else if (command === "select-all") {
+					event.preventDefault();
+					setSelectedIds(new Set(currentElements.map((element) => element.id)));
+				} else if (command === "escape") {
+					setSelectedIds(new Set());
+					setTool("select");
+				}
 			};
 
 			window.addEventListener("keydown", handleKeyDown);
 			return () => window.removeEventListener("keydown", handleKeyDown);
-		}, [clearSelected, readOnly, selectedIds.size]);
+		}, [
+			clearSelected,
+			commitElements,
+			currentElements,
+			readOnly,
+			selectedIds.size,
+		]);
 
 		const insertTemplateSticky = useCallback(
 			(sectionId: string) => {
@@ -1291,72 +1073,44 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						element.customData?.skedraType === "template-section",
 				);
 				if (!section) return null;
-				const existingNotes = currentElements.filter(
-					(element) =>
-						element.frameId === sectionId &&
-						element.customData?.skedraType === "sticky-note",
-				);
-				const noteWidth =
-					typeof section.customData?.stickyWidth === "number"
-						? section.customData.stickyWidth
-						: 160;
-				const noteHeight =
-					typeof section.customData?.stickyHeight === "number"
-						? section.customData.stickyHeight
-						: 124;
-				const gap = 18;
-				const paddingX = 18;
-				const paddingTop = section.text ? 92 : 58;
-				const columns = Math.max(
-					1,
-					Math.floor(
-						(Math.max(noteWidth, section.width - paddingX * 2) + gap) /
-							(noteWidth + gap),
-					),
-				);
-				const index = existingNotes.length;
-				const column = index % columns;
-				const row = Math.floor(index / columns);
-				const note = createSkedraStickyNoteElement({
-					x: section.x + paddingX + column * (noteWidth + gap),
-					y: section.y + paddingTop + row * (noteHeight + gap),
-					width: noteWidth,
-					height: noteHeight,
-					color:
-						typeof section.customData?.stickyColor === "string"
-							? section.customData.stickyColor
-							: "#fff3bf",
-					stroke:
-						typeof section.customData?.templateAccent === "string"
-							? section.customData.templateAccent
-							: section.stroke,
-					frameId: section.id,
-					theme,
-					createId,
-					customData: {
-						templateTool: section.customData?.templateTool,
-						templateSectionId: section.customData?.templateSectionId,
-						templateAccent: section.customData?.templateAccent,
-						stickyColor: section.customData?.stickyColor,
-						stickyWidth: noteWidth,
-						stickyHeight: noteHeight,
-					},
+				const note = createCanvasTemplateStickyNote({
+					defaults: getSkedraElementFactoryDefaults({ theme, createId }),
+					section,
+					existingElements: currentElements,
 				});
+				if (!note) return null;
 				const [stacked] = withSkedraStackIndexes([note], currentElements);
-				const minHeight =
-					stacked.y + stacked.height + gap - section.y > section.height
-						? stacked.y + stacked.height + gap - section.y
-						: section.height;
-				const next = currentElements.map((element) =>
-					element.id === section.id
-						? { ...element, height: minHeight }
-						: element,
+				const next = [...currentElements, stacked];
+				const updates = buildTemplateSectionLayoutSyncUpdates(
+					toCanvasElementMap(next),
 				);
-				commitCanvasElements([...next, stacked]);
+				commitCanvasElements(
+					applyCanvasMutationPlan(next, {
+						create: [],
+						update: updates,
+						deleteIds: [],
+					}),
+				);
 				setSelectedIds(new Set([stacked.id]));
 				return stacked;
 			},
 			[commitCanvasElements, currentElements, theme],
+		);
+
+		const rendererConfig = useMemo<CanvasRendererConfig>(
+			() => ({
+				interactive: !readOnly,
+				svgIdPrefix,
+				actions: {
+					addKanbanCard: insertKanbanCard,
+					addTemplateSticky: insertTemplateSticky,
+				},
+			}),
+			[insertKanbanCard, insertTemplateSticky, readOnly, svgIdPrefix],
+		);
+		const draftRendererConfig = useMemo<CanvasRendererConfig>(
+			() => ({ ...rendererConfig, interactive: false }),
+			[rendererConfig],
 		);
 
 		return (
@@ -1489,26 +1243,26 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					<g
 						transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}
 					>
-						{sortedElements.map((element) => (
-							<SdkElementShape
-								key={element.id}
-								element={element}
-								svgIdPrefix={svgIdPrefix}
-								readOnly={readOnly}
-								onAddKanbanCard={insertKanbanCard}
-								onAddTemplateSticky={insertTemplateSticky}
-							/>
-						))}
-						{draftElement && (
-							<SdkElementShape
-								element={draftElement}
-								draft
-								svgIdPrefix={svgIdPrefix}
-								readOnly={readOnly}
-								onAddKanbanCard={insertKanbanCard}
-								onAddTemplateSticky={insertTemplateSticky}
-							/>
-						)}
+						<CanvasRendererProvider config={rendererConfig}>
+							{sortedElements.map((element) => (
+								<CanvasElementRenderer
+									key={element.id}
+									element={element}
+									isEditingText={false}
+								/>
+							))}
+							{draftElement && (
+								<CanvasRendererProvider config={draftRendererConfig}>
+									<CanvasElementRenderer
+										element={{
+											...draftElement,
+											opacity: draftElement.opacity * 0.72,
+										}}
+										isEditingText={false}
+									/>
+								</CanvasRendererProvider>
+							)}
+						</CanvasRendererProvider>
 						{selectedElements.map((element) => {
 							const bbox = getBBox(element);
 							return (
@@ -1524,17 +1278,49 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								/>
 							);
 						})}
-						{selectionBox && (
+						{!readOnly &&
+							selectedElements.length === 1 &&
+							SDK_RESIZE_HANDLES.map((handle) => {
+								const element = selectedElements[0];
+								const bbox = getBBox(element);
+								const x = handle.includes("w")
+									? bbox.x
+									: handle.includes("e")
+										? bbox.x + bbox.width
+										: bbox.x + bbox.width / 2;
+								const y = handle.includes("n")
+									? bbox.y
+									: handle.includes("s")
+										? bbox.y + bbox.height
+										: bbox.y + bbox.height / 2;
+								return (
+									<circle
+										key={`resize-${element.id}-${handle}`}
+										cx={x}
+										cy={y}
+										r={5 / viewport.zoom}
+										fill="var(--skedra-sdk-background, #fff)"
+										stroke="var(--skedra-sdk-accent, #2563eb)"
+										strokeWidth={1.5 / viewport.zoom}
+										role="button"
+										tabIndex={0}
+										aria-label={`Resize ${handle}`}
+										onPointerDown={(event) =>
+											startResize(event, element, handle)
+										}
+										onKeyDown={(event) =>
+											resizeWithKeyboard(event, element, handle)
+										}
+									/>
+								);
+							})}
+						{selectionRect && (
 							<rect
 								className="skedra-sdk__selection"
-								x={normalizeRect(selectionBox.start, selectionBox.end).x}
-								y={normalizeRect(selectionBox.start, selectionBox.end).y}
-								width={
-									normalizeRect(selectionBox.start, selectionBox.end).width
-								}
-								height={
-									normalizeRect(selectionBox.start, selectionBox.end).height
-								}
+								x={selectionRect.x}
+								y={selectionRect.y}
+								width={selectionRect.width}
+								height={selectionRect.height}
 								strokeWidth={1 / viewport.zoom}
 							/>
 						)}
@@ -1555,513 +1341,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 	},
 );
-
-function SdkElementShape({
-	element,
-	draft = false,
-	svgIdPrefix,
-	readOnly,
-	onAddKanbanCard,
-	onAddTemplateSticky,
-}: {
-	element: CanvasElement;
-	draft?: boolean;
-	svgIdPrefix: string;
-	readOnly: boolean;
-	onAddKanbanCard: (listId: string) => CanvasElement | null;
-	onAddTemplateSticky: (sectionId: string) => CanvasElement | null;
-}) {
-	const opacity = (element.opacity / 100) * (draft ? 0.72 : 1);
-	const transform = getElementTransform(element);
-	const strokeDasharray =
-		element.strokeStyle === "dashed"
-			? "8 6"
-			: element.strokeStyle === "dotted"
-				? "2 6"
-				: undefined;
-
-	switch (element.type) {
-		case "rectangle":
-			if (isKanbanCard(element)) {
-				return (
-					<SdkKanbanCard
-						element={element}
-						opacity={opacity}
-						transform={transform}
-					/>
-				);
-			}
-			if (element.customData?.skedraType === "sticky-note") {
-				return (
-					<SdkStickyNote
-						element={element}
-						opacity={opacity}
-						transform={transform}
-					/>
-				);
-			}
-			return (
-				<g opacity={opacity} transform={transform}>
-					<rect
-						x={element.x}
-						y={element.y}
-						width={Math.max(1, element.width)}
-						height={Math.max(1, element.height)}
-						rx={element.cornerRadius ?? 4}
-						fill={element.fill}
-						stroke={element.stroke}
-						strokeWidth={element.strokeWidth}
-						strokeDasharray={strokeDasharray}
-					/>
-					{element.text && <SdkTextBlock element={element} />}
-				</g>
-			);
-		case "ellipse":
-			return (
-				<g opacity={opacity} transform={transform}>
-					<ellipse
-						cx={element.x + element.width / 2}
-						cy={element.y + element.height / 2}
-						rx={Math.max(1, element.width / 2)}
-						ry={Math.max(1, element.height / 2)}
-						fill={element.fill}
-						stroke={element.stroke}
-						strokeWidth={element.strokeWidth}
-						strokeDasharray={strokeDasharray}
-					/>
-					{element.text && <SdkTextBlock element={element} />}
-				</g>
-			);
-		case "diamond": {
-			const cx = element.x + element.width / 2;
-			const cy = element.y + element.height / 2;
-			return (
-				<g opacity={opacity} transform={transform}>
-					<polygon
-						points={`${cx},${element.y} ${element.x + element.width},${cy} ${cx},${element.y + element.height} ${element.x},${cy}`}
-						fill={element.fill}
-						stroke={element.stroke}
-						strokeWidth={element.strokeWidth}
-						strokeDasharray={strokeDasharray}
-						strokeLinejoin="round"
-					/>
-					{element.text && <SdkTextBlock element={element} />}
-				</g>
-			);
-		}
-		case "line":
-			if (!element.points || element.points.length < 2) return null;
-			return (
-				<g opacity={opacity} transform={transform}>
-					<path
-						d={linePath(element.points)}
-						transform={`translate(${element.x}, ${element.y})`}
-						fill="none"
-						stroke={element.stroke}
-						strokeWidth={element.strokeWidth}
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeDasharray={strokeDasharray}
-					/>
-				</g>
-			);
-		case "arrow":
-			if (!element.points || element.points.length < 2) return null;
-			return (
-				<SdkArrowShape
-					element={element}
-					opacity={opacity}
-					transform={transform}
-				/>
-			);
-		case "freehand":
-			if (!element.points || element.points.length < 2) return null;
-			return (
-				<g opacity={opacity} transform={transform}>
-					<path
-						d={smoothPath(element.points)}
-						transform={`translate(${element.x}, ${element.y})`}
-						fill="none"
-						stroke={element.stroke}
-						strokeWidth={element.strokeWidth}
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeDasharray={strokeDasharray}
-					/>
-				</g>
-			);
-		case "image": {
-			const geometry = getImageRenderGeometry(element);
-			if (!geometry.src) return null;
-			const clipId = geometry.clipId
-				? `${svgIdPrefix}-${toSvgIdPart(geometry.clipId)}`
-				: null;
-			return (
-				<g opacity={opacity} transform={transform}>
-					{clipId && geometry.clipRect && (
-						<defs>
-							<clipPath id={clipId}>
-								<rect
-									x={geometry.clipRect.x}
-									y={geometry.clipRect.y}
-									width={geometry.clipRect.width}
-									height={geometry.clipRect.height}
-								/>
-							</clipPath>
-						</defs>
-					)}
-					<rect
-						x={geometry.x}
-						y={geometry.y}
-						width={Math.max(1, geometry.width)}
-						height={Math.max(1, geometry.height)}
-						fill={element.fill || "transparent"}
-						stroke={element.stroke || "#00000020"}
-						strokeWidth={element.strokeWidth ?? 1}
-						rx={element.cornerRadius ?? 8}
-					/>
-					<image
-						href={geometry.src}
-						x={geometry.imageX}
-						y={geometry.imageY}
-						width={Math.max(1, geometry.imageWidth)}
-						height={Math.max(1, geometry.imageHeight)}
-						preserveAspectRatio="xMidYMid meet"
-						clipPath={clipId ? `url(#${clipId})` : undefined}
-					>
-						<title>
-							{typeof element.customData?.imageAlt === "string"
-								? element.customData.imageAlt
-								: "Image"}
-						</title>
-					</image>
-				</g>
-			);
-		}
-		case "frame":
-			if (isKanbanList(element)) {
-				return (
-					<SdkKanbanList
-						element={element}
-						opacity={opacity}
-						transform={transform}
-						readOnly={readOnly || draft}
-						onAddKanbanCard={onAddKanbanCard}
-					/>
-				);
-			}
-			if (element.customData?.skedraType === "template-section") {
-				return (
-					<SdkTemplateSection
-						element={element}
-						opacity={opacity}
-						transform={transform}
-						readOnly={readOnly || draft}
-						onAddTemplateSticky={onAddTemplateSticky}
-					/>
-				);
-			}
-			return (
-				<g opacity={opacity} transform={transform}>
-					<rect
-						x={element.x}
-						y={element.y}
-						width={Math.max(1, element.width)}
-						height={Math.max(1, element.height)}
-						fill="transparent"
-						stroke={
-							element.stroke === "transparent"
-								? "var(--skedra-sdk-primary)"
-								: element.stroke
-						}
-						strokeWidth={Math.max(1, element.strokeWidth)}
-						strokeDasharray={strokeDasharray ?? "6 4"}
-						rx={element.cornerRadius ?? 4}
-						opacity={0.72}
-					/>
-					<text
-						x={element.x + 6}
-						y={element.y - 6}
-						fill={
-							element.stroke === "transparent"
-								? "var(--skedra-sdk-primary)"
-								: element.stroke
-						}
-						fontFamily="system-ui, sans-serif"
-						fontSize={12}
-						pointerEvents="none"
-					>
-						{element.frameLabel || element.text || "Frame"}
-					</text>
-				</g>
-			);
-		case "text":
-			return (
-				<g transform={transform}>
-					<SdkTextBlock element={element} opacity={opacity} />
-				</g>
-			);
-		default:
-			return null;
-	}
-}
-
-function SdkKanbanList({
-	element,
-	opacity,
-	transform,
-	readOnly,
-	onAddKanbanCard,
-}: {
-	element: CanvasElement;
-	opacity: number;
-	transform?: string;
-	readOnly: boolean;
-	onAddKanbanCard: (listId: string) => CanvasElement | null;
-}) {
-	const label = element.frameLabel || element.text || "List";
-	const headerHeight = 42;
-	const footerHeight = 42;
-	return (
-		<g opacity={opacity} transform={transform}>
-			<rect
-				x={element.x}
-				y={element.y}
-				width={Math.max(1, element.width)}
-				height={Math.max(1, element.height)}
-				rx={10}
-				fill="var(--skedra-sdk-kanban-list-bg)"
-				stroke="var(--skedra-sdk-kanban-list-border)"
-				strokeWidth={1}
-			/>
-			<rect
-				x={element.x}
-				y={element.y}
-				width={Math.max(1, element.width)}
-				height={headerHeight}
-				rx={10}
-				fill="var(--skedra-sdk-kanban-list-header)"
-			/>
-			<rect
-				x={element.x}
-				y={element.y + headerHeight - 10}
-				width={Math.max(1, element.width)}
-				height={10}
-				fill="var(--skedra-sdk-kanban-list-header)"
-			/>
-			<text
-				x={element.x + 14}
-				y={element.y + 26}
-				fill="var(--skedra-sdk-text)"
-				fontSize={14}
-				fontFamily="system-ui, sans-serif"
-				fontWeight={700}
-				pointerEvents="none"
-			>
-				{label}
-			</text>
-			{!readOnly && (
-				<foreignObject
-					x={element.x + 12}
-					y={element.y + element.height - footerHeight + 6}
-					width={Math.max(1, element.width - 24)}
-					height={30}
-					pointerEvents="auto"
-				>
-					<button
-						type="button"
-						className="skedra-sdk__inline-action"
-						onPointerDown={(event) => event.stopPropagation()}
-						onClick={(event) => {
-							event.preventDefault();
-							event.stopPropagation();
-							onAddKanbanCard(element.id);
-						}}
-					>
-						<Plus size={14} strokeWidth={2} />
-					</button>
-				</foreignObject>
-			)}
-		</g>
-	);
-}
-
-function SdkKanbanCard({
-	element,
-	opacity,
-	transform,
-}: {
-	element: CanvasElement;
-	opacity: number;
-	transform?: string;
-}) {
-	const priority = element.customData?.priority;
-	const priorityColor =
-		priority === "urgent"
-			? "#ef4444"
-			: priority === "high"
-				? "#f97316"
-				: priority === "medium"
-					? "#eab308"
-					: priority === "low"
-						? "#22c55e"
-						: null;
-	return (
-		<g opacity={opacity} transform={transform}>
-			<rect
-				x={element.x + 1}
-				y={element.y + 2}
-				width={Math.max(1, element.width)}
-				height={Math.max(1, element.height)}
-				rx={8}
-				fill="rgba(15, 23, 42, 0.12)"
-			/>
-			<rect
-				x={element.x}
-				y={element.y}
-				width={Math.max(1, element.width)}
-				height={Math.max(1, element.height)}
-				rx={8}
-				fill="var(--skedra-sdk-kanban-card-bg)"
-				stroke="var(--skedra-sdk-kanban-list-border)"
-				strokeWidth={1}
-			/>
-			{priorityColor && (
-				<rect
-					x={element.x}
-					y={element.y}
-					width={6}
-					height={Math.max(1, element.height)}
-					rx={8}
-					fill={priorityColor}
-				/>
-			)}
-			<foreignObject
-				x={element.x + (priorityColor ? 18 : 12)}
-				y={element.y + 10}
-				width={Math.max(1, element.width - (priorityColor ? 30 : 24))}
-				height={Math.max(1, element.height - 20)}
-				pointerEvents="none"
-			>
-				<div className="skedra-sdk__kanban-card-text">
-					{element.text || "New card"}
-				</div>
-			</foreignObject>
-		</g>
-	);
-}
-
-function SdkStickyNote({
-	element,
-	opacity,
-	transform,
-}: {
-	element: CanvasElement;
-	opacity: number;
-	transform?: string;
-}) {
-	return (
-		<g opacity={opacity} transform={transform}>
-			<rect
-				x={element.x}
-				y={element.y}
-				width={Math.max(1, element.width)}
-				height={Math.max(1, element.height)}
-				rx={element.cornerRadius ?? 8}
-				fill={element.fill || "#fff3bf"}
-				stroke={element.stroke || "#ced4da"}
-				strokeWidth={element.strokeWidth ?? 1}
-			/>
-			<foreignObject
-				x={element.x + 12}
-				y={element.y + 12}
-				width={Math.max(1, element.width - 24)}
-				height={Math.max(1, element.height - 24)}
-				pointerEvents="none"
-			>
-				<div className="skedra-sdk__sticky-text">
-					{element.text || "Sticky note"}
-				</div>
-			</foreignObject>
-		</g>
-	);
-}
-
-function SdkTemplateSection({
-	element,
-	opacity,
-	transform,
-	readOnly,
-	onAddTemplateSticky,
-}: {
-	element: CanvasElement;
-	opacity: number;
-	transform?: string;
-	readOnly: boolean;
-	onAddTemplateSticky: (sectionId: string) => CanvasElement | null;
-}) {
-	const accent =
-		typeof element.customData?.templateAccent === "string"
-			? element.customData.templateAccent
-			: element.stroke;
-	return (
-		<g opacity={opacity} transform={transform}>
-			<rect
-				x={element.x}
-				y={element.y}
-				width={Math.max(1, element.width)}
-				height={Math.max(1, element.height)}
-				rx={18}
-				fill={accent}
-				opacity={0.06}
-			/>
-			<rect
-				x={element.x}
-				y={element.y}
-				width={Math.max(1, element.width)}
-				height={Math.max(1, element.height)}
-				rx={18}
-				fill="transparent"
-				stroke={accent}
-				strokeWidth={1.5}
-				strokeDasharray="8 6"
-			/>
-			<text
-				x={element.x + 18}
-				y={element.y + 30}
-				fill={accent}
-				fontSize={16}
-				fontFamily="system-ui, sans-serif"
-				fontWeight={700}
-				pointerEvents="none"
-			>
-				{element.frameLabel || "Section"}
-			</text>
-			{!readOnly && (
-				<foreignObject
-					x={element.x + element.width - 52}
-					y={element.y + 12}
-					width={36}
-					height={36}
-					pointerEvents="auto"
-				>
-					<button
-						type="button"
-						className="skedra-sdk__round-action"
-						onPointerDown={(event) => event.stopPropagation()}
-						onClick={(event) => {
-							event.preventDefault();
-							event.stopPropagation();
-							onAddTemplateSticky(element.id);
-						}}
-					>
-						<Plus size={17} strokeWidth={2} />
-					</button>
-				</foreignObject>
-			)}
-		</g>
-	);
-}
 
 function SdkMindmapActions({
 	element,
@@ -2121,127 +1400,5 @@ function SdkMindmapActions({
 				</g>
 			))}
 		</g>
-	);
-}
-
-function SdkArrowShape({
-	element,
-	opacity,
-	transform,
-}: {
-	element: CanvasElement;
-	opacity: number;
-	transform?: string;
-}) {
-	const points = element.points ?? [];
-	const start = points[0];
-	const end = points[points.length - 1];
-	const beforeEnd = points[points.length - 2] ?? start;
-	if (!start || !end || !beforeEnd) return null;
-	const arrowHeadFilled = element.arrowHeadFilled ?? true;
-	const arrowHead = renderArrowHead(
-		element.arrowHeadEnd ?? "arrow",
-		beforeEnd[0],
-		beforeEnd[1],
-		end[0],
-		end[1],
-		element.stroke,
-		14 * (element.arrowHeadScale ?? 1),
-	);
-	return (
-		<g
-			opacity={opacity}
-			transform={[transform, `translate(${element.x}, ${element.y})`]
-				.filter(Boolean)
-				.join(" ")}
-		>
-			<path
-				d={getArrowPath(points, element.arrowMode)}
-				fill="none"
-				stroke={element.stroke}
-				strokeWidth={element.strokeWidth}
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			/>
-			{arrowHead?.type === "lines" && arrowHead.lines && (
-				<path
-					d={`M ${arrowHead.lines.x1} ${arrowHead.lines.y1} L ${arrowHead.lines.x2} ${arrowHead.lines.y2} L ${arrowHead.lines.x3} ${arrowHead.lines.y3}`}
-					fill="none"
-					stroke={element.stroke}
-					strokeWidth={element.strokeWidth}
-					strokeLinecap="round"
-					strokeLinejoin="round"
-				/>
-			)}
-			{arrowHead?.type === "triangle" && arrowHead.polygon && (
-				<polygon
-					points={arrowHead.polygon}
-					fill={arrowHeadFilled ? element.stroke : "none"}
-					stroke={arrowHeadFilled ? "none" : element.stroke}
-					strokeWidth={arrowHeadFilled ? 0 : element.strokeWidth}
-					strokeLinejoin="round"
-				/>
-			)}
-			{arrowHead?.type === "dot" && (
-				<circle
-					cx={arrowHead.cx}
-					cy={arrowHead.cy}
-					r={arrowHead.r}
-					fill={arrowHeadFilled ? element.stroke : "none"}
-					stroke={arrowHeadFilled ? "none" : element.stroke}
-					strokeWidth={arrowHeadFilled ? 0 : element.strokeWidth}
-				/>
-			)}
-		</g>
-	);
-}
-
-function SdkTextBlock({
-	element,
-	opacity = element.opacity / 100,
-}: {
-	element: CanvasElement;
-	opacity?: number;
-}) {
-	const lines = renderTextLines(element.text ?? "");
-	const fontSize = element.fontSize ?? 20;
-	const lineHeight = fontSize * 1.25;
-	const color = element.textColor ?? element.stroke;
-	const textAnchor =
-		element.textAlign === "center"
-			? "middle"
-			: element.textAlign === "right"
-				? "end"
-				: "start";
-	const x =
-		element.textAlign === "center"
-			? element.x + element.width / 2
-			: element.textAlign === "right"
-				? element.x + element.width
-				: element.x;
-	return (
-		<text
-			opacity={opacity}
-			x={x}
-			y={element.y + fontSize}
-			fill={color}
-			fontFamily={element.fontFamily ?? "Kalam, Comic Sans MS, cursive"}
-			fontSize={fontSize}
-			fontWeight={element.fontWeight}
-			fontStyle={element.fontStyle}
-			textDecoration={element.textDecoration}
-			textAnchor={textAnchor}
-			pointerEvents="none"
-		>
-			{lines.map((line, index) => (
-				<tspan
-					key={`${element.id}-${index}`}
-					x={x}
-					dy={index === 0 ? 0 : lineHeight}
-				>
-					{line}
-				</tspan>
-			))}
-		</text>
 	);
 }

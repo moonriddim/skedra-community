@@ -94,7 +94,7 @@ export function BillingSettings() {
 				<div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm">
 					Die Abrechnung für dieses Konto kann nicht verwaltet werden.
 				</div>
-			) : !billing.configured ? (
+			) : !billing.configured && billing.accessSource !== "complimentary" ? (
 				<div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 shadow-sm">
 					<div className="flex gap-3">
 						<ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
@@ -118,10 +118,23 @@ export function BillingSettings() {
 									{billing.workspaceName}
 								</p>
 								<h3 className="mt-1 text-xl font-semibold text-foreground">
-									{statusLabels[subscription?.status ?? "inactive"] ??
-										subscription?.status ??
-										"Noch kein Abo"}
+									{billing.accessSource === "complimentary"
+										? "Kostenlos freigeschaltet"
+										: (statusLabels[subscription?.status ?? "inactive"] ??
+											subscription?.status ??
+											"Noch kein Abo")}
 								</h3>
+								{billing.accessSource === "complimentary" &&
+									billing.complimentaryAccess && (
+										<p className="mt-1 text-sm text-muted-foreground">
+											{billing.complimentaryAccess.reason} ·{" "}
+											{billing.complimentaryAccess.expiresAt
+												? `freigeschaltet bis ${new Date(
+														billing.complimentaryAccess.expiresAt,
+													).toLocaleString("de-CH")}`
+												: "dauerhaft freigeschaltet"}
+										</p>
+									)}
 								{subscription?.cancelAtPeriodEnd &&
 									subscription.currentPeriodEnd && (
 										<p className="mt-1 text-sm text-muted-foreground">
@@ -150,7 +163,7 @@ export function BillingSettings() {
 						</div>
 					</div>
 
-					{!canUsePortal && (
+					{!canUsePortal && billing.accessSource !== "complimentary" && (
 						<div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
 							<h3 className="text-base font-semibold text-foreground">
 								Skedra Cloud starten

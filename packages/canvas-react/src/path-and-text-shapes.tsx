@@ -1,13 +1,8 @@
-import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
-import { readElementCustomData } from "@/lib/canvas/custom-data-utils";
-import {
-	STICKY_NOTE_TEXT_PADDING,
-	getStickyNotePlaceholder,
-} from "@/lib/canvas/sticky-note-utils";
 import {
 	type ArrowHeadData,
 	type ArrowTextOrientation,
 	type ArrowTextSide,
+	STICKY_NOTE_TEXT_PADDING,
 	arrowHeadLengthForType,
 	getArrowPath,
 	getArrowTextMetrics,
@@ -18,9 +13,11 @@ import {
 import type { CanvasElement } from "@skedra/canvas-core";
 import { useMemo } from "react";
 import { roughArrowHeadHtml } from "./render-helpers";
+import { useCanvasRendererConfig } from "./renderer-config";
 import { RoughSvgMarkup } from "./rough-svg-markup";
 
 export function TextBlock({ el }: { el: CanvasElement }) {
+	const { defaultFontFamily } = useCanvasRendererConfig();
 	return (
 		<foreignObject
 			x={el.x}
@@ -34,7 +31,7 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 					width: "100%",
 					height: "100%",
 					fontSize: el.fontSize ?? 16,
-					fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
+					fontFamily: el.fontFamily ?? defaultFontFamily,
 					fontWeight: el.fontWeight ?? "normal",
 					fontStyle: el.fontStyle ?? "normal",
 					textDecoration: el.textDecoration ?? "none",
@@ -193,12 +190,13 @@ export function PathTextLabel({
 	pathId: string;
 	mode?: CanvasElement["arrowMode"];
 }) {
+	const { defaultFontFamily } = useCanvasRendererConfig();
 	if (!el.points || el.points.length < 2) return null;
 
 	const rawText = el.text ?? "";
 	if (!rawText.replace(/\s/g, "").length) return null;
 
-	const customData = readElementCustomData(el.customData);
+	const customData = el.customData ?? {};
 	const labelSide =
 		(customData.arrowTextSide as ArrowTextSide | undefined) ?? "above";
 	const orientation =
@@ -236,7 +234,7 @@ export function PathTextLabel({
 	const textProps = {
 		fill: el.textColor ?? el.stroke,
 		fontSize,
-		fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
+		fontFamily: el.fontFamily ?? defaultFontFamily,
 		fontWeight: el.fontWeight ?? "normal",
 		fontStyle: el.fontStyle ?? "normal",
 		textDecoration: el.textDecoration ?? "none",
@@ -357,6 +355,8 @@ function ArrowHeadSvg({
 }
 
 export function RectText({ el }: { el: CanvasElement }) {
+	const { defaultFontFamily, translate } = useCanvasRendererConfig();
+	const stickyPlaceholder = translate("canvas.sticky.notePlaceholder");
 	const isStickyNote = el.customData?.skedraType === "sticky-note";
 	const isCenteredShape =
 		el.type === "rectangle" || el.type === "diamond" || el.type === "ellipse";
@@ -377,7 +377,7 @@ export function RectText({ el }: { el: CanvasElement }) {
 	const text = el.text?.trim().length
 		? el.text
 		: isStickyNote
-			? getStickyNotePlaceholder()
+			? stickyPlaceholder
 			: "";
 
 	return (
@@ -402,7 +402,7 @@ export function RectText({ el }: { el: CanvasElement }) {
 					style={{
 						width: "100%",
 						fontSize: el.fontSize ?? 16,
-						fontFamily: el.fontFamily ?? CANVAS_DEFAULT_FONT,
+						fontFamily: el.fontFamily ?? defaultFontFamily,
 						fontWeight: el.fontWeight ?? "normal",
 						fontStyle: el.fontStyle ?? "normal",
 						textDecoration: el.textDecoration ?? "none",
@@ -414,7 +414,7 @@ export function RectText({ el }: { el: CanvasElement }) {
 						wordBreak: "break-word",
 						overflow: "hidden",
 						lineHeight: 1.4,
-						opacity: text === getStickyNotePlaceholder() ? 0.45 : 1,
+						opacity: text === stickyPlaceholder ? 0.45 : 1,
 					}}
 				>
 					{text}

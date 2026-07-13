@@ -3,22 +3,16 @@
  */
 
 import {
-	KANBAN_FONT_FAMILY,
-	TOOL_FONT_FAMILY,
-} from "@/lib/canvas/canvas-defaults";
-import { getTemplateSectionMeta } from "@/lib/canvas/template-tool-utils";
-import { translate } from "@/lib/i18n";
-import { getCurrentLocale } from "@/stores/locale";
-import {
 	KANBAN_LIST_FOOTER_HEIGHT,
 	KANBAN_LIST_PADDING,
 	getKanbanImageObjectPosition,
 	getKanbanListHeaderHeight,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useCanvasCommands } from "../canvas-commands";
 import { RectText } from "./path-and-text-shapes";
 import { dashArray } from "./render-helpers";
+import { useCanvasRendererConfig } from "./renderer-config";
+import { getRendererTemplateAccent } from "./renderer-data";
 
 interface FrameShapeProps {
 	el: CanvasElement;
@@ -37,7 +31,8 @@ function KanbanListFrameShape({
 	label,
 	resolveAssetUrl,
 }: FrameShapeProps) {
-	const canvasCommands = useCanvasCommands();
+	const { actions, interactive, kanbanFontFamily, translate } =
+		useCanvasRendererConfig();
 	const headerImageSrc = el.customData?.headerImageSrc as string | undefined;
 	const resolvedHeaderImageSrc = headerImageSrc
 		? (resolveAssetUrl?.(headerImageSrc) ?? headerImageSrc)
@@ -91,10 +86,7 @@ function KanbanListFrameShape({
 					>
 						<img
 							src={resolvedHeaderImageSrc}
-							alt={translate(
-								getCurrentLocale(),
-								"canvas.properties.listImageAlt",
-							)}
+							alt={translate("canvas.properties.listImageAlt")}
 							style={{
 								width: "100%",
 								height: "100%",
@@ -126,7 +118,7 @@ function KanbanListFrameShape({
 									padding: "4px 8px",
 									color: "#ffffff",
 									fontSize: 15,
-									fontFamily: KANBAN_FONT_FAMILY,
+									fontFamily: kanbanFontFamily,
 									fontWeight: 700,
 									lineHeight: 1.2,
 									textShadow: "0 1px 8px rgba(2, 6, 23, 0.72)",
@@ -156,52 +148,54 @@ function KanbanListFrameShape({
 					y={el.y + 25}
 					style={{ fill: "var(--kanban-list-header-text)" }}
 					fontSize={14}
-					fontFamily={KANBAN_FONT_FAMILY}
+					fontFamily={kanbanFontFamily}
 					fontWeight={700}
 					pointerEvents="none"
 				>
 					{label}
 				</text>
 			)}
-			<foreignObject
-				x={el.x + KANBAN_LIST_PADDING}
-				y={buttonY}
-				width={buttonWidth}
-				height={32}
-				pointerEvents="auto"
-			>
-				<button
-					type="button"
-					onPointerDown={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-					}}
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						canvasCommands.addKanbanCard(el.id);
-					}}
-					style={{
-						width: "100%",
-						height: "100%",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						gap: 8,
-						borderRadius: 8,
-						border: "1px dashed var(--kanban-list-border)",
-						background:
-							"color-mix(in srgb, var(--kanban-list-bg) 82%, var(--kanban-list-header-bg) 18%)",
-						color: "var(--kanban-card-text)",
-						fontSize: 12,
-						fontWeight: 600,
-						cursor: "pointer",
-					}}
+			{interactive && (
+				<foreignObject
+					x={el.x + KANBAN_LIST_PADDING}
+					y={buttonY}
+					width={buttonWidth}
+					height={32}
+					pointerEvents="auto"
 				>
-					<span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-					<span>{translate(getCurrentLocale(), "canvas.kanban.newCard")}</span>
-				</button>
-			</foreignObject>
+					<button
+						type="button"
+						onPointerDown={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+						}}
+						onClick={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							actions.addKanbanCard(el.id);
+						}}
+						style={{
+							width: "100%",
+							height: "100%",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							gap: 8,
+							borderRadius: 8,
+							border: "1px dashed var(--kanban-list-border)",
+							background:
+								"color-mix(in srgb, var(--kanban-list-bg) 82%, var(--kanban-list-header-bg) 18%)",
+							color: "var(--kanban-card-text)",
+							fontSize: 12,
+							fontWeight: 600,
+							cursor: "pointer",
+						}}
+					>
+						<span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+						<span>{translate("canvas.kanban.newCard")}</span>
+					</button>
+				</foreignObject>
+			)}
 		</g>
 	);
 }
@@ -213,15 +207,14 @@ function TemplateSectionFrameShape({
 	isEditingText,
 	label,
 }: FrameShapeProps) {
-	const canvasCommands = useCanvasCommands();
-	const templateSection = getTemplateSectionMeta(el);
-	if (!templateSection) return null;
+	const { actions, interactive, toolFontFamily, translate } =
+		useCanvasRendererConfig();
+	const templateAccent = getRendererTemplateAccent(el);
+	if (!templateAccent) return null;
+	const templateSection = { templateAccent };
 
 	const dash = dashArray(el.strokeStyle, 1.5);
-	const actionLabel = translate(
-		getCurrentLocale(),
-		"canvas.templateTools.addNote",
-	);
+	const actionLabel = translate("canvas.templateTools.addNote");
 	const compactTextOffset = el.text ? 0 : -6;
 
 	return (
@@ -251,7 +244,7 @@ function TemplateSectionFrameShape({
 				y={el.y + 28 + compactTextOffset}
 				fill={templateSection.templateAccent}
 				fontSize={16}
-				fontFamily={TOOL_FONT_FAMILY}
+				fontFamily={toolFontFamily}
 				fontWeight={700}
 				pointerEvents="none"
 			>
@@ -269,7 +262,7 @@ function TemplateSectionFrameShape({
 						style={{
 							fontSize: 13,
 							lineHeight: 1.35,
-							fontFamily: TOOL_FONT_FAMILY,
+							fontFamily: toolFontFamily,
 							color: "var(--muted-foreground)",
 							whiteSpace: "pre-wrap",
 							overflow: "hidden",
@@ -279,49 +272,51 @@ function TemplateSectionFrameShape({
 					</div>
 				</foreignObject>
 			)}
-			<foreignObject
-				x={el.x + el.width - 52}
-				y={el.y + 12}
-				width={36}
-				height={36}
-				data-ui-only="true"
-				pointerEvents="auto"
-			>
-				<button
-					type="button"
-					title={actionLabel}
-					aria-label={actionLabel}
+			{interactive && (
+				<foreignObject
+					x={el.x + el.width - 52}
+					y={el.y + 12}
+					width={36}
+					height={36}
 					data-ui-only="true"
-					onPointerDown={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-					}}
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						canvasCommands.addTemplateSticky(el.id);
-					}}
-					style={{
-						width: "100%",
-						height: "100%",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						borderRadius: 999,
-						border: `1px solid ${templateSection.templateAccent}`,
-						background: `${templateSection.templateAccent}18`,
-						color: templateSection.templateAccent,
-						boxShadow: `0 6px 18px ${templateSection.templateAccent}22`,
-						fontSize: 20,
-						fontWeight: 700,
-						cursor: "pointer",
-					}}
+					pointerEvents="auto"
 				>
-					<span style={{ lineHeight: 1, transform: "translateY(-1px)" }}>
-						+
-					</span>
-				</button>
-			</foreignObject>
+					<button
+						type="button"
+						title={actionLabel}
+						aria-label={actionLabel}
+						data-ui-only="true"
+						onPointerDown={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+						}}
+						onClick={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							actions.addTemplateSticky(el.id);
+						}}
+						style={{
+							width: "100%",
+							height: "100%",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							borderRadius: 999,
+							border: `1px solid ${templateSection.templateAccent}`,
+							background: `${templateSection.templateAccent}18`,
+							color: templateSection.templateAccent,
+							boxShadow: `0 6px 18px ${templateSection.templateAccent}22`,
+							fontSize: 20,
+							fontWeight: 700,
+							cursor: "pointer",
+						}}
+					>
+						<span style={{ lineHeight: 1, transform: "translateY(-1px)" }}>
+							+
+						</span>
+					</button>
+				</foreignObject>
+			)}
 		</g>
 	);
 }
@@ -376,10 +371,9 @@ export function FrameElementShape({
 	isEditingText: boolean;
 	resolveAssetUrl?: (src: string) => string;
 }) {
+	const { translate } = useCanvasRendererConfig();
 	const label =
-		el.frameLabel ||
-		el.text ||
-		translate(getCurrentLocale(), "canvas.properties.frameDefault");
+		el.frameLabel || el.text || translate("canvas.properties.frameDefault");
 
 	if (el.customData?.skedraType === "kanban-list") {
 		return (
@@ -394,7 +388,7 @@ export function FrameElementShape({
 		);
 	}
 
-	if (getTemplateSectionMeta(el)) {
+	if (getRendererTemplateAccent(el)) {
 		return (
 			<TemplateSectionFrameShape
 				el={el}

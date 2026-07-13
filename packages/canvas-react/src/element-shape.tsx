@@ -19,6 +19,7 @@ import {
 	TextBlock,
 } from "./path-and-text-shapes";
 import { dashArray, useRoughShapeLayers } from "./render-helpers";
+import { useCanvasRendererConfig } from "./renderer-config";
 import { RoughGeometryLayers, RoughSvgMarkup } from "./rough-svg-markup";
 import { StickyNoteShape } from "./sticky-note-shape";
 
@@ -31,6 +32,7 @@ export const ElementShape = memo(function ElementShape({
 	isEditingText: boolean;
 	resolveAssetUrl?: (src: string) => string;
 }) {
+	const { svgIdPrefix } = useCanvasRendererConfig();
 	const commonProps = {
 		"data-element-id": el.id,
 		opacity: el.opacity / 100,
@@ -179,12 +181,15 @@ export const ElementShape = memo(function ElementShape({
 		case "image": {
 			const geometry = getImageRenderGeometry(el);
 			if (!geometry.src) return null;
+			const clipId = geometry.clipId
+				? `${svgIdPrefix}-${geometry.clipId.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+				: null;
 			const imageSrc = resolveAssetUrl?.(geometry.src) ?? geometry.src;
 			return (
 				<g transform={transform} {...commonProps}>
-					{geometry.clipId && geometry.clipRect && (
+					{clipId && geometry.clipRect && (
 						<defs>
-							<clipPath id={geometry.clipId}>
+							<clipPath id={clipId}>
 								<rect
 									x={geometry.clipRect.x}
 									y={geometry.clipRect.y}
@@ -211,7 +216,7 @@ export const ElementShape = memo(function ElementShape({
 						width={Math.max(1, geometry.imageWidth)}
 						height={Math.max(1, geometry.imageHeight)}
 						preserveAspectRatio="xMidYMid meet"
-						clipPath={geometry.clipId ? `url(#${geometry.clipId})` : undefined}
+						clipPath={clipId ? `url(#${clipId})` : undefined}
 					/>
 				</g>
 			);

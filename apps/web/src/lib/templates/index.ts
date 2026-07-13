@@ -10,7 +10,7 @@ import {
 } from "@/lib/canvas/yjs-document-helpers";
 import {
 	type CanvasElement,
-	createKanbanBoardElements,
+	createCanvasTemplateElements,
 } from "@skedra/canvas-core";
 import * as Y from "yjs";
 import { createFlowchartTemplate } from "./flowchart";
@@ -38,11 +38,13 @@ export const TEMPLATES: WhiteboardTemplate[] = [
 			"3 Listen (To Do, In Bearbeitung, Erledigt) zur Aufgabenverwaltung",
 		icon: "📋",
 		create: (cx, cy, theme) =>
-			createKanbanBoardElements(getCanvasElementFactoryDefaults(theme), {
-				x: cx - 450,
-				y: cy - 200,
-				lists: getDefaultKanbanBoardLists(),
-				defaultCardTitle: getDefaultKanbanCardTitle(),
+			createCanvasTemplateElements({
+				id: "kanban",
+				x: cx,
+				y: cy,
+				defaults: getCanvasElementFactoryDefaults(theme),
+				kanbanLists: getDefaultKanbanBoardLists(),
+				defaultKanbanCardTitle: getDefaultKanbanCardTitle(),
 			}),
 	},
 	{

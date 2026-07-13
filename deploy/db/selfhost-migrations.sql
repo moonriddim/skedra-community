@@ -595,6 +595,72 @@ CREATE TABLE IF NOT EXISTS "user_subscriptions" (
 CREATE INDEX IF NOT EXISTS "user_subscriptions_status_idx"
 	ON "user_subscriptions" ("status");
 
+CREATE TABLE IF NOT EXISTS "complimentary_access_grants" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+	"reason" text NOT NULL,
+	"expires_at" timestamp,
+	"granted_by_email" text NOT NULL,
+	"revoked_at" timestamp,
+	"revoked_by_email" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+
+-- Upgrade the short-lived in-app admin prototype to Cloudflare-identity audit
+-- fields if that schema was ever deployed before the private Ops UI replaced it.
+ALTER TABLE "complimentary_access_grants"
+	ADD COLUMN IF NOT EXISTS "granted_by_email" text,
+	ADD COLUMN IF NOT EXISTS "revoked_by_email" text;
+
+DO $$
+BEGIN
+	IF EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public'
+			AND table_name = 'complimentary_access_grants'
+			AND column_name = 'granted_by_user_id'
+	) THEN
+		EXECUTE '
+			UPDATE complimentary_access_grants g
+			SET granted_by_email = u.email
+			FROM users u
+			WHERE g.granted_by_email IS NULL
+				AND g.granted_by_user_id = u.id
+		';
+	END IF;
+
+	IF EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public'
+			AND table_name = 'complimentary_access_grants'
+			AND column_name = 'revoked_by_user_id'
+	) THEN
+		EXECUTE '
+			UPDATE complimentary_access_grants g
+			SET revoked_by_email = u.email
+			FROM users u
+			WHERE g.revoked_by_email IS NULL
+				AND g.revoked_by_user_id = u.id
+		';
+	END IF;
+END $$;
+
+UPDATE "complimentary_access_grants"
+	SET "granted_by_email" = 'legacy-migration@skedra.invalid'
+	WHERE "granted_by_email" IS NULL;
+
+ALTER TABLE "complimentary_access_grants"
+	ALTER COLUMN "granted_by_email" SET NOT NULL,
+	DROP COLUMN IF EXISTS "granted_by_user_id",
+	DROP COLUMN IF EXISTS "revoked_by_user_id";
+
+CREATE INDEX IF NOT EXISTS "complimentary_access_grants_user_idx"
+	ON "complimentary_access_grants" ("user_id");
+CREATE INDEX IF NOT EXISTS "complimentary_access_grants_revoked_idx"
+	ON "complimentary_access_grants" ("revoked_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "complimentary_access_grants_one_current_idx"
+	ON "complimentary_access_grants" ("user_id") WHERE "revoked_at" IS NULL;
+
 CREATE TABLE IF NOT EXISTS "stripe_webhook_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,

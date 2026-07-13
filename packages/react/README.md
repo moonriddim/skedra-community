@@ -55,7 +55,21 @@ export function Board() {
 }
 ```
 
-The ref exposes `insertStickyNote`, `insertFrame`, `insertKanbanBoard`, `insertKanbanCard`, `insertMindmap`, `insertMindmapChild`, and `insertTemplate`.
+The ref exposes `insertStickyNote`, `insertFrame`, `insertKanbanBoard`, `insertKanbanCard`, `insertMindmap`, `insertMindmapChild`, `insertMindmapSibling`, and `insertTemplate`.
+
+## Canvas parity
+
+The SDK and the Skedra web application use the same SDK-scoped canvas
+implementation. `@skedra/canvas-core` owns storage-independent mutation plans,
+drawing and selection geometry, keyboard commands, template generation and
+layout, Kanban operations, and mindmap operations. `@skedra/canvas-react` owns
+the SVG renderer. The web application only adapts these operations to its Yjs,
+translation, dialog, and collaboration services; the public package adapts them
+to controlled or local React state.
+
+Product-only concerns such as accounts, authorization, billing, comments,
+hosted collaboration transport, and application panels intentionally remain
+outside the SDK scope.
 
 ## Factories
 

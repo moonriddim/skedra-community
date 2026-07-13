@@ -71,11 +71,38 @@ export interface CreateMindmapEdgeOptions {
 	stackIndex?: string;
 }
 
+export interface MindmapTemplateBranch {
+	direction: "left" | "right";
+	yOffset: number;
+	color: string;
+	text: string;
+}
+
+export interface CreateMindmapTemplateElementsOptions
+	extends Pick<
+		CreateMindmapNodeOptions,
+		| "fontFamily"
+		| "rootFill"
+		| "nodeFill"
+		| "rootStroke"
+		| "childBorder"
+		| "rootTextColor"
+		| "childTextColor"
+	> {
+	x: number;
+	y: number;
+	text: string;
+	branches: readonly MindmapTemplateBranch[];
+	createId: () => string;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value != null;
 }
 
-function isHorizontalMindmapDirection(direction: MindmapDirection): boolean {
+export function isHorizontalMindmapDirection(
+	direction: MindmapDirection,
+): boolean {
 	return direction === "left" || direction === "right";
 }
 
@@ -343,6 +370,64 @@ export function createMindmapEdge(
 	};
 }
 
+export function createMindmapTemplateElements(
+	options: CreateMindmapTemplateElementsOptions,
+): CanvasElement[] {
+	const treeId = options.createId();
+	const themeOptions = {
+		fontFamily: options.fontFamily,
+		rootFill: options.rootFill,
+		nodeFill: options.nodeFill,
+		rootStroke: options.rootStroke,
+		childBorder: options.childBorder,
+		rootTextColor: options.rootTextColor,
+		childTextColor: options.childTextColor,
+	};
+	const root = createMindmapNode({
+		id: options.createId(),
+		x: options.x - MINDMAP_ROOT_WIDTH / 2,
+		y: options.y - MINDMAP_ROOT_HEIGHT / 2,
+		text: options.text,
+		treeId,
+		parentId: null,
+		direction: "right",
+		depth: 0,
+		...themeOptions,
+	});
+	const nodes = [root];
+	const edges: CanvasElement[] = [];
+
+	for (const branch of options.branches) {
+		const node = createMindmapNode({
+			id: options.createId(),
+			x:
+				branch.direction === "right"
+					? root.x + root.width + MINDMAP_HORIZONTAL_GAP
+					: root.x - MINDMAP_HORIZONTAL_GAP - MINDMAP_NODE_WIDTH,
+			y: options.y + branch.yOffset,
+			text: branch.text,
+			treeId,
+			parentId: root.id,
+			direction: branch.direction,
+			depth: 1,
+			stroke: branch.color,
+			...themeOptions,
+		});
+		nodes.push(node);
+		edges.push(
+			createMindmapEdge({
+				id: options.createId(),
+				treeId,
+				source: root,
+				target: node,
+				stroke: branch.color,
+			}),
+		);
+	}
+
+	return [...edges, ...nodes];
+}
+
 function resolveMindmapBranchColor(
 	element: CanvasElement | null | undefined,
 	elements: Map<string, CanvasElement>,
@@ -506,6 +591,257 @@ export function collectConnectedMindmapEdgeIds(
 		}
 	}
 	return edgeIds;
+}
+
+export interface MindmapInsertionShift {
+	id: string;
+	changes: Pick<Partial<CanvasElement>, "x" | "y">;
+}
+
+export interface MindmapInsertionPlan {
+	x: number;
+	y: number;
+	direction: MindmapDirection;
+	shifts: MindmapInsertionShift[];
+}
+
+export interface PlanMindmapChildInsertionOptions {
+	parent: CanvasElement;
+	elements: Map<string, CanvasElement>;
+	direction?: MindmapDirection;
+	position?: "before" | "after";
+}
+
+export interface PlanMindmapSiblingInsertionOptions {
+	node: CanvasElement;
+	elements: Map<string, CanvasElement>;
+	position?: "before" | "after";
+}
+
+function getMindmapSubtreeBounds(
+	node: CanvasElement,
+	elements: Map<string, CanvasElement>,
+) {
+	let minX = node.x;
+	let minY = node.y;
+	let maxX = node.x + node.width;
+	let maxY = node.y + node.height;
+	for (const id of collectMindmapDescendantIds(node.id, elements)) {
+		const descendant = elements.get(id);
+		if (!descendant) continue;
+		minX = Math.min(minX, descendant.x);
+		minY = Math.min(minY, descendant.y);
+		maxX = Math.max(maxX, descendant.x + descendant.width);
+		maxY = Math.max(maxY, descendant.y + descendant.height);
+	}
+	return { minX, minY, maxX, maxY };
+}
+
+function resolveAlternatingChildAxisPosition(
+	parent: CanvasElement,
+	children: CanvasElement[],
+	elements: Map<string, CanvasElement>,
+	direction: MindmapDirection,
+): number {
+	const horizontalDirection = isHorizontalMindmapDirection(direction);
+	const parentCenter = horizontalDirection
+		? parent.y + parent.height / 2
+		: parent.x + parent.width / 2;
+	let negativeSideCount = 0;
+	let positiveSideCount = 0;
+	let minimum = Number.POSITIVE_INFINITY;
+	let maximum = Number.NEGATIVE_INFINITY;
+
+	for (const child of children) {
+		const bounds = getMindmapSubtreeBounds(child, elements);
+		const childCenter = horizontalDirection
+			? child.y + child.height / 2
+			: child.x + child.width / 2;
+		if (childCenter < parentCenter) negativeSideCount++;
+		else if (childCenter > parentCenter) positiveSideCount++;
+		minimum = Math.min(
+			minimum,
+			horizontalDirection ? bounds.minY : bounds.minX,
+		);
+		maximum = Math.max(
+			maximum,
+			horizontalDirection ? bounds.maxY : bounds.maxX,
+		);
+	}
+
+	const placeOnNegativeSide = negativeSideCount <= positiveSideCount;
+	if (horizontalDirection) {
+		return placeOnNegativeSide
+			? minimum - 32 - MINDMAP_NODE_HEIGHT
+			: maximum + 32;
+	}
+	return placeOnNegativeSide ? minimum - 32 - MINDMAP_NODE_WIDTH : maximum + 32;
+}
+
+function buildMindmapShifts(
+	ids: Iterable<string>,
+	elements: Map<string, CanvasElement>,
+	direction: MindmapDirection,
+): MindmapInsertionShift[] {
+	const horizontalDirection = isHorizontalMindmapDirection(direction);
+	return Array.from(new Set(ids)).flatMap((id) => {
+		const element = elements.get(id);
+		if (!element) return [];
+		return [
+			{
+				id,
+				changes: horizontalDirection
+					? { y: element.y + MINDMAP_VERTICAL_GAP }
+					: { x: element.x + MINDMAP_HORIZONTAL_GAP },
+			},
+		];
+	});
+}
+
+export function planMindmapChildInsertion({
+	parent,
+	elements,
+	direction: requestedDirection,
+	position = "after",
+}: PlanMindmapChildInsertionOptions): MindmapInsertionPlan | null {
+	const parentMeta = getMindmapNodeMeta(parent);
+	if (!parentMeta) return null;
+	const resolveRootDirection = (): MindmapDirection => {
+		if (requestedDirection) return requestedDirection;
+		const leftChildren = getMindmapChildNodes(parent.id, "left", elements);
+		const rightChildren = getMindmapChildNodes(parent.id, "right", elements);
+		if (leftChildren.length === rightChildren.length) {
+			return position === "before" ? "left" : "right";
+		}
+		return leftChildren.length < rightChildren.length ? "left" : "right";
+	};
+	const direction =
+		parentMeta.mindmapDepth === 0
+			? resolveRootDirection()
+			: (requestedDirection ?? parentMeta.mindmapDirection);
+	const children = getMindmapChildNodes(parent.id, direction, elements);
+	const horizontalDirection = isHorizontalMindmapDirection(direction);
+	const shiftedIds = new Set<string>();
+	let x = parent.x;
+	let y = parent.y;
+
+	if (horizontalDirection) {
+		if (children.length > 0) {
+			if (position === "before") {
+				y = children[0].y;
+				for (const child of children) {
+					for (const id of collectMindmapDescendantIds(child.id, elements)) {
+						shiftedIds.add(id);
+					}
+				}
+			} else {
+				y = resolveAlternatingChildAxisPosition(
+					parent,
+					children,
+					elements,
+					direction,
+				);
+			}
+		} else {
+			y = parent.y + parent.height / 2 - MINDMAP_NODE_HEIGHT / 2;
+		}
+		x =
+			direction === "right"
+				? parent.x + parent.width + MINDMAP_HORIZONTAL_GAP
+				: parent.x - MINDMAP_HORIZONTAL_GAP - MINDMAP_NODE_WIDTH;
+	} else {
+		x = parent.x + parent.width / 2 - MINDMAP_NODE_WIDTH / 2;
+		if (children.length > 0) {
+			if (position === "before") {
+				x = children[0].x;
+				for (const child of children) {
+					for (const id of collectMindmapDescendantIds(child.id, elements)) {
+						shiftedIds.add(id);
+					}
+				}
+			} else {
+				x = resolveAlternatingChildAxisPosition(
+					parent,
+					children,
+					elements,
+					direction,
+				);
+			}
+		}
+		y =
+			direction === "down"
+				? parent.y + parent.height + MINDMAP_VERTICAL_GAP
+				: parent.y - MINDMAP_VERTICAL_GAP - MINDMAP_NODE_HEIGHT;
+	}
+
+	return {
+		x,
+		y,
+		direction,
+		shifts: buildMindmapShifts(shiftedIds, elements, direction),
+	};
+}
+
+export function planMindmapSiblingInsertion({
+	node,
+	elements,
+	position = "after",
+}: PlanMindmapSiblingInsertionOptions): MindmapInsertionPlan | null {
+	const nodeMeta = getMindmapNodeMeta(node);
+	if (!nodeMeta || nodeMeta.mindmapParentId == null) return null;
+	const direction = nodeMeta.mindmapDirection;
+	const siblings = getMindmapChildNodes(
+		nodeMeta.mindmapParentId,
+		direction,
+		elements,
+	);
+	const horizontalDirection = isHorizontalMindmapDirection(direction);
+	const shiftedIds = new Set<string>();
+	let x = node.x;
+	let y = node.y;
+
+	if (horizontalDirection) {
+		if (position === "before") {
+			for (const sibling of siblings) {
+				if (sibling.y < node.y) continue;
+				for (const id of collectMindmapDescendantIds(sibling.id, elements)) {
+					shiftedIds.add(id);
+				}
+			}
+		} else {
+			const subtree = getMindmapSubtreeBounds(node, elements);
+			y = subtree.maxY + 32;
+			for (const sibling of siblings) {
+				if (sibling.id === node.id || sibling.y < y) continue;
+				for (const id of collectMindmapDescendantIds(sibling.id, elements)) {
+					shiftedIds.add(id);
+				}
+			}
+		}
+	} else if (position === "before") {
+		for (const sibling of siblings) {
+			if (sibling.x < node.x) continue;
+			for (const id of collectMindmapDescendantIds(sibling.id, elements)) {
+				shiftedIds.add(id);
+			}
+		}
+	} else {
+		const subtree = getMindmapSubtreeBounds(node, elements);
+		x = subtree.maxX + 32;
+		for (const sibling of siblings) {
+			if (sibling.id === node.id || sibling.x < x) continue;
+			for (const id of collectMindmapDescendantIds(sibling.id, elements)) {
+				shiftedIds.add(id);
+			}
+		}
+	}
+
+	return {
+		x,
+		y,
+		direction,
+		shifts: buildMindmapShifts(shiftedIds, elements, direction),
+	};
 }
 
 export function getMindmapChildNodes(

@@ -1,12 +1,13 @@
 import {
 	STICKY_NOTE_TEXT_PADDING,
-	getStickyNoteContent,
-	getStickyNoteItemPlaceholder,
-	getStickyNoteTextStyle,
-} from "@/lib/canvas/sticky-note-utils";
-import { getEffectiveCornerRadius } from "@skedra/canvas-core";
+	getEffectiveCornerRadius,
+} from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useCanvasCommands } from "../canvas-commands";
+import { useCanvasRendererConfig } from "./renderer-config";
+import {
+	getRendererStickyNoteContent,
+	getRendererStickyNoteTextStyle,
+} from "./renderer-data";
 
 export function StickyNoteShape({
 	el,
@@ -19,14 +20,14 @@ export function StickyNoteShape({
 	commonProps: { "data-element-id": string; opacity: number };
 	isEditingText: boolean;
 }) {
-	const canvasCommands = useCanvasCommands();
+	const { actions, interactive, translate } = useCanvasRendererConfig();
 	const padding = STICKY_NOTE_TEXT_PADDING;
-	const { mode, text, checklist } = getStickyNoteContent(el);
-	const itemPlaceholder = getStickyNoteItemPlaceholder();
+	const { mode, text, checklist } = getRendererStickyNoteContent(el);
+	const itemPlaceholder = translate("canvas.sticky.itemPlaceholder");
 	const visibleItems = checklist.filter(
 		(item) => item.text.trim().length > 0 || item.completed,
 	);
-	const textStyle = getStickyNoteTextStyle(el);
+	const textStyle = getRendererStickyNoteTextStyle(el);
 	const cornerRadius = getEffectiveCornerRadius(el);
 	const bodySize = textStyle.fontSize;
 	const titleSize = bodySize * 1.05;
@@ -128,23 +129,21 @@ export function StickyNoteShape({
 													onClick={(event) => {
 														event.preventDefault();
 														event.stopPropagation();
-														canvasCommands.toggleStickyChecklistItem(
-															el.id,
-															item.id,
-														);
+														actions.toggleStickyChecklistItem(el.id, item.id);
 													}}
 													style={{
 														marginTop: 1,
 														border: "none",
 														background: "transparent",
 														padding: 0,
-														cursor: "pointer",
+														cursor: interactive ? "pointer" : "default",
 														fontSize: 14,
 														lineHeight: 1,
 														color: textStyle.color,
 														flexShrink: 0,
 													}}
 													aria-label={item.completed ? "Erledigt" : "Offen"}
+													disabled={!interactive}
 												>
 													{item.completed ? "☑" : "☐"}
 												</button>

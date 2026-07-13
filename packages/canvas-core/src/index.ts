@@ -20,3 +20,5 @@ export * from "./snap";
 export * from "./viewport";
 export * from "./flowchart-navigation";
 export * from "./encrypted-assets";
+export * from "./editor-operations";
+export * from "./templates";

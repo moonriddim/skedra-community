@@ -21,6 +21,7 @@
 		"@radix-ui/react-slot": "^1.1.0",
 		"@radix-ui/react-tooltip": "^1.1.0",
 		"@skedra/canvas-core": "workspace:*",
+		"@skedra/canvas-react": "workspace:*",
 		"@skedra/shared": "workspace:*",
 		"@tanstack/react-query": "^5.62.0",
 		"@trpc/client": "^11.0.0",
@@ -34,7 +35,6 @@
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
 		"react-router": "^7.1.0",
-		"roughjs": "^4.6.6",
 		"tailwind-merge": "^2.6.0",
 		"yjs": "^13.6.29",
 		"zustand": "^5.0.0"

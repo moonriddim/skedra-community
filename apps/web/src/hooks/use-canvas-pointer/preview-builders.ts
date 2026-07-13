@@ -6,6 +6,7 @@ import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-def
 import { getDefaultKanbanCardTitle } from "@/lib/canvas/kanban-options";
 import {
 	type CanvasElement,
+	buildCanvasDrawingElement,
 	createKanbanCardElement,
 	createStickyNoteElement,
 } from "@skedra/canvas-core";
@@ -107,29 +108,19 @@ export function buildShapePlacementPreview(
 	centerY: number,
 	store: CanvasStoreState,
 ): CanvasElement {
-	return {
+	return buildCanvasDrawingElement({
 		id: "__preview",
-		type: draft.type,
-		x: centerX - draft.width / 2,
-		y: centerY - draft.height / 2,
-		width: draft.width,
-		height: draft.height,
-		rotation: 0,
-		fill: store.fillColor,
-		stroke: store.strokeColor,
-		strokeWidth: store.strokeWidth,
-		strokeStyle: store.strokeStyle,
-		cornerRadiusPercent:
-			draft.type === "rectangle" ? store.cornerRadiusPercent : undefined,
-		roughness: store.roughness,
-		roughFillStyle: store.roughFillStyle,
-		roughFillScale: store.roughFillScale,
-		opacity: 100,
-		locked: false,
-		groupId: null,
-		flipX: false,
-		flipY: false,
-	};
+		tool: draft.type,
+		start: {
+			x: centerX - draft.width / 2,
+			y: centerY - draft.height / 2,
+		},
+		end: {
+			x: centerX + draft.width / 2,
+			y: centerY + draft.height / 2,
+		},
+		style: getDrawingStyle(store),
+	});
 }
 
 export function buildPlacedShapeElement(
@@ -150,26 +141,13 @@ export function buildFreehandPreview(
 	y: number,
 	store: CanvasStoreState,
 ): CanvasElement {
-	return {
+	return buildCanvasDrawingElement({
 		id: "__preview",
-		type: "freehand",
-		x,
-		y,
-		width: 0,
-		height: 0,
-		rotation: 0,
-		fill: "transparent",
-		stroke: store.strokeColor,
-		strokeWidth: store.strokeWidth,
-		strokeStyle: store.strokeStyle,
-		roughness: store.roughness,
-		opacity: 100,
-		locked: false,
-		groupId: null,
-		flipX: false,
-		flipY: false,
-		points: [[0, 0]],
-	};
+		tool: "freehand",
+		start: { x, y },
+		points: [{ x, y }],
+		style: getDrawingStyle(store),
+	});
 }
 
 export function buildSingleArrowPreview(
@@ -177,31 +155,13 @@ export function buildSingleArrowPreview(
 	y: number,
 	store: CanvasStoreState,
 ): CanvasElement {
-	return {
+	return buildCanvasDrawingElement({
 		id: "__preview",
-		type: "arrow",
-		x,
-		y,
-		width: 0,
-		height: 0,
-		rotation: 0,
-		fill: "transparent",
-		stroke: store.strokeColor,
-		strokeWidth: store.strokeWidth,
-		strokeStyle: store.strokeStyle,
-		roughness: store.roughness,
-		arrowMode: store.arrowMode,
-		arrowHeadStart: store.arrowHeadStart,
-		arrowHeadEnd: store.arrowHeadEnd,
-		arrowHeadScale: store.arrowHeadScale,
-		arrowHeadFilled: store.arrowHeadFilled,
-		opacity: 100,
-		locked: false,
-		groupId: null,
-		flipX: false,
-		flipY: false,
-		points: [[0, 0]],
-	};
+		tool: "arrow",
+		start: { x, y },
+		end: { x, y },
+		style: getDrawingStyle(store),
+	});
 }
 
 export function buildTextBoxPreview(
@@ -239,28 +199,32 @@ export function buildDrawingPreview(
 	y: number,
 	store: CanvasStoreState,
 ): CanvasElement {
-	return {
+	return buildCanvasDrawingElement({
 		id: "__preview",
-		type: tool,
-		x,
-		y,
-		width: 0,
-		height: 0,
-		rotation: 0,
-		fill: tool === "frame" ? "transparent" : store.fillColor,
-		stroke: tool === "frame" ? "#6366f1" : store.strokeColor,
-		strokeWidth: tool === "frame" ? 1.5 : store.strokeWidth,
+		tool: tool as Exclude<CanvasElement["type"], "image" | "text">,
+		start: { x, y },
+		end: { x, y },
+		style: {
+			...getDrawingStyle(store),
+			stroke: tool === "frame" ? "#6366f1" : store.strokeColor,
+		},
+	});
+}
+
+function getDrawingStyle(store: CanvasStoreState) {
+	return {
+		stroke: store.strokeColor,
+		fill: store.fillColor,
+		strokeWidth: store.strokeWidth,
 		strokeStyle: store.strokeStyle,
-		cornerRadiusPercent:
-			tool === "rectangle" ? store.cornerRadiusPercent : undefined,
-		roughness: tool === "frame" ? 0 : store.roughness,
-		roughFillStyle: tool === "frame" ? undefined : store.roughFillStyle,
-		roughFillScale: tool === "frame" ? undefined : store.roughFillScale,
-		opacity: 100,
-		locked: false,
-		groupId: null,
-		flipX: false,
-		flipY: false,
-		...(tool === "frame" ? { frameLabel: "Frame" } : {}),
+		cornerRadiusPercent: store.cornerRadiusPercent,
+		roughness: store.roughness,
+		roughFillStyle: store.roughFillStyle,
+		roughFillScale: store.roughFillScale,
+		arrowMode: store.arrowMode,
+		arrowHeadStart: store.arrowHeadStart,
+		arrowHeadEnd: store.arrowHeadEnd,
+		arrowHeadScale: store.arrowHeadScale,
+		arrowHeadFilled: store.arrowHeadFilled,
 	};
 }

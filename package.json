@@ -5,7 +5,7 @@
 	"scripts": {
 		"dev": "turbo dev",
 		"build": "turbo build",
-		"test": "turbo test",
+		"test": "turbo test && node --test scripts/*.test.mjs",
 		"lint": "node scripts/check-canvas-boundary.mjs && biome check .",
 		"lint:canvas-boundary": "node scripts/check-canvas-boundary.mjs",
 		"analyze": "fallow",

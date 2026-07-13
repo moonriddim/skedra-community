@@ -4,7 +4,10 @@
 
 import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
+import {
+	DEFAULT_FONT_SIZE,
+	shouldKeepCanvasDrawing,
+} from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import type { useCanvasStore } from "../use-canvas-store";
 import { appendPreviewPoint, commitPathPoint } from "./path-helpers";
@@ -85,7 +88,12 @@ export function finalizeDrawOnPointerUp(
 			textDecoration: "none",
 		});
 	} else if (tool === "freehand") {
-		if (state.freehandPoints.length > 2) {
+		if (
+			shouldKeepCanvasDrawing({
+				...drawingPreview,
+				points: state.freehandPoints,
+			})
+		) {
 			createElement({ ...drawingPreview, id, points: state.freehandPoints });
 			created = true;
 		}
@@ -110,13 +118,9 @@ export function finalizeDrawOnPointerUp(
 				keepPathPreview = true;
 			}
 		} else {
-			const pts = drawingPreview.points;
-			if (pts && pts.length >= 2) {
-				const last = pts[pts.length - 1];
-				if (Math.abs(last[0]) > 3 || Math.abs(last[1]) > 3) {
-					createElement({ ...drawingPreview, id });
-					created = true;
-				}
+			if (shouldKeepCanvasDrawing(drawingPreview)) {
+				createElement({ ...drawingPreview, id });
+				created = true;
 			}
 		}
 	} else if (tool === "line") {
@@ -132,17 +136,13 @@ export function finalizeDrawOnPointerUp(
 				keepPathPreview = true;
 			}
 		} else {
-			const pts = drawingPreview.points;
-			if (pts && pts.length >= 2) {
-				const [, end] = pts;
-				if (Math.abs(end[0]) > 3 || Math.abs(end[1]) > 3) {
-					createElement({ ...drawingPreview, id });
-					created = true;
-				}
+			if (shouldKeepCanvasDrawing(drawingPreview)) {
+				createElement({ ...drawingPreview, id });
+				created = true;
 			}
 		}
 	} else {
-		if (drawingPreview.width > 3 && drawingPreview.height > 3) {
+		if (shouldKeepCanvasDrawing(drawingPreview)) {
 			createElement({ ...drawingPreview, id });
 			created = true;
 		} else if (tool === "ellipse") {

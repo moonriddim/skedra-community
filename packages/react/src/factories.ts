@@ -1,16 +1,9 @@
 import {
-	FLOWCHART_DEFAULT_STROKE,
-	MINDMAP_HORIZONTAL_GAP,
-	MINDMAP_NODE_WIDTH,
-	MINDMAP_ROOT_WIDTH,
-	type MindmapDirection,
 	createBaseCanvasElement,
-	createFlowchartConnector,
-	createFlowchartNode,
+	createCanvasTemplateElements,
+	createCanvasTemplateSectionFrame,
 	createKanbanBoardElements,
 	createKanbanCardElement,
-	createMindmapEdge,
-	createMindmapNode,
 	createStackIndexAfter,
 	createStickyNoteElement,
 } from "@skedra/canvas-core";
@@ -252,7 +245,7 @@ export function createSkedraKanbanCardElement(
 	});
 }
 
-function getMindmapThemeOptions(options: SkedraFactoryOptions = {}) {
+export function getSkedraMindmapAppearance(options: SkedraFactoryOptions = {}) {
 	const dark = isDarkTheme(options.theme);
 	return {
 		fontFamily: TOOL_FONT_FAMILY,
@@ -268,447 +261,39 @@ function getMindmapThemeOptions(options: SkedraFactoryOptions = {}) {
 export function createSkedraMindmapElements(
 	options: CreateSkedraMindmapOptions,
 ): CanvasElement[] {
-	const createId = options.createId ?? createSkedraElementId;
-	const treeId = createId();
-	const root = createMindmapNode({
-		id: createId(),
-		x: options.x - MINDMAP_ROOT_WIDTH / 2,
-		y: options.y - 32,
-		text: options.text ?? "Mindmap",
-		treeId,
-		parentId: null,
-		direction: "right",
-		depth: 0,
-		stroke: isDarkTheme(options.theme)
-			? DARK_MINDMAP_ROOT_STROKE
-			: LIGHT_MINDMAP_ROOT_STROKE,
-		fill: isDarkTheme(options.theme)
-			? DARK_MINDMAP_ROOT_FILL
-			: LIGHT_MINDMAP_ROOT_FILL,
-		...getMindmapThemeOptions(options),
-	});
-	const branches =
-		options.branches ??
-		([
-			{ direction: "left", yOffset: -120, color: "#2563eb", text: "Strategy" },
-			{ direction: "left", yOffset: 108, color: "#d97706", text: "Operations" },
-			{ direction: "right", yOffset: -120, color: "#0f766e", text: "Product" },
-			{ direction: "right", yOffset: 108, color: "#7c3aed", text: "Growth" },
-		] satisfies CreateSkedraMindmapOptions["branches"]);
-	const nodes: CanvasElement[] = [root];
-	const edges: CanvasElement[] = [];
-
-	for (const branch of branches) {
-		const node = createMindmapNode({
-			id: createId(),
-			x:
-				branch.direction === "right"
-					? root.x + root.width + MINDMAP_HORIZONTAL_GAP
-					: root.x - MINDMAP_HORIZONTAL_GAP - MINDMAP_NODE_WIDTH,
-			y: options.y + branch.yOffset,
-			text: branch.text,
-			treeId,
-			parentId: root.id,
-			direction: branch.direction,
-			depth: 1,
-			stroke: branch.color,
-			...getMindmapThemeOptions(options),
-		});
-		nodes.push(node);
-		edges.push(
-			createMindmapEdge({
-				id: createId(),
-				treeId,
-				source: root,
-				target: node,
-				stroke: branch.color,
-			}),
-		);
-	}
-
-	return [...edges, ...nodes];
-}
-
-function baseTemplateElement(
-	createId: () => string,
-	overrides: Partial<CanvasElement> & { type: CanvasElement["type"] },
-): CanvasElement {
-	return {
-		id: createId(),
-		x: 0,
-		y: 0,
-		width: 100,
-		height: 100,
-		rotation: 0,
-		fill: "transparent",
-		stroke: LIGHT_STROKE,
-		strokeWidth: 2,
-		strokeStyle: "solid",
-		opacity: 100,
-		locked: false,
-		groupId: null,
-		flipX: false,
-		flipY: false,
-		...overrides,
-	};
-}
-
-function createTemplateArrow(
-	createId: () => string,
-	points: [number, number][],
-	overrides: Partial<CanvasElement> = {},
-) {
-	const minX = Math.min(...points.map(([x]) => x));
-	const maxX = Math.max(...points.map(([x]) => x));
-	const minY = Math.min(...points.map(([, y]) => y));
-	const maxY = Math.max(...points.map(([, y]) => y));
-	return baseTemplateElement(createId, {
-		type: "arrow",
-		x: minX,
-		y: minY,
-		width: Math.max(1, maxX - minX),
-		height: Math.max(1, maxY - minY),
-		stroke: "#94a3b8",
-		strokeWidth: 2,
-		arrowMode: points.length > 2 ? "elbow" : "straight",
-		arrowHeadStart: "none",
-		arrowHeadEnd: "none",
-		points: points.map(([x, y]) => [x - minX, y - minY] as [number, number]),
-		...overrides,
+	return createCanvasTemplateElements({
+		id: "mindmap",
+		x: options.x,
+		y: options.y,
+		defaults: getSkedraElementFactoryDefaults(options),
+		mindmapText: options.text,
+		mindmapBranches: options.branches,
+		mindmapAppearance: getSkedraMindmapAppearance(options),
 	});
 }
 
 export function createSkedraTemplateSectionFrame(
 	options: CreateSkedraTemplateSectionFrameOptions,
 ): CanvasElement {
-	const createId = options.createId ?? createSkedraElementId;
-	return baseTemplateElement(createId, {
-		type: "frame",
-		x: options.x,
-		y: options.y,
-		width: options.width,
-		height: options.height,
-		stroke: options.accent,
-		strokeWidth: 1.5,
-		frameLabel: options.label,
-		text: options.text,
-		customData: {
-			skedraType: "template-section",
-			templateTool: options.tool,
-			templateSectionId: options.sectionId,
-			templateAccent: options.accent,
-			templateBaseHeight: options.height,
-			stickyColor: options.stickyColor,
-			stickyWidth: options.stickyWidth,
-			stickyHeight: options.stickyHeight,
-			templateLayoutId: options.layoutId,
-			templateLayoutRole: options.layoutRole,
-		},
+	return createCanvasTemplateSectionFrame({
+		...options,
+		createId: options.createId ?? createSkedraElementId,
 	});
-}
-
-function createFlowchartTemplate(
-	x: number,
-	y: number,
-	options: SkedraFactoryOptions = {},
-): CanvasElement[] {
-	const createId = options.createId ?? createSkedraElementId;
-	const flowchartId = createId();
-	const stroke =
-		options.stroke ??
-		(isDarkTheme(options.theme) ? DARK_STROKE : FLOWCHART_DEFAULT_STROKE);
-	const node = (
-		nodeOptions: Omit<
-			Parameters<typeof createFlowchartNode>[0],
-			"id" | "flowchartId" | "fontFamily" | "stroke"
-		>,
-	) =>
-		createFlowchartNode({
-			id: createId(),
-			flowchartId,
-			fontFamily: TOOL_FONT_FAMILY,
-			stroke,
-			...nodeOptions,
-		});
-	const kickoff = node({
-		x: x - 430,
-		y: y - 20,
-		width: 160,
-		height: 56,
-		type: "ellipse",
-		text: "Kickoff",
-		nodeKind: "start",
-		fontSize: 18,
-		fontWeight: "bold",
-	});
-	const scope = node({
-		x: x - 180,
-		y: y - 36,
-		width: 220,
-		height: 88,
-		type: "rectangle",
-		text: "Scope",
-		nodeKind: "step",
-		cornerRadius: 18,
-		fontSize: 18,
-		fontWeight: "bold",
-	});
-	const review = node({
-		x: x + 130,
-		y: y - 52,
-		width: 180,
-		height: 120,
-		type: "diamond",
-		text: "Review",
-		nodeKind: "decision",
-		fontSize: 19,
-		fontWeight: "bold",
-	});
-	const qa = node({
-		x: x + 400,
-		y: y - 36,
-		width: 220,
-		height: 88,
-		type: "rectangle",
-		text: "QA",
-		nodeKind: "step",
-		cornerRadius: 18,
-		fontSize: 18,
-		fontWeight: "bold",
-	});
-	const release = node({
-		x: x + 425,
-		y: y + 100,
-		width: 170,
-		height: 56,
-		type: "ellipse",
-		text: "Release",
-		nodeKind: "end",
-		fontSize: 18,
-		fontWeight: "bold",
-	});
-	const open = node({
-		x: x + 120,
-		y: y + 116,
-		width: 200,
-		height: 88,
-		type: "rectangle",
-		text: "Open points",
-		nodeKind: "step",
-		cornerRadius: 18,
-		fontSize: 18,
-		fontWeight: "bold",
-	});
-	const connector = (
-		source: CanvasElement,
-		target: CanvasElement,
-		route: Parameters<typeof createFlowchartConnector>[0]["route"],
-		extras: Partial<Parameters<typeof createFlowchartConnector>[0]> = {},
-	) =>
-		createFlowchartConnector({
-			id: createId(),
-			flowchartId,
-			source,
-			target,
-			route,
-			...extras,
-		});
-	return [
-		connector(kickoff, scope, "right"),
-		connector(scope, review, "right"),
-		connector(review, qa, "right", { branchKind: "yes", text: "Yes" }),
-		connector(qa, release, "down"),
-		connector(review, open, "down", {
-			branchKind: "no",
-			text: "No",
-			arrowTextSide: "below",
-		}),
-		connector(open, scope, "left-up"),
-		kickoff,
-		scope,
-		review,
-		qa,
-		release,
-		open,
-	];
-}
-
-function createRetrospectiveTemplate(
-	x: number,
-	y: number,
-	options: SkedraFactoryOptions = {},
-): CanvasElement[] {
-	const createId = options.createId ?? createSkedraElementId;
-	const layoutId = createId();
-	const topY = y - 170;
-	const columnWidth = 316;
-	const columnHeight = 420;
-	const gap = 34;
-	const startX = x - (columnWidth * 3 + gap * 2) / 2;
-	const sections = [
-		{
-			role: "celebrate",
-			label: "Celebrate",
-			accent: "#15803d",
-			color: "#d3f9d8",
-		},
-		{
-			role: "friction",
-			label: "Friction",
-			accent: "#dc2626",
-			color: "#ffd6e0",
-		},
-		{
-			role: "commitment",
-			label: "Commitments",
-			accent: "#2563eb",
-			color: "#d0ebff",
-		},
-	];
-	const elements = sections.map((section, index) =>
-		createSkedraTemplateSectionFrame({
-			createId,
-			x: startX + index * (columnWidth + gap),
-			y: topY,
-			width: columnWidth,
-			height: columnHeight,
-			label: section.label,
-			tool: "retrospective",
-			sectionId: section.role,
-			accent: section.accent,
-			stickyColor: section.color,
-			stickyWidth: 126,
-			stickyHeight: 110,
-			layoutId,
-			layoutRole: section.role,
-		}),
-	);
-	const outcomeY = topY + columnHeight + 46;
-	elements.push(
-		baseTemplateElement(createId, {
-			type: "rectangle",
-			x: startX,
-			y: outcomeY,
-			width: columnWidth * 3 + gap * 2,
-			height: 102,
-			stroke: "#64748b",
-			strokeWidth: 1.5,
-			strokeStyle: "dashed",
-			cornerRadius: 18,
-			text: "Actions, owners, dates, and signals",
-			fontFamily: TOOL_FONT_FAMILY,
-			fontSize: 18,
-			textAlign: "center",
-			customData: {
-				templateTool: "retrospective",
-				templateLayoutId: layoutId,
-				templateLayoutRole: "summary",
-			},
-		}),
-	);
-	return elements;
-}
-
-function createSwotTemplate(
-	x: number,
-	y: number,
-	options: SkedraFactoryOptions = {},
-): CanvasElement[] {
-	const createId = options.createId ?? createSkedraElementId;
-	const layoutId = createId();
-	const width = 380;
-	const height = 340;
-	const gap = 38;
-	const leftX = x - width - gap / 2;
-	const rightX = x + gap / 2;
-	const topY = y - 130;
-	const bottomY = topY + height + gap;
-	const sections = [
-		{
-			x: leftX,
-			y: topY,
-			id: "strengths",
-			label: "Strengths",
-			accent: "#15803d",
-			color: "#d3f9d8",
-		},
-		{
-			x: rightX,
-			y: topY,
-			id: "weaknesses",
-			label: "Weaknesses",
-			accent: "#dc2626",
-			color: "#ffd6e0",
-		},
-		{
-			x: leftX,
-			y: bottomY,
-			id: "opportunities",
-			label: "Opportunities",
-			accent: "#2563eb",
-			color: "#d0ebff",
-		},
-		{
-			x: rightX,
-			y: bottomY,
-			id: "threats",
-			label: "Threats",
-			accent: "#d97706",
-			color: "#ffe0cc",
-		},
-	];
-	const axisCenterX = x;
-	const axisCenterY = topY + height + gap / 2;
-	return [
-		createTemplateArrow(createId, [
-			[axisCenterX, topY - 8],
-			[axisCenterX, bottomY + height + 8],
-		]),
-		createTemplateArrow(createId, [
-			[leftX - 8, axisCenterY],
-			[rightX + width + 8, axisCenterY],
-		]),
-		...sections.map((section) =>
-			createSkedraTemplateSectionFrame({
-				createId,
-				x: section.x,
-				y: section.y,
-				width,
-				height,
-				label: section.label,
-				tool: "swot",
-				sectionId: section.id,
-				accent: section.accent,
-				stickyColor: section.color,
-				stickyWidth: 160,
-				stickyHeight: 124,
-				layoutId,
-				layoutRole: section.id,
-			}),
-		),
-	];
 }
 
 export function createSkedraTemplateElements(
 	templateId: SkedraSdkTemplateId,
 	options: CreateSkedraTemplateElementsOptions,
 ): CanvasElement[] {
-	switch (templateId) {
-		case "kanban":
-			return createSkedraKanbanBoardElements({
-				...options,
-				x: options.x - 450,
-				y: options.y - 200,
-			});
-		case "mindmap":
-			return createSkedraMindmapElements(options);
-		case "flowchart":
-			return createFlowchartTemplate(options.x, options.y, options);
-		case "retrospective":
-			return createRetrospectiveTemplate(options.x, options.y, options);
-		case "swot":
-			return createSwotTemplate(options.x, options.y, options);
-	}
+	return createCanvasTemplateElements({
+		id: templateId,
+		x: options.x,
+		y: options.y,
+		defaults: getSkedraElementFactoryDefaults(options),
+		fontFamily: TOOL_FONT_FAMILY,
+		flowchartStroke: options.stroke,
+		mindmapAppearance: getSkedraMindmapAppearance(options),
+	});
 }
 
 export const SKEDRA_TEMPLATES: SkedraTemplateDefinition[] = [

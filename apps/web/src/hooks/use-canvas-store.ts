@@ -34,6 +34,8 @@ import {
 	DEFAULT_ROUGH_FILL_SCALE,
 	MAX_ARROW_HEAD_SCALE,
 	MIN_ARROW_HEAD_SCALE,
+	clampCanvasZoom,
+	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
 import type { SnapGuide, SnapPointIndicator } from "@skedra/canvas-core";
 import {
@@ -41,8 +43,6 @@ import {
 	DEFAULT_ROUGH_FILL_STYLE,
 	DEFAULT_STROKE_STYLE,
 	GRID_SIZE,
-	MAX_ZOOM,
-	MIN_ZOOM,
 } from "@skedra/canvas-core";
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
@@ -270,14 +270,12 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 		})),
 	zoomTo: (zoom, centerX, centerY) =>
 		set((s) => {
-			const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
-			const scale = clamped / s.viewport.zoom;
 			return {
-				viewport: {
-					zoom: clamped,
-					x: centerX - (centerX - s.viewport.x) * scale,
-					y: centerY - (centerY - s.viewport.y) * scale,
-				},
+				viewport: zoomCanvasViewportAtPoint(
+					s.viewport,
+					{ x: centerX, y: centerY },
+					zoom,
+				),
 			};
 		}),
 	setViewport: (viewport) =>
@@ -285,7 +283,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 			viewport: {
 				x: viewport.x,
 				y: viewport.y,
-				zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom)),
+				zoom: clampCanvasZoom(viewport.zoom),
 			},
 		}),
 	resetViewport: () => set({ viewport: { x: 0, y: 0, zoom: 1 } }),

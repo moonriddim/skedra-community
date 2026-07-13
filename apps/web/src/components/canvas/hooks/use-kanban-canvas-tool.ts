@@ -13,9 +13,11 @@ import {
 } from "@skedra/canvas-core";
 import { getKanbanAssignmentBadgeCount } from "@skedra/canvas-core";
 import {
-	buildKanbanDeletionReflowUpdates,
 	buildKanbanReflowUpdates,
+	executeCanvasMutationPlan,
 	isKanbanCard,
+	planCanvasDeletion,
+	planKanbanCardInsertion,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import { useCallback, useEffect, useState } from "react";
@@ -39,19 +41,21 @@ export function useKanbanCanvasTool({
 	const deleteElementsWithKanbanReflow = useCallback(
 		(ids: string[]) => {
 			if (ids.length === 0) return;
-
-			const reflowUpdates = [
-				...buildKanbanDeletionReflowUpdates(sync.elements, ids),
-				...buildTemplateSectionLayoutSyncUpdates(sync.elements, {
-					excludeIds: ids,
-				}),
-			];
-			sync.deleteElements(ids);
-			if (reflowUpdates.length > 0) {
-				sync.updateElements(reflowUpdates);
-			}
+			const plan = planCanvasDeletion(sync.elements, ids);
+			executeCanvasMutationPlan(
+				{
+					...plan,
+					update: [
+						...plan.update,
+						...buildTemplateSectionLayoutSyncUpdates(sync.elements, {
+							excludeIds: plan.deleteIds,
+						}),
+					],
+				},
+				sync,
+			);
 		},
-		[sync.elements, sync.deleteElements, sync.updateElements],
+		[sync],
 	);
 
 	useEffect(() => {
@@ -121,15 +125,16 @@ export function useKanbanCanvasTool({
 					listId,
 				},
 			);
-			sync.createElement(card);
-
-			const moved = new Set<string>([card.id]);
-			const target = new Map<string, string | null>([[card.id, listId]]);
-			const nextElements = new Map(sync.elements);
-			nextElements.set(card.id, card);
-			const updates = buildKanbanReflowUpdates(nextElements, moved, target);
-			if (updates.length > 0) sync.updateElements(updates);
-			store.setSelectedIds(new Set([card.id]));
+			const plan = planKanbanCardInsertion({
+				elements: sync.elements,
+				listId,
+				card,
+			});
+			if (!plan) return;
+			executeCanvasMutationPlan(plan, {
+				...sync,
+				setSelectedIds: store.setSelectedIds,
+			});
 			setKanbanDetailId(card.id);
 		},
 		[resolvedTheme, store, sync],
