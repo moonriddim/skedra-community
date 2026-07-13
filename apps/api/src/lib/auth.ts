@@ -10,6 +10,27 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "./mail";
 // bleibt sie optional (dort läuft oft kein Mailserver).
 const requireEmailVerification = env.SKEDRA_DEPLOYMENT_MODE === "managed";
 
+const socialProviders = {
+	...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+		? {
+				google: {
+					clientId: env.GOOGLE_CLIENT_ID,
+					clientSecret: env.GOOGLE_CLIENT_SECRET,
+					disableImplicitSignUp: true,
+				},
+			}
+		: {}),
+	...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+		? {
+				github: {
+					clientId: env.GITHUB_CLIENT_ID,
+					clientSecret: env.GITHUB_CLIENT_SECRET,
+					disableImplicitSignUp: true,
+				},
+			}
+		: {}),
+};
+
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
@@ -24,6 +45,13 @@ export const auth = betterAuth({
 	baseURL: env.API_URL,
 	basePath: "/api/auth",
 	trustedOrigins: [env.APP_URL],
+	socialProviders,
+	account: {
+		encryptOAuthTokens: true,
+		accountLinking: {
+			enabled: true,
+		},
+	},
 	// Fix A5: Rate-Limiting gegen Brute-Force und Reset-/Mail-Bombing. Sensible
 	// Pfade sind zusätzlich strenger begrenzt. HINWEIS: Der Standard-Store ist
 	// In-Memory und greift NICHT über mehrere Instanzen — im Managed-Betrieb mit

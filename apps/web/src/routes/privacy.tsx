@@ -98,8 +98,9 @@ export function PrivacyPage() {
 						werden im Browser mit einem Board-Schlüssel verschlüsselt. Der
 						Server speichert und überträgt bei ordnungsgemässer Verwendung nur
 						den Ciphertext. Der private E2EE-Identitätsschlüssel wird mit dem
-						Kontopasswort verschlüsselt; Board-Schlüssel werden für berechtigte
-						Empfänger individuell verschlüsselt.
+						Kontopasswort oder einem separaten E2EE-Sicherheitscode
+						verschlüsselt; Board-Schlüssel werden für berechtigte Empfänger
+						individuell verschlüsselt.
 					</li>
 					<li>
 						<strong>Serververwaltete Verschlüsselung:</strong> Canvas-Updates

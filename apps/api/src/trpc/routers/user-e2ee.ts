@@ -1,7 +1,7 @@
 import { accounts, userE2eeIdentities } from "@skedra/db";
 import { TRPCError } from "@trpc/server";
 import { verifyPassword } from "better-auth/crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../context";
 import { protectedProcedure, router } from "../init";
@@ -40,6 +40,21 @@ async function assertAccountPassword(
 			message: "Account password is invalid",
 		});
 	}
+}
+
+async function assertIdentityCreationAllowed(
+	ctx: AuthenticatedContext,
+	password: string | undefined,
+) {
+	const socialAccount = await ctx.db.query.accounts.findFirst({
+		where: and(
+			eq(accounts.userId, ctx.user.id),
+			ne(accounts.providerId, "credential"),
+		),
+		columns: { id: true },
+	});
+	if (socialAccount) return;
+	await assertAccountPassword(ctx, password);
 }
 
 export const userE2eeRouter = router({
@@ -111,7 +126,7 @@ export const userE2eeRouter = router({
 				return updated;
 			}
 
-			await assertAccountPassword(ctx, input.accountPassword);
+			await assertIdentityCreationAllowed(ctx, input.accountPassword);
 
 			const [identity] = await ctx.db
 				.insert(userE2eeIdentities)

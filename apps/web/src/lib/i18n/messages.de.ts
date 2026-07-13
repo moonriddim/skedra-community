@@ -381,6 +381,15 @@ export const deMessages = {
 			failed: "Anmeldung fehlgeschlagen",
 			unexpected: "Ein unerwarteter Fehler ist aufgetreten",
 		},
+		social: {
+			divider: "oder weiter mit",
+			google: "Google",
+			github: "GitHub",
+			failed:
+				"Social Login ist fehlgeschlagen. Bestehende Nutzer können sich anmelden; neue Nutzer wählen zuerst einen Tarif.",
+			acceptTerms:
+				"Bestätige zuerst die AGB und Datenschutzerklärung für die Registrierung.",
+		},
 		forgotPassword: {
 			title: "Passwort zurücksetzen",
 			description: "Fordere einen Reset-Link für dein Konto an.",

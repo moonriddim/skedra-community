@@ -376,6 +376,15 @@ export const enMessages = {
 			failed: "Sign-in failed",
 			unexpected: "An unexpected error occurred",
 		},
+		social: {
+			divider: "or continue with",
+			google: "Google",
+			github: "GitHub",
+			failed:
+				"Social sign-in failed. Existing users can sign in; new users need to choose a plan first.",
+			acceptTerms:
+				"Accept the Terms and Privacy Policy before creating your account.",
+		},
 		forgotPassword: {
 			title: "Reset password",
 			description: "Request a reset link for your account.",

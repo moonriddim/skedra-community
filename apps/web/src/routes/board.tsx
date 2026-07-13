@@ -777,7 +777,7 @@ export function BoardPage() {
 		} catch (error) {
 			console.error("E2EE identity unlock failed", error);
 			setIdentityUnlockError(
-				"Die E2EE-Identity konnte nicht entsperrt oder gespeichert werden. Pruefe dein Konto-Passwort.",
+				"Die E2EE-Identity konnte nicht entsperrt oder gespeichert werden. Pruefe dein Konto-Passwort oder deinen E2EE-Sicherheitscode.",
 			);
 		} finally {
 			setIdentityUnlockLoading(false);
@@ -1554,8 +1554,9 @@ export function BoardPage() {
 							onSubmit={handleUnlockIdentityForBoard}
 						>
 							<p className="mb-2 text-xs text-muted-foreground">
-								Oder entsperre deine User-Identity mit deinem Konto-Passwort, um
-								den gespeicherten Board-Key-Umschlag zu oeffnen.
+								Oder entsperre deine User-Identity mit deinem Konto-Passwort
+								oder E2EE-Sicherheitscode, um den gespeicherten
+								Board-Key-Umschlag zu oeffnen.
 							</p>
 							<div className="flex gap-2">
 								<Input
@@ -1564,7 +1565,7 @@ export function BoardPage() {
 									onChange={(event) =>
 										setIdentityUnlockPassword(event.target.value)
 									}
-									placeholder="Konto-Passwort"
+									placeholder="Passwort oder E2EE-Sicherheitscode"
 								/>
 								<Button
 									type="submit"
@@ -1596,9 +1597,9 @@ export function BoardPage() {
 						</p>
 					</div>
 					<p className="mb-3 text-xs text-muted-foreground">
-						Entsperre deine User-Identity mit deinem Konto-Passwort, damit
-						Skedra den Board-Schluessel als Recovery-Umschlag fuer dich
-						speichern oder aktualisieren kann.
+						Entsperre deine User-Identity mit deinem Konto-Passwort oder
+						E2EE-Sicherheitscode, damit Skedra den Board-Schluessel als
+						Recovery-Umschlag fuer dich speichern oder aktualisieren kann.
 					</p>
 					<form onSubmit={handleUnlockIdentityForBoard}>
 						<div className="flex gap-2">
@@ -1608,7 +1609,7 @@ export function BoardPage() {
 								onChange={(event) =>
 									setIdentityUnlockPassword(event.target.value)
 								}
-								placeholder="Konto-Passwort"
+								placeholder="Passwort oder E2EE-Sicherheitscode"
 							/>
 							<Button
 								type="submit"

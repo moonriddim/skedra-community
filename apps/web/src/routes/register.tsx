@@ -1,4 +1,5 @@
 import { AuthFormLayout } from "@/components/auth/auth-form-layout";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -44,6 +45,11 @@ export function RegisterPage() {
 	const [acceptedTerms, setAcceptedTerms] = useState(false);
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const displayError =
+		error ||
+		(searchParams.get("oauthError") || searchParams.get("error")
+			? t("auth.social.failed")
+			: "");
 	const identityQuery = trpc.userE2ee.getIdentity.useQuery(undefined, {
 		enabled: false,
 		retry: false,
@@ -114,10 +120,21 @@ export function RegisterPage() {
 		<AuthFormLayout
 			title={t("auth.register.title")}
 			description={t("auth.register.description")}
-			error={error}
+			error={displayError}
 			loading={loading}
 			submitLabel={t("auth.register.submit")}
 			onSubmit={handleSubmit}
+			alternateActions={
+				config.data?.socialSignUpEnabled ? (
+					<SocialAuthButtons
+						providers={config.data.socialProviders}
+						callbackURL={redirectTo}
+						requestSignUp
+						disabled={Boolean(config.data.managed && !acceptedTerms)}
+						onError={setError}
+					/>
+				) : null
+			}
 			footer={
 				<p className="text-center text-sm text-muted-foreground">
 					{t("auth.register.haveAccount")}{" "}

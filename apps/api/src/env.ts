@@ -50,6 +50,10 @@ const envSchema = z
 		/** Öffentlicher Katalog (apps/libraries), z. B. http://localhost:5175 */
 		LIBRARIES_URL: z.string().default("http://localhost:5175"),
 		API_URL: z.string().default("http://localhost:3001"),
+		GOOGLE_CLIENT_ID: optionalString,
+		GOOGLE_CLIENT_SECRET: optionalString,
+		GITHUB_CLIENT_ID: optionalString,
+		GITHUB_CLIENT_SECRET: optionalString,
 		SKEDRA_REGISTRATION_MODE: z
 			.enum(["open", "invite", "closed"])
 			.default("invite"),
@@ -113,6 +117,22 @@ const envSchema = z
 	// Sonst wären Sessions fälschbar und gespeicherte Geheimnisse (SMTP-Passwort,
 	// AI-Keys, LiveKit-Secret) mit einem öffentlich bekannten Schlüssel entschlüsselbar.
 	.superRefine((value, ctx) => {
+		for (const [provider, clientId, clientSecret] of [
+			["Google", value.GOOGLE_CLIENT_ID, value.GOOGLE_CLIENT_SECRET],
+			["GitHub", value.GITHUB_CLIENT_ID, value.GITHUB_CLIENT_SECRET],
+		] as const) {
+			if (Boolean(clientId) === Boolean(clientSecret)) continue;
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: [
+					clientId
+						? `${provider.toUpperCase()}_CLIENT_SECRET`
+						: `${provider.toUpperCase()}_CLIENT_ID`,
+				],
+				message: `${provider} social login requires both client ID and client secret.`,
+			});
+		}
+
 		if (value.SKEDRA_DEPLOYMENT_MODE !== "managed") return;
 
 		if (

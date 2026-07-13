@@ -22,6 +22,7 @@ interface AuthFormLayoutProps {
 	loading: boolean;
 	submitLabel: string;
 	footer: ReactNode;
+	alternateActions?: ReactNode;
 	onSubmit: (event: React.FormEvent) => void;
 	children: ReactNode;
 }
@@ -33,6 +34,7 @@ export function AuthFormLayout({
 	loading,
 	submitLabel,
 	footer,
+	alternateActions,
 	onSubmit,
 	children,
 }: AuthFormLayoutProps) {
@@ -64,6 +66,7 @@ export function AuthFormLayout({
 							{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 							{submitLabel}
 						</Button>
+						{alternateActions}
 						{footer}
 					</CardFooter>
 				</form>

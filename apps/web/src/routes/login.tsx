@@ -1,4 +1,5 @@
 import { AuthFormLayout } from "@/components/auth/auth-form-layout";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -31,6 +32,11 @@ export function LoginPage() {
 	const redirectTo = e2eeKeyFromHash
 		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)
 		: baseRedirectTo;
+	const displayError =
+		error ||
+		(searchParams.get("oauthError") || searchParams.get("error")
+			? t("auth.social.failed")
+			: "");
 
 	if (!isPending && session?.user) {
 		return <Navigate to={redirectTo} replace />;
@@ -73,10 +79,17 @@ export function LoginPage() {
 					? "auth.login.managedDescription"
 					: "auth.login.description",
 			)}
-			error={error}
+			error={displayError}
 			loading={loading}
 			submitLabel={t("auth.login.submit")}
 			onSubmit={handleSubmit}
+			alternateActions={
+				<SocialAuthButtons
+					providers={config.data?.socialProviders}
+					callbackURL={redirectTo}
+					onError={setError}
+				/>
+			}
 			footer={
 				<p className="text-center text-sm text-muted-foreground">
 					{t(

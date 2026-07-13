@@ -412,7 +412,7 @@ export function HomePage() {
 		} catch (error) {
 			console.error("E2EE identity unlock failed", error);
 			setE2eeUnlockError(
-				"Die E2EE-Identity konnte nicht entsperrt werden. Pruefe dein Konto-Passwort.",
+				"Die E2EE-Identity konnte nicht entsperrt werden. Pruefe dein Konto-Passwort oder deinen E2EE-Sicherheitscode.",
 			);
 		} finally {
 			setE2eeUnlockLoading(false);
@@ -1226,9 +1226,9 @@ export function HomePage() {
 					<DialogHeader>
 						<DialogTitle>E2EE-Identity entsperren</DialogTitle>
 						<DialogDescription>
-							Entsperre deine User-Identity mit deinem Konto-Passwort, damit
-							Skedra den Board-Schluessel als Recovery-Umschlag fuer dich
-							speichern kann.
+							Entsperre deine User-Identity mit deinem Konto-Passwort oder
+							E2EE-Sicherheitscode, damit Skedra den Board-Schluessel als
+							Recovery-Umschlag fuer dich speichern kann.
 						</DialogDescription>
 					</DialogHeader>
 					<form className="space-y-4" onSubmit={handleUnlockIdentityAndCreate}>
@@ -1236,7 +1236,7 @@ export function HomePage() {
 							type="password"
 							value={e2eeUnlockPassword}
 							onChange={(event) => setE2eeUnlockPassword(event.target.value)}
-							placeholder="Konto-Passwort"
+							placeholder="Passwort oder E2EE-Sicherheitscode"
 							autoFocus
 							required
 						/>

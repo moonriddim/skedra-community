@@ -63,6 +63,11 @@ export const billingRouter = router({
 	getPublicConfig: publicProcedure.query(() => ({
 		managed: env.SKEDRA_DEPLOYMENT_MODE === "managed",
 		configured: isStripeBillingConfigured(),
+		socialProviders: {
+			google: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+			github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+		},
+		socialSignUpEnabled: env.SKEDRA_REGISTRATION_MODE === "open",
 	})),
 
 	getStatus: protectedProcedure.query(async ({ ctx }) => {
