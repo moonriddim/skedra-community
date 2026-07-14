@@ -2,11 +2,10 @@
  * Zeichen-Vorschau waehrend PointerMove aktualisieren.
  */
 
-import { calcSnap } from "@skedra/canvas-core";
-import type { CanvasElement } from "@skedra/canvas-core";
+import { type CanvasElement, calcSnap } from "@skedra/canvas-core";
 import type { useCanvasStore } from "../use-canvas-store";
-import { appendPreviewPoint, computeElbowPoints } from "./path-helpers";
-import type { PathDraftState, PointerState } from "./pointer-types";
+import type { PointerState } from "./pointer-types";
+import { buildSinglePathPreview } from "./preview-builders";
 
 type CanvasStoreState = ReturnType<typeof useCanvasStore.getState>;
 
@@ -18,11 +17,6 @@ interface DrawMoveContext {
 	canvas: { x: number; y: number };
 	shiftKey: boolean;
 	elements: Map<string, CanvasElement>;
-	pathDraftRef: React.MutableRefObject<PathDraftState | null>;
-	setPathPreview: (
-		tool: "line" | "arrow",
-		absolutePoints: [number, number][],
-	) => void;
 	setDrawingPreview: React.Dispatch<React.SetStateAction<CanvasElement | null>>;
 }
 
@@ -35,8 +29,6 @@ export function updateDrawingPreviewOnMove(ctx: DrawMoveContext): void {
 		canvas,
 		shiftKey,
 		elements,
-		pathDraftRef,
-		setPathPreview,
 		setDrawingPreview,
 	} = ctx;
 	const tool = store.activeTool;
@@ -51,100 +43,16 @@ export function updateDrawingPreviewOnMove(ctx: DrawMoveContext): void {
 		return;
 	}
 
-	if (tool === "arrow") {
-		if (store.pathDrawMode === "multi") {
-			const draftPoints =
-				pathDraftRef.current?.tool === "arrow"
-					? pathDraftRef.current.points
-					: null;
-			if (draftPoints) {
-				setPathPreview(
-					"arrow",
-					appendPreviewPoint(
-						draftPoints,
-						[snappedX, snappedY],
-						store.arrowMode,
-					),
-				);
-				return;
-			}
-		}
-		const relX = snappedX - state.startCanvasX;
-		const relY = snappedY - state.startCanvasY;
-		const mode = store.arrowMode;
-		if (mode === "curve") {
-			setDrawingPreview((prev) =>
-				prev
-					? {
-							...prev,
-							points: [
-								[0, 0],
-								[relX / 2, relY / 2],
-								[relX, relY],
-							],
-							width: Math.abs(relX),
-							height: Math.abs(relY),
-						}
-					: null,
-			);
-		} else if (mode === "elbow") {
-			const pts = computeElbowPoints(relX, relY);
-			setDrawingPreview((prev) =>
-				prev
-					? {
-							...prev,
-							points: pts,
-							width: Math.abs(relX),
-							height: Math.abs(relY),
-						}
-					: null,
-			);
-		} else {
-			setDrawingPreview((prev) =>
-				prev
-					? {
-							...prev,
-							points: [
-								[0, 0],
-								[relX, relY],
-							],
-							width: Math.abs(relX),
-							height: Math.abs(relY),
-						}
-					: null,
-			);
-		}
-		return;
-	}
-
-	if (tool === "line") {
-		if (store.pathDrawMode === "multi") {
-			const draftPoints =
-				pathDraftRef.current?.tool === "line"
-					? pathDraftRef.current.points
-					: null;
-			if (draftPoints) {
-				setPathPreview(
-					"line",
-					appendPreviewPoint(draftPoints, [snappedX, snappedY]),
-				);
-				return;
-			}
-		}
-		const relX = snappedX - state.startCanvasX;
-		const relY = snappedY - state.startCanvasY;
-		setDrawingPreview((prev) =>
-			prev
-				? {
-						...prev,
-						points: [
-							[0, 0],
-							[relX, relY],
-						],
-						width: Math.abs(relX),
-						height: Math.abs(relY),
-					}
-				: null,
+	if (tool === "arrow" || tool === "line") {
+		setDrawingPreview(
+			buildSinglePathPreview(
+				tool,
+				state.startCanvasX,
+				state.startCanvasY,
+				snappedX,
+				snappedY,
+				store,
+			),
 		);
 		return;
 	}

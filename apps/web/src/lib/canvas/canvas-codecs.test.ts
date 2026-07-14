@@ -31,6 +31,7 @@ function triangleArrow(): CanvasElement {
 		],
 		arrowHeadEnd: "triangle",
 		arrowHeadFilled: false,
+		closed: true,
 	};
 }
 
@@ -38,6 +39,7 @@ test("preserves hollow arrowheads through the canvas codec", () => {
 	const decoded = decodeCanvasElement(encodeCanvasElement(triangleArrow()));
 
 	assert.equal(decoded?.arrowHeadFilled, false);
+	assert.equal(decoded?.closed, true);
 });
 
 test("rejects invalid arrowhead fill values", () => {

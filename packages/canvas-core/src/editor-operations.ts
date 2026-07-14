@@ -555,6 +555,7 @@ export function buildCanvasDrawingElement(options: {
 	start: CanvasPoint;
 	end?: CanvasPoint;
 	points?: CanvasPoint[];
+	closed?: boolean;
 	style: CanvasDrawingStyle;
 	stackIndex?: string;
 }): CanvasElement {
@@ -591,20 +592,33 @@ export function buildCanvasDrawingElement(options: {
 	}
 
 	if (tool === "line" || tool === "arrow") {
-		const dx = end.x - start.x;
-		const dy = end.y - start.y;
+		const suppliedPoints = options.points;
+		const sourcePoints =
+			suppliedPoints && suppliedPoints.length >= 2
+				? suppliedPoints
+				: [start, end];
+		const points = sourcePoints.filter((point, index) => {
+			if (index === 0) return true;
+			const previous = sourcePoints[index - 1];
+			return previous.x !== point.x || previous.y !== point.y;
+		});
+		const minX = Math.min(...points.map((point) => point.x));
+		const minY = Math.min(...points.map((point) => point.y));
+		const maxX = Math.max(...points.map((point) => point.x));
+		const maxY = Math.max(...points.map((point) => point.y));
+		const closed = tool === "line" && options.closed === true;
 		return createBaseCanvasElement(defaults, {
 			...common,
 			type: tool,
-			x: start.x,
-			y: start.y,
-			width: Math.abs(dx),
-			height: Math.abs(dy),
-			fill: "transparent",
-			points: [
-				[0, 0],
-				[dx, dy],
-			],
+			x: minX,
+			y: minY,
+			width: Math.max(0, maxX - minX),
+			height: Math.max(0, maxY - minY),
+			fill: closed ? (style.fill ?? "transparent") : "transparent",
+			points: points.map(
+				(point) => [point.x - minX, point.y - minY] as [number, number],
+			),
+			closed: closed || undefined,
 			arrowMode: style.arrowMode,
 			arrowHeadStart: style.arrowHeadStart,
 			arrowHeadEnd: style.arrowHeadEnd ?? (tool === "arrow" ? "arrow" : "none"),

@@ -62,11 +62,39 @@ export function hitTest(
 		case "line": {
 			if (pathTextLabelHitTest?.(el, px, py, t + 6)) return true;
 			if (!el.points || el.points.length < 2) return false;
-			for (let i = 0; i < el.points.length - 1; i++) {
+			const localX = px - el.x;
+			const localY = py - el.y;
+			if (
+				el.closed === true &&
+				el.points.length >= 3 &&
+				el.fill !== "transparent" &&
+				el.fill !== "" &&
+				pointInPolygon(localX, localY, el.points)
+			) {
+				return true;
+			}
+			if (el.arrowMode === "curve" && el.points.length >= 3) {
+				return el.closed
+					? pointNearClosedSmoothCurve(
+							localX,
+							localY,
+							el.points,
+							t + el.strokeWidth + 4,
+						)
+					: pointNearArrowCurve(
+							localX,
+							localY,
+							el.points,
+							t + el.strokeWidth + 4,
+							false,
+						);
+			}
+			const segmentCount = el.closed ? el.points.length : el.points.length - 1;
+			for (let i = 0; i < segmentCount; i++) {
 				const [x1, y1] = el.points[i];
-				const [x2, y2] = el.points[i + 1];
+				const [x2, y2] = el.points[(i + 1) % el.points.length];
 				if (
-					pointToLineDistance(px - el.x, py - el.y, x1, y1, x2, y2) <=
+					pointToLineDistance(localX, localY, x1, y1, x2, y2) <=
 					t + el.strokeWidth + 4
 				) {
 					return true;
@@ -115,6 +143,51 @@ export function hitTest(
 				py <= bbox.y + bbox.height + t
 			);
 	}
+}
+
+function pointInPolygon(
+	px: number,
+	py: number,
+	points: [number, number][],
+): boolean {
+	let inside = false;
+	for (
+		let index = 0, previous = points.length - 1;
+		index < points.length;
+		previous = index++
+	) {
+		const [x1, y1] = points[index];
+		const [x2, y2] = points[previous];
+		const crosses =
+			y1 > py !== y2 > py && px < ((x2 - x1) * (py - y1)) / (y2 - y1) + x1;
+		if (crosses) inside = !inside;
+	}
+	return inside;
+}
+
+function pointNearClosedSmoothCurve(
+	px: number,
+	py: number,
+	points: [number, number][],
+	tolerance: number,
+): boolean {
+	for (let index = 0; index < points.length; index++) {
+		const previous = points[(index - 1 + points.length) % points.length];
+		const current = points[index];
+		const next = points[(index + 1) % points.length];
+		const start: [number, number] = [
+			(previous[0] + current[0]) / 2,
+			(previous[1] + current[1]) / 2,
+		];
+		const end: [number, number] = [
+			(current[0] + next[0]) / 2,
+			(current[1] + next[1]) / 2,
+		];
+		if (pointNearQuadraticBezier(px, py, start, current, end, tolerance)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function pointNearArrowCurve(

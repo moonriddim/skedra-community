@@ -57,6 +57,7 @@ export type {
 	SkedraCanvasChangeHandler,
 	SkedraCanvasProps,
 	SkedraCanvasTheme,
+	SkedraPathDrawMode,
 	SkedraSdkTool,
 } from "./skedra-canvas.js";
 
@@ -92,6 +93,7 @@ export type {
 } from "./workspace-hooks.js";
 
 export type {
+	ArrowMode,
 	CanvasElement,
 	ElementType,
 	SavedCanvasView,

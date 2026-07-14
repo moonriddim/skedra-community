@@ -52,6 +52,47 @@ export function linePath(points: [number, number][]): string {
 	);
 }
 
+/**
+ * A closed quadratic path whose clicked vertices act as corner/curve anchors.
+ * Starting between the first and last vertex keeps the join at the start smooth.
+ */
+export function smoothClosedPath(points: [number, number][]): string {
+	if (points.length < 3) return linePath(points);
+	const first = points[0];
+	const last = points[points.length - 1];
+	const startX = (last[0] + first[0]) / 2;
+	const startY = (last[1] + first[1]) / 2;
+	let d = `M ${startX} ${startY}`;
+
+	for (let index = 0; index < points.length; index++) {
+		const current = points[index];
+		const next = points[(index + 1) % points.length];
+		const midX = (current[0] + next[0]) / 2;
+		const midY = (current[1] + next[1]) / 2;
+		d += ` Q ${current[0]} ${current[1]} ${midX} ${midY}`;
+	}
+
+	return `${d} Z`;
+}
+
+/** SVG path for a line/polyline, including its optional curve mode and closure. */
+export function getLinePath(
+	points: [number, number][],
+	mode: ArrowMode | undefined,
+	closed = false,
+): string {
+	if (!points || points.length < 2) return "";
+	if (closed && points.length >= 3) {
+		if (mode === "curve") return smoothClosedPath(points);
+		if (mode === "elbow") {
+			const path = elbowPath([...points, points[0]]);
+			return path ? `${path} Z` : path;
+		}
+		return `${linePath(points)} Z`;
+	}
+	return getArrowPath(points, mode);
+}
+
 export function quadBezierPath(points: [number, number][]): string {
 	if (!points || points.length < 3) return linePath(points);
 	const [start, ctrl, end] = points;
@@ -281,7 +322,7 @@ function getPathTextLabelBounds(el: CanvasElement): {
 	);
 	const labelMetrics = getArrowTextMetrics(
 		el.points,
-		el.type === "arrow" ? el.arrowMode : undefined,
+		el.arrowMode,
 		labelSide,
 		labelOffset,
 	);

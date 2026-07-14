@@ -19,6 +19,7 @@ export function GuestToolbarHints({ className }: { className?: string }) {
 
 	return (
 		<div
+			data-nosnippet=""
 			className={cn(
 				"pointer-events-none absolute left-1/2 top-[68px] hidden w-full max-w-3xl -translate-x-1/2 px-4 md:block",
 				className,

@@ -42,6 +42,8 @@ export function Whiteboard() {
 - `views` / `defaultViews` / `onViewsChange`: controlled or local saved views.
 - `libraries` / `defaultLibraries` / `onLibrariesChange`: controlled or local shape libraries.
 - `initialTool`: selects the initial tool.
+- `initialPathDrawMode` / `onPathDrawModeChange`: selects single-segment or multi-line drawing.
+- `initialPathMode` / `onPathModeChange`: selects cornered, curved, or elbow paths.
 
 ## Imperative API
 
@@ -70,6 +72,7 @@ The ref exposes the complete editor command surface, including:
 - undo/redo, clipboard, duplicate, select/delete;
 - group/ungroup, alignment, distribution, layer ordering, flip and lock;
 - element properties and grid/viewport control;
+- path draw mode and path style control through `setPathDrawMode` / `setPathMode`;
 - image insertion and normalized cropping;
 - Kanban card/list details and Flowchart step editing;
 - shape library insertion and management;
@@ -100,10 +103,19 @@ The SDK and the Skedra web application use the same SDK-scoped canvas
 implementation. `@skedra/canvas-core` owns storage-independent mutation plans,
 drawing and selection geometry, keyboard commands, template generation and
 layout, Kanban/Flowchart operations, alignment/distribution, grouping,
-clipboard relation remapping, and mindmap operations. `@skedra/canvas-react` owns
-the SVG renderer. The web application only adapts these operations to its Yjs,
+clipboard relation remapping, and mindmap operations. `@skedra/canvas-editor`
+owns shared editor gestures and interaction UI, while `@skedra/canvas-react`
+owns the SVG renderer. The web application only adapts these layers to its Yjs,
 translation, dialog, and collaboration services; the public package adapts them
 to controlled or local React state.
+
+Multi-line points, corner/curve modes, elbow routing, hover previews,
+start-point closing snaps, closing/filling, and path point editing run through
+the same `@skedra/canvas-editor` controller and components in the Community app
+and SDK. Core geometry remains in `@skedra/canvas-core`. The internal editor
+package is bundled into `@skedra/react`, so SDK consumers install only the public
+SDK package. Repository boundary and parity checks require both surfaces to keep
+using the shared implementation.
 
 Product-only concerns such as accounts, authorization, billing, comments,
 hosted collaboration transport, and application panels intentionally remain

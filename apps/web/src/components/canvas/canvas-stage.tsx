@@ -4,6 +4,7 @@ import type { SnapGuide, SnapPointIndicator } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
 import type {
 	CanvasElement,
+	CanvasPathStartSnapState,
 	HandlePosition,
 	LaserTrail,
 	SavedCanvasView,
@@ -13,6 +14,7 @@ import type {
 } from "@skedra/canvas-core";
 import type { ImageCropRect } from "@skedra/canvas-core";
 import { lassoPathToSvgD } from "@skedra/canvas-core";
+import { CanvasPathStartSnapIndicator } from "@skedra/canvas-editor";
 import type { RefObject } from "react";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { CanvasRenderer } from "./canvas-renderer";
@@ -38,6 +40,7 @@ interface CanvasStageProps {
 	lassoPath: [number, number][] | null;
 	viewDraft: BBox | null;
 	drawingPreview: CanvasElement | null;
+	pathStartSnap: CanvasPathStartSnapState | null;
 	snapGuides: SnapGuide[];
 	snapPointIndicators: SnapPointIndicator[];
 	laserTrails?: LaserTrail[];
@@ -73,6 +76,7 @@ export function CanvasStage({
 	lassoPath,
 	viewDraft,
 	drawingPreview,
+	pathStartSnap,
 	snapGuides,
 	snapPointIndicators,
 	laserTrails = [],
@@ -221,6 +225,14 @@ export function CanvasStage({
 						resolveAssetUrl={resolveAssetUrl}
 					/>
 				)}
+
+				<CanvasPathStartSnapIndicator
+					snap={pathStartSnap}
+					zoom={viewport.zoom}
+					activeFill="rgba(16, 185, 129, 0.95)"
+					inactiveFill="rgba(99, 102, 241, 0.92)"
+					stroke="rgba(255, 255, 255, 0.9)"
+				/>
 
 				<LaserOverlay trails={laserTrails} viewport={viewport} />
 

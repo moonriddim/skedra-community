@@ -153,11 +153,18 @@ test("canvas chrome renders tools, grid, and command menus on the server", async
 		React.createElement(SkedraCanvas, {
 			showToolbar: true,
 			showGrid: true,
+			initialTool: "line",
+			initialPathDrawMode: "multi",
+			initialPathMode: "curve",
 		}),
 	);
 	assert.match(markup, /aria-label="Arrow"/u);
 	assert.match(markup, /aria-label="Grid"/u);
 	assert.match(markup, /aria-label="Import and export"/u);
+	assert.match(markup, /aria-label="Path draw mode"/u);
+	assert.match(markup, /aria-label="Path style"/u);
+	assert.match(markup, /<option value="multi" selected="">Multi-line/u);
+	assert.match(markup, /<option value="curve" selected="">Curves/u);
 	assert.match(markup, /data-skedra-elements="true"/u);
 });
 
@@ -165,6 +172,10 @@ test("published runtime and declarations are self-contained", () => {
 	for (const filename of readdirSync("dist")) {
 		if (!filename.endsWith(".js") && !filename.endsWith(".d.ts")) continue;
 		const source = readFileSync(`dist/${filename}`, "utf8");
-		assert.doesNotMatch(source, /@skedra\/canvas-(?:core|react)/u, filename);
+		assert.doesNotMatch(
+			source,
+			/@skedra\/canvas-(?:core|editor|react)/u,
+			filename,
+		);
 	}
 });

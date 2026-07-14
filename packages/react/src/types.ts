@@ -54,6 +54,7 @@ export interface CanvasElement {
 	fontStyle?: "normal" | "italic";
 	textDecoration?: "none" | "underline";
 	points?: [number, number][];
+	closed?: boolean;
 	arrowMode?: ArrowMode;
 	arrowHeadStart?: ArrowHead;
 	arrowHeadEnd?: ArrowHead;

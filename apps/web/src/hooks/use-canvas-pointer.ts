@@ -6,14 +6,16 @@
 
 import { useThemeStore } from "@/stores/theme";
 import type { CanvasElement, CanvasScene } from "@skedra/canvas-core";
+import {
+	isCanvasMultiPathTool,
+	useCanvasPathEditor,
+} from "@skedra/canvas-editor";
+import { nanoid } from "nanoid";
 import { useCallback, useRef, useState } from "react";
 import { calcResize } from "./use-canvas-pointer/geometry-helpers";
-import { usePathDraft } from "./use-canvas-pointer/path-draft";
-import { appendPreviewPoint } from "./use-canvas-pointer/path-helpers";
 import { usePlacementPreviewEffects } from "./use-canvas-pointer/placement-preview-effects";
 import {
 	isCenterShapeTool,
-	isPathTool,
 	resolvePointerCanvasCoords,
 	supportsAnchorSnapTool,
 } from "./use-canvas-pointer/pointer-coords";
@@ -80,6 +82,8 @@ export function useCanvasPointer({
 	startTextPlacement,
 }: UseCanvasPointerOptions) {
 	const storeRef = useCanvasStoreRef();
+	const activeTool = useCanvasStore((state) => state.activeTool);
+	const pathDrawMode = useCanvasStore((state) => state.pathDrawMode);
 	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
 	const stateRef = useRef<PointerState>({
 		startScreenX: 0,
@@ -132,12 +136,49 @@ export function useCanvasPointer({
 		updateStickyNotePlacementFromScreen,
 	} = usePointerSnapPlacement({ elements, toCanvas, setDrawingPreview });
 
-	const { pathDraftRef, setPathPreview, finalizePathDraft } = usePathDraft({
-		createElement,
-		stopUndoCapture,
-		drawingPreview,
-		setDrawingPreview,
-		clearSnapVisuals,
+	const {
+		controllerRef: pathEditorRef,
+		startSnap: pathStartSnap,
+		begin: beginPath,
+		move: movePath,
+		release: releasePath,
+		finish: finishPath,
+	} = useCanvasPathEditor({
+		activeTool,
+		drawMode: pathDrawMode,
+		adapter: {
+			getStyle: () => {
+				const store = storeRef.current;
+				return {
+					stroke: store.strokeColor,
+					fill: store.fillColor,
+					strokeWidth: store.strokeWidth,
+					strokeStyle: store.strokeStyle,
+					roughness: store.roughness,
+					roughFillStyle: store.roughFillStyle,
+					roughFillScale: store.roughFillScale,
+					arrowMode: store.arrowMode,
+					arrowHeadStart: store.arrowHeadStart,
+					arrowHeadEnd: store.arrowHeadEnd,
+					arrowHeadScale: store.arrowHeadScale,
+					arrowHeadFilled: store.arrowHeadFilled,
+				};
+			},
+			commitElement: (element) => {
+				const id = nanoid();
+				createElement({ ...element, id });
+				return id;
+			},
+			setPreview: setDrawingPreview,
+			onFinishHistory: stopUndoCapture,
+			onCreatedSelection: (id) =>
+				storeRef.current.setSelectedIds(new Set([id])),
+			onClearSelection: () => storeRef.current.clearSelection(),
+			onExitTool: () => {
+				const store = storeRef.current;
+				if (!store.toolLocked) store.setActiveTool("select");
+			},
+		},
 	});
 
 	const setShapePlacementPreview = useCallback(
@@ -359,13 +400,18 @@ export function useCanvasPointer({
 				return;
 			}
 
+			if (isCanvasMultiPathTool(tool, store.pathDrawMode)) {
+				beginPath(tool as "line" | "arrow", [snappedX, snappedY]);
+				stateRef.current.action = "draw";
+				(e.target as Element).setPointerCapture(e.pointerId);
+				return;
+			}
+
 			const drawResult = handleDrawPointerDown({
 				tool,
 				snappedX,
 				snappedY,
 				store,
-				pathDraftRef,
-				setPathPreview,
 				setDrawingPreview,
 			});
 			Object.assign(stateRef.current, drawResult.patch);
@@ -384,8 +430,7 @@ export function useCanvasPointer({
 			resolvePathPlacement,
 			resolveCenteredPlacementSnap,
 			resolvedTheme,
-			pathDraftRef,
-			setPathPreview,
+			beginPath,
 			clearSnapVisuals,
 			duplicateSelection,
 			eraseAtPoint,
@@ -410,16 +455,16 @@ export function useCanvasPointer({
 				},
 			);
 
-			const draft = pathDraftRef.current;
-			if (draft && store.pathDrawMode === "multi" && isPathTool(tool)) {
-				setPathPreview(
-					draft.tool,
-					appendPreviewPoint(
-						draft.points,
-						[snappedX, snappedY],
-						draft.tool === "arrow" ? store.arrowMode : undefined,
-					),
-				);
+			if (
+				isCanvasMultiPathTool(tool, store.pathDrawMode) &&
+				pathEditorRef.current.isActive()
+			) {
+				movePath({
+					raw: [canvas.x, canvas.y],
+					snapped: [snappedX, snappedY],
+					zoom: store.viewport.zoom,
+				});
+				if (state.action !== "pan") return;
 			}
 
 			if (store.kanbanCardPlacementDraft && state.action === "none") {
@@ -532,8 +577,6 @@ export function useCanvasPointer({
 					canvas,
 					shiftKey: e.shiftKey,
 					elements,
-					pathDraftRef,
-					setPathPreview,
 					setDrawingPreview,
 				});
 			}
@@ -543,8 +586,8 @@ export function useCanvasPointer({
 			storeRef,
 			resolvePathPlacement,
 			elements,
-			pathDraftRef,
-			setPathPreview,
+			movePath,
+			pathEditorRef,
 			setKanbanCardPlacementPreview,
 			updateStickyNotePlacementFromScreen,
 			setShapePlacementPreview,
@@ -564,7 +607,7 @@ export function useCanvasPointer({
 				state.action === "resize" ||
 				state.action === "drag-point";
 			const supportsAnchorSnap = supportsAnchorSnapTool(store.activeTool);
-			const { snappedX, snappedY } = resolvePointerCanvasCoords(
+			const { canvas, snappedX, snappedY } = resolvePointerCanvasCoords(
 				e.clientX,
 				e.clientY,
 				{
@@ -574,6 +617,27 @@ export function useCanvasPointer({
 					snapToGrid: store.snapToGrid.bind(store),
 				},
 			);
+
+			if (
+				state.action === "draw" &&
+				isCanvasMultiPathTool(store.activeTool, store.pathDrawMode) &&
+				pathEditorRef.current.isActive()
+			) {
+				releasePath(
+					{
+						raw: [canvas.x, canvas.y],
+						snapped: [snappedX, snappedY],
+						zoom: store.viewport.zoom,
+					},
+					true,
+				);
+				resetPointerGestureState(stateRef);
+				store.setActiveHandle(null);
+				store.setActivePointIndex(null);
+				clearSnapVisuals();
+				repaintCanvasAfterGesture();
+				return;
+			}
 
 			if (state.action === "move" && state.moveStart.size > 0) {
 				const updates = collectMoveDropUpdates(elements, state.moveStart);
@@ -608,9 +672,7 @@ export function useCanvasPointer({
 					drawingPreview,
 					snappedX,
 					snappedY,
-					pathDraftRef,
 					createElement,
-					setPathPreview,
 					setDrawingPreview,
 					startTextPlacement,
 				});
@@ -647,8 +709,8 @@ export function useCanvasPointer({
 			createElement,
 			startTextPlacement,
 			updateElements,
-			pathDraftRef,
-			setPathPreview,
+			pathEditorRef,
+			releasePath,
 			toCanvas,
 			resolvePathPlacement,
 			clearSnapVisuals,
@@ -690,11 +752,11 @@ export function useCanvasPointer({
 
 	const onDoubleClick = useCallback(() => {
 		const store = storeRef.current;
-		if (store.pathDrawMode !== "multi") return false;
-		if (store.activeTool !== "line" && store.activeTool !== "arrow")
+		if (!isCanvasMultiPathTool(store.activeTool, store.pathDrawMode)) {
 			return false;
-		return finalizePathDraft();
-	}, [finalizePathDraft, storeRef]);
+		}
+		return finishPath();
+	}, [finishPath, storeRef]);
 
 	return {
 		onPointerDown,
@@ -703,6 +765,7 @@ export function useCanvasPointer({
 		onPointerCancel,
 		onDoubleClick,
 		drawingPreview,
+		pathStartSnap,
 		showKanbanCardPlacementPreview,
 		showStickyNotePlacementPreview,
 	};

@@ -7,6 +7,8 @@ import {
 	buildBringToFrontUpdates,
 	buildCanvasDrawingElement,
 	buildCanvasMoveUpdates,
+	buildCanvasPathInsertPointChanges,
+	buildCanvasPathPointChanges,
 	buildCanvasTextElement,
 	buildCanvasTextUpdate,
 	buildFlowchartNodeKindChanges,
@@ -31,6 +33,7 @@ import {
 	getFlipUpdates,
 	getGroupUpdates,
 	getLockUpdates,
+	isCanvasPointPathElement,
 	isKanbanCard,
 	isKanbanList,
 	isMindmapNode,
@@ -46,7 +49,19 @@ import {
 	toCanvasElementMap,
 	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
-import type { ToolType } from "@skedra/canvas-core";
+import type {
+	CanvasPathDrawMode as CoreCanvasPathDrawMode,
+	ToolType,
+} from "@skedra/canvas-core";
+import {
+	CANVAS_PATH_DRAW_MODE_OPTIONS,
+	CANVAS_PATH_MODE_OPTIONS,
+	CanvasPathPointHandles,
+	CanvasPathStartSnapIndicator,
+	buildCanvasSinglePathElement,
+	isCanvasMultiPathTool,
+	useCanvasPathEditor,
+} from "@skedra/canvas-editor";
 import {
 	CanvasElementRenderer,
 	type CanvasRendererConfig,
@@ -144,7 +159,12 @@ import type {
 } from "./io.js";
 import { SdkMindmapActions } from "./mindmap-actions.js";
 import { SkedraPropertiesPanel } from "./properties-panel.js";
-import type { CanvasElement, SavedCanvasView, Viewport } from "./types.js";
+import type {
+	ArrowMode,
+	CanvasElement,
+	SavedCanvasView,
+	Viewport,
+} from "./types.js";
 
 export type SkedraSdkTool =
 	| "select"
@@ -166,6 +186,21 @@ export type SkedraSdkTool =
 	| "eyedropper";
 
 export type SkedraCanvasTheme = "light" | "dark";
+export type SkedraPathDrawMode = "normal" | "multi";
+
+const sdkPathDrawModeParity: Record<
+	SkedraPathDrawMode,
+	CoreCanvasPathDrawMode
+> = {
+	normal: "normal",
+	multi: "multi",
+};
+const corePathDrawModeParity: Record<
+	CoreCanvasPathDrawMode,
+	SkedraPathDrawMode
+> = sdkPathDrawModeParity;
+void sdkPathDrawModeParity;
+void corePathDrawModeParity;
 
 export type SkedraCanvasChangeHandler = (elements: CanvasElement[]) => void;
 
@@ -204,6 +239,8 @@ export interface SkedraCanvasApi extends SkedraCanvasExtendedApi {
 	clear: () => void;
 	getSelectedIds: () => string[];
 	setTool: (tool: SkedraSdkTool) => void;
+	setPathDrawMode: (mode: SkedraPathDrawMode) => void;
+	setPathMode: (mode: ArrowMode) => void;
 	fitToContent: () => void;
 }
 
@@ -224,8 +261,12 @@ export interface SkedraCanvasProps {
 	onLibrariesChange?: (libraries: SkedraLibraryFile[]) => void;
 	onSelectionChange?: (selectedIds: string[]) => void;
 	onToolChange?: (tool: SkedraSdkTool) => void;
+	onPathDrawModeChange?: (mode: SkedraPathDrawMode) => void;
+	onPathModeChange?: (mode: ArrowMode) => void;
 	onViewportChange?: (viewport: Viewport) => void;
 	initialTool?: SkedraSdkTool;
+	initialPathDrawMode?: SkedraPathDrawMode;
+	initialPathMode?: ArrowMode;
 	theme?: SkedraCanvasTheme;
 	className?: string;
 	style?: CSSProperties;
@@ -283,6 +324,17 @@ type DragState =
 			tool: DrawingTool;
 			startWorld: Point;
 			points: Point[];
+	  }
+	| {
+			type: "path";
+			tool: "line" | "arrow";
+	  }
+	| {
+			type: "path-point";
+			elementId: string;
+			pointIndex: number;
+			startWorld: Point;
+			startPoint: [number, number];
 	  };
 
 type DrawingTool =
@@ -404,15 +456,25 @@ function buildDraftElement(
 	drag: Extract<DragState, { type: "draw" }>,
 	stroke: string,
 	fill: string,
+	pathMode: ArrowMode,
 ) {
 	const end = drag.points[drag.points.length - 1] ?? drag.startWorld;
+	if (drag.tool === "line" || drag.tool === "arrow") {
+		return buildCanvasSinglePathElement({
+			id: "__draft",
+			tool: drag.tool,
+			start: drag.startWorld,
+			end,
+			style: { stroke, fill, arrowMode: pathMode },
+		});
+	}
 	return buildCanvasDrawingElement({
 		id: "__draft",
 		tool: drag.tool,
 		start: drag.startWorld,
 		end,
 		points: drag.points,
-		style: { stroke, fill },
+		style: { stroke, fill, arrowMode: pathMode },
 	});
 }
 
@@ -446,8 +508,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			onLibrariesChange,
 			onSelectionChange,
 			onToolChange,
+			onPathDrawModeChange,
+			onPathModeChange,
 			onViewportChange,
 			initialTool = "select",
+			initialPathDrawMode = "normal",
+			initialPathMode = "straight",
 			theme = "light",
 			className,
 			style,
@@ -483,6 +549,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			null,
 		);
 		const [tool, setTool] = useState<SkedraSdkTool>(initialTool);
+		const [pathDrawMode, setPathDrawMode] =
+			useState<SkedraPathDrawMode>(initialPathDrawMode);
+		const [pathMode, setPathMode] = useState<ArrowMode>(initialPathMode);
 		const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 		const [viewport, setViewport] = useState<Viewport>({
 			x: 0,
@@ -536,6 +605,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[onSelectionChange, selectedIds],
 		);
 		useEffect(() => onToolChange?.(tool), [onToolChange, tool]);
+		useEffect(
+			() => onPathDrawModeChange?.(pathDrawMode),
+			[onPathDrawModeChange, pathDrawMode],
+		);
+		useEffect(() => onPathModeChange?.(pathMode), [onPathModeChange, pathMode]);
 		useEffect(() => onViewportChange?.(viewport), [onViewportChange, viewport]);
 		useEffect(() => onGridChange?.(gridEnabled), [gridEnabled, onGridChange]);
 		useEffect(() => setGridEnabled(showGrid), [showGrid]);
@@ -1373,6 +1447,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				getSelectedIds: () => Array.from(selectedIds),
 				setSelectedIds: (ids) => setSelectedIds(new Set(ids)),
 				setTool,
+				setPathDrawMode,
+				setPathMode,
 				fitToContent,
 				canUndo: () => undoStackRef.current.length > 0,
 				canRedo: () => redoStackRef.current.length > 0,
@@ -1475,15 +1551,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			],
 		);
 
-		const beginHistoryTransaction = () => {
+		const beginHistoryTransaction = useCallback(() => {
 			if (!historyTransactionRef.current) {
 				historyTransactionRef.current = currentElements.map((element) => ({
 					...element,
 				}));
 			}
-		};
+		}, [currentElements]);
 
-		const finishHistoryTransaction = () => {
+		const finishHistoryTransaction = useCallback(() => {
 			const snapshot = historyTransactionRef.current;
 			historyTransactionRef.current = null;
 			if (!snapshot) return;
@@ -1491,7 +1567,44 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (undoStackRef.current.length > 100) undoStackRef.current.shift();
 			redoStackRef.current = [];
 			setHistoryRevision((value) => value + 1);
-		};
+		}, []);
+
+		const {
+			controllerRef: pathEditorRef,
+			startSnap: pathStartSnap,
+			begin: beginPath,
+			move: movePath,
+			release: releasePath,
+			finish: finishPath,
+			cancel: cancelPath,
+		} = useCanvasPathEditor({
+			activeTool: tool,
+			drawMode: pathDrawMode,
+			adapter: {
+				getStyle: () => ({ stroke, fill, arrowMode: pathMode }),
+				commitElement: (element) => {
+					const id = createId();
+					commitCanvasElements([
+						...currentElements,
+						{
+							...element,
+							id,
+							stackIndex: createStackIndexAfter(currentElements, id),
+						},
+					]);
+					return id;
+				},
+				setPreview: setDraftElement,
+				onBeginHistory: beginHistoryTransaction,
+				onFinishHistory: finishHistoryTransaction,
+				onCancelHistory: () => {
+					historyTransactionRef.current = null;
+				},
+				onCreatedSelection: (id) => setSelectedIds(new Set([id])),
+				onClearSelection: () => setSelectedIds(new Set()),
+				onExitTool: () => setTool("select"),
+			},
+		});
 
 		const resolveText = useCallback(
 			(element: CanvasElement | null) => {
@@ -1659,6 +1772,13 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return;
 			}
 
+			if (isCanvasMultiPathTool(tool, pathDrawMode)) {
+				const pathTool = tool as "line" | "arrow";
+				beginPath(pathTool, [placementWorld.x, placementWorld.y]);
+				dragRef.current = { type: "path", tool: pathTool };
+				return;
+			}
+
 			if (
 				tool !== "rectangle" &&
 				tool !== "ellipse" &&
@@ -1678,15 +1798,17 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				points: [placementWorld],
 			};
 			beginHistoryTransaction();
-			setDraftElement(buildDraftElement(dragRef.current, stroke, fill));
+			setDraftElement(
+				buildDraftElement(dragRef.current, stroke, fill, pathMode),
+			);
 		};
 
 		const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
 			const svg = svgRef.current;
 			const drag = dragRef.current;
-			if (!svg || !drag) return;
+			if (!svg) return;
 
-			if (drag.type === "pan") {
+			if (drag?.type === "pan") {
 				setViewport({
 					...drag.startViewport,
 					x: drag.startViewport.x + event.clientX - drag.startClient.x,
@@ -1696,6 +1818,45 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			}
 
 			const rawWorld = toWorldPoint(event, svg, viewport);
+			if (
+				isCanvasMultiPathTool(tool, pathDrawMode) &&
+				pathEditorRef.current.isActive()
+			) {
+				const snappedWorld = snapWorldPoint(rawWorld, gridEnabled);
+				movePath({
+					raw: [rawWorld.x, rawWorld.y],
+					snapped: [snappedWorld.x, snappedWorld.y],
+					zoom: viewport.zoom,
+				});
+			}
+			if (!drag) return;
+			if (drag.type === "path") return;
+			if (drag.type === "path-point") {
+				const element = currentElements.find(
+					(candidate) => candidate.id === drag.elementId,
+				);
+				if (!element) return;
+				const absolutePoint = snapWorldPoint(
+					{
+						x: element.x + drag.startPoint[0] + rawWorld.x - drag.startWorld.x,
+						y: element.y + drag.startPoint[1] + rawWorld.y - drag.startWorld.y,
+					},
+					gridEnabled,
+				);
+				const changes = buildCanvasPathPointChanges(element, drag.pointIndex, [
+					absolutePoint.x - element.x,
+					absolutePoint.y - element.y,
+				]);
+				if (changes) {
+					commitCanvasElements(
+						currentElements.map((current) =>
+							current.id === element.id ? { ...current, ...changes } : current,
+						),
+					);
+				}
+				return;
+			}
+
 			const world = snapWorldPoint(
 				rawWorld,
 				gridEnabled &&
@@ -1829,7 +1990,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				} else {
 					drag.points = [drag.startWorld, world];
 				}
-				setDraftElement(buildDraftElement(drag, stroke, fill));
+				setDraftElement(buildDraftElement(drag, stroke, fill, pathMode));
 			}
 		};
 
@@ -1842,6 +2003,24 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			dragRef.current = null;
 			setSelectionBox(null);
 			setLassoPath(null);
+
+			if (drag?.type === "path" && svg) {
+				const rawWorld = toWorldPoint(event, svg, viewport);
+				const snappedWorld = snapWorldPoint(rawWorld, gridEnabled);
+				releasePath(
+					{
+						raw: [rawWorld.x, rawWorld.y],
+						snapped: [snappedWorld.x, snappedWorld.y],
+						zoom: viewport.zoom,
+					},
+					true,
+				);
+				return;
+			}
+			if (drag?.type === "path-point") {
+				finishHistoryTransaction();
+				return;
+			}
 
 			if (drag?.type === "laser") {
 				setLaserTrail({ points: [...drag.points], finished: true });
@@ -1895,6 +2074,47 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			finishHistoryTransaction();
 		};
 
+		const startPathPointDrag = (
+			event: ReactPointerEvent<SVGCircleElement>,
+			element: CanvasElement,
+			pointIndex: number,
+		) => {
+			if (readOnly || element.locked || !element.points?.[pointIndex]) return;
+			event.preventDefault();
+			event.stopPropagation();
+			const svg = svgRef.current;
+			if (!svg) return;
+			svg.setPointerCapture(event.pointerId);
+			beginHistoryTransaction();
+			dragRef.current = {
+				type: "path-point",
+				elementId: element.id,
+				pointIndex,
+				startWorld: toWorldPoint(event, svg, viewport),
+				startPoint: [...element.points[pointIndex]],
+			};
+		};
+
+		const insertPathPoint = (
+			element: CanvasElement,
+			pointIndex: number,
+			point: [number, number],
+		) => {
+			if (readOnly || element.locked) return;
+			const changes = buildCanvasPathInsertPointChanges(
+				element,
+				pointIndex,
+				point,
+			);
+			if (!changes) return;
+			commitCanvasElements(
+				currentElements.map((current) =>
+					current.id === element.id ? { ...current, ...changes } : current,
+				),
+			);
+			setSelectedIds(new Set([element.id]));
+		};
+
 		const startResize = (
 			event: ReactPointerEvent<SVGCircleElement>,
 			element: CanvasElement,
@@ -1937,6 +2157,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const handleDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
 			if (readOnly) return;
+			if (pathEditorRef.current.isActive()) {
+				event.preventDefault();
+				finishPath({ selectCreated: true });
+				return;
+			}
 			const svg = svgRef.current;
 			if (!svg) return;
 			const world = toWorldPoint(event, svg, viewport);
@@ -2046,6 +2271,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					else executeCommand(sdkCommand);
 					return;
 				}
+				if (pathEditorRef.current.isActive() && event.key === "Enter") {
+					event.preventDefault();
+					finishPath({ selectCreated: true });
+					return;
+				}
+				if (pathEditorRef.current.isActive() && event.key === "Escape") {
+					event.preventDefault();
+					cancelPath();
+					setSelectedIds(new Set());
+					setTool("select");
+					return;
+				}
 				const command = getCanvasKeyboardCommand(event);
 				if (!command) return;
 				if (command === "delete-selection" && selectedIds.size > 0) {
@@ -2073,10 +2310,13 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			window.addEventListener("keydown", handleKeyDown);
 			return () => window.removeEventListener("keydown", handleKeyDown);
 		}, [
+			cancelPath,
 			clearSelected,
 			commitElements,
 			currentElements,
 			executeCommand,
+			finishPath,
+			pathEditorRef,
 			pasteFromClipboard,
 			readOnly,
 			redo,
@@ -2270,6 +2510,45 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								</button>
 							);
 						})}
+						{(tool === "line" || tool === "arrow") && (
+							<>
+								<div className="skedra-sdk__divider" />
+								<select
+									className="skedra-sdk__path-control"
+									value={pathDrawMode}
+									aria-label="Path draw mode"
+									title="Path draw mode"
+									onChange={(event) =>
+										setPathDrawMode(event.target.value as SkedraPathDrawMode)
+									}
+								>
+									{CANVAS_PATH_DRAW_MODE_OPTIONS.map((mode) => (
+										<option key={mode} value={mode}>
+											{mode === "normal" ? "Single segment" : "Multi-line"}
+										</option>
+									))}
+								</select>
+								<select
+									className="skedra-sdk__path-control"
+									value={pathMode}
+									aria-label="Path style"
+									title="Path style"
+									onChange={(event) =>
+										setPathMode(event.target.value as ArrowMode)
+									}
+								>
+									{CANVAS_PATH_MODE_OPTIONS.map((mode) => (
+										<option key={mode} value={mode}>
+											{mode === "straight"
+												? "Corners"
+												: mode === "curve"
+													? "Curves"
+													: "Elbow"}
+										</option>
+									))}
+								</select>
+							</>
+						)}
 						<div className="skedra-sdk__template-menu">
 							<button
 								type="button"
@@ -2644,6 +2923,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								</CanvasRendererProvider>
 							)}
 						</CanvasRendererProvider>
+						<CanvasPathStartSnapIndicator
+							snap={pathStartSnap}
+							zoom={viewport.zoom}
+							className="skedra-sdk__path-start-snap"
+						/>
 						{selectedElements.map((element) => {
 							const bbox = getBBox(element);
 							return (
@@ -2662,6 +2946,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						{!readOnly &&
 							selectedElements.length === 1 &&
 							!selectedElements[0].locked &&
+							!isCanvasPointPathElement(selectedElements[0]) &&
 							SDK_RESIZE_HANDLES.map((handle) => {
 								const element = selectedElements[0];
 								const bbox = getBBox(element);
@@ -2697,6 +2982,24 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 									/>
 								);
 							})}
+						{!readOnly &&
+							selectedElements.length === 1 &&
+							!selectedElements[0].locked &&
+							isCanvasPointPathElement(selectedElements[0]) && (
+								<CanvasPathPointHandles
+									element={selectedElements[0]}
+									zoom={viewport.zoom}
+									background="var(--skedra-sdk-panel)"
+									accent="var(--skedra-sdk-primary)"
+									controlLine="color-mix(in srgb, var(--skedra-sdk-primary) 55%, transparent)"
+									onPointPointerDown={(pointIndex, event) =>
+										startPathPointDrag(event, selectedElements[0], pointIndex)
+									}
+									onInsertPoint={(pointIndex, point) =>
+										insertPathPoint(selectedElements[0], pointIndex, point)
+									}
+								/>
+							)}
 						{selectionRect && (
 							<rect
 								className="skedra-sdk__selection"

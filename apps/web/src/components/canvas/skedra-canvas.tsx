@@ -39,6 +39,7 @@ import {
 } from "@/lib/presentation-frame";
 import { trpc } from "@/lib/trpc";
 import {
+	buildCanvasPathInsertPointChanges,
 	getFlowchartNodeMeta,
 	isFlowchartNode,
 	isMindmapNode,
@@ -960,16 +961,14 @@ export function SkedraCanvas({
 	const insertWaypoint = useCallback(
 		(elementId: string, insertIndex: number, point: [number, number]) => {
 			const element = sync.elements.get(elementId);
-			if (
-				!element?.points ||
-				(element.type !== "line" && element.type !== "arrow")
-			) {
-				return;
-			}
-
-			const points = [...element.points];
-			points.splice(insertIndex, 0, point);
-			sync.updateElement(element.id, { points });
+			if (!element) return;
+			const changes = buildCanvasPathInsertPointChanges(
+				element,
+				insertIndex,
+				point,
+			);
+			if (!changes) return;
+			sync.updateElement(element.id, changes);
 			store.setSelectedIds(new Set([element.id]));
 		},
 		[store, sync.elements, sync.updateElement],
@@ -1142,6 +1141,7 @@ export function SkedraCanvas({
 					textEditorOpen={textEditorOpen}
 					viewDraft={viewDraft}
 					drawingPreview={pointerHandlers.drawingPreview}
+					pathStartSnap={pointerHandlers.pathStartSnap}
 					croppingElement={croppingElement}
 					resolveAssetUrl={resolveAssetUrl}
 					onApplyImageCrop={handleApplyImageCrop}

@@ -5,8 +5,12 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/moonriddim/Skedra.git",
+		"url": "git+https://github.com/moonriddim/skedra-community.git",
 		"directory": "packages/react"
+	},
+	"homepage": "https://github.com/moonriddim/skedra-community/tree/main/packages/react#readme",
+	"bugs": {
+		"url": "https://github.com/moonriddim/skedra-community/issues"
 	},
 	"type": "module",
 	"main": "./dist/index.js",
@@ -59,6 +63,7 @@
 	},
 	"devDependencies": {
 		"@skedra/canvas-core": "workspace:*",
+		"@skedra/canvas-editor": "workspace:*",
 		"@skedra/canvas-react": "workspace:*",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0",

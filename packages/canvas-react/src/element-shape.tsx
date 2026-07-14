@@ -5,7 +5,7 @@
 import {
 	getEffectiveCornerRadius,
 	getImageRenderGeometry,
-	linePath,
+	getLinePath,
 	smoothPath,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
@@ -225,20 +225,26 @@ export const ElementShape = memo(function ElementShape({
 		case "line": {
 			if (!el.points || el.points.length < 2) return null;
 			const textPathId = `skedra-line-text-${el.id}`;
-			if (roughLineHtml) {
+			if (roughLayers) {
 				return (
 					<g {...commonProps}>
-						<RoughSvgMarkup html={roughLineHtml} dash={dash} />
-						{!isEditingText && <PathTextLabel el={el} pathId={textPathId} />}
+						{roughLayers.fillHtml ? (
+							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
+						) : (
+							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
+						)}
+						{!isEditingText && (
+							<PathTextLabel el={el} pathId={textPathId} mode={el.arrowMode} />
+						)}
 					</g>
 				);
 			}
-			const dLine = linePath(el.points);
+			const dLine = getLinePath(el.points, el.arrowMode, el.closed === true);
 			return (
 				<g {...commonProps}>
 					<path
 						d={dLine}
-						fill="none"
+						fill={el.closed ? el.fill || "transparent" : "none"}
 						stroke={el.stroke}
 						strokeWidth={el.strokeWidth}
 						strokeLinecap="round"
@@ -246,7 +252,9 @@ export const ElementShape = memo(function ElementShape({
 						strokeDasharray={dash}
 						transform={`translate(${el.x}, ${el.y})`}
 					/>
-					{!isEditingText && <PathTextLabel el={el} pathId={textPathId} />}
+					{!isEditingText && (
+						<PathTextLabel el={el} pathId={textPathId} mode={el.arrowMode} />
+					)}
 				</g>
 			);
 		}

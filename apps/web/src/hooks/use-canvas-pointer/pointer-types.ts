@@ -28,11 +28,6 @@ export interface PointerState {
 	laserTrailId: string | null;
 }
 
-export interface PathDraftState {
-	tool: "line" | "arrow";
-	points: [number, number][];
-}
-
 export const ERASER_RADIUS = 18;
 export const LASSO_POINT_MIN_DISTANCE = 2;
 

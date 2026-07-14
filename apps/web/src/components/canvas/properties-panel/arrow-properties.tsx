@@ -15,7 +15,10 @@ import { Section } from "./controls";
 
 interface ArrowPropertiesProps {
 	showPathDrawMode: boolean;
+	isPathElement: boolean;
 	isArrowElement: boolean;
+	showPathClosed: boolean;
+	currentPathClosed: boolean;
 	showArrowTextPosition: boolean;
 	pathDrawMode: "normal" | "multi";
 	currentArrowMode: ArrowMode;
@@ -35,7 +38,10 @@ interface ArrowPropertiesProps {
 
 export function ArrowProperties({
 	showPathDrawMode,
+	isPathElement,
 	isArrowElement,
+	showPathClosed,
+	currentPathClosed,
 	showArrowTextPosition,
 	pathDrawMode,
 	currentArrowMode,
@@ -79,8 +85,8 @@ export function ArrowProperties({
 				</Section>
 			)}
 
-			{isArrowElement && (
-				<Section label={t("canvas.properties.arrowType")}>
+			{isPathElement && (
+				<Section label={t("canvas.properties.pathStyle")}>
 					<div className="flex gap-1">
 						{ARROW_MODES.map((am) => (
 							<button
@@ -92,9 +98,37 @@ export function ArrowProperties({
 										? "border-primary bg-primary/20"
 										: "border-border hover:border-muted-foreground"
 								}`}
-								title={t(`canvas.properties.${am.labelKey}`)}
+								title={t(
+									`canvas.properties.${
+										am.value === "straight" ? "cornered" : am.labelKey
+									}`,
+								)}
 							>
 								{am.icon}
+							</button>
+						))}
+					</div>
+				</Section>
+			)}
+
+			{showPathClosed && (
+				<Section label={t("canvas.properties.pathClosure")}>
+					<div className="flex gap-1">
+						{[
+							{ value: false, labelKey: "pathOpen" },
+							{ value: true, labelKey: "pathClosed" },
+						].map((option) => (
+							<button
+								key={String(option.value)}
+								type="button"
+								onClick={() => onPropertyChange("closed", option.value)}
+								className={`flex-1 rounded border py-1 text-[10px] font-medium transition-all cursor-pointer ${
+									currentPathClosed === option.value
+										? "border-primary bg-primary/20 text-card-foreground"
+										: "border-border text-muted-foreground hover:border-muted-foreground"
+								}`}
+							>
+								{t(`canvas.properties.${option.labelKey}`)}
 							</button>
 						))}
 					</div>

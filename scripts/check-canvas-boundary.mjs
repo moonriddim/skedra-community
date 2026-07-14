@@ -16,6 +16,7 @@ const scanRoots = [
 	path.join(repoRoot, "apps", "api", "src"),
 	path.join(repoRoot, "apps", "web", "src"),
 	path.join(repoRoot, "packages", "canvas-core", "src"),
+	path.join(repoRoot, "packages", "canvas-editor", "src"),
 	path.join(repoRoot, "packages", "canvas-react", "src"),
 	path.join(repoRoot, "packages", "react", "src"),
 	path.join(repoRoot, "packages", "shared", "src"),
@@ -162,6 +163,74 @@ const sharedEditorOperationConsumers = [
 		],
 	},
 	{
+		operation: "useCanvasPathEditor",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "isCanvasMultiPathTool",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "CanvasPathStartSnapIndicator",
+		files: [
+			"apps/web/src/components/canvas/canvas-stage.tsx",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "CanvasPathPointHandles",
+		files: [
+			"apps/web/src/components/canvas/selection-handles.tsx",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildCanvasSinglePathElement",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/preview-builders.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildCanvasPathInsertPointChanges",
+		files: [
+			"apps/web/src/components/canvas/skedra-canvas.tsx",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "buildCanvasPathPointChanges",
+		files: [
+			"apps/web/src/hooks/use-canvas-pointer/pointer-move-gesture.ts",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "CANVAS_PATH_MODE_OPTIONS",
+		files: [
+			"apps/web/src/components/canvas/properties-panel/constants.tsx",
+			"packages/react/src/skedra-canvas.tsx",
+		],
+	},
+	{
+		operation: "getCanvasPathStartSnapState",
+		files: ["packages/canvas-editor/src/path-editor-controller.ts"],
+	},
+	{
+		operation: "appendCanvasPathPreviewPoint",
+		files: ["packages/canvas-editor/src/path-editor-controller.ts"],
+	},
+	{
+		operation: "commitCanvasPathPoint",
+		files: ["packages/canvas-editor/src/path-editor-controller.ts"],
+	},
+	{
 		operation: "buildCanvasMoveUpdates",
 		files: [
 			"apps/web/src/hooks/use-canvas-pointer/pointer-move-gesture.ts",
@@ -246,6 +315,25 @@ for (const { operation, files } of sharedEditorOperationConsumers) {
 const sdkCanvasSource = readRepoFile("packages/react/src/skedra-canvas.tsx");
 if (/\bSdkElementShape\b/u.test(sdkCanvasSource)) {
 	errors.push("The SDK must not contain its legacy element renderer.");
+}
+
+for (const relative of [
+	"apps/web/src/hooks/use-canvas-pointer.ts",
+	"packages/react/src/skedra-canvas.tsx",
+]) {
+	const source = readRepoFile(relative);
+	for (const operation of [
+		"getCanvasPathStartSnapState",
+		"appendCanvasPathPreviewPoint",
+		"commitCanvasPathPoint",
+		"dedupeCanvasPathPoints",
+	]) {
+		if (new RegExp(`\\b${operation}\\b`, "u").test(source)) {
+			errors.push(
+				`${relative} must delegate path gestures to @skedra/canvas-editor instead of calling ${operation} directly.`,
+			);
+		}
+	}
 }
 
 const centralizedMindmapPatterns = [

@@ -65,6 +65,8 @@ self-hosting tools.
 The canvas is also available as reusable, auth-free packages:
 
 - [`@skedra/canvas-core`](packages/canvas-core) — canvas model and algorithms
+- [`@skedra/canvas-editor`](packages/canvas-editor) — shared editor interactions
+- [`@skedra/canvas-react`](packages/canvas-react) — shared SVG renderer
 - [`@skedra/react`](packages/react) — embeddable React editor
 
 See [Community scope](PRODUCT_BOUNDARY.md) for the exact project boundary.
@@ -116,5 +118,6 @@ Skedra is built in the open, and contributions are welcome.
 ## License
 
 Skedra Community is licensed under [`AGPL-3.0-only`](LICENSE). The reusable
-[`canvas-core`](packages/canvas-core/LICENSE) and
+[`canvas-core`](packages/canvas-core/LICENSE),
+[`canvas-editor`](packages/canvas-editor/LICENSE), and
 [`react`](packages/react/LICENSE) packages are available under the MIT License.

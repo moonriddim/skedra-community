@@ -1,5 +1,6 @@
 import {
 	getEffectiveCornerRadius,
+	getLinePath,
 	roundedRectSvgPath,
 } from "@skedra/canvas-core";
 import type {
@@ -55,8 +56,13 @@ function getRoughPreset(el: CanvasElement, level: number) {
 	return ROUGH_PRESETS[level] ?? ROUGH_PRESETS[1];
 }
 
-function isFillCapableShape(type: CanvasElement["type"]): boolean {
-	return type === "rectangle" || type === "ellipse" || type === "diamond";
+function isFillCapableShape(el: CanvasElement): boolean {
+	return (
+		el.type === "rectangle" ||
+		el.type === "ellipse" ||
+		el.type === "diamond" ||
+		(el.type === "line" && el.closed === true && (el.points?.length ?? 0) >= 3)
+	);
 }
 
 export interface RoughShapeLayers {
@@ -307,8 +313,11 @@ function buildRoughNode(
 		}
 		case "line":
 			if (el.points && el.points.length >= 2) {
-				return rc.linearPath(
-					el.points.map(([px, py]) => [el.x + px, el.y + py]),
+				const absolutePoints = el.points.map(
+					([px, py]) => [el.x + px, el.y + py] as [number, number],
+				);
+				return rc.path(
+					getLinePath(absolutePoints, el.arrowMode, el.closed === true),
 					opts,
 				);
 			}
@@ -346,13 +355,13 @@ export function useRoughShapeLayers(
 ): RoughShapeLayers | null {
 	return useMemo(() => {
 		const r = el.roughness ?? 0;
-		const hasFill = el.fill && el.fill !== "transparent";
+		const hasFill =
+			isFillCapableShape(el) && el.fill && el.fill !== "transparent";
 		const fillStyle: RoughFillStyle =
 			el.roughFillStyle ?? DEFAULT_ROUGH_FILL_STYLE;
 		const patternGaps = roughPatternFillGaps(el.roughFillScale);
 		const needsRoughStroke = r > 0;
-		const needsPatternFill =
-			isFillCapableShape(el.type) && !!hasFill && fillStyle !== "solid";
+		const needsPatternFill = !!hasFill && fillStyle !== "solid";
 
 		if (!needsRoughStroke && !needsPatternFill) return null;
 		if (

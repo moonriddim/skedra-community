@@ -10,8 +10,7 @@ import {
 } from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import type { useCanvasStore } from "../use-canvas-store";
-import { appendPreviewPoint, commitPathPoint } from "./path-helpers";
-import type { PathDraftState, PointerState } from "./pointer-types";
+import type { PointerState } from "./pointer-types";
 
 type CanvasStoreState = ReturnType<typeof useCanvasStore.getState>;
 
@@ -21,20 +20,13 @@ interface DrawFinishContext {
 	drawingPreview: CanvasElement;
 	snappedX: number;
 	snappedY: number;
-	pathDraftRef: React.MutableRefObject<PathDraftState | null>;
 	createElement: (el: CanvasElement) => void;
-	setPathPreview: (
-		tool: "line" | "arrow",
-		absolutePoints: [number, number][],
-	) => void;
 	setDrawingPreview: React.Dispatch<React.SetStateAction<CanvasElement | null>>;
 	startTextPlacement: (text: TextPlacementDraft) => void;
 }
 
 export interface DrawFinishResult {
 	created: boolean;
-	/** Multi-Punkt-Pfad: Vorschau bleibt aktiv */
-	keepPathPreview: boolean;
 }
 
 interface TextPlacementDraft {
@@ -60,16 +52,13 @@ export function finalizeDrawOnPointerUp(
 		drawingPreview,
 		snappedX,
 		snappedY,
-		pathDraftRef,
 		createElement,
-		setPathPreview,
 		setDrawingPreview,
 		startTextPlacement,
 	} = ctx;
 	const tool = store.activeTool;
 	const id = nanoid();
 	let created = false;
-	let keepPathPreview = false;
 
 	if (tool === "text") {
 		const w = Math.max(100, drawingPreview.width);
@@ -98,48 +87,14 @@ export function finalizeDrawOnPointerUp(
 			created = true;
 		}
 	} else if (tool === "arrow") {
-		if (store.pathDrawMode === "multi") {
-			const draft = pathDraftRef.current;
-			if (draft?.tool === "arrow") {
-				const nextPoints = commitPathPoint(
-					draft.points,
-					[snappedX, snappedY],
-					store.arrowMode,
-				);
-				pathDraftRef.current = { ...draft, points: nextPoints };
-				setPathPreview(
-					"arrow",
-					appendPreviewPoint(
-						nextPoints,
-						nextPoints[nextPoints.length - 1],
-						store.arrowMode,
-					),
-				);
-				keepPathPreview = true;
-			}
-		} else {
-			if (shouldKeepCanvasDrawing(drawingPreview)) {
-				createElement({ ...drawingPreview, id });
-				created = true;
-			}
+		if (shouldKeepCanvasDrawing(drawingPreview)) {
+			createElement({ ...drawingPreview, id });
+			created = true;
 		}
 	} else if (tool === "line") {
-		if (store.pathDrawMode === "multi") {
-			const draft = pathDraftRef.current;
-			if (draft?.tool === "line") {
-				const nextPoints = commitPathPoint(draft.points, [snappedX, snappedY]);
-				pathDraftRef.current = { ...draft, points: nextPoints };
-				setPathPreview(
-					"line",
-					appendPreviewPoint(nextPoints, nextPoints[nextPoints.length - 1]),
-				);
-				keepPathPreview = true;
-			}
-		} else {
-			if (shouldKeepCanvasDrawing(drawingPreview)) {
-				createElement({ ...drawingPreview, id });
-				created = true;
-			}
+		if (shouldKeepCanvasDrawing(drawingPreview)) {
+			createElement({ ...drawingPreview, id });
+			created = true;
 		}
 	} else {
 		if (shouldKeepCanvasDrawing(drawingPreview)) {
@@ -160,19 +115,10 @@ export function finalizeDrawOnPointerUp(
 		}
 	}
 
-	if (!keepPathPreview) {
-		if (tool !== "line" && tool !== "arrow") {
-			setDrawingPreview(null);
-			if (!store.toolLocked) {
-				store.setActiveTool("select");
-			}
-		} else if (store.pathDrawMode === "normal") {
-			setDrawingPreview(null);
-			if (!store.toolLocked) {
-				store.setActiveTool("select");
-			}
-		}
+	setDrawingPreview(null);
+	if (!store.toolLocked) {
+		store.setActiveTool("select");
 	}
 
-	return { created, keepPathPreview };
+	return { created };
 }

@@ -26,6 +26,10 @@ The reusable editor packages remain MIT licensed:
 - `packages/canvas-core`: scene model, element types, geometry, hit testing,
   ordering, selection, snapping, path rendering, import helpers, and canvas
   domain logic.
+- `packages/canvas-editor`: storage-independent editor gestures and shared React
+  interaction UI. Path drawing, start snapping, closing, point editing, and path
+  mode behavior live here once and are adapted by both Community and SDK.
+- `packages/canvas-react`: shared React/SVG canvas rendering.
 - `packages/react`: auth-free React canvas SDK, local/controlled state, tool UI,
   factories, templates, and typed workspace integration hooks.
 
@@ -37,8 +41,8 @@ file or directory has its own license.
 The public Skedra source repository contains the Community edition:
 
 - `apps/web`, `apps/api`, `apps/libraries`, and `apps/mcp`.
-- `packages/db`, `packages/shared`, `packages/canvas-core`, and
-  `packages/react`.
+- `packages/db`, `packages/shared`, `packages/canvas-core`,
+  `packages/canvas-editor`, `packages/canvas-react`, and `packages/react`.
 - Dockerfiles, Compose files, standalone image scripts, migrations, and release
   workflows for Community self-hosting.
 

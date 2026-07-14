@@ -63,11 +63,18 @@ function getPathAnchors(
 	const points = el.points ?? [];
 	if (points.length === 0) return [];
 
-	const anchors: SnapAnchor[] = [
-		createAnchor(el.id, "endpoint", el.x + points[0][0], el.y + points[0][1]),
-	];
+	const anchors: SnapAnchor[] = el.closed
+		? []
+		: [
+				createAnchor(
+					el.id,
+					"endpoint",
+					el.x + points[0][0],
+					el.y + points[0][1],
+				),
+			];
 	const lastPoint = points[points.length - 1];
-	if (lastPoint && points.length > 1) {
+	if (!el.closed && lastPoint && points.length > 1) {
 		anchors.push(
 			createAnchor(el.id, "endpoint", el.x + lastPoint[0], el.y + lastPoint[1]),
 		);
@@ -92,9 +99,10 @@ function getPathAnchors(
 		return anchors;
 	}
 
-	for (let index = 0; index < points.length - 1; index++) {
+	const segmentCount = el.closed ? points.length : points.length - 1;
+	for (let index = 0; index < segmentCount; index++) {
 		const [x1, y1] = points[index];
-		const [x2, y2] = points[index + 1];
+		const [x2, y2] = points[(index + 1) % points.length];
 		anchors.push(
 			createAnchor(
 				el.id,

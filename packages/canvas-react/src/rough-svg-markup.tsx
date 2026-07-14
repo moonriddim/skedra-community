@@ -1,4 +1,4 @@
-import { getEffectiveCornerRadius } from "@skedra/canvas-core";
+import { getEffectiveCornerRadius, getLinePath } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { RoughShapeLayers } from "./render-helpers";
 
@@ -18,6 +18,13 @@ function GeometryClipShape({ el }: { el: CanvasElement }) {
 	const h = Math.max(1, el.height);
 
 	switch (el.type) {
+		case "line":
+			return el.points && el.points.length >= 3 ? (
+				<path
+					d={getLinePath(el.points, el.arrowMode, true)}
+					transform={`translate(${el.x}, ${el.y})`}
+				/>
+			) : null;
 		case "rectangle":
 			return (
 				<rect
@@ -65,6 +72,16 @@ function GeometryExactStroke({
 	};
 
 	switch (el.type) {
+		case "line":
+			return el.points && el.points.length >= 2 ? (
+				<path
+					d={getLinePath(el.points, el.arrowMode, el.closed === true)}
+					transform={`translate(${el.x}, ${el.y})`}
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					{...strokeProps}
+				/>
+			) : null;
 		case "rectangle":
 			return (
 				<rect

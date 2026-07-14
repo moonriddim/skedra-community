@@ -148,6 +148,7 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 			!FONT_STYLES.has(value.fontStyle as never)) ||
 		(value.textDecoration !== undefined &&
 			!TEXT_DECORATIONS.has(value.textDecoration as never)) ||
+		!isOptionalBoolean(value.closed) ||
 		(value.arrowMode !== undefined &&
 			!ARROW_MODES.has(value.arrowMode as ArrowMode)) ||
 		(value.arrowHeadStart !== undefined &&

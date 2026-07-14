@@ -15,6 +15,8 @@ export * from "./kanban";
 export * from "./mindmap";
 export * from "./ordering";
 export * from "./path-rendering";
+export * from "./path-drawing";
+export * from "./path-editing";
 export * from "./scene";
 export * from "./selection";
 export * from "./selection-operations";

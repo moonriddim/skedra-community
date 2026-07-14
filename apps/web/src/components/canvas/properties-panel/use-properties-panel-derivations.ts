@@ -83,7 +83,10 @@ export interface PropertiesPanelDerivations {
 	singleGeometryElement: CanvasElement | null;
 	showDimensions: boolean;
 	hasTextElement: boolean;
+	isPathElement: boolean;
 	isArrowElement: boolean;
+	showPathClosed: boolean;
+	currentPathClosed: boolean;
 	showArrowTextPosition: boolean;
 	showPathDrawMode: boolean;
 	showStroke: boolean;
@@ -212,10 +215,18 @@ export function derivePropertiesPanelState({
 		? getStickyNoteMode(inspected[0])
 		: "note";
 
+	const isClosedPathOnly =
+		hasInspectionTarget &&
+		inspected.every((el) => el.type === "line" && el.closed === true);
 	const showFill =
-		!isTextOnly && !isLineType && !isKanbanOnly && !isStickyNoteOnly;
+		!isTextOnly &&
+		(!isLineType || isClosedPathOnly) &&
+		!isKanbanOnly &&
+		!isStickyNoteOnly;
 	const showGeometryFill =
-		showFill && hasShapeElement && !selectedTemplateSection;
+		showFill &&
+		(hasShapeElement || isClosedPathOnly) &&
+		!selectedTemplateSection;
 	const showBackgroundFill = showFill && !showGeometryFill;
 	const showStrokeWidth = !isTextOnly && !isKanbanOnly && !isStickyNoteOnly;
 	const showStrokeStyle =
@@ -270,6 +281,12 @@ export function derivePropertiesPanelState({
 					)
 				: activeTool === "text"));
 
+	const isPathElement = isEditingTextContext
+		? false
+		: hasInspectionTarget
+			? inspected.every((el) => el.type === "line" || el.type === "arrow")
+			: activeTool === "line" || activeTool === "arrow";
+
 	const isArrowElement = isEditingTextContext
 		? false
 		: hasInspectionTarget
@@ -278,6 +295,12 @@ export function derivePropertiesPanelState({
 
 	const showArrowTextPosition = inspectedPathTextElements.length > 0;
 	const showPathDrawMode = activeTool === "line" || activeTool === "arrow";
+	const showPathClosed =
+		hasInspectionTarget &&
+		inspected.every(
+			(el) => el.type === "line" && (el.points?.length ?? 0) >= 3,
+		);
+	const currentPathClosed = showPathClosed && inspected[0].closed === true;
 	const showStroke =
 		!isKanbanOnly && !isTextOnly && !isEditingTextContext && !isStickyNoteOnly;
 
@@ -476,7 +499,10 @@ export function derivePropertiesPanelState({
 		singleGeometryElement,
 		showDimensions,
 		hasTextElement,
+		isPathElement,
 		isArrowElement,
+		showPathClosed,
+		currentPathClosed,
 		showArrowTextPosition,
 		showPathDrawMode,
 		showStroke,

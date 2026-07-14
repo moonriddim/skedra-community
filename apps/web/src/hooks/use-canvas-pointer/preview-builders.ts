@@ -11,6 +11,7 @@ import {
 	createStickyNoteElement,
 } from "@skedra/canvas-core";
 import { DEFAULT_FONT_SIZE } from "@skedra/canvas-core";
+import { buildCanvasSinglePathElement } from "@skedra/canvas-editor";
 
 import type { useCanvasStore } from "../use-canvas-store";
 
@@ -155,11 +156,28 @@ export function buildSingleArrowPreview(
 	y: number,
 	store: CanvasStoreState,
 ): CanvasElement {
-	return buildCanvasDrawingElement({
+	return buildCanvasSinglePathElement({
 		id: "__preview",
 		tool: "arrow",
 		start: { x, y },
 		end: { x, y },
+		style: getDrawingStyle(store),
+	});
+}
+
+export function buildSinglePathPreview(
+	tool: "line" | "arrow",
+	startX: number,
+	startY: number,
+	endX: number,
+	endY: number,
+	store: CanvasStoreState,
+): CanvasElement {
+	return buildCanvasSinglePathElement({
+		id: "__preview",
+		tool,
+		start: { x: startX, y: startY },
+		end: { x: endX, y: endY },
 		style: getDrawingStyle(store),
 	});
 }
@@ -199,6 +217,9 @@ export function buildDrawingPreview(
 	y: number,
 	store: CanvasStoreState,
 ): CanvasElement {
+	if (tool === "line" || tool === "arrow") {
+		return buildSinglePathPreview(tool, x, y, x, y, store);
+	}
 	return buildCanvasDrawingElement({
 		id: "__preview",
 		tool: tool as Exclude<CanvasElement["type"], "image" | "text">,

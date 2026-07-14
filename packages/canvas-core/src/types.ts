@@ -77,6 +77,8 @@ export interface CanvasElement {
 	fontStyle?: "normal" | "italic";
 	textDecoration?: "none" | "underline";
 	points?: [number, number][];
+	/** Closes a multi-point line back to its first point so it can be filled. */
+	closed?: boolean;
 	arrowMode?: ArrowMode;
 	arrowHeadStart?: ArrowHead;
 	arrowHeadEnd?: ArrowHead;

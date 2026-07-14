@@ -204,7 +204,10 @@ export function PropertiesPanel({
 
 			<ArrowProperties
 				showPathDrawMode={panel.showPathDrawMode}
+				isPathElement={panel.isPathElement}
 				isArrowElement={panel.isArrowElement}
+				showPathClosed={panel.showPathClosed}
+				currentPathClosed={panel.currentPathClosed}
 				showArrowTextPosition={panel.showArrowTextPosition}
 				pathDrawMode={panel.pathDrawMode}
 				currentArrowMode={panel.currentArrowMode}

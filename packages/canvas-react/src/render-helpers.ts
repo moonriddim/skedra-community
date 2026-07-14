@@ -1,5 +1,6 @@
 import {
 	elbowPath,
+	getLinePath,
 	linePath,
 	quadBezierPath,
 	smoothPath,
@@ -25,7 +26,8 @@ export function dashArray(
 function getPathData(el: CanvasElement) {
 	if (!el.points || el.points.length < 2) return null;
 	if (el.type === "freehand") return smoothPath(el.points);
-	if (el.type === "line") return linePath(el.points);
+	if (el.type === "line")
+		return getLinePath(el.points, el.arrowMode, el.closed === true);
 	if (el.type !== "arrow") return null;
 
 	const mode = el.arrowMode ?? "straight";

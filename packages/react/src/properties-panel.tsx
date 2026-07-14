@@ -463,6 +463,19 @@ export function SkedraPropertiesPanel({
 							/>
 						</label>
 					</div>
+					{element.type === "line" && (element.points?.length ?? 0) >= 3 && (
+						<label>
+							<input
+								type="checkbox"
+								disabled={disabled}
+								checked={element.closed === true}
+								onChange={(event) =>
+									onSetProperties({ closed: event.target.checked })
+								}
+							/>{" "}
+							Closed shape
+						</label>
+					)}
 					<label>
 						<input
 							type="checkbox"

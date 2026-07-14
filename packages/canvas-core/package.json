@@ -29,6 +29,8 @@
 		"./mindmap": "./src/mindmap.ts",
 		"./ordering": "./src/ordering.ts",
 		"./path-rendering": "./src/path-rendering.ts",
+		"./path-drawing": "./src/path-drawing.ts",
+		"./path-editing": "./src/path-editing.ts",
 		"./scene": "./src/scene.ts",
 		"./selection": "./src/selection.ts",
 		"./selection-operations": "./src/selection-operations.ts",

@@ -45,6 +45,7 @@ export function apiElementsToCanvasElements(
 		...(input.cornerRadiusPercent !== undefined
 			? { cornerRadiusPercent: input.cornerRadiusPercent }
 			: {}),
+		...(input.closed !== undefined ? { closed: input.closed } : {}),
 		...(input.arrowHeadScale !== undefined
 			? { arrowHeadScale: input.arrowHeadScale }
 			: {}),

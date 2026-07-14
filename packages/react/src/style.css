@@ -102,6 +102,30 @@
 	background: var(--skedra-sdk-panel-border);
 }
 
+.skedra-sdk__path-control {
+	height: 30px;
+	max-width: 116px;
+	border: 1px solid var(--skedra-sdk-panel-border);
+	border-radius: 6px;
+	background: var(--skedra-sdk-panel);
+	color: var(--skedra-sdk-text);
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.skedra-sdk__path-start-snap {
+	fill: var(--skedra-sdk-panel);
+	stroke: var(--skedra-sdk-primary);
+	pointer-events: none;
+}
+
+.skedra-sdk__path-start-snap[data-active="true"] {
+	fill: var(--skedra-sdk-primary);
+	stroke: var(--skedra-sdk-panel);
+}
+
 .skedra-sdk__template-menu {
 	position: relative;
 	display: inline-flex;

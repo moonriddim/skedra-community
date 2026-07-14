@@ -5,6 +5,10 @@ import type {
 	RoughFillStyle,
 	StrokeStyle,
 } from "@skedra/canvas-core";
+import {
+	CANVAS_PATH_DRAW_MODE_OPTIONS,
+	CANVAS_PATH_MODE_OPTIONS,
+} from "@skedra/canvas-editor";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -308,56 +312,53 @@ export const ARROW_MODES: {
 	value: ArrowMode;
 	labelKey: string;
 	icon: ReactNode;
-}[] = [
-	{
-		value: "straight",
-		labelKey: "straight",
-		icon: (
-			<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
-				<line
-					x1="2"
-					y1="10"
-					x2="18"
-					y2="2"
-					stroke="currentColor"
-					strokeWidth="1.5"
-				/>
-				<polygon points="18,2 13,3 15,6" fill="currentColor" />
-			</svg>
-		),
-	},
-	{
-		value: "curve",
-		labelKey: "curve",
-		icon: (
-			<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
-				<path
-					d="M2 10 Q10 -2 18 6"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth="1.5"
-				/>
-				<polygon points="18,6 13,3 14,7" fill="currentColor" />
-			</svg>
-		),
-	},
-	{
-		value: "elbow",
-		labelKey: "elbow",
-		icon: (
-			<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
-				<polyline
-					points="2,2 10,2 10,10 18,10"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth="1.5"
-					strokeLinejoin="round"
-				/>
-				<polygon points="18,10 14,8 14,12" fill="currentColor" />
-			</svg>
-		),
-	},
-];
+}[] = CANVAS_PATH_MODE_OPTIONS.map((value) => {
+	const presentation: Record<ArrowMode, { labelKey: string; icon: ReactNode }> =
+		{
+			straight: {
+				labelKey: "straight",
+				icon: (
+					<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
+						<polyline
+							points="2,9 7,3 12,9 18,3"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.5"
+							strokeLinejoin="round"
+						/>
+					</svg>
+				),
+			},
+			curve: {
+				labelKey: "curve",
+				icon: (
+					<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
+						<path
+							d="M2 9 C6 1 11 1 18 7"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.5"
+						/>
+					</svg>
+				),
+			},
+			elbow: {
+				labelKey: "elbow",
+				icon: (
+					<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
+						<polyline
+							points="2,2 10,2 10,10 18,10"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.5"
+							strokeLinejoin="round"
+						/>
+					</svg>
+				),
+			},
+		};
+	return { value, ...presentation[value] };
+});
 
 export const ARROW_HEAD_OPTIONS: {
 	value: ArrowHead;
@@ -508,7 +509,7 @@ export const TEXT_ALIGNS: {
 	},
 ];
 
-export const PATH_DRAW_MODES = [
-	{ value: "normal", labelKey: "pathDrawNormal" },
-	{ value: "multi", labelKey: "pathDrawMulti" },
-] as const;
+export const PATH_DRAW_MODES = CANVAS_PATH_DRAW_MODE_OPTIONS.map((value) => ({
+	value,
+	labelKey: value === "normal" ? "pathDrawNormal" : "pathDrawMulti",
+}));

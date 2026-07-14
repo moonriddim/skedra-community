@@ -2,7 +2,11 @@
  * Verschiebe-Geste: Position-Updates inkl. Snap, Frame-Kinder, Mindmap-Kanten.
  */
 
-import { buildCanvasMoveUpdates, calcSnap } from "@skedra/canvas-core";
+import {
+	buildCanvasMoveUpdates,
+	buildCanvasPathPointChanges,
+	calcSnap,
+} from "@skedra/canvas-core";
 import type { SnapGuide } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { PointerState } from "./pointer-types";
@@ -78,8 +82,9 @@ export function buildDragPointUpdate(
 		setSnapGuides(snap.guides);
 	}
 
-	const newPoints = el.points.map((p, i) =>
-		i === state.dragPointIndex ? ([newPx, newPy] as [number, number]) : p,
-	);
-	return { id: state.dragPointElementId, changes: { points: newPoints } };
+	const changes = buildCanvasPathPointChanges(el, state.dragPointIndex, [
+		newPx,
+		newPy,
+	]);
+	return changes ? { id: state.dragPointElementId, changes } : null;
 }
