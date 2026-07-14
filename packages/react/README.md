@@ -43,7 +43,7 @@ export function Whiteboard() {
 - `libraries` / `defaultLibraries` / `onLibrariesChange`: controlled or local shape libraries.
 - `initialTool`: selects the initial tool.
 - `initialPathDrawMode` / `onPathDrawModeChange`: selects single-segment or multi-line drawing.
-- `initialPathMode` / `onPathModeChange`: selects cornered, curved, or elbow paths.
+- `initialPathMode` / `onPathModeChange`: selects cornered or curved paths. Legacy elbow values remain readable for existing documents.
 - `theme` / `onThemeChange`: controls the light/dark theme and reports shortcut changes.
 - `onZenModeChange`: reports Zen-mode changes triggered by the shared shortcut.
 - `onHelpRequest` / `onCommandPaletteRequest`: handles the shared help and command-palette shortcuts. Without callbacks, the canvas dispatches bubbling `skedra:help-request` and `skedra:command-palette-request` DOM events.
@@ -113,7 +113,7 @@ exporters. The web application only adapts these layers to its Yjs, translation,
 dialog, and collaboration services; the public package adapts them to controlled
 or local React state.
 
-Multi-line points, corner/curve modes, elbow routing, hover previews,
+Multi-line points, corner/curve modes, legacy elbow rendering, hover previews,
 start-point closing snaps, closing/filling, and path point editing run through
 the same `@skedra/canvas-editor` controller and components in the Community app
 and SDK. Core geometry remains in `@skedra/canvas-core`. The internal editor

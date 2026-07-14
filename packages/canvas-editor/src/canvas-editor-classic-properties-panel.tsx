@@ -46,6 +46,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import {
+	CANVAS_PATH_MODE_OPTIONS,
+	type CanvasPathModeOption,
+	resolveCanvasEditorPathMode,
+} from "./path-editor-controller";
 
 export type CanvasEditorPropertiesTranslate = (
 	key: string,
@@ -215,7 +220,6 @@ const ROUGH_FILL_STYLES: RoughFillStyle[] = [
 	"dashed",
 	"dots",
 ];
-const ARROW_MODES: ArrowMode[] = ["straight", "curve", "elbow"];
 const ARROW_HEADS: ArrowHead[] = ["none", "arrow", "triangle", "dot"];
 const FONT_FAMILIES = [
 	{ value: "system-ui, sans-serif", label: "Sans Serif" },
@@ -1288,7 +1292,7 @@ function AppearanceProperties({
 	);
 }
 
-function PathModePreview({ mode }: { mode: ArrowMode }) {
+function PathModePreview({ mode }: { mode: CanvasPathModeOption }) {
 	return (
 		<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
 			{mode === "curve" ? (
@@ -1300,9 +1304,7 @@ function PathModePreview({ mode }: { mode: ArrowMode }) {
 				/>
 			) : (
 				<polyline
-					points={
-						mode === "elbow" ? "2,2 10,2 10,10 18,10" : "2,9 7,3 12,9 18,3"
-					}
+					points="2,9 7,3 12,9 18,3"
 					fill="none"
 					stroke="currentColor"
 					strokeWidth="1.5"
@@ -1374,13 +1376,15 @@ function ArrowProperties({
 			{view.isPathElement && (
 				<Section label={t("canvas.properties.pathStyle", "Path style")}>
 					<div className="flex gap-1">
-						{ARROW_MODES.map((mode) => (
+						{CANVAS_PATH_MODE_OPTIONS.map((mode) => (
 							<ChoiceButton
 								key={mode}
-								active={view.currentArrowMode === mode}
+								active={
+									resolveCanvasEditorPathMode(view.currentArrowMode) === mode
+								}
 								onClick={() => view.onSetProperty("arrowMode", mode)}
 								title={t(
-									`canvas.properties.${mode === "straight" ? "cornered" : mode}`,
+									`canvas.properties.${mode === "straight" ? "cornered" : "curve"}`,
 									mode,
 								)}
 							>

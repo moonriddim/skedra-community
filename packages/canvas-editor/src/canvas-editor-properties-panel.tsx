@@ -6,6 +6,10 @@ import {
 	type CanvasEditorClassicPropertiesView,
 	type CanvasEditorPropertiesTranslate,
 } from "./canvas-editor-classic-properties-panel";
+import {
+	CANVAS_PATH_MODE_OPTIONS,
+	resolveCanvasEditorPathMode,
+} from "./path-editor-controller";
 
 export type CanvasEditorAlignment =
 	| "top"
@@ -688,22 +692,20 @@ export function CanvasEditorPropertiesPanel({
 							<span>{t("canvas.properties.pathStyle", "Mode")}</span>
 							<select
 								disabled={disabled}
-								value={element.arrowMode ?? "straight"}
+								value={resolveCanvasEditorPathMode(element.arrowMode)}
 								onChange={(event) =>
 									onSetProperties({
 										arrowMode: event.target.value as CanvasElement["arrowMode"],
 									})
 								}
 							>
-								<option value="straight">
-									{t("canvas.properties.straight", "Straight")}
-								</option>
-								<option value="curve">
-									{t("canvas.properties.curve", "Curve")}
-								</option>
-								<option value="elbow">
-									{t("canvas.properties.elbow", "Elbow")}
-								</option>
+								{CANVAS_PATH_MODE_OPTIONS.map((mode) => (
+									<option key={mode} value={mode}>
+										{mode === "straight"
+											? t("canvas.properties.cornered", "Corners")
+											: t("canvas.properties.curve", "Curve")}
+									</option>
+								))}
 							</select>
 						</label>
 						<label>

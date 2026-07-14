@@ -9,6 +9,7 @@ import {
 import {
 	CANVAS_PATH_DRAW_MODE_OPTIONS,
 	CANVAS_PATH_MODE_OPTIONS,
+	resolveCanvasEditorPathMode,
 } from "./path-editor-controller";
 
 export interface CanvasEditorToolStripClasses {
@@ -153,7 +154,7 @@ export function CanvasEditorToolStrip({
 						</select>
 						<select
 							className={classes?.pathSelect}
-							value={pathMode}
+							value={resolveCanvasEditorPathMode(pathMode)}
 							aria-label={t("canvas.properties.pathStyle", "Path style")}
 							title={t("canvas.properties.pathStyle", "Path style")}
 							onChange={(event) =>
@@ -164,9 +165,7 @@ export function CanvasEditorToolStrip({
 								<option key={mode} value={mode}>
 									{mode === "straight"
 										? t("canvas.properties.cornered", "Corners")
-										: mode === "curve"
-											? t("canvas.properties.curve", "Curves")
-											: t("canvas.properties.elbow", "Elbow")}
+										: t("canvas.properties.curve", "Curves")}
 								</option>
 							))}
 						</select>

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CanvasDrawingStyle } from "@skedra/canvas-core";
-import { CanvasPathEditorController } from "./path-editor-controller";
+import {
+	CANVAS_PATH_MODE_OPTIONS,
+	CanvasPathEditorController,
+	resolveCanvasEditorPathMode,
+} from "./path-editor-controller";
 import { buildCanvasSinglePathElement } from "./single-path";
 
 const style: CanvasDrawingStyle = {
@@ -54,7 +58,14 @@ test("arrows remain open and use the same preview/commit state machine", () => {
 	assert.equal(completed.element.arrowHeadEnd, "arrow");
 });
 
-test("single-drag paths share curve and elbow point construction", () => {
+test("the editor offers only corners and curves while normalizing legacy elbow", () => {
+	assert.deepEqual(CANVAS_PATH_MODE_OPTIONS, ["straight", "curve"]);
+	assert.equal(resolveCanvasEditorPathMode("straight"), "straight");
+	assert.equal(resolveCanvasEditorPathMode("curve"), "curve");
+	assert.equal(resolveCanvasEditorPathMode("elbow"), "straight");
+});
+
+test("single-drag paths keep legacy elbow documents compatible", () => {
 	const curve = buildCanvasSinglePathElement({
 		id: "curve",
 		tool: "line",

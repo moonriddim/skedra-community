@@ -3,6 +3,7 @@ export {
 	CANVAS_PATH_MODE_OPTIONS,
 	CanvasPathEditorController,
 	isCanvasMultiPathTool,
+	resolveCanvasEditorPathMode,
 } from "./path-editor-controller";
 export {
 	CanvasEditor,
@@ -19,6 +20,7 @@ export type {
 } from "./canvas-editor";
 export type {
 	CanvasPathEditorFrame,
+	CanvasPathModeOption,
 	CanvasPathEditorOutcome,
 	CanvasPathPointerPosition,
 } from "./path-editor-controller";
@@ -28,6 +30,7 @@ export type {
 	CanvasPathFinishOptions,
 	UseCanvasPathEditorOptions,
 } from "./use-canvas-path-editor";
+export { resolveCanvasEditorWheelViewport } from "./pointer-contract";
 export { CanvasPathStartSnapIndicator } from "./path-start-snap-indicator";
 export type { CanvasPathStartSnapIndicatorProps } from "./path-start-snap-indicator";
 export { CanvasPathPointHandles } from "./canvas-path-point-handles";

@@ -5,6 +5,7 @@ import {
 	handleCanvasEditorTemporaryPanKeyDown,
 	resolveCanvasEditorKeyboardAction,
 	resolveCanvasEditorPointerDown,
+	resolveCanvasEditorWheelViewport,
 	shouldCancelCanvasEditorLostPointerCapture,
 } from "./index";
 
@@ -59,6 +60,25 @@ test("temporary pan always prevents browser scrolling", () => {
 	);
 	assert.equal(prevented, 1);
 	assert.equal(temporaryPan, true);
+});
+
+test("plain mouse wheel zooms around the pointer like the original Web canvas", () => {
+	assert.deepEqual(
+		resolveCanvasEditorWheelViewport(
+			{ x: 0, y: 0, zoom: 1 },
+			{ x: 100, y: 50 },
+			-1,
+		),
+		{ x: -8, y: -4, zoom: 1.08 },
+	);
+	assert.deepEqual(
+		resolveCanvasEditorWheelViewport(
+			{ x: 0, y: 0, zoom: 1 },
+			{ x: 100, y: 50 },
+			1,
+		),
+		{ x: 8, y: 4, zoom: 0.92 },
+	);
 });
 
 test("read-only mode blocks mutations in every host", () => {

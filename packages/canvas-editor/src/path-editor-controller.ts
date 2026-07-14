@@ -1,4 +1,5 @@
 import {
+	type ArrowMode,
 	type CanvasDrawingStyle,
 	type CanvasElement,
 	type CanvasPathDraftState,
@@ -14,7 +15,15 @@ import {
 } from "@skedra/canvas-core";
 
 export const CANVAS_PATH_DRAW_MODE_OPTIONS = ["normal", "multi"] as const;
-export const CANVAS_PATH_MODE_OPTIONS = ["straight", "curve", "elbow"] as const;
+export const CANVAS_PATH_MODE_OPTIONS = ["straight", "curve"] as const;
+export type CanvasPathModeOption = (typeof CANVAS_PATH_MODE_OPTIONS)[number];
+
+/** Elbow remains readable for old documents but is no longer a creation mode. */
+export function resolveCanvasEditorPathMode(
+	mode: ArrowMode | null | undefined,
+): CanvasPathModeOption {
+	return mode === "curve" ? "curve" : "straight";
+}
 
 export function isCanvasMultiPathTool(
 	tool: string,

@@ -1,7 +1,6 @@
 import type { ResolvedTheme } from "@/stores/theme";
 import type {
 	ArrowHead,
-	ArrowMode,
 	RoughFillStyle,
 	StrokeStyle,
 } from "@skedra/canvas-core";
@@ -9,6 +8,7 @@ import {
 	CANVAS_PATH_DRAW_MODE_OPTIONS,
 	CANVAS_PATH_MODE_OPTIONS,
 } from "@skedra/canvas-editor";
+import type { CanvasPathModeOption } from "@skedra/canvas-editor";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -309,54 +309,42 @@ export const ROUGHNESS_LEVELS: {
 ];
 
 export const ARROW_MODES: {
-	value: ArrowMode;
+	value: CanvasPathModeOption;
 	labelKey: string;
 	icon: ReactNode;
 }[] = CANVAS_PATH_MODE_OPTIONS.map((value) => {
-	const presentation: Record<ArrowMode, { labelKey: string; icon: ReactNode }> =
-		{
-			straight: {
-				labelKey: "straight",
-				icon: (
-					<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
-						<polyline
-							points="2,9 7,3 12,9 18,3"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-							strokeLinejoin="round"
-						/>
-					</svg>
-				),
-			},
-			curve: {
-				labelKey: "curve",
-				icon: (
-					<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
-						<path
-							d="M2 9 C6 1 11 1 18 7"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-						/>
-					</svg>
-				),
-			},
-			elbow: {
-				labelKey: "elbow",
-				icon: (
-					<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
-						<polyline
-							points="2,2 10,2 10,10 18,10"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-							strokeLinejoin="round"
-						/>
-					</svg>
-				),
-			},
-		};
+	const presentation: Record<
+		CanvasPathModeOption,
+		{ labelKey: string; icon: ReactNode }
+	> = {
+		straight: {
+			labelKey: "straight",
+			icon: (
+				<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
+					<polyline
+						points="2,9 7,3 12,9 18,3"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="1.5"
+						strokeLinejoin="round"
+					/>
+				</svg>
+			),
+		},
+		curve: {
+			labelKey: "curve",
+			icon: (
+				<svg aria-hidden="true" viewBox="0 0 20 12" className="h-3 w-5">
+					<path
+						d="M2 9 C6 1 11 1 18 7"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="1.5"
+					/>
+				</svg>
+			),
+		},
+	};
 	return { value, ...presentation[value] };
 });
 

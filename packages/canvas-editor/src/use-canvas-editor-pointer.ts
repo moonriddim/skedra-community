@@ -13,7 +13,6 @@ import {
 	isMultiSelectModifier,
 	resizeCanvasElement,
 	shouldKeepCanvasDrawing,
-	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
 import {
 	type Dispatch,
@@ -36,6 +35,7 @@ import {
 	type CanvasEditorPointerAction,
 	type CanvasEditorPointerGestureAction,
 	resolveCanvasEditorPointerDown,
+	resolveCanvasEditorWheelViewport,
 	shouldCancelCanvasEditorLostPointerCapture,
 } from "./pointer-contract";
 import { resolveCanvasEditorSelectPointerDown } from "./selection-pointer-controller";
@@ -793,22 +793,14 @@ export function useCanvasEditorPointer({
 		(event: ReactWheelEvent<SVGSVGElement>) => {
 			event.preventDefault();
 			const ui = uiAdapter.getState();
-			if (event.ctrlKey || event.metaKey) {
-				const rect = event.currentTarget.getBoundingClientRect();
-				uiAdapter.setViewport(
-					zoomCanvasViewportAtPoint(
-						ui.viewport,
-						{ x: event.clientX - rect.left, y: event.clientY - rect.top },
-						ui.viewport.zoom * Math.exp((-event.deltaY / 100) * 0.18),
-					),
-				);
-				return;
-			}
-			uiAdapter.setViewport({
-				...ui.viewport,
-				x: ui.viewport.x - event.deltaX,
-				y: ui.viewport.y - event.deltaY,
-			});
+			const rect = event.currentTarget.getBoundingClientRect();
+			uiAdapter.setViewport(
+				resolveCanvasEditorWheelViewport(
+					ui.viewport,
+					{ x: event.clientX - rect.left, y: event.clientY - rect.top },
+					event.deltaY,
+				),
+			);
 		},
 		[uiAdapter],
 	);

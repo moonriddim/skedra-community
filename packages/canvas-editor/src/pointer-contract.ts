@@ -1,4 +1,8 @@
-import type { CanvasPathDrawMode } from "@skedra/canvas-core";
+import {
+	type CanvasPathDrawMode,
+	type Viewport,
+	zoomCanvasViewportAtPoint,
+} from "@skedra/canvas-core";
 import type { CanvasEditorToolId } from "./editor-contract";
 
 export type CanvasEditorPointerAction =
@@ -27,6 +31,20 @@ export type CanvasEditorPointerGestureAction =
 	| "drag-point"
 	| "erase"
 	| "laser";
+
+/** Restores the original Web UX: every vertical wheel gesture zooms at the pointer. */
+export function resolveCanvasEditorWheelViewport(
+	viewport: Viewport,
+	pointer: { x: number; y: number },
+	deltaY: number,
+): Viewport {
+	if (deltaY === 0) return viewport;
+	return zoomCanvasViewportAtPoint(
+		viewport,
+		pointer,
+		viewport.zoom * (deltaY > 0 ? 0.92 : 1.08),
+	);
+}
 
 /** Normal pointer-up releases capture after the gesture has already been reset. */
 export function shouldCancelCanvasEditorLostPointerCapture(
