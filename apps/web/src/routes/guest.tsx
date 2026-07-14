@@ -32,6 +32,7 @@ import {
 	withE2eeKeyFragmentPath,
 } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
+import { localizePublicPath } from "@/lib/public-path";
 import { trpc } from "@/lib/trpc";
 import { Check, Cloud, Loader2, LockKeyhole } from "lucide-react";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
@@ -44,7 +45,8 @@ const SkedraCanvas = lazy(() =>
 );
 
 export function GuestCanvasPage() {
-	const { t } = useI18n();
+	const { t, locale } = useI18n();
+	const publicPath = (path: string) => localizePublicPath(path, locale);
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data: session } = authClient.useSession();
@@ -121,11 +123,15 @@ export function GuestCanvasPage() {
 
 	const handleSaveClick = () => {
 		if (publicConfig?.managed !== false && !billing?.accessGranted) {
-			navigate(`/pricing?redirect=${encodeURIComponent("/?save=1")}`);
+			navigate(
+				`${publicPath("/pricing")}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`,
+			);
 			return;
 		}
 		if (!session?.user) {
-			navigate(`/login?redirect=${encodeURIComponent("/?save=1")}`);
+			navigate(
+				`/login?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`,
+			);
 			return;
 		}
 		setSaveError("");

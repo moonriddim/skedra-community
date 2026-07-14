@@ -1,6 +1,7 @@
 import { PublicSiteLayout } from "@/components/public/public-site-layout";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
+import { localizePublicPath } from "@/lib/public-path";
 import {
 	BadgeCheck,
 	Check,
@@ -59,7 +60,8 @@ function safeRedirect(value: string | null) {
 }
 
 export function PricingPage() {
-	const { t } = useI18n();
+	const { t, locale } = useI18n();
+	const publicPath = (path: string) => localizePublicPath(path, locale);
 	const [period, setPeriod] = useState<BillingPeriod>("yearly");
 	const [searchParams] = useSearchParams();
 	const redirect = safeRedirect(searchParams.get("redirect"));
@@ -121,7 +123,7 @@ export function PricingPage() {
 							features={freeFeatures.map((key) => t(key))}
 							action={
 								<Button asChild variant="outline" size="lg" className="w-full">
-									<Link to="/">{t("pricingPage.drawNow")}</Link>
+									<Link to={publicPath("/")}>{t("pricingPage.drawNow")}</Link>
 								</Button>
 							}
 						/>

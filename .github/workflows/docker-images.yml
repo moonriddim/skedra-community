@@ -161,6 +161,11 @@ jobs:
             https://skedra.xyz/api/boards/00000000-0000-4000-8000-000000000000/presence || true)"
           test "$websocket_status" = "101"
 
+      - name: Notify search engines through IndexNow
+
+        continue-on-error: true
+        run: node apps/web/scripts/submit-indexnow.mjs
+
   release:
     runs-on: ubuntu-latest
     needs: build

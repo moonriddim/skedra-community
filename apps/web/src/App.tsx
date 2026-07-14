@@ -46,6 +46,9 @@ const TermsPage = lazy(() =>
 const ImprintPage = lazy(() =>
 	import("@/routes/imprint").then((m) => ({ default: m.ImprintPage })),
 );
+const GuidePage = lazy(() =>
+	import("@/routes/guide").then((m) => ({ default: m.GuidePage })),
+);
 const ForgotPasswordPage = lazy(() =>
 	import("@/routes/forgot-password").then((m) => ({
 		default: m.ForgotPasswordPage,
@@ -198,10 +201,90 @@ export function App() {
 								}
 							/>
 							<Route
+								path="/en/whiteboard"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<WhiteboardPage />
+									</Suspense>
+								}
+							/>
+							<Route
 								path="/pricing"
 								element={
 									<Suspense fallback={<PageLoader />}>
 										<PricingPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/en/pricing"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<PricingPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/about"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/guides"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/online-whiteboard-ohne-anmeldung"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/verschluesseltes-online-whiteboard"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/open-source-whiteboard-self-hosted"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/infinite-canvas"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/skedra-vs-excalidraw"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/en/:guideSlug"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<GuidePage />
 									</Suspense>
 								}
 							/>
@@ -271,6 +354,14 @@ export function App() {
 							/>
 							<Route
 								path="/"
+								element={
+									<Suspense fallback={<PageLoader />}>
+										<RootPage />
+									</Suspense>
+								}
+							/>
+							<Route
+								path="/en"
 								element={
 									<Suspense fallback={<PageLoader />}>
 										<RootPage />

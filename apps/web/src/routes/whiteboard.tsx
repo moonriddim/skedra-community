@@ -1,6 +1,7 @@
 import { PublicSiteLayout } from "@/components/public/public-site-layout";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
+import { localizePublicPath } from "@/lib/public-path";
 import {
 	Cloud,
 	FileDown,
@@ -176,6 +177,7 @@ const icons = [GitBranch, LayoutTemplate, Cloud, FileDown, Users, LockKeyhole];
 export function WhiteboardPage() {
 	const { locale } = useI18n();
 	const c = copy[locale];
+	const publicPath = (path: string) => localizePublicPath(path, locale);
 
 	return (
 		<PublicSiteLayout>
@@ -194,10 +196,10 @@ export function WhiteboardPage() {
 						</p>
 						<div className="mt-8 flex flex-wrap justify-center gap-3">
 							<Button asChild size="lg">
-								<Link to="/">{c.draw}</Link>
+								<Link to={publicPath("/")}>{c.draw}</Link>
 							</Button>
 							<Button asChild size="lg" variant="outline">
-								<Link to="/pricing">{c.prices}</Link>
+								<Link to={publicPath("/pricing")}>{c.prices}</Link>
 							</Button>
 						</div>
 						<p className="mt-5 text-xs text-muted-foreground">{c.updated}</p>
@@ -310,7 +312,7 @@ export function WhiteboardPage() {
 						{c.ctaText}
 					</p>
 					<Button asChild size="lg" className="mt-7">
-						<Link to="/">{c.draw}</Link>
+						<Link to={publicPath("/")}>{c.draw}</Link>
 					</Button>
 					<p className="mt-4 text-xs text-muted-foreground">
 						<a

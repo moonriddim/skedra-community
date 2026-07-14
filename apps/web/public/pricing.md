@@ -1,6 +1,6 @@
 # Skedra Pricing
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 Currency: CHF
 Prices are per person where specified. Taxes are shown according to the Stripe checkout.
 

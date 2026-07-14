@@ -1,10 +1,10 @@
-# Skedra Product Facts
+# Skedra Whiteboard Product Facts
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## What Skedra is
 
-Skedra is a browser-based online whiteboard and infinite canvas for sketches, mind maps, flowcharts, Kanban boards, workshops and visual collaboration. The free editor can be used without registration. Skedra Cloud is an optional paid service for permanent storage and collaboration.
+Skedra Whiteboard at skedra.xyz is an independent browser-based online whiteboard and infinite canvas for sketches, mind maps, flowcharts, Kanban boards, workshops and visual collaboration. The free editor can be used without registration. Skedra Cloud is an optional paid service for permanent storage and collaboration. Other products named Skedra on other domains or in app stores are separate offerings.
 
 ## Free editor
 

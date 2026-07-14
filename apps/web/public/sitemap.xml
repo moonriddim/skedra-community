@@ -1,11 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://skedra.xyz/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://skedra.xyz/whiteboard</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://skedra.xyz/pricing</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skedra.xyz/product.md</loc><changefreq>monthly</changefreq><priority>0.2</priority></url>
-  <url><loc>https://skedra.xyz/pricing.md</loc><changefreq>monthly</changefreq><priority>0.2</priority></url>
-  <url><loc>https://skedra.xyz/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://skedra.xyz/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://skedra.xyz/imprint</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://skedra.xyz/</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/whiteboard</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/whiteboard</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/pricing</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/pricing</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/about</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/about</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/guides</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/guides</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/online-whiteboard-ohne-anmeldung</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/online-whiteboard-without-signup</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/verschluesseltes-online-whiteboard</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/encrypted-online-whiteboard</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/open-source-whiteboard-self-hosted</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/open-source-whiteboard-self-hosted</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/infinite-canvas</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/infinite-canvas</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/skedra-vs-excalidraw</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/en/skedra-vs-excalidraw</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/product.md</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/pricing.md</loc><lastmod>2026-07-14</lastmod></url>
+  <url><loc>https://skedra.xyz/privacy</loc><lastmod>2026-07-13</lastmod></url>
+  <url><loc>https://skedra.xyz/terms</loc><lastmod>2026-07-13</lastmod></url>
+  <url><loc>https://skedra.xyz/imprint</loc><lastmod>2026-07-13</lastmod></url>
 </urlset>

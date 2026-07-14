@@ -9,21 +9,23 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/lib/i18n";
+import { localizePublicPath } from "@/lib/public-path";
 import { Github, Languages, Menu, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 const GITHUB_URL = "https://github.com/moonriddim/skedra-community";
 
 export function PublicSiteLayout({ children }: { children: ReactNode }) {
 	const [menuOpen, setMenuOpen] = useState(false);
-	const { t } = useI18n();
+	const { t, locale } = useI18n();
+	const publicPath = (path: string) => localizePublicPath(path, locale);
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
 			<header className="sticky top-0 z-50 border-b border-border/70 bg-background/90 backdrop-blur-xl">
 				<div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-					<Link to="/" aria-label="Skedra Whiteboard">
+					<Link to={publicPath("/")} aria-label="Skedra Whiteboard">
 						<BrandLogo markClassName="h-9 w-9" wordmarkClassName="text-xl" />
 					</Link>
 
@@ -32,10 +34,17 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 						aria-label={t("publicSite.navigationLabel")}
 					>
 						<Button asChild variant="ghost" size="sm">
-							<Link to="/whiteboard">{t("publicSite.productOverview")}</Link>
+							<Link to={publicPath("/whiteboard")}>
+								{t("publicSite.productOverview")}
+							</Link>
 						</Button>
 						<Button asChild variant="ghost" size="sm">
-							<Link to="/pricing">{t("publicSite.pricing")}</Link>
+							<Link to={publicPath("/guides")}>
+								{locale === "en" ? "Guides" : "Ratgeber"}
+							</Link>
+						</Button>
+						<Button asChild variant="ghost" size="sm">
+							<Link to={publicPath("/pricing")}>{t("publicSite.pricing")}</Link>
 						</Button>
 						<Button asChild variant="ghost" size="sm">
 							<a href={GITHUB_URL} target="_blank" rel="noreferrer">
@@ -52,7 +61,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 							<Link to="/login">{t("publicSite.existingCloudAccount")}</Link>
 						</Button>
 						<Button asChild size="sm">
-							<Link to="/">{t("publicSite.freeWhiteboard")}</Link>
+							<Link to={publicPath("/")}>{t("publicSite.freeWhiteboard")}</Link>
 						</Button>
 					</div>
 
@@ -78,12 +87,26 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<nav className="border-t border-border bg-background px-4 py-4 md:hidden">
 						<div className="mx-auto grid max-w-6xl gap-2">
 							<Button asChild variant="ghost" className="justify-start">
-								<Link to="/whiteboard" onClick={() => setMenuOpen(false)}>
+								<Link
+									to={publicPath("/whiteboard")}
+									onClick={() => setMenuOpen(false)}
+								>
 									{t("publicSite.productOverview")}
 								</Link>
 							</Button>
 							<Button asChild variant="ghost" className="justify-start">
-								<Link to="/pricing" onClick={() => setMenuOpen(false)}>
+								<Link
+									to={publicPath("/guides")}
+									onClick={() => setMenuOpen(false)}
+								>
+									{locale === "en" ? "Guides" : "Ratgeber"}
+								</Link>
+							</Button>
+							<Button asChild variant="ghost" className="justify-start">
+								<Link
+									to={publicPath("/pricing")}
+									onClick={() => setMenuOpen(false)}
+								>
 									{t("publicSite.pricing")}
 								</Link>
 							</Button>
@@ -94,7 +117,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 							</Button>
 							<LanguageMenu className="justify-start" />
 							<Button asChild className="justify-start">
-								<Link to="/" onClick={() => setMenuOpen(false)}>
+								<Link to={publicPath("/")} onClick={() => setMenuOpen(false)}>
 									{t("publicSite.freeWhiteboard")}
 								</Link>
 							</Button>
@@ -106,7 +129,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 			<main>{children}</main>
 
 			<footer className="border-t border-border bg-card/45">
-				<div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr]">
+				<div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
 					<div>
 						<BrandLogo markClassName="h-9 w-9" wordmarkClassName="text-lg" />
 						<p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
@@ -116,13 +139,19 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<div>
 						<h2 className="text-sm font-semibold">{t("publicSite.product")}</h2>
 						<div className="mt-3 grid gap-2 text-sm text-muted-foreground">
-							<Link className="hover:text-foreground" to="/whiteboard">
+							<Link
+								className="hover:text-foreground"
+								to={publicPath("/whiteboard")}
+							>
 								{t("publicSite.productOverview")}
 							</Link>
-							<Link className="hover:text-foreground" to="/">
+							<Link className="hover:text-foreground" to={publicPath("/")}>
 								{t("publicSite.freeWhiteboard")}
 							</Link>
-							<Link className="hover:text-foreground" to="/pricing">
+							<Link
+								className="hover:text-foreground"
+								to={publicPath("/pricing")}
+							>
 								{t("publicSite.pricing")}
 							</Link>
 							<a
@@ -133,6 +162,30 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 							>
 								GitHub
 							</a>
+						</div>
+					</div>
+					<div>
+						<h2 className="text-sm font-semibold">
+							{locale === "en" ? "Knowledge" : "Wissen"}
+						</h2>
+						<div className="mt-3 grid gap-2 text-sm text-muted-foreground">
+							<Link
+								className="hover:text-foreground"
+								to={publicPath("/guides")}
+							>
+								{locale === "en" ? "Whiteboard guides" : "Whiteboard-Ratgeber"}
+							</Link>
+							<Link className="hover:text-foreground" to={publicPath("/about")}>
+								{locale === "en"
+									? "About Skedra Whiteboard"
+									: "Über Skedra Whiteboard"}
+							</Link>
+							<Link
+								className="hover:text-foreground"
+								to={publicPath("/open-source-whiteboard-self-hosted")}
+							>
+								{locale === "en" ? "Self-hosting" : "Self-Hosting"}
+							</Link>
 						</div>
 					</div>
 					<div>
@@ -160,6 +213,12 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 
 function LanguageMenu({ className }: { className?: string }) {
 	const { t, locale, setLocale } = useI18n();
+	const { pathname } = useLocation();
+	const navigate = useNavigate();
+	const selectLocale = (nextLocale: "de" | "en") => {
+		setLocale(nextLocale);
+		navigate(localizePublicPath(pathname, nextLocale));
+	};
 
 	return (
 		<DropdownMenu>
@@ -177,13 +236,13 @@ function LanguageMenu({ className }: { className?: string }) {
 			<DropdownMenuContent align="end">
 				<DropdownMenuLabel>{t("common.language")}</DropdownMenuLabel>
 				<DropdownMenuItem
-					onSelect={() => setLocale("de")}
+					onSelect={() => selectLocale("de")}
 					className={locale === "de" ? "bg-accent" : undefined}
 				>
 					{t("common.german")}
 				</DropdownMenuItem>
 				<DropdownMenuItem
-					onSelect={() => setLocale("en")}
+					onSelect={() => selectLocale("en")}
 					className={locale === "en" ? "bg-accent" : undefined}
 				>
 					{t("common.english")}

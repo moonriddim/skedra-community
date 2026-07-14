@@ -1,0 +1,832 @@
+{
+	"/about": {
+		"locale": "de",
+		"kind": "about",
+		"title": "Über Skedra Whiteboard – Projekt, Betreiber und Abgrenzung",
+		"description": "Skedra Whiteboard auf skedra.xyz ist ein unabhängiges Open-Source-Whiteboard aus der Schweiz. Erfahre, wer dahintersteht und was zum Projekt gehört.",
+		"eyebrow": "Über das Projekt",
+		"h1": "Skedra Whiteboard ist das Open-Source-Whiteboard auf skedra.xyz",
+		"lead": "Skedra Whiteboard ist ein unabhängiges, browserbasiertes Infinite Canvas für Ideen, Diagramme und Zusammenarbeit. Der freie Editor funktioniert ohne Konto; Cloud-Funktionen und Self-Hosting sind zusätzliche Optionen.",
+		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/about",
+		"sections": [
+			{
+				"heading": "Was gehört zu Skedra Whiteboard?",
+				"paragraphs": [
+					"Zum Projekt gehören die Web-Anwendung auf skedra.xyz, Skedra Cloud, der öffentliche Shape-Bibliothekskatalog und die Skedra Community Edition auf GitHub. Boards lassen sich lokal bearbeiten, als Datei sichern oder – optional – verschlüsselt in der Cloud speichern und gemeinsam nutzen.",
+					"Die Community Edition stellt den vollständigen Workspace zum Self-Hosting bereit. Wiederverwendbare Canvas-Pakete werden zusätzlich als eigenständige Open-Source-Bausteine gepflegt."
+				]
+			},
+			{
+				"heading": "Eindeutige Abgrenzung zu gleichnamigen Angeboten",
+				"paragraphs": [
+					"Andere Produkte mit dem Namen Skedra auf anderen Domains oder in App-Stores sind eigenständige Angebote. Sie gehören nicht zu Skedra Whiteboard, sofern sie nicht ausdrücklich auf skedra.xyz oder das GitHub-Repository moonriddim/skedra-community verweisen.",
+					"Für verlässliche Produktinformationen sind die öffentlichen Seiten, die Dokumentation und das Repository die maßgeblichen Quellen."
+				]
+			},
+			{
+				"heading": "Betreiber und Kontakt",
+				"paragraphs": [
+					"Skedra wird von Simon Hediger in Oeschgen, Schweiz, entwickelt und betrieben. Rechtliche Angaben stehen im Impressum; Produkt- und Supportanfragen erreichen uns unter support@skedra.xyz."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Ist Skedra Whiteboard mit skedra.app oder einer Schüler-App verbunden?",
+				"answer": "Nein. Skedra Whiteboard auf skedra.xyz ist ein unabhängiges Online-Whiteboard. Gleichnamige Produkte auf anderen Domains oder in App-Stores sind nicht Teil dieses Angebots."
+			},
+			{
+				"question": "Ist Skedra Whiteboard Open Source?",
+				"answer": "Ja. Die Community Edition ist öffentlich auf GitHub verfügbar und kann auf eigener Infrastruktur betrieben werden."
+			}
+		],
+		"related": [
+			{ "href": "/whiteboard", "label": "Produktübersicht" },
+			{
+				"href": "/open-source-whiteboard-self-hosted",
+				"label": "Self-Hosting erklärt"
+			},
+			{ "href": "/guides", "label": "Alle Ratgeber" }
+		]
+	},
+	"/en/about": {
+		"locale": "en",
+		"kind": "about",
+		"title": "About Skedra Whiteboard – Project, Operator and Identity",
+		"description": "Skedra Whiteboard at skedra.xyz is an independent open-source whiteboard from Switzerland. Learn who operates it and what belongs to the project.",
+		"eyebrow": "About the project",
+		"h1": "Skedra Whiteboard is the open-source whiteboard at skedra.xyz",
+		"lead": "Skedra Whiteboard is an independent browser-based infinite canvas for ideas, diagrams and collaboration. The free editor works without an account; cloud features and self-hosting are additional options.",
+		"updated": "Last updated: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/about",
+		"sections": [
+			{
+				"heading": "What belongs to Skedra Whiteboard?",
+				"paragraphs": [
+					"The project includes the web application at skedra.xyz, Skedra Cloud, the public shape-library catalog and the Skedra Community Edition on GitHub. Boards can be edited locally, saved as files or optionally stored and shared through encrypted cloud services.",
+					"The Community Edition provides the complete workspace for self-hosting. Reusable canvas packages are also maintained as separate open-source building blocks."
+				]
+			},
+			{
+				"heading": "Distinguishing Skedra from similarly named products",
+				"paragraphs": [
+					"Other products named Skedra on other domains or in app stores are independent offerings. They are not part of Skedra Whiteboard unless they explicitly point to skedra.xyz or the moonriddim/skedra-community GitHub repository.",
+					"The public website, documentation and repository are the authoritative sources for product information."
+				]
+			},
+			{
+				"heading": "Operator and contact",
+				"paragraphs": [
+					"Skedra is developed and operated by Simon Hediger in Oeschgen, Switzerland. Legal details are available in the legal notice; product and support questions can be sent to support@skedra.xyz."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Is Skedra Whiteboard connected to skedra.app or a student planner app?",
+				"answer": "No. Skedra Whiteboard at skedra.xyz is an independent online whiteboard. Similarly named products on other domains or in app stores are not part of this service."
+			},
+			{
+				"question": "Is Skedra Whiteboard open source?",
+				"answer": "Yes. The Community Edition is publicly available on GitHub and can be operated on your own infrastructure."
+			}
+		],
+		"related": [
+			{ "href": "/en/whiteboard", "label": "Product overview" },
+			{
+				"href": "/en/open-source-whiteboard-self-hosted",
+				"label": "Self-hosting explained"
+			},
+			{ "href": "/en/guides", "label": "All guides" }
+		]
+	},
+	"/guides": {
+		"locale": "de",
+		"kind": "collection",
+		"title": "Whiteboard-Ratgeber: lokal, verschlüsselt und Open Source | Skedra",
+		"description": "Praxisnahe Ratgeber zu Online-Whiteboards ohne Anmeldung, Verschlüsselung, Self-Hosting, Infinite Canvas und der Wahl des passenden Werkzeugs.",
+		"eyebrow": "Skedra Wissen",
+		"h1": "Ratgeber für digitale Whiteboards und visuelle Zusammenarbeit",
+		"lead": "Diese Inhalte erklären konkrete Entscheidungen rund um lokale Speicherung, Cloud-Zusammenarbeit, Verschlüsselung, Self-Hosting und Infinite-Canvas-Workflows – auf Basis der tatsächlichen Skedra-Architektur.",
+		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/guides",
+		"sections": [
+			{
+				"heading": "Für die passende Nutzungssituation entscheiden",
+				"paragraphs": [
+					"Ein Whiteboard ohne Konto ist ideal für schnelle Einzelarbeit. Dauerhafte Synchronisierung, Teamrechte und Live-Zusammenarbeit benötigen dagegen eine verlässliche Cloud- oder Self-Hosting-Architektur. Die folgenden Ratgeber zeigen die Unterschiede ohne pauschale Bestenlisten."
+				],
+				"bullets": [
+					"Schnell starten, ohne zuerst ein Konto anzulegen",
+					"Verstehen, welche Daten lokal oder serverseitig gespeichert werden",
+					"Open-Source- und Self-Hosting-Anforderungen realistisch bewerten",
+					"Werkzeuge anhand des tatsächlichen Workflows vergleichen"
+				]
+			}
+		],
+		"faqs": [],
+		"related": [
+			{
+				"href": "/online-whiteboard-ohne-anmeldung",
+				"label": "Whiteboard ohne Anmeldung"
+			},
+			{
+				"href": "/verschluesseltes-online-whiteboard",
+				"label": "Verschlüsseltes Whiteboard"
+			},
+			{
+				"href": "/open-source-whiteboard-self-hosted",
+				"label": "Open Source und Self-Hosting"
+			},
+			{ "href": "/infinite-canvas", "label": "Infinite Canvas erklärt" },
+			{
+				"href": "/skedra-vs-excalidraw",
+				"label": "Skedra und Excalidraw vergleichen"
+			}
+		]
+	},
+	"/en/guides": {
+		"locale": "en",
+		"kind": "collection",
+		"title": "Whiteboard Guides: Local, Encrypted and Open Source | Skedra",
+		"description": "Practical guides to online whiteboards without signup, encryption, self-hosting, infinite canvas workflows and choosing the right tool.",
+		"eyebrow": "Skedra knowledge",
+		"h1": "Guides to digital whiteboards and visual collaboration",
+		"lead": "These guides explain practical choices around local storage, cloud collaboration, encryption, self-hosting and infinite-canvas workflows based on Skedra's real architecture.",
+		"updated": "Last updated: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/guides",
+		"sections": [
+			{
+				"heading": "Choose for the actual use case",
+				"paragraphs": [
+					"A whiteboard without an account is ideal for fast individual work. Permanent synchronization, team roles and live collaboration require a dependable cloud or self-hosting architecture. The guides below explain those differences without generic best-tool lists."
+				],
+				"bullets": [
+					"Start quickly without creating an account first",
+					"Understand which data stays local and which reaches a server",
+					"Evaluate open-source and self-hosting requirements realistically",
+					"Compare tools against the workflow you actually need"
+				]
+			}
+		],
+		"faqs": [],
+		"related": [
+			{
+				"href": "/en/online-whiteboard-without-signup",
+				"label": "Whiteboard without signup"
+			},
+			{
+				"href": "/en/encrypted-online-whiteboard",
+				"label": "Encrypted whiteboard"
+			},
+			{
+				"href": "/en/open-source-whiteboard-self-hosted",
+				"label": "Open source and self-hosting"
+			},
+			{ "href": "/en/infinite-canvas", "label": "Infinite canvas explained" },
+			{
+				"href": "/en/skedra-vs-excalidraw",
+				"label": "Compare Skedra and Excalidraw"
+			}
+		]
+	},
+	"/online-whiteboard-ohne-anmeldung": {
+		"locale": "de",
+		"kind": "article",
+		"title": "Kostenloses Online-Whiteboard ohne Anmeldung | Skedra Whiteboard",
+		"description": "Direkt im Browser zeichnen, ohne Konto oder Download. So funktioniert ein lokales Online-Whiteboard und darauf solltest du bei Backups achten.",
+		"eyebrow": "Ohne Konto starten",
+		"h1": "Ein kostenloses Online-Whiteboard ohne Anmeldung",
+		"lead": "Skedra Whiteboard öffnet direkt im Browser ein leeres Infinite Canvas. Für die lokale Nutzung sind weder Registrierung noch Download nötig; der Board-Zustand bleibt zunächst auf dem verwendeten Gerät.",
+		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/online-whiteboard-without-signup",
+		"sections": [
+			{
+				"heading": "Was bedeutet „ohne Anmeldung“ technisch?",
+				"paragraphs": [
+					"Der Editor läuft als Web-Anwendung im Browser. Solange du das Board nicht bewusst in Skedra Cloud speicherst, wird kein Cloud-Board angelegt. Zeichnungen, Texte, Formen und die aktuelle Arbeitsfläche werden lokal im Browser gespeichert.",
+					"Das ist praktisch für spontane Skizzen, Unterricht, Notizen oder das schnelle Entwerfen eines Ablaufs. Es bedeutet aber auch: Browserdaten sind kein dauerhaftes Backup. Wer das Gerät wechselt, Website-Daten löscht oder ein privates Browserfenster verwendet, kann den lokalen Stand verlieren."
+				]
+			},
+			{
+				"heading": "Welche Funktionen stehen kostenlos bereit?",
+				"paragraphs": [
+					"Die lokale Version ist kein eingeschränkter Vorschaumodus. Du kannst zeichnen, Texte und Sticky Notes anlegen, Formen und Pfeile verbinden sowie Mindmaps, Flowcharts und Kanban-Strukturen erstellen."
+				],
+				"bullets": [
+					"Infinite Canvas mit Zoom und freier Navigation",
+					"Formen, Verbindungen, Freihandzeichnung und Text",
+					"Vorlagen und öffentliche Shape-Bibliotheken",
+					"Export als PNG, SVG, PDF, PPTX oder portable Skedra-Datei"
+				]
+			},
+			{
+				"heading": "Lokales Board sicher aufbewahren",
+				"paragraphs": [
+					"Für wichtige Inhalte solltest du regelmäßig eine Skedra-Datei exportieren. Diese lässt sich später erneut öffnen und ist unabhängig vom lokalen Browser-Speicher. Wenn du geräteübergreifend arbeiten oder live mit anderen zusammenarbeiten willst, kannst du das bestehende Board nach Anmeldung in die Cloud übernehmen."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Brauche ich für Skedra Free ein Konto?",
+				"answer": "Nein. Das lokale Whiteboard funktioniert ohne Registrierung direkt im Browser."
+			},
+			{
+				"question": "Werden lokale Boards automatisch online hochgeladen?",
+				"answer": "Nein. Ein Cloud-Board entsteht erst, wenn du die Cloud-Speicherung bewusst auswählst und dich anmeldest."
+			},
+			{
+				"question": "Wie sichere ich ein lokales Board?",
+				"answer": "Exportiere es als portable Skedra-Datei. Für Präsentation oder Weitergabe stehen zusätzlich PNG, SVG, PDF und PPTX zur Verfügung."
+			}
+		],
+		"related": [
+			{ "href": "/", "label": "Whiteboard sofort öffnen" },
+			{
+				"href": "/verschluesseltes-online-whiteboard",
+				"label": "Cloud und Verschlüsselung verstehen"
+			},
+			{ "href": "/pricing", "label": "Free und Cloud vergleichen" }
+		]
+	},
+	"/en/online-whiteboard-without-signup": {
+		"locale": "en",
+		"kind": "article",
+		"title": "Free Online Whiteboard Without Signup | Skedra Whiteboard",
+		"description": "Draw directly in your browser without an account or download. Learn how a local online whiteboard works and how to keep reliable backups.",
+		"eyebrow": "Start without an account",
+		"h1": "A free online whiteboard without signup",
+		"lead": "Skedra Whiteboard opens an empty infinite canvas directly in the browser. Local use requires neither registration nor a download, and the board state initially remains on the device you are using.",
+		"updated": "Last updated: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/online-whiteboard-ohne-anmeldung",
+		"sections": [
+			{
+				"heading": "What does “without signup” mean technically?",
+				"paragraphs": [
+					"The editor runs as a web application in your browser. Unless you deliberately save the board to Skedra Cloud, no cloud board is created. Drawings, text, shapes and the current workspace are stored locally in the browser.",
+					"This is useful for spontaneous sketches, teaching, notes or quickly drafting a process. It also means browser data is not a permanent backup. Switching devices, clearing site data or using a private window can remove the local state."
+				]
+			},
+			{
+				"heading": "Which features are available for free?",
+				"paragraphs": [
+					"The local version is not a limited preview. You can draw, add text and sticky notes, connect shapes and arrows, and create mind maps, flowcharts and Kanban structures."
+				],
+				"bullets": [
+					"Infinite canvas with zoom and free navigation",
+					"Shapes, connectors, freehand drawing and text",
+					"Templates and public shape libraries",
+					"Export to PNG, SVG, PDF, PPTX or a portable Skedra file"
+				]
+			},
+			{
+				"heading": "Keep a local board safely",
+				"paragraphs": [
+					"For important work, export a Skedra file regularly. It can be opened again later and does not depend on browser storage. If you need cross-device access or live collaboration, you can sign in and move the existing board into the cloud."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Do I need an account for Skedra Free?",
+				"answer": "No. The local whiteboard works directly in the browser without registration."
+			},
+			{
+				"question": "Are local boards uploaded automatically?",
+				"answer": "No. A cloud board is only created after you explicitly select cloud storage and sign in."
+			},
+			{
+				"question": "How do I back up a local board?",
+				"answer": "Export it as a portable Skedra file. PNG, SVG, PDF and PPTX are also available for presentation and sharing."
+			}
+		],
+		"related": [
+			{ "href": "/en", "label": "Open the whiteboard" },
+			{
+				"href": "/en/encrypted-online-whiteboard",
+				"label": "Understand cloud encryption"
+			},
+			{ "href": "/en/pricing", "label": "Compare Free and Cloud" }
+		]
+	},
+	"/verschluesseltes-online-whiteboard": {
+		"locale": "de",
+		"kind": "article",
+		"title": "Verschlüsseltes Online-Whiteboard: E2EE und Cloud erklärt | Skedra",
+		"description": "Was Ende-zu-Ende-Verschlüsselung bei einem Online-Whiteboard schützt, welche Metadaten bleiben und wann ein serververwalteter Modus sinnvoll ist.",
+		"eyebrow": "Sicher zusammenarbeiten",
+		"h1": "Ein verschlüsseltes Online-Whiteboard verständlich erklärt",
+		"lead": "Skedra Cloud bietet zwei Schutzmodelle: einen Ende-zu-Ende-verschlüsselten Modus für besonders vertrauliche Canvas-Inhalte und serververwaltete AES-256-GCM-Verschlüsselung für kompatible Team- und Automationsabläufe.",
+		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/encrypted-online-whiteboard",
+		"sections": [
+			{
+				"heading": "Was schützt Ende-zu-Ende-Verschlüsselung?",
+				"paragraphs": [
+					"Im E2EE-Modus werden Canvas-Inhalte, Y.js-Updates, Bildinhalte und Live-Presence-Daten im Browser verschlüsselt. Der Server speichert und überträgt verschlüsselte Nutzdaten, besitzt aber nicht den Klartext-Schlüssel für das Board.",
+					"Der Freigabelink oder ein berechtigtes Benutzerkonto muss den benötigten Schlüssel erhalten. Verlorene Schlüssel können nicht einfach durch den Betreiber rekonstruiert werden – genau das ist Teil des Sicherheitsmodells."
+				]
+			},
+			{
+				"heading": "Welche Daten bleiben trotzdem sichtbar?",
+				"paragraphs": [
+					"Ende-zu-Ende-Verschlüsselung macht nicht jede technische Information unsichtbar. Für Anmeldung, Berechtigungen, Synchronisierung und Abrechnung bleiben betriebliche Metadaten erforderlich. Dazu können Benutzer- und Board-IDs, Rollen, Zeitpunkte, Datenmengen oder technische Ereignisse gehören.",
+					"Eine seriöse Sicherheitsbewertung trennt deshalb Inhaltsverschlüsselung von unvermeidbaren Betriebsdaten. Die aktuelle Datenschutzerklärung beschreibt diese Grenze ausführlicher."
+				]
+			},
+			{
+				"heading": "Wann ist serververwaltete Verschlüsselung sinnvoll?",
+				"paragraphs": [
+					"Bestimmte Workflows benötigen serverseitige Verarbeitung, Integrationen oder Wiederherstellungsmöglichkeiten. Dafür bietet Skedra einen serververwalteten Modus mit AES-256-GCM. Er schützt gespeicherte Inhalte, erlaubt dem Dienst aber kontrollierte serverseitige Funktionen.",
+					"Die Wahl ist daher kein pauschales Mehr-oder-weniger-sicher, sondern eine Abwägung zwischen maximaler Inhaltsvertraulichkeit und gewünschter Funktionalität."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Kann Skedra E2EE-Boards im Klartext lesen?",
+				"answer": "Im Ende-zu-Ende-verschlüsselten Modus werden die geschützten Canvas-Nutzdaten im Browser verschlüsselt; der Server besitzt nicht den Klartext-Board-Schlüssel."
+			},
+			{
+				"question": "Sind bei E2EE alle Metadaten verborgen?",
+				"answer": "Nein. Technische und betriebliche Metadaten für Konten, Rechte, Synchronisierung und Betrieb bleiben teilweise serverlesbar."
+			},
+			{
+				"question": "Kann ich den Verschlüsselungsmodus wählen?",
+				"answer": "Ja. Beim Erstellen eines Cloud-Boards kann zwischen Ende-zu-Ende- und serververwalteter Verschlüsselung gewählt werden."
+			}
+		],
+		"related": [
+			{ "href": "/privacy", "label": "Datenschutzerklärung" },
+			{ "href": "/whiteboard", "label": "Whiteboard-Funktionen" },
+			{
+				"href": "/open-source-whiteboard-self-hosted",
+				"label": "Self-Hosting prüfen"
+			}
+		]
+	},
+	"/en/encrypted-online-whiteboard": {
+		"locale": "en",
+		"kind": "article",
+		"title": "Encrypted Online Whiteboard: E2EE and Cloud Explained | Skedra",
+		"description": "What end-to-end encryption protects in an online whiteboard, which metadata remains and when server-managed encryption is useful.",
+		"eyebrow": "Collaborate securely",
+		"h1": "An encrypted online whiteboard, explained clearly",
+		"lead": "Skedra Cloud offers two protection models: an end-to-end encrypted mode for confidential canvas content and server-managed AES-256-GCM encryption for compatible team and automation workflows.",
+		"updated": "Last updated: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/verschluesseltes-online-whiteboard",
+		"sections": [
+			{
+				"heading": "What does end-to-end encryption protect?",
+				"paragraphs": [
+					"In E2EE mode, canvas content, Y.js updates, image content and live presence data are encrypted in the browser. The server stores and transports encrypted payloads but does not hold the board's plaintext key.",
+					"A share link or authorized user account needs access to the required key. Lost keys cannot simply be reconstructed by the operator; that limitation is part of the security model."
+				]
+			},
+			{
+				"heading": "Which information remains visible?",
+				"paragraphs": [
+					"End-to-end encryption does not hide every technical detail. Authentication, permissions, synchronization and billing require operational metadata. This can include user and board IDs, roles, timestamps, data volume or technical events.",
+					"A useful security assessment therefore separates content encryption from unavoidable operational data. The current privacy policy documents that boundary in more detail."
+				]
+			},
+			{
+				"heading": "When is server-managed encryption useful?",
+				"paragraphs": [
+					"Some workflows require server-side processing, integrations or recovery options. Skedra therefore provides a server-managed AES-256-GCM mode. It protects stored content while allowing controlled server-side features.",
+					"The choice is not a simplistic secure-versus-insecure switch. It is a trade-off between maximum content confidentiality and the functionality a workflow needs."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Can Skedra read E2EE boards in plaintext?",
+				"answer": "In end-to-end encrypted mode, protected canvas payloads are encrypted in the browser and the server does not hold the plaintext board key."
+			},
+			{
+				"question": "Does E2EE hide all metadata?",
+				"answer": "No. Some technical and operational metadata for accounts, permissions, synchronization and service operation remains server-readable."
+			},
+			{
+				"question": "Can I choose the encryption mode?",
+				"answer": "Yes. When creating a cloud board you can choose between end-to-end and server-managed encryption."
+			}
+		],
+		"related": [
+			{ "href": "/privacy", "label": "Privacy policy" },
+			{ "href": "/en/whiteboard", "label": "Whiteboard features" },
+			{
+				"href": "/en/open-source-whiteboard-self-hosted",
+				"label": "Evaluate self-hosting"
+			}
+		]
+	},
+	"/open-source-whiteboard-self-hosted": {
+		"locale": "de",
+		"kind": "article",
+		"title": "Open-Source-Whiteboard selbst hosten | Skedra Community",
+		"description": "Skedra Community als selbst gehostetes Online-Whiteboard: Architektur, Docker-Start, Verantwortung und Unterschiede zum verwalteten Cloud-Dienst.",
+		"eyebrow": "Open Source und Self-Hosting",
+		"h1": "Ein Open-Source-Whiteboard auf eigener Infrastruktur betreiben",
+		"lead": "Skedra Community enthält den vollständigen visuellen Workspace, API, Datenbankanbindung und den öffentlichen Bibliothekskatalog. Ein Standalone-Container erleichtert den Einstieg; Compose-Varianten unterstützen getrennte Dienste.",
+		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/open-source-whiteboard-self-hosted",
+		"sections": [
+			{
+				"heading": "Was enthält die Community Edition?",
+				"paragraphs": [
+					"Die Community Edition ist nicht nur ein statischer Zeicheneditor. Sie umfasst Web-App, API, Konten, Teams, Cloud-Boards, Zusammenarbeit, Bibliotheken und die Datenbankstruktur. Die Anwendung wird unter AGPL-3.0-only veröffentlicht; wiederverwendbare Editor-Pakete besitzen eigene ausgewiesene Lizenzen.",
+					"Für einen schnellen Test kann ein einzelnes Container-Image Web-App, API und PostgreSQL bündeln. Für produktive Umgebungen sind getrennte Dienste, persistente Volumes, TLS und ein belastbares Backup-Konzept sinnvoll."
+				]
+			},
+			{
+				"heading": "Welche Verantwortung übernimmt der Betreiber?",
+				"paragraphs": [
+					"Self-Hosting verschiebt Kontrolle und Verantwortung auf die eigene Organisation. Dazu gehören Updates, Sicherheitskonfiguration, Domain und TLS, E-Mail-Versand, Datenbank-Backups, Objekt-Speicher und die Wiederherstellung nach Fehlern.",
+					"Wer diese Aufgaben nicht dauerhaft übernehmen möchte, erhält mit Skedra Cloud denselben grundlegenden Editor als verwalteten Dienst. Self-Hosting ist daher vor allem dann sinnvoll, wenn Infrastrukturkontrolle eine klare Anforderung ist."
+				]
+			},
+			{
+				"heading": "Ein realistischer Startplan",
+				"bullets": [
+					"Community-Repository und SELFHOST.md lesen",
+					"Testinstanz mit persistentem Datenvolume starten",
+					"Domain, TLS, E-Mail und sichere Geheimnisse konfigurieren",
+					"Backup und Wiederherstellung praktisch testen",
+					"Updates über versionierte Container-Images einplanen"
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Ist die Skedra Community Edition kostenlos?",
+				"answer": "Der Quellcode ist unter der im Repository angegebenen Open-Source-Lizenz verfügbar. Kosten für Server, Domain, Speicher und Betrieb trägst du selbst."
+			},
+			{
+				"question": "Gibt es ein einzelnes Docker-Image?",
+				"answer": "Ja. Die Standalone-Variante bündelt die wesentlichen Dienste für einen einfachen Einstieg; für größere Umgebungen stehen getrennte Compose-Dienste bereit."
+			},
+			{
+				"question": "Enthält Self-Hosting die Cloud-Paywall?",
+				"answer": "Nein. Die Community Edition wird auf eigener Infrastruktur betrieben und enthält nicht die Skedra-Cloud-Abonnementprüfung."
+			}
+		],
+		"sources": [
+			{
+				"href": "https://github.com/moonriddim/skedra-community",
+				"label": "Skedra Community auf GitHub"
+			}
+		],
+		"related": [
+			{ "href": "/whiteboard", "label": "Funktionen ansehen" },
+			{
+				"href": "/verschluesseltes-online-whiteboard",
+				"label": "Verschlüsselungsmodelle"
+			},
+			{ "href": "/pricing", "label": "Managed Cloud vergleichen" }
+		]
+	},
+	"/en/open-source-whiteboard-self-hosted": {
+		"locale": "en",
+		"kind": "article",
+		"title": "Self-Host an Open-Source Whiteboard | Skedra Community",
+		"description": "Run Skedra Community as a self-hosted online whiteboard: architecture, Docker setup, operational responsibility and managed-cloud differences.",
+		"eyebrow": "Open source and self-hosting",
+		"h1": "Run an open-source whiteboard on your own infrastructure",
+		"lead": "Skedra Community contains the complete visual workspace, API, database integration and public library catalog. A standalone container simplifies evaluation while Compose variants support separated services.",
+		"updated": "Last updated: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/open-source-whiteboard-self-hosted",
+		"sections": [
+			{
+				"heading": "What is included in the Community Edition?",
+				"paragraphs": [
+					"The Community Edition is more than a static drawing editor. It includes the web app, API, accounts, teams, cloud boards, collaboration, libraries and database schema. The application is released under AGPL-3.0-only, with reusable editor packages carrying their own documented licenses.",
+					"For evaluation, one container image can combine the web app, API and PostgreSQL. Production environments benefit from separated services, persistent volumes, TLS and a tested backup strategy."
+				]
+			},
+			{
+				"heading": "What responsibility moves to the operator?",
+				"paragraphs": [
+					"Self-hosting moves both control and responsibility into your organization. That includes updates, security configuration, domain and TLS, transactional email, database backups, object storage and recovery after failures.",
+					"Organizations that do not want to own those tasks can use Skedra Cloud as a managed service with the same core editor. Self-hosting is most useful when infrastructure control is an explicit requirement."
+				]
+			},
+			{
+				"heading": "A realistic starting plan",
+				"bullets": [
+					"Read the Community repository and SELFHOST.md",
+					"Start a test instance with persistent storage",
+					"Configure domain, TLS, email and strong secrets",
+					"Test backup and recovery in practice",
+					"Plan updates around versioned container images"
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Is Skedra Community free?",
+				"answer": "The source code is available under the license documented in the repository. You remain responsible for server, domain, storage and operational costs."
+			},
+			{
+				"question": "Is there a single Docker image?",
+				"answer": "Yes. The standalone variant bundles the main services for a simple start, while separated Compose services are available for larger installations."
+			},
+			{
+				"question": "Does self-hosting include the Cloud paywall?",
+				"answer": "No. The Community Edition runs on your infrastructure and does not include Skedra Cloud subscription enforcement."
+			}
+		],
+		"sources": [
+			{
+				"href": "https://github.com/moonriddim/skedra-community",
+				"label": "Skedra Community on GitHub"
+			}
+		],
+		"related": [
+			{ "href": "/en/whiteboard", "label": "Explore features" },
+			{
+				"href": "/en/encrypted-online-whiteboard",
+				"label": "Encryption models"
+			},
+			{ "href": "/en/pricing", "label": "Compare managed Cloud" }
+		]
+	},
+	"/infinite-canvas": {
+		"locale": "de",
+		"kind": "article",
+		"title": "Was ist ein Infinite Canvas? Einsatz, Navigation und Export | Skedra",
+		"description": "Ein Infinite Canvas ist eine frei navigierbare digitale Arbeitsfläche. Erfahre, wann sie hilft, wie Struktur entsteht und welche Exportgrenzen wichtig sind.",
+		"eyebrow": "Visuell denken",
+		"h1": "Was ist ein Infinite Canvas?",
+		"lead": "Ein Infinite Canvas ist eine digitale Arbeitsfläche ohne feste Seitengrenze. Inhalte können frei verteilt, verbunden, gruppiert und aus unterschiedlichen Zoomstufen betrachtet werden – von der Gesamtübersicht bis zum Detail.",
+		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/infinite-canvas",
+		"sections": [
+			{
+				"heading": "Wofür eignet sich eine unbegrenzte Arbeitsfläche?",
+				"paragraphs": [
+					"Feste Seiten sind ideal für lineare Dokumente. Räumliche Probleme benötigen oft eine andere Darstellung: Ideen entstehen gleichzeitig, Prozesse verzweigen sich und Systemkomponenten besitzen Beziehungen, die in einer Liste unsichtbar bleiben.",
+					"Ein Infinite Canvas unterstützt genau diese räumliche Organisation. Typische Anwendungen sind Mindmaps, Systemdiagramme, Workshop-Boards, Storyboards, Kanban-Planung und das gemeinsame Zerlegen komplexer Aufgaben."
+				]
+			},
+			{
+				"heading": "Wie bleibt ein großes Board verständlich?",
+				"paragraphs": [
+					"Unbegrenzter Platz erzeugt nicht automatisch Klarheit. Gute Boards verwenden Bereiche, Rahmen, konsistente Farben und eindeutige Verbindungslinien. Wichtige Entscheidungen sollten näher beieinanderstehen als lose Referenzen.",
+					"Skedra ergänzt die freie Fläche mit Vorlagen für Mindmaps, Flowcharts und Kanban. Präsentationsrahmen helfen, aus einem räumlichen Board später eine nachvollziehbare Reihenfolge zu erstellen."
+				]
+			},
+			{
+				"heading": "Export und Weitergabe planen",
+				"paragraphs": [
+					"Ein sehr großes Canvas muss für PDF oder Präsentation auf endliche Seiten übersetzt werden. Deshalb lohnt es sich, früh sinnvolle Bereiche oder Frames zu definieren. Für verlustarme Weiterbearbeitung eignet sich SVG; PNG ist unkompliziert für Bilder, PDF für Dokumente und PPTX für Präsentationsabläufe.",
+					"Die portable Skedra-Datei behält dagegen die bearbeitbare Board-Struktur und ist die richtige Wahl für Backups oder den späteren Import."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Ist ein Infinite Canvas wirklich unendlich?",
+				"answer": "Praktisch ist die navigierbare Fläche sehr groß und besitzt keine feste Papierseite. Technische Grenzen entstehen durch Gerät, Browser und Umfang des Boards."
+			},
+			{
+				"question": "Kann ich ein Infinite Canvas als PDF exportieren?",
+				"answer": "Ja. Für ein gut lesbares Ergebnis sollten große Boards vorher in sinnvolle Bereiche oder Präsentationsrahmen gegliedert werden."
+			},
+			{
+				"question": "Welche Inhalte passen auf ein Infinite Canvas?",
+				"answer": "Besonders geeignet sind Mindmaps, Diagramme, Workshops, visuelle Projektplanung, Kanban und Systemübersichten."
+			}
+		],
+		"related": [
+			{ "href": "/", "label": "Infinite Canvas ausprobieren" },
+			{
+				"href": "/online-whiteboard-ohne-anmeldung",
+				"label": "Ohne Anmeldung starten"
+			},
+			{ "href": "/whiteboard", "label": "Alle Funktionen" }
+		]
+	},
+	"/en/infinite-canvas": {
+		"locale": "en",
+		"kind": "article",
+		"title": "What Is an Infinite Canvas? Uses, Navigation and Export | Skedra",
+		"description": "An infinite canvas is a freely navigable digital workspace. Learn when it helps, how to keep structure and which export limits matter.",
+		"eyebrow": "Think visually",
+		"h1": "What is an infinite canvas?",
+		"lead": "An infinite canvas is a digital workspace without a fixed page boundary. Content can be distributed, connected, grouped and viewed at different zoom levels, from a complete overview down to individual details.",
+		"updated": "Last updated: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/infinite-canvas",
+		"sections": [
+			{
+				"heading": "When is an unlimited workspace useful?",
+				"paragraphs": [
+					"Fixed pages work well for linear documents. Spatial problems often need a different representation: ideas emerge in parallel, processes branch and system components have relationships that disappear in a list.",
+					"An infinite canvas supports that spatial organization. Common uses include mind maps, system diagrams, workshop boards, storyboards, Kanban planning and collaboratively breaking down complex problems."
+				]
+			},
+			{
+				"heading": "How does a large board stay understandable?",
+				"paragraphs": [
+					"Unlimited space does not create clarity by itself. Useful boards rely on sections, frames, consistent colors and unambiguous connectors. Important decisions should be placed closer together than loose reference material.",
+					"Skedra combines the open workspace with templates for mind maps, flowcharts and Kanban. Presentation frames turn a spatial board into a sequence that other people can follow."
+				]
+			},
+			{
+				"heading": "Plan export and sharing",
+				"paragraphs": [
+					"A very large canvas has to be translated into finite pages for PDF or presentations. Defining useful areas or frames early therefore makes export easier. SVG is suitable for lossless editing, PNG for simple images, PDF for documents and PPTX for presentation sequences.",
+					"A portable Skedra file retains the editable board structure and is the better choice for backups or later import."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Is an infinite canvas literally infinite?",
+				"answer": "In practice the navigable workspace is very large and has no fixed paper page. Device, browser and board size still create technical limits."
+			},
+			{
+				"question": "Can I export an infinite canvas to PDF?",
+				"answer": "Yes. Large boards should first be organized into useful areas or presentation frames for a readable result."
+			},
+			{
+				"question": "What belongs on an infinite canvas?",
+				"answer": "Mind maps, diagrams, workshops, visual project planning, Kanban and system overviews are especially well suited."
+			}
+		],
+		"related": [
+			{ "href": "/en", "label": "Try the infinite canvas" },
+			{
+				"href": "/en/online-whiteboard-without-signup",
+				"label": "Start without signup"
+			},
+			{ "href": "/en/whiteboard", "label": "All features" }
+		]
+	},
+	"/skedra-vs-excalidraw": {
+		"locale": "de",
+		"kind": "article",
+		"title": "Skedra vs. Excalidraw: Welches Whiteboard passt? | Vergleich",
+		"description": "Skedra und Excalidraw fair vergleichen: schneller Zeichenstart, strukturierte Diagramme, Cloud-Workflows, Self-Hosting und Dateiformate.",
+		"eyebrow": "Werkzeuge vergleichen",
+		"h1": "Skedra und Excalidraw: zwei Open-Source-Whiteboards mit anderem Schwerpunkt",
+		"lead": "Beide Werkzeuge ermöglichen visuelles Arbeiten im Browser und stellen Open-Source-Code bereit. Excalidraw ist besonders für seine handgezeichnete Zeichenästhetik bekannt; Skedra verbindet ein Infinite Canvas mit strukturierten Mindmap-, Flowchart-, Kanban-, Team- und Präsentationsabläufen.",
+		"updated": "Zuletzt überprüft: 14. Juli 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/en/skedra-vs-excalidraw",
+		"sections": [
+			{
+				"heading": "Wann passt Excalidraw gut?",
+				"paragraphs": [
+					"Excalidraw eignet sich besonders für schnelle Skizzen und Diagramme, bei denen eine bewusst handgezeichnete Darstellung gewünscht ist. Das Projekt besitzt ein großes Ökosystem und ein etabliertes eigenes Dateiformat.",
+					"Wenn dein wichtigstes Kriterium die vertraute Excalidraw-Bedienung oder die direkte Arbeit in diesem Ökosystem ist, ist das Original meist die naheliegende Wahl."
+				]
+			},
+			{
+				"heading": "Wann passt Skedra gut?",
+				"paragraphs": [
+					"Skedra richtet sich an Personen und Teams, die freies Zeichnen mit stärker strukturierten Arbeitsformen verbinden möchten. Mindmap-Navigation, Flowchart-Verbindungen, Kanban-Elemente, Präsentationsrahmen, Kommentare, Teamrollen und kontrollierte Freigaben gehören zum gemeinsamen Workspace.",
+					"Der kostenlose Editor startet ohne Konto und speichert lokal. Für dauerhafte Zusammenarbeit können Boards in eine verwaltete oder selbst gehostete Umgebung übernommen und mit einem gewählten Verschlüsselungsmodell gespeichert werden."
+				]
+			},
+			{
+				"heading": "Die Entscheidung anhand des Workflows treffen",
+				"bullets": [
+					"Handgezeichnete Ad-hoc-Skizzen und Excalidraw-Ökosystem: Excalidraw zuerst testen",
+					"Mindmaps, Flowcharts, Kanban und Präsentationen in einem Workspace: Skedra testen",
+					"Vorhandene Dateien und gewünschte Austauschformate vor der Entscheidung prüfen",
+					"Für Teams Rollen, Kommentare, Freigaben und Verschlüsselungsmodell vergleichen",
+					"Für Self-Hosting nicht nur Installation, sondern auch Updates und Backups bewerten"
+				]
+			},
+			{
+				"heading": "Kein pauschaler Gewinner",
+				"paragraphs": [
+					"Der sinnvollste Vergleich verwendet ein echtes Beispielboard. Erstelle denselben kleinen Prozess, exportiere ihn im benötigten Format und prüfe, wie leicht andere Personen ihn bearbeiten können. Beide Projekte lassen sich kostenlos ausprobieren; dadurch muss die Entscheidung nicht auf einer Feature-Liste allein beruhen."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Ist Skedra ein Fork von Excalidraw?",
+				"answer": "Nein. Skedra ist ein eigenständiger Workspace mit eigener Canvas-Architektur und eigenen Dateiformaten. Einzelne Interaktionsideen orientieren sich an etablierten Whiteboard-Mustern."
+			},
+			{
+				"question": "Kann Skedra Excalidraw-Bibliotheken importieren?",
+				"answer": "Skedra besitzt Importlogik für Excalidraw-Bibliotheksformate und ein eigenes .skedralib-Format für öffentliche Shape-Bibliotheken."
+			},
+			{
+				"question": "Sind beide Projekte selbst hostbar?",
+				"answer": "Beide stellen Open-Source-Code bereit. Die konkrete Server-, Kollaborations- und Betriebsarchitektur unterscheidet sich; prüfe deshalb die jeweilige aktuelle Dokumentation."
+			}
+		],
+		"sources": [
+			{
+				"href": "https://github.com/excalidraw/excalidraw",
+				"label": "Offizielles Excalidraw-Repository"
+			},
+			{
+				"href": "https://github.com/moonriddim/skedra-community",
+				"label": "Offizielles Skedra-Community-Repository"
+			}
+		],
+		"related": [
+			{ "href": "/", "label": "Skedra kostenlos testen" },
+			{ "href": "/whiteboard", "label": "Skedra-Funktionen im Detail" },
+			{
+				"href": "/open-source-whiteboard-self-hosted",
+				"label": "Self-Hosting-Anforderungen"
+			}
+		]
+	},
+	"/en/skedra-vs-excalidraw": {
+		"locale": "en",
+		"kind": "article",
+		"title": "Skedra vs Excalidraw: Which Whiteboard Fits? | Comparison",
+		"description": "Compare Skedra and Excalidraw fairly across quick drawing, structured diagrams, cloud workflows, self-hosting and file formats.",
+		"eyebrow": "Compare tools",
+		"h1": "Skedra and Excalidraw: two open-source whiteboards with different priorities",
+		"lead": "Both tools support visual work in the browser and publish open-source code. Excalidraw is particularly well known for its hand-drawn visual style, while Skedra combines an infinite canvas with structured mind-map, flowchart, Kanban, team and presentation workflows.",
+		"updated": "Last reviewed: July 14, 2026",
+		"lastModified": "2026-07-14",
+		"translation": "/skedra-vs-excalidraw",
+		"sections": [
+			{
+				"heading": "When does Excalidraw fit well?",
+				"paragraphs": [
+					"Excalidraw is especially useful for quick sketches and diagrams where a deliberately hand-drawn appearance is desired. The project has a large ecosystem and an established native file format.",
+					"If your main requirement is the familiar Excalidraw interaction model or direct participation in its ecosystem, the original project is usually the obvious first choice."
+				]
+			},
+			{
+				"heading": "When does Skedra fit well?",
+				"paragraphs": [
+					"Skedra is designed for people and teams who want to combine free drawing with more structured working modes. Mind-map navigation, flowchart connections, Kanban elements, presentation frames, comments, team roles and controlled sharing live in one workspace.",
+					"The free editor starts without an account and stores locally. For persistent collaboration, boards can move into a managed or self-hosted environment and use the selected encryption model."
+				]
+			},
+			{
+				"heading": "Decide against the workflow",
+				"bullets": [
+					"Hand-drawn ad-hoc sketches and the Excalidraw ecosystem: test Excalidraw first",
+					"Mind maps, flowcharts, Kanban and presentations in one workspace: test Skedra",
+					"Check existing files and required interchange formats before deciding",
+					"For teams, compare roles, comments, sharing and encryption models",
+					"For self-hosting, evaluate updates and backups as well as installation"
+				]
+			},
+			{
+				"heading": "There is no universal winner",
+				"paragraphs": [
+					"The most useful comparison uses a real example board. Create the same small process, export it in the required format and check how easily another person can edit it. Both projects can be tried for free, so the decision does not have to rely on a feature list alone."
+				]
+			}
+		],
+		"faqs": [
+			{
+				"question": "Is Skedra a fork of Excalidraw?",
+				"answer": "No. Skedra is an independent workspace with its own canvas architecture and file formats. Some interaction ideas follow established whiteboard patterns."
+			},
+			{
+				"question": "Can Skedra import Excalidraw libraries?",
+				"answer": "Skedra includes import logic for Excalidraw library formats and uses its own .skedralib format for public shape libraries."
+			},
+			{
+				"question": "Can both projects be self-hosted?",
+				"answer": "Both publish open-source code. Their server, collaboration and operational architectures differ, so review each project's current documentation."
+			}
+		],
+		"sources": [
+			{
+				"href": "https://github.com/excalidraw/excalidraw",
+				"label": "Official Excalidraw repository"
+			},
+			{
+				"href": "https://github.com/moonriddim/skedra-community",
+				"label": "Official Skedra Community repository"
+			}
+		],
+		"related": [
+			{ "href": "/en", "label": "Try Skedra for free" },
+			{ "href": "/en/whiteboard", "label": "Skedra features in detail" },
+			{
+				"href": "/en/open-source-whiteboard-self-hosted",
+				"label": "Self-hosting requirements"
+			}
+		]
+	}
+}

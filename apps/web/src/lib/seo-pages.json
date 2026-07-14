@@ -1,8 +1,8 @@
 {
 	"/": {
 		"title": {
-			"de": "Skedra – Kostenloses Online-Whiteboard ohne Konto",
-			"en": "Skedra – Free Online Whiteboard Without an Account"
+			"de": "Skedra Whiteboard – Kostenlos online zeichnen ohne Konto",
+			"en": "Skedra Whiteboard – Draw Online for Free Without an Account"
 		},
 		"description": {
 			"de": "Mit Skedra zeichnest du kostenlos direkt im Browser. Das Infinite Canvas funktioniert ohne Konto und speichert lokal; verschlüsselte Cloud-Zusammenarbeit ist optional.",
@@ -13,9 +13,20 @@
 		"schema": [
 			{
 				"@context": "https://schema.org",
+				"@type": "WebSite",
+				"@id": "https://skedra.xyz/#website",
+				"name": "Skedra Whiteboard",
+				"alternateName": ["Skedra", "skedra.xyz"],
+				"url": "https://skedra.xyz/",
+				"inLanguage": ["de", "en"]
+			},
+			{
+				"@context": "https://schema.org",
 				"@type": "Organization",
 				"@id": "https://skedra.xyz/#organization",
-				"name": "Skedra",
+				"name": "Skedra Whiteboard",
+				"alternateName": "Skedra",
+				"legalName": "Simon Hediger (Skedra)",
 				"url": "https://skedra.xyz/",
 				"logo": "https://skedra.xyz/logo.png",
 				"email": "support@skedra.xyz",
@@ -23,10 +34,14 @@
 			},
 			{
 				"@context": "https://schema.org",
-				"@type": "SoftwareApplication",
+				"@type": ["SoftwareApplication", "WebApplication"],
 				"@id": "https://skedra.xyz/#software",
-				"name": "Skedra",
+				"name": "Skedra Whiteboard",
+				"alternateName": "Skedra",
 				"url": "https://skedra.xyz/",
+				"description": "Browser-based infinite canvas and online whiteboard with a free local editor, encrypted cloud collaboration and a self-hosted Community Edition.",
+				"image": "https://skedra.xyz/readme/skedra-whiteboard.png",
+				"screenshot": "https://skedra.xyz/readme/skedra-whiteboard.png",
 				"applicationCategory": "BusinessApplication",
 				"applicationSubCategory": "Online whiteboard",
 				"operatingSystem": "Any modern web browser",
@@ -37,6 +52,16 @@
 					"price": "0",
 					"priceCurrency": "CHF"
 				},
+				"featureList": [
+					"Infinite canvas",
+					"Mind maps and flowcharts",
+					"Kanban boards",
+					"Live collaboration",
+					"End-to-end encryption",
+					"PNG, SVG, PDF and PPTX export",
+					"Self-hosting"
+				],
+				"sameAs": "https://github.com/moonriddim/skedra-community",
 				"publisher": { "@id": "https://skedra.xyz/#organization" }
 			}
 		]
@@ -166,6 +191,152 @@
 						"acceptedAnswer": {
 							"@type": "Answer",
 							"text": "Ja. Die Community Edition kann auf eigener Infrastruktur betrieben werden und hat keine Skedra-Cloud-Paywall."
+						}
+					}
+				]
+			}
+		]
+	},
+	"/en": {
+		"title": {
+			"de": "Skedra Whiteboard – Draw Online for Free Without an Account",
+			"en": "Skedra Whiteboard – Draw Online for Free Without an Account"
+		},
+		"description": {
+			"de": "Draw for free directly in your browser with Skedra. The infinite canvas works without an account and stores locally; encrypted cloud collaboration is optional.",
+			"en": "Draw for free directly in your browser with Skedra. The infinite canvas works without an account and stores locally; encrypted cloud collaboration is optional."
+		},
+		"canonical": "https://skedra.xyz/en",
+		"robots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+		"schema": [
+			{
+				"@context": "https://schema.org",
+				"@type": "WebPage",
+				"@id": "https://skedra.xyz/en#webpage",
+				"url": "https://skedra.xyz/en",
+				"name": "Skedra Whiteboard",
+				"inLanguage": "en",
+				"about": { "@id": "https://skedra.xyz/#software" },
+				"isPartOf": { "@id": "https://skedra.xyz/#website" }
+			},
+			{
+				"@context": "https://schema.org",
+				"@type": ["SoftwareApplication", "WebApplication"],
+				"@id": "https://skedra.xyz/#software",
+				"name": "Skedra Whiteboard",
+				"alternateName": "Skedra",
+				"url": "https://skedra.xyz/",
+				"applicationCategory": "BusinessApplication",
+				"operatingSystem": "Any modern web browser",
+				"isAccessibleForFree": true,
+				"offers": { "@type": "Offer", "price": "0", "priceCurrency": "CHF" },
+				"publisher": { "@id": "https://skedra.xyz/#organization" }
+			}
+		]
+	},
+	"/en/whiteboard": {
+		"title": {
+			"de": "Free Online Whiteboard with Encrypted Cloud | Skedra",
+			"en": "Free Online Whiteboard with Encrypted Cloud | Skedra"
+		},
+		"description": {
+			"de": "Skedra combines a free infinite canvas without an account with optional cloud sync, live collaboration, teams and end-to-end encryption.",
+			"en": "Skedra combines a free infinite canvas without an account with optional cloud sync, live collaboration, teams and end-to-end encryption."
+		},
+		"canonical": "https://skedra.xyz/en/whiteboard",
+		"robots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+		"schema": [
+			{
+				"@context": "https://schema.org",
+				"@type": "WebPage",
+				"@id": "https://skedra.xyz/en/whiteboard#webpage",
+				"url": "https://skedra.xyz/en/whiteboard",
+				"name": "Skedra Online Whiteboard",
+				"about": { "@id": "https://skedra.xyz/#software" },
+				"inLanguage": "en"
+			},
+			{
+				"@context": "https://schema.org",
+				"@type": "BreadcrumbList",
+				"itemListElement": [
+					{
+						"@type": "ListItem",
+						"position": 1,
+						"name": "Skedra",
+						"item": "https://skedra.xyz/en"
+					},
+					{
+						"@type": "ListItem",
+						"position": 2,
+						"name": "Online Whiteboard",
+						"item": "https://skedra.xyz/en/whiteboard"
+					}
+				]
+			}
+		]
+	},
+	"/en/pricing": {
+		"title": {
+			"de": "Skedra Pricing – Free Whiteboard and Cloud from CHF 4.90",
+			"en": "Skedra Pricing – Free Whiteboard and Cloud from CHF 4.90"
+		},
+		"description": {
+			"de": "Skedra Free costs CHF 0. Skedra Cloud costs CHF 4.90 monthly or CHF 49 yearly per person, including cloud boards, collaboration and teams.",
+			"en": "Skedra Free costs CHF 0. Skedra Cloud costs CHF 4.90 monthly or CHF 49 yearly per person, including cloud boards, collaboration and teams."
+		},
+		"canonical": "https://skedra.xyz/en/pricing",
+		"robots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+		"schema": [
+			{
+				"@context": "https://schema.org",
+				"@type": ["SoftwareApplication", "WebApplication"],
+				"@id": "https://skedra.xyz/#software",
+				"name": "Skedra Whiteboard",
+				"url": "https://skedra.xyz/en/pricing",
+				"applicationCategory": "BusinessApplication",
+				"operatingSystem": "Web",
+				"offers": [
+					{
+						"@type": "Offer",
+						"name": "Skedra Free",
+						"price": "0",
+						"priceCurrency": "CHF",
+						"url": "https://skedra.xyz/en"
+					},
+					{
+						"@type": "Offer",
+						"name": "Skedra Cloud Monthly",
+						"price": "4.90",
+						"priceCurrency": "CHF",
+						"url": "https://skedra.xyz/en/pricing"
+					},
+					{
+						"@type": "Offer",
+						"name": "Skedra Cloud Yearly",
+						"price": "49",
+						"priceCurrency": "CHF",
+						"url": "https://skedra.xyz/en/pricing"
+					}
+				]
+			},
+			{
+				"@context": "https://schema.org",
+				"@type": "FAQPage",
+				"mainEntity": [
+					{
+						"@type": "Question",
+						"name": "Do I need an account for the free whiteboard?",
+						"acceptedAnswer": {
+							"@type": "Answer",
+							"text": "No. The free whiteboard works directly in the browser and stores locally on your device."
+						}
+					},
+					{
+						"@type": "Question",
+						"name": "Can I self-host Skedra?",
+						"acceptedAnswer": {
+							"@type": "Answer",
+							"text": "Yes. The Community Edition can run on your own infrastructure without the Skedra Cloud paywall."
 						}
 					}
 				]

@@ -1,6 +1,7 @@
 import { GuestOnboardingAnnotation } from "@/components/guest/guest-onboarding-annotation";
 import { GuestToolbarHints } from "@/components/guest/guest-toolbar-hints";
 import { useI18n } from "@/lib/i18n";
+import { localizePublicPath } from "@/lib/public-path";
 import { HelpCircle, LogIn, Save, UserPlus, Users } from "lucide-react";
 import { Link } from "react-router";
 
@@ -25,7 +26,8 @@ export function GuestWelcomeSplash({
 	isLoggedIn,
 	managedBilling,
 }: GuestWelcomeSplashProps) {
-	const { t } = useI18n();
+	const { t, locale } = useI18n();
+	const publicPath = (path: string) => localizePublicPath(path, locale);
 
 	if (!visible) return null;
 
@@ -106,7 +108,7 @@ export function GuestWelcomeSplash({
 							<>
 								<li>
 									<Link
-										to={`${managedBilling ? "/pricing" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
+										to={`${managedBilling ? publicPath("/pricing") : "/register"}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`}
 										className="inline-flex items-center gap-2.5 text-primary hover:underline"
 									>
 										<UserPlus className="h-4 w-4 shrink-0" />
@@ -115,7 +117,7 @@ export function GuestWelcomeSplash({
 								</li>
 								<li>
 									<Link
-										to={`${managedBilling ? "/pricing" : "/login"}?redirect=${encodeURIComponent("/")}`}
+										to={`${managedBilling ? publicPath("/pricing") : "/login"}?redirect=${encodeURIComponent(publicPath("/"))}`}
 										className="inline-flex items-center gap-2.5 text-muted-foreground hover:text-foreground hover:underline"
 									>
 										<LogIn className="h-4 w-4 shrink-0" />

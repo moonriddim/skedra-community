@@ -875,6 +875,153 @@ app.all("/api/auth/*", async (c) => {
 	});
 });
 
+function escapePublicHtml(value: unknown) {
+	return String(value ?? "")
+		.replaceAll("&", "&amp;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+function safeStructuredData(value: unknown) {
+	return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
+function publicLibraryUrl(slug: string) {
+	return `https://libraries.skedra.xyz/library/${encodeURIComponent(slug)}`;
+}
+
+app.get("/api/library-catalog/sitemap.xml", async (c) => {
+	try {
+		const libraries = await listConfiguredPublicShapeLibraries(db);
+		const urls = [
+			{ loc: "https://libraries.skedra.xyz/", lastmod: "2026-07-14" },
+			...libraries.map((library) => ({
+				loc: publicLibraryUrl(library.slug),
+				lastmod: new Date(library.updatedAt).toISOString().slice(0, 10),
+			})),
+		];
+		const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+			.map(
+				(url) =>
+					`  <url><loc>${escapePublicHtml(url.loc)}</loc><lastmod>${url.lastmod}</lastmod></url>`,
+			)
+			.join("\n")}\n</urlset>\n`;
+		return c.body(xml, 200, {
+			"Content-Type": "application/xml; charset=utf-8",
+			"Cache-Control": "public, max-age=300",
+		});
+	} catch {
+		return c.body("Catalog sitemap unavailable", 502, {
+			"Content-Type": "text/plain; charset=utf-8",
+		});
+	}
+});
+
+app.get("/api/library-catalog/pages/:slug", async (c) => {
+	const slug = c.req.param("slug").trim().toLowerCase();
+	try {
+		const libraries = await listConfiguredPublicShapeLibraries(db);
+		const library = libraries.find((entry) => entry.slug === slug);
+		if (!library) {
+			return c.body("Shape library not found", 404, {
+				"Content-Type": "text/plain; charset=utf-8",
+				"X-Robots-Tag": "noindex, nofollow",
+			});
+		}
+
+		const canonical = publicLibraryUrl(library.slug);
+		const description =
+			library.description?.trim() ||
+			`${library.name} is a reusable ${library.itemCount}-item shape library for Skedra Whiteboard.`;
+		const addToSkedraUrl = `https://skedra.xyz/?${new URLSearchParams({
+			library: library.slug,
+			referrer: canonical,
+		}).toString()}`;
+		const structuredData = {
+			"@context": "https://schema.org",
+			"@type": "CreativeWork",
+			"@id": `${canonical}#library`,
+			name: library.name,
+			description,
+			url: canonical,
+			dateCreated: new Date(library.createdAt).toISOString(),
+			dateModified: new Date(library.updatedAt).toISOString(),
+			license: "https://opensource.org/license/mit",
+			creator: {
+				"@type": "Person",
+				name: library.author || "Skedra community contributor",
+			},
+			isPartOf: {
+				"@type": "CollectionPage",
+				"@id": "https://libraries.skedra.xyz/#catalog",
+			},
+			about: { "@id": "https://skedra.xyz/#software" },
+		};
+		const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapePublicHtml(library.name)} – Skedra Whiteboard Shape Library</title>
+    <meta name="description" content="${escapePublicHtml(description)}" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="canonical" href="${canonical}" />
+    <meta property="og:title" content="${escapePublicHtml(library.name)} – Skedra Shape Library" />
+    <meta property="og:description" content="${escapePublicHtml(description)}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="${canonical}" />
+    <meta property="og:site_name" content="Skedra Whiteboard Libraries" />
+    <meta property="og:image" content="https://skedra.xyz/readme/skedra-whiteboard.png" />
+    <script type="application/ld+json">${safeStructuredData(structuredData)}</script>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #101714; color: #edf7f3; }
+      body { margin: 0; }
+      main { max-width: 52rem; margin: 0 auto; padding: 5rem 1.5rem; }
+      a { color: #41d6c3; }
+      .eyebrow { color: #41d6c3; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
+      h1 { font-size: clamp(2.4rem, 7vw, 4.7rem); line-height: 1.03; margin: 1rem 0; }
+      .lead { color: #b7c9c2; font-size: 1.2rem; line-height: 1.75; }
+      .facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(10rem,1fr)); gap: 1rem; margin: 2.5rem 0; }
+      .fact { border: 1px solid #2a3b35; border-radius: 1rem; padding: 1rem; background: #151f1b; }
+      .fact strong { display: block; color: #41d6c3; font-size: 1.35rem; }
+      .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+      .button { display: inline-flex; padding: .8rem 1.1rem; border-radius: .7rem; border: 1px solid #41d6c3; text-decoration: none; font-weight: 700; }
+      .primary { background: #20b8a5; color: #07120f; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Skedra Whiteboard Shape Library</p>
+      <h1>${escapePublicHtml(library.name)}</h1>
+      <p class="lead">${escapePublicHtml(description)}</p>
+      <div class="facts">
+        <div class="fact"><strong>${library.itemCount}</strong>Formen</div>
+        <div class="fact"><strong>MIT</strong>Lizenz</div>
+        <div class="fact"><strong>${escapePublicHtml(library.author || "Community")}</strong>Autor</div>
+      </div>
+      <p>Diese Bibliothek erweitert das Skedra Infinite Canvas um wiederverwendbare Formen. Prüfe die Inhalte im öffentlichen Katalog oder füge sie direkt zu Skedra hinzu.</p>
+      <div class="actions">
+        <a class="button primary" href="${escapePublicHtml(addToSkedraUrl)}">Zu Skedra hinzufügen</a>
+        <a class="button" href="/api/libraries/${encodeURIComponent(library.slug)}">.skedralib herunterladen</a>
+        <a class="button" href="/">Alle Bibliotheken</a>
+      </div>
+    </main>
+  </body>
+</html>`;
+		return c.body(html, 200, {
+			"Content-Type": "text/html; charset=utf-8",
+			"Cache-Control": "public, max-age=300",
+		});
+	} catch {
+		return c.body("Shape library page unavailable", 502, {
+			"Content-Type": "text/plain; charset=utf-8",
+			"X-Robots-Tag": "noindex, nofollow",
+		});
+	}
+});
+
 app.get("/api/libraries", async (c) => {
 	try {
 		return c.json(await listConfiguredPublicShapeLibraries(db), 200, {

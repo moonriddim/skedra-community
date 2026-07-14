@@ -14,7 +14,7 @@
   <a href="packages/react">React SDK</a>
 </p>
 
-<h2 align="center">An open-source visual workspace for ideas, diagrams, and teamwork.</h2>
+<h2 align="center">Skedra Whiteboard — an open-source infinite canvas for ideas, diagrams, and teamwork.</h2>
 
 <p align="center">
   Local-first. Collaborative. Self-hostable.
@@ -32,7 +32,7 @@
   </a>
 </p>
 
-Skedra is a modern infinite canvas for sketching ideas, mapping systems, planning
+Skedra Whiteboard is a modern infinite canvas for sketching ideas, mapping systems, planning
 projects, and collaborating with a team. Use the free whiteboard at
 [skedra.xyz](https://skedra.xyz), or run the complete Community edition on your
 own infrastructure.

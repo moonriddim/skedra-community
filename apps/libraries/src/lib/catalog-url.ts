@@ -56,8 +56,7 @@ export function buildAddToSkedraUrl(
 }
 
 export function buildLibraryCatalogEntryUrl(slug: string) {
-	const params = new URLSearchParams({ library: normalizeLibrarySlug(slug) });
-	return `${getLibrariesSiteUrl()}/?${params.toString()}`;
+	return `${getLibrariesSiteUrl()}/library/${encodeURIComponent(normalizeLibrarySlug(slug))}`;
 }
 
 export function buildPublishInAppUrl() {

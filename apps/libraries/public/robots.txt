@@ -13,19 +13,10 @@ Allow: /
 User-agent: ClaudeBot
 Allow: /
 
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
 User-agent: bingbot
 Allow: /
 
 User-agent: DuckDuckBot
 Allow: /
 
-User-agent: GPTBot
-Allow: /
-
-Sitemap: https://skedra.xyz/sitemap.xml
+Sitemap: https://libraries.skedra.xyz/sitemap.xml

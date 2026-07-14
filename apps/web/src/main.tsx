@@ -4,14 +4,20 @@ import {
 	markChunkLoadingHealthy,
 } from "@/lib/chunk-recovery";
 import { loadI18nMessages } from "@/lib/i18n";
-import { getCurrentLocale, initLocale } from "@/stores/locale";
+import { getPublicPathLocale } from "@/lib/public-path";
+import { getCurrentLocale, initLocale, useLocaleStore } from "@/stores/locale";
 import { initTheme } from "@/stores/theme";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "@livekit/components-styles";
 import "./app.css";
 
-initLocale();
+const publicPathLocale = getPublicPathLocale(window.location.pathname);
+if (publicPathLocale) {
+	useLocaleStore.getState().setLocale(publicPathLocale);
+} else {
+	initLocale();
+}
 initTheme();
 useCanvasStore.getState().syncTheme();
 installChunkLoadRecovery();

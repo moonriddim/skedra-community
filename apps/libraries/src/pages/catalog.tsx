@@ -222,7 +222,12 @@ export function CatalogPage() {
 								<div className="min-w-0 flex-1">
 									<div className="flex items-start justify-between gap-3">
 										<h2 className="font-display text-lg font-semibold leading-tight">
-											{entry.name}
+											<a
+												href={buildLibraryCatalogEntryUrl(entry.slug)}
+												className="hover:text-primary hover:underline"
+											>
+												{entry.name}
+											</a>
 										</h2>
 										<span className="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
 											{t.licenseLabel}

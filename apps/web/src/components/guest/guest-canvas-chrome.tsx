@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
 import { useI18n } from "@/lib/i18n";
+import { localizePublicPath } from "@/lib/public-path";
 import { useThemeStore } from "@/stores/theme";
 import {
 	BadgeInfo,
@@ -29,7 +30,7 @@ import {
 	UserPlus,
 	Users,
 } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 interface GuestCanvasChromeProps {
 	isLoggedIn: boolean;
@@ -64,6 +65,13 @@ export function GuestCanvasChrome({
 	onOpenLiveCollaboration,
 }: GuestCanvasChromeProps) {
 	const { t, locale, setLocale } = useI18n();
+	const { pathname } = useLocation();
+	const navigate = useNavigate();
+	const publicPath = (path: string) => localizePublicPath(path, locale);
+	const selectLocale = (nextLocale: "de" | "en") => {
+		setLocale(nextLocale);
+		navigate(localizePublicPath(pathname, nextLocale));
+	};
 	const theme = useThemeStore((state) => state.theme);
 	const canvasBg = useCanvasStore((state) => state.canvasBg);
 	const setCanvasBg = useCanvasStore((state) => state.setCanvasBg);
@@ -127,7 +135,7 @@ export function GuestCanvasChrome({
 						<DropdownMenuSeparator />
 
 						<DropdownMenuItem asChild>
-							<Link to="/pricing">
+							<Link to={publicPath("/pricing")}>
 								<BadgeInfo className="mr-2 h-4 w-4" />
 								{t("guestCanvas.infoAndPricing")}
 							</Link>
@@ -154,7 +162,7 @@ export function GuestCanvasChrome({
 							<>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`${managedBilling ? "/pricing" : "/login"}?redirect=${encodeURIComponent("/")}`}
+										to={`${managedBilling ? publicPath("/pricing") : "/login"}?redirect=${encodeURIComponent(publicPath("/"))}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4" />
 										{t("guestCanvas.signIn")}
@@ -162,7 +170,7 @@ export function GuestCanvasChrome({
 								</DropdownMenuItem>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`${managedBilling ? "/pricing" : "/register"}?redirect=${encodeURIComponent("/?save=1")}`}
+										to={`${managedBilling ? publicPath("/pricing") : "/register"}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4 text-primary" />
 										<span className="text-primary">
@@ -207,7 +215,7 @@ export function GuestCanvasChrome({
 							<select
 								value={locale}
 								onChange={(event) =>
-									setLocale(event.target.value as "de" | "en")
+									selectLocale(event.target.value as "de" | "en")
 								}
 								className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
 							>
