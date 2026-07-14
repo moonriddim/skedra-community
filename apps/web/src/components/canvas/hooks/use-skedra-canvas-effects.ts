@@ -105,22 +105,6 @@ export function useSkedraCanvasEffects({
 		applyThemeSync();
 	}, [resolvedTheme, syncRef]);
 
-	useEffect(() => {
-		const svg = svgRef.current;
-		if (!svg) return;
-		const handleWheel = (e: WheelEvent) => {
-			e.preventDefault();
-			const { viewport, zoomTo } = useCanvasStore.getState();
-			zoomTo(
-				viewport.zoom * (e.deltaY > 0 ? 0.92 : 1.08),
-				e.clientX,
-				e.clientY,
-			);
-		};
-		svg.addEventListener("wheel", handleWheel, { passive: false });
-		return () => svg.removeEventListener("wheel", handleWheel);
-	}, [svgRef]);
-
 	useLayoutEffect(() => {
 		const boardKey = localMode ? "local" : (whiteboardId ?? null);
 		if (lastAutoFittedWhiteboardIdRef.current !== boardKey) {

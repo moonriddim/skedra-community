@@ -9,7 +9,6 @@ import { getCurrentLocale, initLocale, useLocaleStore } from "@/stores/locale";
 import { initTheme } from "@/stores/theme";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import "@livekit/components-styles";
 import "./app.css";
 
 const publicPathLocale = getPublicPathLocale(window.location.pathname);

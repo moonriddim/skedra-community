@@ -26,6 +26,7 @@ export const CANVAS_EDITOR_COMMAND_IDS = [
 	"flip-vertical",
 	"toggle-lock",
 	"toggle-grid",
+	"toggle-object-snap",
 	"fit-to-content",
 ] as const;
 

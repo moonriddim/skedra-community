@@ -23,10 +23,13 @@ import type {
 	KanbanPriority,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
+import type {
+	CanvasEditorEditingText as EditingText,
+	CanvasEditorPendingText as PendingText,
+} from "@skedra/canvas-editor";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { CanvasCommands } from "../canvas-commands";
-import type { EditingText, PendingText } from "../text-editor";
 import { CANVAS_BG_DARK, CANVAS_BG_LIGHT, getStrokeColors } from "./constants";
 import { applyPropertiesPanelPropertyChange } from "./properties-panel-set-property";
 import { resolveInspectedElements } from "./properties-panel-utils";
@@ -68,6 +71,7 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "arrowHeadScale"
 	| "arrowHeadStart"
 	| "arrowMode"
+	| "canvasBg"
 	| "cornerRadiusPercent"
 	| "fillColor"
 	| "flowchartInsertKind"
@@ -86,6 +90,7 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "setArrowHeadScale"
 	| "setArrowHeadStart"
 	| "setArrowMode"
+	| "setCanvasBg"
 	| "setCornerRadiusPercent"
 	| "setEditingTextId"
 	| "setFillColor"
@@ -124,6 +129,7 @@ export function usePropertiesPanel({
 			arrowHeadScale: state.arrowHeadScale,
 			arrowHeadStart: state.arrowHeadStart,
 			arrowMode: state.arrowMode,
+			canvasBg: state.canvasBg,
 			cornerRadiusPercent: state.cornerRadiusPercent,
 			fillColor: state.fillColor,
 			flowchartInsertKind: state.flowchartInsertKind,
@@ -142,6 +148,7 @@ export function usePropertiesPanel({
 			setArrowHeadScale: state.setArrowHeadScale,
 			setArrowHeadStart: state.setArrowHeadStart,
 			setArrowMode: state.setArrowMode,
+			setCanvasBg: state.setCanvasBg,
 			setCornerRadiusPercent: state.setCornerRadiusPercent,
 			setEditingTextId: state.setEditingTextId,
 			setFillColor: state.setFillColor,
@@ -391,6 +398,8 @@ export function usePropertiesPanel({
 		...d,
 		strokeColors,
 		canvasBgOptions,
+		canvasBg: store.canvasBg,
+		setCanvasBg: store.setCanvasBg,
 		selected,
 		setStickyNoteMode,
 		setProperty,

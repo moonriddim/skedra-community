@@ -3,54 +3,86 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { type UserConfig, defineConfig } from "vite";
 
+interface ManualChunkRule {
+	name: string;
+	pathFragments: readonly string[];
+}
+
+const SOURCE_CHUNK_RULES: readonly ManualChunkRule[] = [
+	{
+		name: "canvas-renderer",
+		pathFragments: [
+			"/src/components/canvas/canvas-renderer/",
+			"/src/components/canvas/canvas-renderer.tsx",
+		],
+	},
+	{
+		name: "canvas-domain",
+		pathFragments: [
+			"/src/components/canvas/properties-panel/",
+			"/src/hooks/use-canvas-pointer/",
+			"/src/lib/templates/",
+			"/src/lib/canvas/flowchart",
+			"/src/lib/canvas/mindmap",
+			"/src/lib/canvas/template-tool",
+			"/src/lib/canvas/kanban",
+		],
+	},
+];
+
+const VENDOR_CHUNK_RULES: readonly ManualChunkRule[] = [
+	{
+		name: "vendor-livekit-client",
+		pathFragments: ["/node_modules/livekit-client/"],
+	},
+	{
+		name: "vendor-livekit-react",
+		pathFragments: ["/node_modules/@livekit/components-react/"],
+	},
+	{
+		name: "vendor-react",
+		pathFragments: ["/react/", "/react-dom/"],
+	},
+	{
+		name: "vendor-radix",
+		pathFragments: ["@radix-ui"],
+	},
+	{
+		name: "vendor-collaboration",
+		pathFragments: ["/yjs/", "lib0"],
+	},
+	{
+		name: "vendor-canvas",
+		pathFragments: ["roughjs", "@excalidraw", "perfect-freehand"],
+	},
+	{
+		name: "vendor-icons",
+		pathFragments: ["lucide-react"],
+	},
+];
+
+function matchManualChunk(
+	id: string,
+	rules: readonly ManualChunkRule[],
+): string | undefined {
+	return rules.find((rule) =>
+		rule.pathFragments.some((fragment) => id.includes(fragment)),
+	)?.name;
+}
+
 function createManualChunk(id: string): string | undefined {
 	const normalizedId = id.replaceAll("\\", "/");
-	if (normalizedId.includes("/src/components/canvas/canvas-renderer/")) {
-		return "canvas-renderer";
-	}
-	if (normalizedId.includes("/src/components/canvas/properties-panel/")) {
-		return "canvas-properties";
-	}
-	if (normalizedId.includes("/src/hooks/use-canvas-pointer/")) {
-		return "canvas-pointer";
-	}
-	if (normalizedId.includes("/src/lib/templates/")) {
-		return "canvas-domain";
-	}
-	if (
-		normalizedId.includes("/src/lib/canvas/flowchart") ||
-		normalizedId.includes("/src/lib/canvas/mindmap") ||
-		normalizedId.includes("/src/lib/canvas/template-tool") ||
-		normalizedId.includes("/src/lib/canvas/kanban")
-	) {
-		return "canvas-domain";
-	}
+	const sourceChunk = matchManualChunk(normalizedId, SOURCE_CHUNK_RULES);
+	if (sourceChunk) return sourceChunk;
 	if (!normalizedId.includes("node_modules")) return undefined;
-	if (
-		normalizedId.includes("/react/") ||
-		normalizedId.includes("/react-dom/")
-	) {
-		return "vendor-react";
-	}
-	if (normalizedId.includes("@radix-ui")) return "vendor-radix";
-	if (normalizedId.includes("/yjs/") || normalizedId.includes("lib0")) {
-		return "vendor-collaboration";
-	}
-	if (
-		normalizedId.includes("roughjs") ||
-		normalizedId.includes("@excalidraw") ||
-		normalizedId.includes("perfect-freehand")
-	) {
-		return "vendor-canvas";
-	}
-	if (normalizedId.includes("lucide-react")) return "vendor-icons";
-	return undefined;
+	return matchManualChunk(normalizedId, VENDOR_CHUNK_RULES);
 }
 
 /** Gemeinsame Vite-Basis fuer Skedra-Frontend-Apps (React + Tailwind + @-Alias). */
 export function createSkedraAppViteConfig(options: {
 	/** Verzeichnis der vite.config.ts (üblicherweise `import.meta.dirname`). */
 	appRoot: string;
+	chunkSizeWarningLimit?: number;
 	port: number;
 	publicDir?: UserConfig["publicDir"];
 	proxy?: UserConfig["server"] extends { proxy?: infer P } ? P : never;
@@ -69,6 +101,7 @@ export function createSkedraAppViteConfig(options: {
 			proxy: options.proxy,
 		},
 		build: {
+			chunkSizeWarningLimit: options.chunkSizeWarningLimit,
 			rollupOptions: {
 				output: {
 					manualChunks: createManualChunk,

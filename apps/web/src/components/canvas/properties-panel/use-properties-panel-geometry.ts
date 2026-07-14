@@ -69,18 +69,22 @@ export function usePropertiesPanelGeometry({
 
 	const setSingleGeometryWidth = useCallback(
 		(value: number) => {
-			if (!singleGeometryElement) return;
-			updateSingleGeometrySize(value, singleGeometryElement.height);
+			updateSingleGeometrySize(
+				value,
+				singleGeometryElement?.height ?? store.shapePresetHeight,
+			);
 		},
-		[singleGeometryElement, updateSingleGeometrySize],
+		[store.shapePresetHeight, singleGeometryElement, updateSingleGeometrySize],
 	);
 
 	const setSingleGeometryHeight = useCallback(
 		(value: number) => {
-			if (!singleGeometryElement) return;
-			updateSingleGeometrySize(singleGeometryElement.width, value);
+			updateSingleGeometrySize(
+				singleGeometryElement?.width ?? store.shapePresetWidth,
+				value,
+			);
 		},
-		[singleGeometryElement, updateSingleGeometrySize],
+		[store.shapePresetWidth, singleGeometryElement, updateSingleGeometrySize],
 	);
 
 	const setPerfectCircleDiameter = useCallback(

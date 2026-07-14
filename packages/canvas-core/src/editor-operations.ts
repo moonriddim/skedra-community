@@ -472,6 +472,10 @@ export function buildCanvasMoveUpdates(
 	dx: number,
 	dy: number,
 ): CanvasElementUpdate[] {
+	for (const id of moveStart.keys()) {
+		const element = elements.get(id);
+		if (!element || element.locked) moveStart.delete(id);
+	}
 	const pendingIds = Array.from(moveStart.keys());
 	for (let index = 0; index < pendingIds.length; index++) {
 		const id = pendingIds[index];
@@ -482,7 +486,7 @@ export function buildCanvasMoveUpdates(
 			for (const descendantId of collectMindmapDescendantIds(id, elements)) {
 				if (moveStart.has(descendantId)) continue;
 				const descendant = elements.get(descendantId);
-				if (!descendant) continue;
+				if (!descendant || descendant.locked) continue;
 				moveStart.set(descendantId, { x: descendant.x, y: descendant.y });
 				pendingIds.push(descendantId);
 			}
@@ -490,7 +494,9 @@ export function buildCanvasMoveUpdates(
 
 		if (element.type === "frame") {
 			for (const [childId, child] of elements) {
-				if (child.frameId !== id || moveStart.has(childId)) continue;
+				if (child.frameId !== id || child.locked || moveStart.has(childId)) {
+					continue;
+				}
 				moveStart.set(childId, { x: child.x, y: child.y });
 				pendingIds.push(childId);
 			}

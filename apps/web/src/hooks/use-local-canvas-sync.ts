@@ -35,7 +35,7 @@ import type {
 	Viewport,
 } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
-import type { SkedraFile } from "@skedra/shared";
+import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
 import type { CanvasRole } from "@skedra/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";

@@ -11,11 +11,22 @@ import {
 	yjsUpdateView,
 } from "@/lib/canvas/yjs-canvas-mutations";
 import { readCanvasMapsFromYDoc } from "@/lib/canvas/yjs-document-helpers";
-import { base64ToBytes } from "@/lib/e2ee";
+import { base64ToBytes, bytesToBase64 } from "@/lib/e2ee";
+import {
+	deletePendingServerUpdates,
+	enqueuePendingServerUpdate,
+	listPendingServerUpdates,
+} from "@/lib/e2ee-update-queue";
+import {
+	SERVER_UPDATE_BATCH_DELAY_MS,
+	SERVER_UPDATE_BATCH_MAX_RAW_BYTES,
+	createPendingServerUpdateBatch,
+} from "@/lib/server-update-batching";
 import { trpc } from "@/lib/trpc";
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
-import type { CanvasRole, SkedraFile } from "@skedra/shared";
+import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
+import type { CanvasRole } from "@skedra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import type { LocalCanvasPresence } from "./canvas-sync-types";
@@ -23,9 +34,8 @@ import { useBoardLiveChannel } from "./use-board-live-channel";
 import { type PresenceIdentity, useBoardPresence } from "./use-board-presence";
 
 const REMOTE_SERVER_ORIGIN = "skedra-server-remote";
+const PENDING_SERVER_ORIGIN = "skedra-server-pending";
 const SERVER_UPDATE_PAGE_SIZE = 500;
-const SERVER_UPDATE_BATCH_DELAY_MS = 150;
-const SERVER_UPDATE_BATCH_MAX_BYTES = 2_500_000;
 
 type ServerUpdateCursor = { id: string; createdAt: string };
 
@@ -47,15 +57,8 @@ function createClientId() {
 	);
 }
 
-function bytesToBase64(bytes: Uint8Array) {
-	let binary = "";
-	const chunkSize = 0x8000;
-	for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-		binary += String.fromCharCode(
-			...bytes.subarray(offset, offset + chunkSize),
-		);
-	}
-	return btoa(binary);
+function getErrorMessage(error: unknown, fallback: string) {
+	return error instanceof Error ? error.message : fallback;
 }
 
 export function useServerCanvasSync(
@@ -75,10 +78,10 @@ export function useServerCanvasSync(
 	const syncFrameRef = useRef<number | null>(null);
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
 	const compactableUpdateBytesRef = useRef(0);
-	const pendingUpdatesRef = useRef<Uint8Array[]>([]);
-	const pendingUpdateBytesRef = useRef(0);
+	const appliedPendingUpdateIdsRef = useRef<Set<string>>(new Set());
+	const sendQueueRef = useRef(Promise.resolve());
+	const flushQueueRef = useRef(Promise.resolve());
 	const flushTimerRef = useRef<number | null>(null);
-	const flushInFlightRef = useRef<Promise<void> | null>(null);
 	const clientIdRef = useRef(createClientId());
 	const syncReadyRef = useRef(false);
 	const compactionInFlightRef = useRef(false);
@@ -178,55 +181,41 @@ export function useServerCanvasSync(
 
 	const flushPendingUpdates = useCallback(() => {
 		if (!enabled || readonly || !whiteboardId) return Promise.resolve();
-		if (flushInFlightRef.current) return flushInFlightRef.current;
 		if (flushTimerRef.current != null) {
 			window.clearTimeout(flushTimerRef.current);
 			flushTimerRef.current = null;
 		}
 
-		const run = (async () => {
-			while (pendingUpdatesRef.current.length > 0) {
-				let batchBytes = 0;
-				let batchSize = 0;
-				for (const update of pendingUpdatesRef.current) {
-					if (
-						batchSize > 0 &&
-						batchBytes + update.byteLength > SERVER_UPDATE_BATCH_MAX_BYTES
-					) {
-						break;
-					}
-					batchBytes += update.byteLength;
-					batchSize += 1;
-				}
-
-				const batch = pendingUpdatesRef.current.splice(0, batchSize);
-				pendingUpdateBytesRef.current -= batchBytes;
-				try {
-					const update = batch.length === 1 ? batch[0] : Y.mergeUpdates(batch);
+		const run = flushQueueRef.current
+			.catch(() => undefined)
+			.then(async () => {
+				let flushedAny = false;
+				for (;;) {
+					const pending = await listPendingServerUpdates(whiteboardId);
+					const batch = createPendingServerUpdateBatch(pending);
+					const first = batch?.records[0];
+					if (!batch || !first) break;
 					await appendUpdate.mutateAsync({
 						...accessInput,
-						clientId: clientIdRef.current,
-						update: bytesToBase64(update),
+						clientId: first.clientId,
+						update: batch.update,
 					});
-				} catch (error) {
-					pendingUpdatesRef.current.unshift(...batch);
-					pendingUpdateBytesRef.current += batchBytes;
-					throw error;
+					await deletePendingServerUpdates(
+						batch.records.map((record) => record.id),
+					);
+					flushedAny = true;
 				}
-			}
-			setConnectionError(null);
-		})()
+				if (flushedAny) setConnectionError(null);
+			})
 			.catch((error) => {
 				setConnectionError(
-					error instanceof Error
-						? error.message
-						: "Aenderungen konnten nicht gespeichert werden.",
+					getErrorMessage(
+						error,
+						"Aenderungen sind lokal gespeichert und werden erneut gesendet.",
+					),
 				);
-			})
-			.finally(() => {
-				flushInFlightRef.current = null;
 			});
-		flushInFlightRef.current = run;
+		flushQueueRef.current = run;
 		return run;
 	}, [accessInput, appendUpdate.mutateAsync, enabled, readonly, whiteboardId]);
 
@@ -237,6 +226,21 @@ export function useServerCanvasSync(
 			void flushPendingUpdates();
 		}, SERVER_UPDATE_BATCH_DELAY_MS);
 	}, [flushPendingUpdates]);
+
+	const applyPendingQueuedUpdates = useCallback(async () => {
+		if (readonly || !ydocRef.current) return;
+		const pending = await listPendingServerUpdates(whiteboardId);
+		for (const queued of pending) {
+			if (appliedPendingUpdateIdsRef.current.has(queued.id)) continue;
+			Y.applyUpdate(
+				ydocRef.current,
+				base64ToBytes(queued.update),
+				PENDING_SERVER_ORIGIN,
+			);
+			appliedPendingUpdateIdsRef.current.add(queued.id);
+		}
+		if (pending.length > 0) syncFromYjs();
+	}, [readonly, syncFromYjs, whiteboardId]);
 
 	useEffect(() => {
 		if (!enabled) {
@@ -249,6 +253,7 @@ export function useServerCanvasSync(
 		ydocRef.current = ydoc;
 		appliedUpdateIdsRef.current = new Set();
 		compactableUpdateBytesRef.current = 0;
+		appliedPendingUpdateIdsRef.current = new Set();
 		syncReadyRef.current = false;
 		setUpdateCursor(null);
 		setScene(CanvasScene.empty());
@@ -262,17 +267,51 @@ export function useServerCanvasSync(
 		yViews.observeDeep(scheduleSyncFromYjs);
 
 		const updateObserver = (update: Uint8Array, origin: unknown) => {
-			if (origin === REMOTE_SERVER_ORIGIN || readonly || !syncReadyRef.current)
+			if (
+				origin === REMOTE_SERVER_ORIGIN ||
+				origin === PENDING_SERVER_ORIGIN ||
+				readonly ||
+				!syncReadyRef.current
+			) {
 				return;
+			}
 			const copy = new Uint8Array(update.byteLength);
 			copy.set(update);
-			pendingUpdatesRef.current.push(copy);
-			pendingUpdateBytesRef.current += copy.byteLength;
-			if (pendingUpdateBytesRef.current >= SERVER_UPDATE_BATCH_MAX_BYTES) {
-				void flushPendingUpdates();
-			} else {
-				schedulePendingUpdateFlush();
-			}
+			sendQueueRef.current = sendQueueRef.current
+				.catch(() => undefined)
+				.then(async () => {
+					try {
+						const pending = await enqueuePendingServerUpdate({
+							whiteboardId,
+							clientId: clientIdRef.current,
+							update: bytesToBase64(copy),
+						});
+						appliedPendingUpdateIdsRef.current.add(pending.id);
+						if (copy.byteLength >= SERVER_UPDATE_BATCH_MAX_RAW_BYTES) {
+							void flushPendingUpdates();
+						} else {
+							schedulePendingUpdateFlush();
+						}
+					} catch (error) {
+						try {
+							await appendUpdate.mutateAsync({
+								...accessInput,
+								clientId: clientIdRef.current,
+								update: bytesToBase64(copy),
+							});
+							return;
+						} catch {
+							// Report the queueing error; without IndexedDB the update
+							// could not be made durable before the network attempt.
+						}
+						setConnectionError(
+							getErrorMessage(
+								error,
+								"Aenderung konnte weder lokal noch auf dem Server gespeichert werden.",
+							),
+						);
+					}
+				});
 		};
 		ydoc.on("update", updateObserver);
 
@@ -281,7 +320,7 @@ export function useServerCanvasSync(
 				window.clearTimeout(flushTimerRef.current);
 				flushTimerRef.current = null;
 			}
-			void flushPendingUpdates();
+			void sendQueueRef.current.then(() => flushPendingUpdates());
 			if (syncFrameRef.current != null) {
 				window.cancelAnimationFrame(syncFrameRef.current);
 				syncFrameRef.current = null;
@@ -298,24 +337,27 @@ export function useServerCanvasSync(
 		enabled,
 		flushPendingUpdates,
 		readonly,
+		accessInput,
+		appendUpdate.mutateAsync,
 		schedulePendingUpdateFlush,
 		scheduleSyncFromYjs,
+		whiteboardId,
 	]);
 
 	useEffect(() => {
 		if (!enabled || readonly) return;
-		const retry = () => void flushPendingUpdates();
-		const flushWhenHidden = () => {
-			if (document.visibilityState === "hidden") retry();
+		const retry = () => void sendQueueRef.current.then(flushPendingUpdates);
+		const retryWhenVisible = () => {
+			if (document.visibilityState === "visible") retry();
 		};
 		window.addEventListener("online", retry);
 		window.addEventListener("pagehide", retry);
-		document.addEventListener("visibilitychange", flushWhenHidden);
+		document.addEventListener("visibilitychange", retryWhenVisible);
 		const interval = window.setInterval(retry, 5_000);
 		return () => {
 			window.removeEventListener("online", retry);
 			window.removeEventListener("pagehide", retry);
-			document.removeEventListener("visibilitychange", flushWhenHidden);
+			document.removeEventListener("visibilitychange", retryWhenVisible);
 			window.clearInterval(interval);
 		};
 	}, [enabled, flushPendingUpdates, readonly]);
@@ -364,6 +406,19 @@ export function useServerCanvasSync(
 				setIsConnected(false);
 				return;
 			}
+			try {
+				await applyPendingQueuedUpdates();
+			} catch (error) {
+				syncReadyRef.current = false;
+				setIsConnected(false);
+				setConnectionError(
+					getErrorMessage(
+						error,
+						"Lokal gespeicherte Aenderungen konnten nicht wiederhergestellt werden.",
+					),
+				);
+				return;
+			}
 
 			syncReadyRef.current = true;
 			setIsConnected(true);
@@ -380,9 +435,13 @@ export function useServerCanvasSync(
 					updateCount: appliedUpdateIdsRef.current.size,
 					compactableBytes: compactableUpdateBytesRef.current,
 				}) &&
-				pendingUpdatesRef.current.length === 0 &&
 				!compactionInFlightRef.current
 			) {
+				await sendQueueRef.current.catch(() => undefined);
+				const pendingBeforeCompaction = await listPendingServerUpdates(
+					whiteboardId,
+				).catch(() => []);
+				if (pendingBeforeCompaction.length > 0) return;
 				compactionInFlightRef.current = true;
 				try {
 					await compactUpdates.mutateAsync({
@@ -411,12 +470,14 @@ export function useServerCanvasSync(
 		};
 	}, [
 		accessInput,
+		applyPendingQueuedUpdates,
 		compactUpdates.mutateAsync,
 		flushPendingUpdates,
 		readonly,
 		syncFromYjs,
 		updateCursor,
 		updates,
+		whiteboardId,
 	]);
 
 	const guardWrite = useCallback(() => {

@@ -68,7 +68,7 @@ function getCrypto() {
 	return globalThis.crypto;
 }
 
-function bytesToBase64(bytes: Uint8Array) {
+export function bytesToBase64(bytes: Uint8Array) {
 	let binary = "";
 	const chunkSize = 0x8000;
 	for (let offset = 0; offset < bytes.length; offset += chunkSize) {

@@ -10,6 +10,7 @@ interface PointerGestureHandlers {
 	onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerCancel: () => void;
+	onLostPointerCapture: () => boolean;
 }
 
 interface UseSkedraCanvasPointerBridgeOptions {
@@ -260,21 +261,26 @@ export function useSkedraCanvasPointerBridge({
 		setPresenceCursor(null);
 	}, [scheduleMindmapHoverClear, setPresenceCursor]);
 
-	const handlePointerCancel = useCallback(() => {
-		handleViewPointerUp();
-		pointerHandlers.onPointerCancel();
+	const clearPointerGestureState = useCallback(() => {
 		pointerGestureRef.current.clickTargetId = null;
 		pointerGestureRef.current.clickTargetWasSelected = false;
 		pointerGestureRef.current.kanbanClickTargetId = null;
 		pointerGestureRef.current.kanbanClickTargetKind = null;
 		scheduleMindmapHoverClear();
 		setPresenceCursor(null);
-	}, [
-		handleViewPointerUp,
-		pointerHandlers,
-		scheduleMindmapHoverClear,
-		setPresenceCursor,
-	]);
+	}, [scheduleMindmapHoverClear, setPresenceCursor]);
+
+	const handlePointerCancel = useCallback(() => {
+		handleViewPointerUp();
+		pointerHandlers.onPointerCancel();
+		clearPointerGestureState();
+	}, [clearPointerGestureState, handleViewPointerUp, pointerHandlers]);
+
+	const handleLostPointerCapture = useCallback(() => {
+		const viewHandled = handleViewPointerUp();
+		const gestureCancelled = pointerHandlers.onLostPointerCapture();
+		if (viewHandled || gestureCancelled) clearPointerGestureState();
+	}, [clearPointerGestureState, handleViewPointerUp, pointerHandlers]);
 
 	return {
 		pointerGestureRef,
@@ -283,6 +289,7 @@ export function useSkedraCanvasPointerBridge({
 		handlePointerMove,
 		handlePointerUp,
 		handlePointerCancel,
+		handleLostPointerCapture,
 		handleCanvasPointerMove,
 		handleCanvasPointerLeave,
 	};

@@ -4,8 +4,8 @@ import type {
 	FlowchartNodeKind,
 	MindmapDirection,
 } from "@skedra/canvas-core";
+import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
 import { createContext, useContext } from "react";
-import type { PendingText } from "./text-editor";
 
 export type AddFlowchartStepOptions =
 	| "next"
@@ -38,6 +38,7 @@ export interface CanvasClientPoint {
 
 export interface CanvasCommands {
 	openHelp: () => void;
+	exportVisual: (format: "svg" | "png" | "pdf" | "pptx") => Promise<void>;
 	pasteElement: (element: CanvasElement) => void;
 	startTextPlacement: (text: PendingText) => void;
 	openKanbanCard: (id: string) => void;

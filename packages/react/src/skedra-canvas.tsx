@@ -1,14 +1,14 @@
 import {
 	CanvasScene,
 	GRID_SIZE,
+	type HandlePosition,
+	type SnapGuide,
+	type SnapPointIndicator,
 	applyCanvasElementUpdates,
 	applyCanvasMutationPlan,
 	buildBringForwardUpdates,
 	buildBringToFrontUpdates,
-	buildCanvasDrawingElement,
-	buildCanvasMoveUpdates,
 	buildCanvasPathInsertPointChanges,
-	buildCanvasPathPointChanges,
 	buildCanvasTextElement,
 	buildCanvasTextUpdate,
 	buildFlowchartNodeKindChanges,
@@ -19,48 +19,67 @@ import {
 	buildTemplateSectionLayoutSyncUpdates,
 	clientPointToCanvas,
 	cloneCanvasSelection,
-	collectCanvasSelectionRectIds,
 	computeViewportForBounds,
 	createCanvasTemplateStickyNote,
 	createStackIndexAfter,
 	getAlignmentUpdates,
-	getBBox,
-	getCanvasKeyboardCommand,
 	getCanvasKeyboardResizeChanges,
 	getCanvasViewportCenter,
 	getCombinedBBox,
+	getCornerRadiusPercent,
 	getDistributionUpdates,
 	getFlipUpdates,
+	getFlowchartRouteForDirection,
 	getGroupUpdates,
 	getLockUpdates,
-	isCanvasPointPathElement,
+	isCanvasTextEditableElement,
+	isFlowchartNode,
 	isKanbanCard,
 	isKanbanList,
 	isMindmapNode,
-	lassoPathToSvgD,
+	navigateFlowchartInDirection,
 	normalizeCanvasRect,
 	planCanvasDeletion,
 	planFlowchartStepMutation,
 	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
-	resizeCanvasElement,
-	shouldKeepCanvasDrawing,
 	toCanvasElementMap,
 	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
-import type {
-	CanvasPathDrawMode as CoreCanvasPathDrawMode,
-	ToolType,
-} from "@skedra/canvas-core";
+import type { CanvasPathDrawMode as CoreCanvasPathDrawMode } from "@skedra/canvas-core";
 import {
-	CANVAS_PATH_DRAW_MODE_OPTIONS,
-	CANVAS_PATH_MODE_OPTIONS,
-	CanvasPathPointHandles,
+	CANVAS_EDITOR_TOOL_IDS,
+	CanvasEditor,
+	CanvasEditorGridOverlay,
+	CanvasEditorImageCropOverlay,
+	CanvasEditorSelectionGestureOverlay,
+	CanvasEditorSelectionOverlay,
+	CanvasEditorSnapOverlay,
+	CanvasEditorStickyNoteOverlay,
+	CanvasEditorSurface,
+	CanvasEditorTextOverlay,
+	CanvasEditorToolbar,
 	CanvasPathStartSnapIndicator,
-	buildCanvasSinglePathElement,
-	isCanvasMultiPathTool,
-	useCanvasPathEditor,
+	buildCanvasEditorDefaultsElement,
+	buildCanvasEditorEditingSession,
+	isCanvasEditorToolAvailableReadOnly,
+	normalizeCanvasEditorStickyChecklist,
+	resolveCanvasEditorPointSnap,
+	toggleCanvasEditorStickyChecklistItem,
+	useCanvasEditorKeyboard,
+	useCanvasEditorPointer,
+} from "@skedra/canvas-editor";
+import type {
+	CanvasEditorDocumentAdapter,
+	CanvasEditorElementStyle,
+	CanvasEditorToolId,
+	CanvasEditorToolbarItem,
+} from "@skedra/canvas-editor";
+import type {
+	CanvasEditorPendingText,
+	CanvasEditorStickyChecklistItem,
+	CanvasEditorStickyNoteMode,
 } from "@skedra/canvas-editor";
 import {
 	CanvasElementRenderer,
@@ -83,6 +102,8 @@ import {
 	Lasso,
 	LayoutTemplate,
 	Library,
+	Lock,
+	Magnet,
 	Minus,
 	MousePointer2,
 	PenLine,
@@ -94,6 +115,7 @@ import {
 	TextCursorInput,
 	Trash2,
 	Undo2,
+	Unlock,
 	Zap,
 } from "lucide-react";
 import {
@@ -102,7 +124,6 @@ import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
-	type WheelEvent,
 	forwardRef,
 	useCallback,
 	useEffect,
@@ -157,6 +178,10 @@ import type {
 	SkedraLibraryFile,
 	SkedraLibraryItem,
 } from "./io.js";
+import {
+	type SkedraSdkKeyboardActionHandlers,
+	handleSkedraSdkKeyboardAction,
+} from "./keyboard-actions.js";
 import { SdkMindmapActions } from "./mindmap-actions.js";
 import { SkedraPropertiesPanel } from "./properties-panel.js";
 import type {
@@ -171,19 +196,27 @@ export type SkedraSdkTool =
 	| "lasso"
 	| "pan"
 	| "rectangle"
-	| "ellipse"
 	| "diamond"
-	| "line"
+	| "ellipse"
 	| "arrow"
+	| "line"
 	| "freehand"
 	| "text"
 	| "frame"
-	| "sticky-note"
-	| "kanban"
-	| "mindmap"
 	| "eraser"
 	| "laser"
-	| "eyedropper";
+	| "eyedropper"
+	| "sticky-note"
+	| "kanban"
+	| "mindmap";
+
+type IsExact<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
+	Value,
+>() => Value extends Right ? 1 : 2
+	? true
+	: false;
+const sdkToolParity: IsExact<SkedraSdkTool, CanvasEditorToolId> = true;
+void sdkToolParity;
 
 export type SkedraCanvasTheme = "light" | "dark";
 export type SkedraPathDrawMode = "normal" | "multi";
@@ -264,6 +297,10 @@ export interface SkedraCanvasProps {
 	onPathDrawModeChange?: (mode: SkedraPathDrawMode) => void;
 	onPathModeChange?: (mode: ArrowMode) => void;
 	onViewportChange?: (viewport: Viewport) => void;
+	onThemeChange?: (theme: SkedraCanvasTheme) => void;
+	onZenModeChange?: (enabled: boolean) => void;
+	onHelpRequest?: () => void;
+	onCommandPaletteRequest?: () => void;
 	initialTool?: SkedraSdkTool;
 	initialPathDrawMode?: SkedraPathDrawMode;
 	initialPathMode?: ArrowMode;
@@ -283,68 +320,18 @@ interface Point {
 	y: number;
 }
 
-type DragState =
-	| {
-			type: "pan";
-			startClient: Point;
-			startViewport: Viewport;
-	  }
-	| {
-			type: "select-move";
-			startWorld: Point;
-			startElements: CanvasElement[];
-			moveStart: Map<string, Point>;
-	  }
-	| {
-			type: "selection";
-			startWorld: Point;
-			currentWorld: Point;
-	  }
-	| {
-			type: "lasso";
-			points: Point[];
-	  }
-	| {
-			type: "erase";
-			startElements: CanvasElement[];
-			erasedIds: Set<string>;
-	  }
-	| {
-			type: "laser";
-			points: Point[];
-	  }
-	| {
-			type: "resize";
-			handle: "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
-			startWorld: Point;
-			startElement: CanvasElement;
-	  }
-	| {
-			type: "draw";
-			tool: DrawingTool;
-			startWorld: Point;
-			points: Point[];
-	  }
-	| {
-			type: "path";
-			tool: "line" | "arrow";
-	  }
-	| {
-			type: "path-point";
-			elementId: string;
-			pointIndex: number;
-			startWorld: Point;
-			startPoint: [number, number];
-	  };
-
-type DrawingTool =
-	| "rectangle"
-	| "ellipse"
-	| "diamond"
-	| "line"
-	| "arrow"
-	| "freehand"
-	| "frame";
+type SdkFormatClipboard = Pick<
+	CanvasElement,
+	| "stroke"
+	| "fill"
+	| "strokeWidth"
+	| "strokeStyle"
+	| "opacity"
+	| "fontSize"
+	| "fontFamily"
+	| "arrowHeadScale"
+	| "arrowHeadFilled"
+> & { cornerRadiusPercent?: number };
 
 interface SdkToolDefinition {
 	id: SkedraSdkTool;
@@ -352,56 +339,31 @@ interface SdkToolDefinition {
 	icon: ComponentType<{ size?: number; strokeWidth?: number }>;
 }
 
-// This exhaustive record is the compile-time parity gate for the web/core tool
-// contract. Adding a ToolType to canvas-core requires an SDK implementation.
-const SDK_CORE_TOOLS: Record<ToolType, SdkToolDefinition> = {
-	select: { id: "select", label: "Select", icon: MousePointer2 },
-	lasso: { id: "lasso", label: "Lasso", icon: Lasso },
-	pan: { id: "pan", label: "Pan", icon: Hand },
-	rectangle: { id: "rectangle", label: "Rectangle", icon: Square },
-	ellipse: { id: "ellipse", label: "Ellipse", icon: Circle },
-	diamond: { id: "diamond", label: "Diamond", icon: Diamond },
-	line: { id: "line", label: "Line", icon: Minus },
-	arrow: { id: "arrow", label: "Arrow", icon: ArrowRight },
-	freehand: { id: "freehand", label: "Freehand", icon: PenLine },
-	text: { id: "text", label: "Text", icon: TextCursorInput },
-	frame: { id: "frame", label: "Frame", icon: Frame },
-	eraser: { id: "eraser", label: "Eraser", icon: Eraser },
-	laser: { id: "laser", label: "Laser", icon: Zap },
-	eyedropper: { id: "eyedropper", label: "Eyedropper", icon: Pipette },
+const SDK_TOOL_ICONS: Record<CanvasEditorToolId, SdkToolDefinition["icon"]> = {
+	select: MousePointer2,
+	lasso: Lasso,
+	pan: Hand,
+	rectangle: Square,
+	ellipse: Circle,
+	diamond: Diamond,
+	line: Minus,
+	arrow: ArrowRight,
+	freehand: PenLine,
+	text: TextCursorInput,
+	frame: Frame,
+	eraser: Eraser,
+	laser: Zap,
+	eyedropper: Pipette,
+	"sticky-note": StickyNote,
+	kanban: Kanban,
+	mindmap: GitBranch,
 };
 
-const SDK_TOOLS: SdkToolDefinition[] = [
-	...Object.values(SDK_CORE_TOOLS),
-	{ id: "sticky-note", label: "Sticky note", icon: StickyNote },
-	{ id: "kanban", label: "Kanban board", icon: Kanban },
-	{ id: "mindmap", label: "Mindmap", icon: GitBranch },
-];
-
-export const SKEDRA_SDK_TOOL_IDS: readonly SkedraSdkTool[] = SDK_TOOLS.map(
-	(tool) => tool.id,
-);
-
-const SDK_READ_ONLY_TOOLS = new Set<SkedraSdkTool>([
-	"select",
-	"lasso",
-	"pan",
-	"laser",
-	"eyedropper",
-]);
+export const SKEDRA_SDK_TOOL_IDS: readonly SkedraSdkTool[] =
+	CANVAS_EDITOR_TOOL_IDS;
 
 const DEFAULT_STROKE = "#17211d";
 const DEFAULT_FILL = "transparent";
-const SDK_RESIZE_HANDLES = [
-	"nw",
-	"n",
-	"ne",
-	"w",
-	"e",
-	"sw",
-	"s",
-	"se",
-] as const;
 function createId() {
 	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
 		return crypto.randomUUID();
@@ -418,17 +380,6 @@ function normalizeClassName(className?: string) {
 function toSvgIdPart(value: string) {
 	const normalized = value.replace(/[^A-Za-z0-9_-]/g, "_");
 	return normalized.length > 0 ? normalized : "id";
-}
-
-function toLocalPoint(
-	event: { clientX: number; clientY: number },
-	svg: SVGSVGElement,
-) {
-	const rect = svg.getBoundingClientRect();
-	return {
-		x: event.clientX - rect.left,
-		y: event.clientY - rect.top,
-	};
 }
 
 function toWorldPoint(
@@ -450,32 +401,6 @@ function snapWorldPoint(point: Point, enabled: boolean): Point {
 		x: Math.round(point.x / GRID_SIZE) * GRID_SIZE,
 		y: Math.round(point.y / GRID_SIZE) * GRID_SIZE,
 	};
-}
-
-function buildDraftElement(
-	drag: Extract<DragState, { type: "draw" }>,
-	stroke: string,
-	fill: string,
-	pathMode: ArrowMode,
-) {
-	const end = drag.points[drag.points.length - 1] ?? drag.startWorld;
-	if (drag.tool === "line" || drag.tool === "arrow") {
-		return buildCanvasSinglePathElement({
-			id: "__draft",
-			tool: drag.tool,
-			start: drag.startWorld,
-			end,
-			style: { stroke, fill, arrowMode: pathMode },
-		});
-	}
-	return buildCanvasDrawingElement({
-		id: "__draft",
-		tool: drag.tool,
-		start: drag.startWorld,
-		end,
-		points: drag.points,
-		style: { stroke, fill, arrowMode: pathMode },
-	});
 }
 
 function pickBrowserFile(accept: string): Promise<File | null> {
@@ -511,10 +436,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			onPathDrawModeChange,
 			onPathModeChange,
 			onViewportChange,
+			onThemeChange,
+			onZenModeChange,
+			onHelpRequest,
+			onCommandPaletteRequest,
 			initialTool = "select",
 			initialPathDrawMode = "normal",
 			initialPathMode = "straight",
-			theme = "light",
+			theme: themeProp = "light",
 			className,
 			style,
 			strokeColor = DEFAULT_STROKE,
@@ -524,8 +453,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		ref,
 	) {
 		const svgRef = useRef<SVGSVGElement | null>(null);
-		const dragRef = useRef<DragState | null>(null);
+		const rootRef = useRef<HTMLDivElement | null>(null);
+		const spacePressedRef = useRef(false);
 		const clipboardRef = useRef<CanvasElement[]>([]);
+		const formatClipboardRef = useRef<SdkFormatClipboard | null>(null);
+		const eyedropperTargetRef = useRef<"stroke" | "fill">("stroke");
 		const historyTransactionRef = useRef<CanvasElement[] | null>(null);
 		const undoStackRef = useRef<CanvasElement[][]>([]);
 		const redoStackRef = useRef<CanvasElement[][]>([]);
@@ -544,11 +476,19 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const [internalLibraries, setInternalLibraries] =
 			useState<SkedraLibraryFile[]>(defaultLibraries);
 		const [gridEnabled, setGridEnabled] = useState(showGrid);
+		const [theme, setTheme] = useState(themeProp);
+		const [zenMode, setZenMode] = useState(false);
+		const [snapToObjects, setSnapToObjects] = useState(true);
+		const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+		const [snapPointIndicators, setSnapPointIndicators] = useState<
+			SnapPointIndicator[]
+		>([]);
 		const [activeViewId, setActiveViewId] = useState<string | null>(null);
 		const [presentationViewId, setPresentationViewId] = useState<string | null>(
 			null,
 		);
 		const [tool, setTool] = useState<SkedraSdkTool>(initialTool);
+		const [toolLocked, setToolLocked] = useState(false);
 		const [pathDrawMode, setPathDrawMode] =
 			useState<SkedraPathDrawMode>(initialPathDrawMode);
 		const [pathMode, setPathMode] = useState<ArrowMode>(initialPathMode);
@@ -558,14 +498,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			y: 0,
 			zoom: 1,
 		});
-		const [draftElement, setDraftElement] = useState<CanvasElement | null>(
-			null,
-		);
-		const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
-		const [commandMenuOpen, setCommandMenuOpen] = useState(false);
-		const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
-		const [viewMenuOpen, setViewMenuOpen] = useState(false);
-		const [exportMenuOpen, setExportMenuOpen] = useState(false);
+		const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
+		const [pendingText, setPendingText] =
+			useState<CanvasEditorPendingText | null>(null);
+		const [editingTextId, setEditingTextId] = useState<string | null>(null);
 		const [selectionBox, setSelectionBox] = useState<{
 			start: Point;
 			end: Point;
@@ -577,6 +513,41 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		} | null>(null);
 		const [stroke, setStroke] = useState(strokeColor);
 		const [fill, setFill] = useState(fillColor);
+		const [drawingDefaults, setDrawingDefaults] = useState<
+			Omit<CanvasEditorElementStyle, "stroke" | "fill" | "arrowMode">
+		>({
+			strokeWidth: 2,
+			strokeStyle: "solid",
+			opacity: 100,
+			cornerRadiusPercent: 0,
+			roughness: 0,
+			roughFillStyle: "solid",
+			roughFillScale: 1,
+			arrowHeadStart: "none",
+			arrowHeadEnd: "arrow",
+			arrowHeadScale: 1,
+			arrowHeadFilled: true,
+			fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
+			fontSize: 20,
+			textColor: strokeColor,
+			textAlign: "left",
+			fontWeight: "normal",
+			fontStyle: "normal",
+			textDecoration: "none",
+		});
+		const [defaultElementSize, setDefaultElementSize] = useState({
+			width: 100,
+			height: 100,
+		});
+		const drawingStyle = useMemo<CanvasEditorElementStyle>(
+			() => ({
+				...drawingDefaults,
+				stroke,
+				fill,
+				arrowMode: pathMode,
+			}),
+			[drawingDefaults, fill, pathMode, stroke],
+		);
 
 		const currentElements = elements ?? internalElements;
 		const currentViews = views ?? internalViews;
@@ -585,15 +556,35 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			() => CanvasScene.from(currentElements),
 			[currentElements],
 		);
+		const elementMap = useMemo(
+			() => toCanvasElementMap(currentElements),
+			[currentElements],
+		);
 		const sortedElements = scene.getSortedElements();
 		const selectedElements = scene.getSelectedElements(selectedIds);
+		const editingTextElement = editingTextId
+			? (currentElements.find((element) => element.id === editingTextId) ??
+				null)
+			: null;
+		const editingSession = useMemo(
+			() =>
+				editingTextElement
+					? buildCanvasEditorEditingSession({
+							element: editingTextElement,
+							defaultFontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
+						})
+					: null,
+			[editingTextElement],
+		);
+		const croppingImage = croppingImageId
+			? (currentElements.find(
+					(element) =>
+						element.id === croppingImageId && element.type === "image",
+				) ?? null)
+			: null;
 		const selectionRect = selectionBox
 			? normalizeCanvasRect(selectionBox.start, selectionBox.end)
 			: null;
-		const lassoPathData = lassoPath
-			? lassoPathToSvgD(lassoPath.map((point) => [point.x, point.y]))
-			: null;
-
 		useEffect(() => {
 			if (!laserTrail?.finished) return;
 			const timeout = window.setTimeout(() => setLaserTrail(null), 450);
@@ -613,6 +604,31 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		useEffect(() => onViewportChange?.(viewport), [onViewportChange, viewport]);
 		useEffect(() => onGridChange?.(gridEnabled), [gridEnabled, onGridChange]);
 		useEffect(() => setGridEnabled(showGrid), [showGrid]);
+		useEffect(() => setTheme(themeProp), [themeProp]);
+
+		const resolveEditorPoint = useCallback(
+			(
+				point: Point,
+				options: { objectSnap?: boolean; excludeIds?: Set<string> } = {},
+			) => {
+				const gridPoint = snapWorldPoint(point, gridEnabled);
+				const result = resolveCanvasEditorPointSnap({
+					point: gridPoint,
+					elements: elementMap,
+					excludeIds: options.excludeIds ?? new Set(["__draft"]),
+					snap: {
+						enabled: snapToObjects && options.objectSnap !== false,
+						includeCenters: true,
+						includeMidpoints: true,
+						showInactivePoints: true,
+					},
+				});
+				setSnapGuides(result.guides);
+				setSnapPointIndicators(result.indicators);
+				return result.point;
+			},
+			[elementMap, gridEnabled, snapToObjects],
+		);
 
 		const commitElements = useCallback(
 			(next: CanvasElement[], recordHistory = true) => {
@@ -873,7 +889,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						createId,
 					}),
 				);
-				setTemplateMenuOpen(false);
 				return inserted;
 			},
 			[addSdkElements, getViewportCenter, theme],
@@ -891,6 +906,63 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				computeViewportForBounds(svg.getBoundingClientRect(), bounds, 72),
 			);
 		}, [currentElements]);
+
+		const fitToSelection = useCallback(() => {
+			const svg = svgRef.current;
+			const bounds = getCombinedBBox(selectedElements);
+			if (!svg || !bounds) return;
+			setViewport(
+				computeViewportForBounds(svg.getBoundingClientRect(), bounds, 72),
+			);
+		}, [selectedElements]);
+
+		const zoomViewport = useCallback((factor: number) => {
+			const rect = svgRef.current?.getBoundingClientRect();
+			if (!rect) return;
+			setViewport((current) =>
+				zoomCanvasViewportAtPoint(
+					current,
+					{ x: rect.width / 2, y: rect.height / 2 },
+					current.zoom * factor,
+				),
+			);
+		}, []);
+
+		const toggleSdkTheme = useCallback(() => {
+			const next = theme === "dark" ? "light" : "dark";
+			setTheme(next);
+			onThemeChange?.(next);
+		}, [onThemeChange, theme]);
+
+		const toggleSdkZen = useCallback(() => {
+			const next = !zenMode;
+			setZenMode(next);
+			onZenModeChange?.(next);
+		}, [onZenModeChange, zenMode]);
+
+		const requestSdkHostAction = useCallback(
+			(
+				eventName: "skedra:help-request" | "skedra:command-palette-request",
+				callback?: () => void,
+			) => {
+				if (callback) callback();
+				else {
+					rootRef.current?.dispatchEvent(
+						new CustomEvent(eventName, { bubbles: true }),
+					);
+				}
+			},
+			[],
+		);
+
+		const focusSdkProperty = useCallback(
+			(property: "stroke" | "fill" | "font") => {
+				rootRef.current
+					?.querySelector<HTMLElement>(`[data-skedra-property="${property}"]`)
+					?.focus();
+			},
+			[],
+		);
 
 		const commitViews = useCallback(
 			(next: SavedCanvasView[]) => {
@@ -1077,6 +1149,195 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			},
 			[applySelectedUpdates, selectedElements],
 		);
+
+		const copySelectionFormat = useCallback(() => {
+			const element = selectedElements[0];
+			if (!element) return;
+			formatClipboardRef.current = {
+				stroke: element.stroke,
+				fill: element.fill,
+				strokeWidth: element.strokeWidth,
+				strokeStyle: element.strokeStyle,
+				opacity: element.opacity,
+				cornerRadiusPercent:
+					element.type === "rectangle"
+						? getCornerRadiusPercent(element)
+						: undefined,
+				arrowHeadScale:
+					element.type === "arrow" ? (element.arrowHeadScale ?? 1) : undefined,
+				arrowHeadFilled:
+					element.type === "arrow"
+						? (element.arrowHeadFilled ?? true)
+						: undefined,
+				fontSize: element.fontSize,
+				fontFamily: element.fontFamily,
+			};
+		}, [selectedElements]);
+
+		const pasteSelectionFormat = useCallback(() => {
+			const format = formatClipboardRef.current;
+			if (!format) return;
+			applySelectedUpdates(
+				selectedElements.map((element) => ({
+					id: element.id,
+					changes: {
+						stroke: format.stroke,
+						fill: format.fill,
+						strokeWidth: format.strokeWidth,
+						strokeStyle: format.strokeStyle,
+						opacity: format.opacity,
+						...(element.type === "rectangle" &&
+						format.cornerRadiusPercent !== undefined
+							? {
+									cornerRadiusPercent: format.cornerRadiusPercent,
+									cornerRadius: undefined,
+								}
+							: {}),
+						...(element.type === "arrow" && format.arrowHeadScale !== undefined
+							? { arrowHeadScale: format.arrowHeadScale }
+							: {}),
+						...(element.type === "arrow" && format.arrowHeadFilled !== undefined
+							? { arrowHeadFilled: format.arrowHeadFilled }
+							: {}),
+						...(element.fontSize !== undefined && format.fontSize !== undefined
+							? { fontSize: format.fontSize }
+							: {}),
+						...(element.fontFamily !== undefined &&
+						format.fontFamily !== undefined
+							? { fontFamily: format.fontFamily }
+							: {}),
+					},
+				})),
+			);
+		}, [applySelectedUpdates, selectedElements]);
+
+		const addSelectionLink = useCallback(() => {
+			const element = selectedElements[0];
+			if (!element) return;
+			const url = window.prompt("Link URL:", element.link ?? "");
+			if (url == null) return;
+			applySelectedUpdates(
+				selectedElements.map((selected) => ({
+					id: selected.id,
+					changes: { link: url || undefined },
+				})),
+			);
+		}, [applySelectedUpdates, selectedElements]);
+
+		const adjustSelectionFontSize = useCallback(
+			(delta: number) => {
+				applySelectedUpdates(
+					selectedElements
+						.filter(
+							(element) =>
+								element.fontSize != null ||
+								element.text != null ||
+								element.type === "text",
+						)
+						.map((element) => ({
+							id: element.id,
+							changes: {
+								fontSize: Math.max(
+									8,
+									Math.min(128, (element.fontSize ?? 16) + delta),
+								),
+							},
+						})),
+				);
+			},
+			[applySelectedUpdates, selectedElements],
+		);
+
+		const setDrawingDefaultProperties = useCallback(
+			(properties: Partial<CanvasElement>) => {
+				if (properties.stroke !== undefined) setStroke(properties.stroke);
+				if (properties.fill !== undefined) setFill(properties.fill);
+				if (properties.arrowMode !== undefined) {
+					setPathMode(properties.arrowMode);
+				}
+				if (properties.width !== undefined || properties.height !== undefined) {
+					setDefaultElementSize((current) => ({
+						width: properties.width ?? current.width,
+						height: properties.height ?? current.height,
+					}));
+				}
+				setDrawingDefaults((current) => ({
+					...current,
+					...(properties.strokeWidth !== undefined
+						? { strokeWidth: properties.strokeWidth }
+						: {}),
+					...(properties.strokeStyle !== undefined
+						? { strokeStyle: properties.strokeStyle }
+						: {}),
+					...(properties.opacity !== undefined
+						? { opacity: properties.opacity }
+						: {}),
+					...(properties.cornerRadiusPercent !== undefined
+						? { cornerRadiusPercent: properties.cornerRadiusPercent }
+						: {}),
+					...(properties.roughness !== undefined
+						? { roughness: properties.roughness }
+						: {}),
+					...(properties.roughFillStyle !== undefined
+						? { roughFillStyle: properties.roughFillStyle }
+						: {}),
+					...(properties.roughFillScale !== undefined
+						? { roughFillScale: properties.roughFillScale }
+						: {}),
+					...(properties.arrowHeadStart !== undefined
+						? { arrowHeadStart: properties.arrowHeadStart }
+						: {}),
+					...(properties.arrowHeadEnd !== undefined
+						? { arrowHeadEnd: properties.arrowHeadEnd }
+						: {}),
+					...(properties.arrowHeadScale !== undefined
+						? { arrowHeadScale: properties.arrowHeadScale }
+						: {}),
+					...(properties.arrowHeadFilled !== undefined
+						? { arrowHeadFilled: properties.arrowHeadFilled }
+						: {}),
+					...(properties.fontFamily !== undefined
+						? { fontFamily: properties.fontFamily }
+						: {}),
+					...(properties.fontSize !== undefined
+						? { fontSize: properties.fontSize }
+						: {}),
+					...(properties.textColor !== undefined
+						? { textColor: properties.textColor }
+						: {}),
+					...(properties.textAlign !== undefined
+						? { textAlign: properties.textAlign }
+						: {}),
+					...(properties.fontWeight !== undefined
+						? { fontWeight: properties.fontWeight }
+						: {}),
+					...(properties.fontStyle !== undefined
+						? { fontStyle: properties.fontStyle }
+						: {}),
+					...(properties.textDecoration !== undefined
+						? { textDecoration: properties.textDecoration }
+						: {}),
+				}));
+			},
+			[],
+		);
+
+		const defaultPropertiesElement = useMemo(
+			() =>
+				buildCanvasEditorDefaultsElement({
+					tool,
+					style: drawingStyle,
+					width: defaultElementSize.width,
+					height: defaultElementSize.height,
+				}),
+			[defaultElementSize.height, defaultElementSize.width, drawingStyle, tool],
+		);
+		const propertiesSelection =
+			selectedElements.length > 0
+				? selectedElements
+				: defaultPropertiesElement
+					? [defaultPropertiesElement]
+					: [];
 
 		const setGrid = useCallback(
 			(enabled: boolean) => setGridEnabled(enabled),
@@ -1394,6 +1655,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					case "toggle-grid":
 						setGridEnabled((enabled) => !enabled);
 						break;
+					case "toggle-object-snap":
+						setSnapToObjects((enabled) => !enabled);
+						break;
 					case "fit-to-content":
 						fitToContent();
 						break;
@@ -1472,6 +1736,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				setProperties: setSelectionProperties,
 				setGrid,
 				getGrid: () => gridEnabled,
+				setObjectSnap: setSnapToObjects,
+				getObjectSnap: () => snapToObjects,
 				getViewport: () => viewport,
 				setViewport,
 				insertImage,
@@ -1519,6 +1785,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				flipSelection,
 				goToView,
 				gridEnabled,
+				snapToObjects,
 				groupSelection,
 				importFile,
 				insertImage,
@@ -1569,531 +1836,218 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			setHistoryRevision((value) => value + 1);
 		}, []);
 
-		const {
-			controllerRef: pathEditorRef,
-			startSnap: pathStartSnap,
-			begin: beginPath,
-			move: movePath,
-			release: releasePath,
-			finish: finishPath,
-			cancel: cancelPath,
-		} = useCanvasPathEditor({
+		const laserPointsRef = useRef<Point[]>([]);
+		const editorDocumentAdapter: CanvasEditorDocumentAdapter = {
+			kind: isControlled ? "controlled" : "local",
+			getElements: () => elementMap,
+			getScene: () => scene,
+			createId,
+			createElement: (element) => {
+				commitCanvasElements([
+					...currentElements,
+					{
+						...element,
+						stackIndex: createStackIndexAfter(currentElements, element.id),
+					},
+				]);
+			},
+			updateElement: (id, changes) => {
+				if (readOnly) return;
+				commitCanvasElements(
+					currentElements.map((element) =>
+						element.id === id ? { ...element, ...changes } : element,
+					),
+				);
+			},
+			updateElements: (updates) => {
+				if (readOnly || updates.length === 0) return;
+				commitCanvasElements(
+					applyCanvasElementUpdates(currentElements, updates),
+				);
+			},
+			deleteElements: (ids) => {
+				if (readOnly || ids.length === 0) return;
+				commitCanvasElements(
+					applyCanvasMutationPlan(
+						currentElements,
+						planCanvasDeletion(elementMap, new Set(ids)),
+					),
+				);
+			},
+			duplicateSelection: readOnly
+				? undefined
+				: () => {
+						duplicateSelection();
+					},
+			beginHistory: beginHistoryTransaction,
+			finishHistory: finishHistoryTransaction,
+			cancelHistory: () => {
+				historyTransactionRef.current = null;
+			},
+			finishMove: (moveStart) => {
+				const liveMap = toCanvasElementMap(currentElements);
+				const updates = [
+					...buildKanbanDropUpdates(liveMap, moveStart.keys()),
+					...buildTemplateDropUpdates(liveMap, moveStart.keys()),
+				];
+				if (updates.length > 0) {
+					commitCanvasElements(
+						applyCanvasElementUpdates(currentElements, updates),
+					);
+				}
+			},
+		};
+
+		const editorPointer = useCanvasEditorPointer({
+			svgRef,
 			activeTool: tool,
-			drawMode: pathDrawMode,
-			adapter: {
-				getStyle: () => ({ stroke, fill, arrowMode: pathMode }),
-				commitElement: (element) => {
+			pathDrawMode,
+			documentAdapter: editorDocumentAdapter,
+			uiAdapter: {
+				getState: () => ({
+					activeTool: tool,
+					pathDrawMode,
+					toolLocked,
+					readOnly,
+					spacePressed: spacePressedRef.current,
+					viewport,
+					selectedIds,
+					snapToObjects,
+					selectionBox: selectionBox
+						? {
+								startX: selectionBox.start.x,
+								startY: selectionBox.start.y,
+								endX: selectionBox.end.x,
+								endY: selectionBox.end.y,
+							}
+						: null,
+					lassoPath: lassoPath?.map((point) => [point.x, point.y]) ?? null,
+				}),
+				getStyle: () => drawingStyle,
+				getDefaultElementSize: () => defaultElementSize,
+				setActiveTool: setTool,
+				setSelectedIds,
+				clearSelection: () => setSelectedIds(new Set()),
+				pan: (dx, dy) =>
+					setViewport((current) => ({
+						...current,
+						x: current.x + dx,
+						y: current.y + dy,
+					})),
+				setViewport,
+				setSelectionBox: (box) =>
+					setSelectionBox(
+						box
+							? {
+									start: { x: box.startX, y: box.startY },
+									end: { x: box.endX, y: box.endY },
+								}
+							: null,
+					),
+				setLassoPath: (path) =>
+					setLassoPath(path?.map(([x, y]) => ({ x, y })) ?? null),
+				setSnapVisuals: (guides, points = []) => {
+					setSnapGuides(guides);
+					setSnapPointIndicators(points);
+				},
+				setEyedropperColors: (colors) => {
+					if (eyedropperTargetRef.current === "fill") setFill(colors.fill);
+					else setStroke(colors.stroke);
+				},
+				beginLaser: (point) => {
+					laserPointsRef.current = [point];
+					setLaserTrail({ points: [point], finished: false });
+					return "sdk-laser";
+				},
+				appendLaser: (_id, point) => {
+					const previous = laserPointsRef.current.at(-1);
+					if (
+						previous &&
+						Math.hypot(point.x - previous.x, point.y - previous.y) <= 2
+					) {
+						return;
+					}
+					laserPointsRef.current = [...laserPointsRef.current, point];
+					setLaserTrail({
+						points: laserPointsRef.current,
+						finished: false,
+					});
+				},
+				finishLaser: () => {
+					setLaserTrail({ points: laserPointsRef.current, finished: true });
+				},
+			},
+			resolvePoint: (clientX, clientY) => {
+				const svg = svgRef.current;
+				if (!svg) {
+					return {
+						raw: { x: clientX, y: clientY },
+						snapped: { x: clientX, y: clientY },
+					};
+				}
+				const raw = toWorldPoint({ clientX, clientY }, svg, viewport);
+				const snapped = resolveEditorPoint(raw, {
+					objectSnap:
+						tool === "line" ||
+						tool === "arrow" ||
+						tool === "rectangle" ||
+						tool === "ellipse" ||
+						tool === "diamond",
+				});
+				return { raw, snapped };
+			},
+			startTextPlacement: (placement) => {
+				if (textPrompt) {
+					const text = textPrompt({ currentText: "Text", element: null });
+					if (!text) return;
 					const id = createId();
 					commitCanvasElements([
 						...currentElements,
 						{
-							...element,
-							id,
-							stackIndex: createStackIndexAfter(currentElements, id),
+							...buildCanvasTextElement({
+								id,
+								point: { x: placement.x, y: placement.y },
+								text,
+								stroke: placement.stroke,
+								fontFamily: placement.fontFamily,
+								stackIndex: createStackIndexAfter(currentElements, id),
+							}),
+							fontSize: placement.fontSize,
+							textAlign: placement.textAlign,
+							fontWeight: placement.fontWeight,
+							fontStyle: placement.fontStyle,
+							textDecoration: placement.textDecoration,
 						},
 					]);
-					return id;
-				},
-				setPreview: setDraftElement,
-				onBeginHistory: beginHistoryTransaction,
-				onFinishHistory: finishHistoryTransaction,
-				onCancelHistory: () => {
-					historyTransactionRef.current = null;
-				},
-				onCreatedSelection: (id) => setSelectedIds(new Set([id])),
-				onClearSelection: () => setSelectedIds(new Set()),
-				onExitTool: () => setTool("select"),
-			},
-		});
-
-		const resolveText = useCallback(
-			(element: CanvasElement | null) => {
-				const currentText = element?.text ?? "Text";
-				if (textPrompt) return textPrompt({ currentText, element });
-				if (typeof window === "undefined") return currentText;
-				return window.prompt("Text", currentText);
-			},
-			[textPrompt],
-		);
-
-		const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-			if (event.button !== 0) return;
-			const svg = svgRef.current;
-			if (!svg) return;
-			svg.setPointerCapture(event.pointerId);
-			const world = toWorldPoint(event, svg, viewport);
-			const placementWorld = snapWorldPoint(world, gridEnabled);
-
-			if (tool === "pan" || event.altKey) {
-				dragRef.current = {
-					type: "pan",
-					startClient: { x: event.clientX, y: event.clientY },
-					startViewport: viewport,
-				};
-				return;
-			}
-
-			if (tool === "laser") {
-				const points = [world];
-				dragRef.current = { type: "laser", points };
-				setLaserTrail({ points, finished: false });
-				return;
-			}
-
-			if (tool === "eyedropper") {
-				const hit = scene.getElementAtPosition(world.x, world.y, {
-					tolerance: 6 / viewport.zoom,
-				});
-				if (hit) {
-					setStroke(hit.stroke);
-					setFill(hit.fill);
-				}
-				setTool("select");
-				return;
-			}
-
-			if (tool === "lasso" || (tool === "select" && event.altKey)) {
-				const points = [world];
-				dragRef.current = { type: "lasso", points };
-				setLassoPath(points);
-				setSelectedIds(new Set());
-				return;
-			}
-
-			if (readOnly && tool !== "select") return;
-
-			if (tool === "eraser") {
-				beginHistoryTransaction();
-				const drag: Extract<DragState, { type: "erase" }> = {
-					type: "erase",
-					startElements: currentElements,
-					erasedIds: new Set(),
-				};
-				dragRef.current = drag;
-				for (const element of scene.getElementsToEraseAtPosition(
-					world.x,
-					world.y,
-					12 / viewport.zoom,
-					drag.erasedIds,
-				)) {
-					drag.erasedIds.add(element.id);
-				}
-				if (drag.erasedIds.size > 0) {
-					commitCanvasElements(
-						applyCanvasMutationPlan(
-							drag.startElements,
-							planCanvasDeletion(
-								toCanvasElementMap(drag.startElements),
-								drag.erasedIds,
-							),
-						),
-					);
-				}
-				setSelectedIds(new Set());
-				return;
-			}
-
-			if (tool === "text") {
-				const text = resolveText(null);
-				if (!text) return;
-				const id = createId();
-				const nextElement = buildCanvasTextElement({
-					id,
-					point: placementWorld,
-					text,
-					stroke,
-					fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
-					stackIndex: createStackIndexAfter(currentElements, id),
-				});
-				commitCanvasElements([...currentElements, nextElement]);
-				setSelectedIds(new Set([nextElement.id]));
-				return;
-			}
-
-			if (tool === "sticky-note") {
-				const [note] = addSdkElements([
-					createSkedraStickyNoteElement({
-						x: placementWorld.x - 100,
-						y: placementWorld.y - 100,
-						text: "",
-						theme,
-						createId,
-					}),
-				]);
-				setSelectedIds(new Set([note.id]));
-				return;
-			}
-
-			if (tool === "kanban") {
-				insertKanbanBoard({ x: placementWorld.x, y: placementWorld.y });
-				return;
-			}
-
-			if (tool === "mindmap") {
-				insertMindmap({ x: placementWorld.x, y: placementWorld.y });
-				return;
-			}
-
-			if (tool === "select") {
-				const hit = scene.getElementAtPosition(world.x, world.y, {
-					tolerance: 6 / viewport.zoom,
-				});
-				if (hit) {
-					const nextSelection = selectedIds.has(hit.id)
-						? selectedIds
-						: new Set([hit.id]);
-					setSelectedIds(nextSelection);
-					if (readOnly) return;
-					beginHistoryTransaction();
-					dragRef.current = {
-						type: "select-move",
-						startWorld: world,
-						startElements: currentElements,
-						moveStart: new Map(
-							Array.from(nextSelection).flatMap((id) => {
-								const element = currentElements.find(
-									(candidate) => candidate.id === id,
-								);
-								return element && !element.locked
-									? [[id, { x: element.x, y: element.y }] as const]
-									: [];
-							}),
-						),
-					};
+					setSelectedIds(new Set([id]));
 					return;
 				}
-				setSelectedIds(new Set());
-				dragRef.current = {
-					type: "selection",
-					startWorld: world,
-					currentWorld: world,
-				};
-				setSelectionBox({ start: world, end: world });
-				return;
-			}
-
-			if (isCanvasMultiPathTool(tool, pathDrawMode)) {
-				const pathTool = tool as "line" | "arrow";
-				beginPath(pathTool, [placementWorld.x, placementWorld.y]);
-				dragRef.current = { type: "path", tool: pathTool };
-				return;
-			}
-
-			if (
-				tool !== "rectangle" &&
-				tool !== "ellipse" &&
-				tool !== "diamond" &&
-				tool !== "line" &&
-				tool !== "arrow" &&
-				tool !== "freehand" &&
-				tool !== "frame"
-			) {
-				return;
-			}
-
-			dragRef.current = {
-				type: "draw",
-				tool,
-				startWorld: placementWorld,
-				points: [placementWorld],
-			};
-			beginHistoryTransaction();
-			setDraftElement(
-				buildDraftElement(dragRef.current, stroke, fill, pathMode),
-			);
-		};
-
-		const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-			const svg = svgRef.current;
-			const drag = dragRef.current;
-			if (!svg) return;
-
-			if (drag?.type === "pan") {
-				setViewport({
-					...drag.startViewport,
-					x: drag.startViewport.x + event.clientX - drag.startClient.x,
-					y: drag.startViewport.y + event.clientY - drag.startClient.y,
+				setPendingText({
+					...placement,
+					textColor: drawingStyle.textColor ?? placement.stroke,
 				});
-				return;
-			}
-
-			const rawWorld = toWorldPoint(event, svg, viewport);
-			if (
-				isCanvasMultiPathTool(tool, pathDrawMode) &&
-				pathEditorRef.current.isActive()
-			) {
-				const snappedWorld = snapWorldPoint(rawWorld, gridEnabled);
-				movePath({
-					raw: [rawWorld.x, rawWorld.y],
-					snapped: [snappedWorld.x, snappedWorld.y],
-					zoom: viewport.zoom,
-				});
-			}
-			if (!drag) return;
-			if (drag.type === "path") return;
-			if (drag.type === "path-point") {
-				const element = currentElements.find(
-					(candidate) => candidate.id === drag.elementId,
-				);
-				if (!element) return;
-				const absolutePoint = snapWorldPoint(
-					{
-						x: element.x + drag.startPoint[0] + rawWorld.x - drag.startWorld.x,
-						y: element.y + drag.startPoint[1] + rawWorld.y - drag.startWorld.y,
-					},
-					gridEnabled,
-				);
-				const changes = buildCanvasPathPointChanges(element, drag.pointIndex, [
-					absolutePoint.x - element.x,
-					absolutePoint.y - element.y,
-				]);
-				if (changes) {
-					commitCanvasElements(
-						currentElements.map((current) =>
-							current.id === element.id ? { ...current, ...changes } : current,
-						),
-					);
-				}
-				return;
-			}
-
-			const world = snapWorldPoint(
-				rawWorld,
-				gridEnabled &&
-					(drag.type === "draw" ||
-						drag.type === "resize" ||
-						drag.type === "select-move"),
-			);
-
-			if (drag.type === "resize") {
-				const delta = snapWorldPoint(
-					{
-						x: rawWorld.x - drag.startWorld.x,
-						y: rawWorld.y - drag.startWorld.y,
-					},
-					gridEnabled,
-				);
-				const changes = resizeCanvasElement(
-					drag.startElement,
-					drag.handle,
-					delta.x,
-					delta.y,
-				);
-				commitCanvasElements(
-					currentElements.map((element) =>
-						element.id === drag.startElement.id
-							? { ...element, ...changes }
-							: element,
-					),
-				);
-				return;
-			}
-
-			if (drag.type === "laser") {
-				const previous = drag.points[drag.points.length - 1];
-				if (
-					!previous ||
-					Math.hypot(world.x - previous.x, world.y - previous.y) > 2
-				) {
-					drag.points.push(world);
-					setLaserTrail({ points: [...drag.points], finished: false });
-				}
-				return;
-			}
-
-			if (drag.type === "lasso") {
-				const previous = drag.points[drag.points.length - 1];
-				if (
-					!previous ||
-					Math.hypot(world.x - previous.x, world.y - previous.y) > 2
-				) {
-					drag.points.push(world);
-					const points = [...drag.points];
-					setLassoPath(points);
-					setSelectedIds(
-						new Set(
-							CanvasScene.from(currentElements)
-								.getElementsInLassoPath(
-									points.map((point) => [point.x, point.y]),
-								)
-								.map((element) => element.id),
-						),
-					);
-				}
-				return;
-			}
-
-			if (drag.type === "erase") {
-				const startScene = CanvasScene.from(drag.startElements);
-				for (const element of startScene.getElementsToEraseAtPosition(
-					world.x,
-					world.y,
-					12 / viewport.zoom,
-					drag.erasedIds,
-				)) {
-					drag.erasedIds.add(element.id);
-				}
-				if (drag.erasedIds.size > 0) {
-					commitCanvasElements(
-						applyCanvasMutationPlan(
-							drag.startElements,
-							planCanvasDeletion(
-								toCanvasElementMap(drag.startElements),
-								drag.erasedIds,
-							),
-						),
-					);
-				}
-				return;
-			}
-
-			if (drag.type === "selection") {
-				drag.currentWorld = world;
-				setSelectionBox({ start: drag.startWorld, end: world });
-				setSelectedIds(
-					collectCanvasSelectionRectIds(
-						currentElements,
-						drag.startWorld,
-						world,
-					),
-				);
-				return;
-			}
-
-			if (drag.type === "select-move") {
-				const delta = snapWorldPoint(
-					{
-						x: rawWorld.x - drag.startWorld.x,
-						y: rawWorld.y - drag.startWorld.y,
-					},
-					gridEnabled,
-				);
-				const startMap = toCanvasElementMap(drag.startElements);
-				commitElements(
-					applyCanvasElementUpdates(
-						drag.startElements,
-						buildCanvasMoveUpdates(startMap, drag.moveStart, delta.x, delta.y),
-					),
-				);
-				return;
-			}
-
-			if (drag.type === "draw") {
-				if (drag.tool === "freehand") {
-					const previous = drag.points[drag.points.length - 1];
-					if (
-						!previous ||
-						Math.hypot(world.x - previous.x, world.y - previous.y) > 2
-					) {
-						drag.points.push(world);
-					}
+			},
+			onPlacement: ({ action, point }) => {
+				if (action === "insert-sticky-note") {
+					const [note] = addSdkElements([
+						createSkedraStickyNoteElement({
+							x: point.x - 100,
+							y: point.y - 100,
+							text: "",
+							theme,
+							createId,
+						}),
+					]);
+					setSelectedIds(new Set([note.id]));
+				} else if (action === "insert-kanban") {
+					insertKanbanBoard(point);
 				} else {
-					drag.points = [drag.startWorld, world];
+					insertMindmap(point);
 				}
-				setDraftElement(buildDraftElement(drag, stroke, fill, pathMode));
-			}
-		};
-
-		const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
-			const svg = svgRef.current;
-			if (svg?.hasPointerCapture(event.pointerId)) {
-				svg.releasePointerCapture(event.pointerId);
-			}
-			const drag = dragRef.current;
-			dragRef.current = null;
-			setSelectionBox(null);
-			setLassoPath(null);
-
-			if (drag?.type === "path" && svg) {
-				const rawWorld = toWorldPoint(event, svg, viewport);
-				const snappedWorld = snapWorldPoint(rawWorld, gridEnabled);
-				releasePath(
-					{
-						raw: [rawWorld.x, rawWorld.y],
-						snapped: [snappedWorld.x, snappedWorld.y],
-						zoom: viewport.zoom,
-					},
-					true,
-				);
-				return;
-			}
-			if (drag?.type === "path-point") {
-				finishHistoryTransaction();
-				return;
-			}
-
-			if (drag?.type === "laser") {
-				setLaserTrail({ points: [...drag.points], finished: true });
-				return;
-			}
-
-			if (drag?.type === "erase" || drag?.type === "lasso") {
-				finishHistoryTransaction();
-				return;
-			}
-
-			if (drag?.type === "select-move") {
-				const elementMap = toCanvasElementMap(currentElements);
-				const updates = [
-					...buildKanbanDropUpdates(elementMap, drag.moveStart.keys()),
-					...buildTemplateDropUpdates(elementMap, drag.moveStart.keys()),
-				];
-				commitCanvasElements(
-					applyCanvasMutationPlan(currentElements, {
-						create: [],
-						update: updates,
-						deleteIds: [],
-					}),
-				);
-				setDraftElement(null);
-				finishHistoryTransaction();
-				return;
-			}
-
-			if (!drag || drag.type !== "draw" || !draftElement) {
-				setDraftElement(null);
-				finishHistoryTransaction();
-				return;
-			}
-
-			if (!shouldKeepCanvasDrawing(draftElement)) {
-				setDraftElement(null);
-				finishHistoryTransaction();
-				return;
-			}
-
-			const id = createId();
-			const nextElement = {
-				...draftElement,
-				id,
-				stackIndex: createStackIndexAfter(currentElements, id),
-			};
-			commitCanvasElements([...currentElements, nextElement]);
-			setSelectedIds(new Set([nextElement.id]));
-			setDraftElement(null);
-			finishHistoryTransaction();
-		};
-
-		const startPathPointDrag = (
-			event: ReactPointerEvent<SVGCircleElement>,
-			element: CanvasElement,
-			pointIndex: number,
-		) => {
-			if (readOnly || element.locked || !element.points?.[pointIndex]) return;
-			event.preventDefault();
-			event.stopPropagation();
-			const svg = svgRef.current;
-			if (!svg) return;
-			svg.setPointerCapture(event.pointerId);
-			beginHistoryTransaction();
-			dragRef.current = {
-				type: "path-point",
-				elementId: element.id,
-				pointIndex,
-				startWorld: toWorldPoint(event, svg, viewport),
-				startPoint: [...element.points[pointIndex]],
-			};
-		};
+				if (!toolLocked) setTool("select");
+				return true;
+			},
+		});
 
 		const insertPathPoint = (
 			element: CanvasElement,
@@ -2115,29 +2069,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			setSelectedIds(new Set([element.id]));
 		};
 
-		const startResize = (
-			event: ReactPointerEvent<SVGCircleElement>,
-			element: CanvasElement,
-			handle: (typeof SDK_RESIZE_HANDLES)[number],
-		) => {
-			if (readOnly || element.locked) return;
-			event.preventDefault();
-			event.stopPropagation();
-			const svg = svgRef.current;
-			if (!svg) return;
-			beginHistoryTransaction();
-			dragRef.current = {
-				type: "resize",
-				handle,
-				startWorld: toWorldPoint(event, svg, viewport),
-				startElement: element,
-			};
-		};
-
 		const resizeWithKeyboard = (
-			event: ReactKeyboardEvent<SVGCircleElement>,
+			event: ReactKeyboardEvent<SVGRectElement>,
 			element: CanvasElement,
-			handle: (typeof SDK_RESIZE_HANDLES)[number],
+			handle: HandlePosition,
 		) => {
 			const changes = getCanvasKeyboardResizeChanges({
 				element,
@@ -2157,11 +2092,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const handleDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
 			if (readOnly) return;
-			if (pathEditorRef.current.isActive()) {
-				event.preventDefault();
-				finishPath({ selectCreated: true });
-				return;
-			}
 			const svg = svgRef.current;
 			if (!svg) return;
 			const world = toWorldPoint(event, svg, viewport);
@@ -2169,24 +2099,24 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				tolerance: 6 / viewport.zoom,
 			});
 			if (!hit) return;
+			if (hit.type === "image" && !readOnly) {
+				setCroppingImageId(hit.id);
+				setSelectedIds(new Set([hit.id]));
+				return;
+			}
+			if (!isCanvasTextEditableElement(hit)) return;
+			if (!textPrompt) {
+				beginHistoryTransaction();
+				setPendingText(null);
+				setEditingTextId(hit.id);
+				setSelectedIds(new Set([hit.id]));
+				return;
+			}
 			const currentText =
 				hit.type === "frame"
 					? (hit.frameLabel ?? hit.text ?? "")
 					: (hit.text ?? "");
-			const nextText = textPrompt
-				? textPrompt({ currentText, element: hit })
-				: typeof window === "undefined"
-					? currentText
-					: window.prompt(
-							isKanbanCard(hit)
-								? "Card title"
-								: isKanbanList(hit)
-									? "List title"
-									: isMindmapNode(hit)
-										? "Mindmap node"
-										: "Text",
-							currentText,
-						);
+			const nextText = textPrompt({ currentText, element: hit });
 			if (nextText == null) return;
 			commitCanvasElements(
 				currentElements.map((element) =>
@@ -2211,118 +2141,289 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			);
 		};
 
-		const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
-			const svg = svgRef.current;
-			if (!svg) return;
-			event.preventDefault();
-			if (event.ctrlKey || event.metaKey) {
-				const local = toLocalPoint(event, svg);
-				setViewport(
-					zoomCanvasViewportAtPoint(
-						viewport,
-						local,
-						viewport.zoom * Math.exp((-event.deltaY / 100) * 0.18),
-					),
+		const createInlineText = useCallback(
+			(
+				text: string,
+				position: CanvasEditorPendingText,
+				size: { width: number; height: number },
+			) => {
+				const id = createId();
+				const element = {
+					...buildCanvasTextElement({
+						id,
+						point: { x: position.x, y: position.y },
+						text,
+						stroke: position.textColor ?? position.stroke,
+						fontFamily: position.fontFamily,
+						stackIndex: createStackIndexAfter(currentElements, id),
+					}),
+					width: size.width,
+					height: size.height,
+					fontSize: position.fontSize,
+					textAlign: position.textAlign ?? "left",
+					fontWeight: position.fontWeight ?? "normal",
+					fontStyle: position.fontStyle ?? "normal",
+					textDecoration: position.textDecoration ?? "none",
+				};
+				commitCanvasElements([...currentElements, element]);
+				setSelectedIds(new Set([id]));
+				setPendingText(null);
+				if (!toolLocked) setTool("select");
+			},
+			[commitCanvasElements, currentElements, toolLocked],
+		);
+
+		const updateInlineText = useCallback(
+			(id: string, text: string, size: { width: number; height: number }) => {
+				const element = currentElements.find(
+					(candidate) => candidate.id === id,
 				);
+				if (!element) return;
+				const changes = buildCanvasTextUpdate({
+					element,
+					text,
+					size,
+					fontFamily:
+						element.fontFamily ?? "Kalam, Comic Sans MS, Segoe Print, cursive",
+				});
+				commitCanvasElements(
+					currentElements.map((candidate) =>
+						candidate.id === id ? { ...candidate, ...changes } : candidate,
+					),
+					false,
+				);
+			},
+			[commitCanvasElements, currentElements],
+		);
+
+		const updateInlineStickyNote = useCallback(
+			(
+				id: string,
+				mode: CanvasEditorStickyNoteMode,
+				text: string,
+				checklist: CanvasEditorStickyChecklistItem[],
+			) => {
+				const element = currentElements.find(
+					(candidate) => candidate.id === id,
+				);
+				if (!element) return;
+				commitCanvasElements(
+					currentElements.map((candidate) =>
+						candidate.id === id
+							? {
+									...candidate,
+									text,
+									customData: {
+										...(candidate.customData ?? {}),
+										skedraType: "sticky-note",
+										stickyNoteMode: mode,
+										stickyChecklist: checklist,
+									},
+								}
+							: candidate,
+					),
+					false,
+				);
+			},
+			[commitCanvasElements, currentElements],
+		);
+
+		const closeInlineTextEditor = useCallback(() => {
+			if (editingTextId) finishHistoryTransaction();
+			setPendingText(null);
+			setEditingTextId(null);
+		}, [editingTextId, finishHistoryTransaction]);
+
+		const pickAndInsertImage = useCallback(async () => {
+			const file = await pickBrowserFile("image/*");
+			if (file) await insertImage(file, { name: file.name });
+		}, [insertImage]);
+
+		const pastePlainText = useCallback(async () => {
+			if (readOnly || !navigator.clipboard?.readText) return;
+			const text = await navigator.clipboard.readText().catch(() => "");
+			if (!text.trim()) return;
+			const id = createId();
+			const center = getViewportCenter();
+			const element = {
+				...buildCanvasTextElement({
+					id,
+					point: center,
+					text,
+					stroke: drawingStyle.textColor ?? drawingStyle.stroke,
+					fontFamily: drawingStyle.fontFamily,
+					stackIndex: createStackIndexAfter(currentElements, id),
+				}),
+				fontSize: drawingStyle.fontSize,
+				fontWeight: drawingStyle.fontWeight,
+				fontStyle: drawingStyle.fontStyle,
+				textDecoration: drawingStyle.textDecoration,
+			};
+			commitCanvasElements([...currentElements, element]);
+			setSelectedIds(new Set([id]));
+		}, [
+			commitCanvasElements,
+			currentElements,
+			drawingStyle,
+			getViewportCenter,
+			readOnly,
+		]);
+
+		const createFlowchartFromSelection = useCallback(
+			(direction: "up" | "right" | "down" | "left") => {
+				const node = selectedElements.length === 1 ? selectedElements[0] : null;
+				if (!node || !isFlowchartNode(node)) return;
+				addFlowchartStep(node.id, {
+					route: getFlowchartRouteForDirection(direction),
+				});
+			},
+			[addFlowchartStep, selectedElements],
+		);
+
+		const navigateFlowchartSelection = useCallback(
+			(direction: "up" | "right" | "down" | "left") => {
+				const node = selectedElements.length === 1 ? selectedElements[0] : null;
+				if (!node || !isFlowchartNode(node)) return;
+				const target = navigateFlowchartInDirection(
+					node.id,
+					direction,
+					elementMap,
+				);
+				if (target) setSelectedIds(new Set([target.id]));
+			},
+			[elementMap, selectedElements],
+		);
+
+		const activateSelection = useCallback(() => {
+			const element =
+				selectedElements.length === 1 ? selectedElements[0] : null;
+			if (!element) return;
+			if (element.type === "image") {
+				setCroppingImageId(element.id);
 				return;
 			}
-			setViewport((current) => ({
-				...current,
-				x: current.x - event.deltaX,
-				y: current.y - event.deltaY,
-			}));
-		};
+			if (isFlowchartNode(element)) {
+				addFlowchartStep(element.id);
+				return;
+			}
+			if (isMindmapNode(element)) {
+				insertMindmapSibling(element.id);
+				return;
+			}
+			if (!isCanvasTextEditableElement(element)) return;
+			beginHistoryTransaction();
+			setPendingText(null);
+			setEditingTextId(element.id);
+		}, [
+			addFlowchartStep,
+			beginHistoryTransaction,
+			insertMindmapSibling,
+			selectedElements,
+		]);
 
 		const clearSelected = deleteSelection;
+		const keyboardActionHandlers: SkedraSdkKeyboardActionHandlers = {
+			command: (command) => {
+				if (command === "paste") void pasteFromClipboard();
+				else executeCommand(command);
+			},
+			tool: setTool,
+			toggleToolLock: () => setToolLocked((locked) => !locked),
+			toggleObjectSnap: () => setSnapToObjects((enabled) => !enabled),
+			insertImage: () => void pickAndInsertImage(),
+			openHelp: () =>
+				requestSdkHostAction("skedra:help-request", onHelpRequest),
+			openCommandPalette: () =>
+				requestSdkHostAction(
+					"skedra:command-palette-request",
+					onCommandPaletteRequest,
+				),
+			focusProperty: focusSdkProperty,
+			eyedropper: (target) => {
+				eyedropperTargetRef.current = target;
+				setTool("eyedropper");
+			},
+			pastePlainText: () => void pastePlainText(),
+			copyFormat: copySelectionFormat,
+			pasteFormat: pasteSelectionFormat,
+			addLink: addSelectionLink,
+			adjustFontSize: adjustSelectionFontSize,
+			align: alignSelection,
+			flowchartCreate: createFlowchartFromSelection,
+			flowchartNavigate: navigateFlowchartSelection,
+			zoom: zoomViewport,
+			resetZoom: () => setViewport({ x: 0, y: 0, zoom: 1 }),
+			fit: (target) => {
+				if (target === "selection") fitToSelection();
+				else fitToContent();
+			},
+			panViewport: (x, y) =>
+				setViewport((current) => ({
+					...current,
+					x: current.x + x,
+					y: current.y + y,
+				})),
+			toggleTheme: toggleSdkTheme,
+			toggleZen: toggleSdkZen,
+			toggleGrid: () => setGridEnabled((enabled) => !enabled),
+			activateSelection,
+		};
 
-		useEffect(() => {
-			if (readOnly) return;
-
-			const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-				const target = event.target as HTMLElement | null;
-				if (
-					target?.closest("input, textarea, select, [contenteditable='true']")
-				) {
-					return;
-				}
-				const ctrl = event.ctrlKey || event.metaKey;
-				const key = event.key.toLowerCase();
-				let sdkCommand: SkedraCanvasCommandId | null = null;
-				if (ctrl && key === "c" && !event.altKey) sdkCommand = "copy";
-				else if (ctrl && key === "x" && !event.altKey) sdkCommand = "cut";
-				else if (ctrl && key === "v" && !event.altKey) sdkCommand = "paste";
-				else if (ctrl && key === "d" && !event.altKey) sdkCommand = "duplicate";
-				else if (ctrl && !event.shiftKey && key === "g") sdkCommand = "group";
-				else if (ctrl && event.shiftKey && key === "g") sdkCommand = "ungroup";
-				else if (ctrl && event.shiftKey && key === "l")
-					sdkCommand = "toggle-lock";
-				else if (ctrl && event.key === "]") {
-					sdkCommand = event.shiftKey ? "bring-to-front" : "bring-forward";
-				} else if (ctrl && event.key === "[") {
-					sdkCommand = event.shiftKey ? "send-to-back" : "send-backward";
-				} else if (!ctrl && event.shiftKey && key === "h") {
-					sdkCommand = "flip-horizontal";
-				} else if (!ctrl && event.shiftKey && key === "v") {
-					sdkCommand = "flip-vertical";
-				}
-				if (sdkCommand) {
-					event.preventDefault();
-					if (sdkCommand === "paste") void pasteFromClipboard();
-					else executeCommand(sdkCommand);
-					return;
-				}
-				if (pathEditorRef.current.isActive() && event.key === "Enter") {
-					event.preventDefault();
-					finishPath({ selectCreated: true });
-					return;
-				}
-				if (pathEditorRef.current.isActive() && event.key === "Escape") {
-					event.preventDefault();
-					cancelPath();
+		useCanvasEditorKeyboard({
+			getState: () => ({
+				enabled: true,
+				readOnly,
+				editingText: editingTextId != null || pendingText != null,
+				hasSelection: selectedIds.size > 0,
+			}),
+			onEditorAction: (action) =>
+				handleSkedraSdkKeyboardAction(action, keyboardActionHandlers),
+			onCommand: (command) => {
+				if (command === "escape" && editorPointer.isPathActive()) {
+					editorPointer.cancelPath();
 					setSelectedIds(new Set());
 					setTool("select");
-					return;
+					return true;
 				}
-				const command = getCanvasKeyboardCommand(event);
-				if (!command) return;
-				if (command === "delete-selection" && selectedIds.size > 0) {
-					event.preventDefault();
-					clearSelected();
-				} else if (command === "clear-canvas") {
-					event.preventDefault();
+				if (command === "delete-selection") {
+					if (selectedIds.size > 0) clearSelected();
+					return true;
+				}
+				if (command === "clear-canvas") {
 					commitElements([]);
 					setSelectedIds(new Set());
-				} else if (command === "select-all") {
-					event.preventDefault();
+					return true;
+				}
+				if (command === "select-all") {
 					setSelectedIds(new Set(currentElements.map((element) => element.id)));
-				} else if (command === "escape") {
+					return true;
+				}
+				if (command === "escape") {
 					setSelectedIds(new Set());
 					setTool("select");
-				} else if (command === "undo") {
-					event.preventDefault();
-					undo();
-				} else if (command === "redo") {
-					event.preventDefault();
-					redo();
+					return true;
 				}
-			};
-
-			window.addEventListener("keydown", handleKeyDown);
-			return () => window.removeEventListener("keydown", handleKeyDown);
-		}, [
-			cancelPath,
-			clearSelected,
-			commitElements,
-			currentElements,
-			executeCommand,
-			finishPath,
-			pathEditorRef,
-			pasteFromClipboard,
-			readOnly,
-			redo,
-			selectedIds.size,
-			undo,
-		]);
+				if (command === "undo") {
+					undo();
+					return true;
+				}
+				if (command === "redo") {
+					redo();
+					return true;
+				}
+				return false;
+			},
+			setTemporaryPan: (pressed) => {
+				spacePressedRef.current = pressed;
+			},
+			onUnhandledKeyDown: (event) => {
+				if (event.key === "Enter" && editorPointer.isPathActive()) {
+					editorPointer.finishPath({ selectCreated: true });
+					return true;
+				}
+				return false;
+			},
+		});
 
 		const insertTemplateSticky = useCallback(
 			(sectionId: string) => {
@@ -2356,6 +2457,35 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[commitCanvasElements, currentElements, theme],
 		);
 
+		const toggleStickyChecklistItem = useCallback(
+			(elementId: string, itemId: string) => {
+				const element = currentElements.find(
+					(candidate) => candidate.id === elementId,
+				);
+				if (!element || readOnly) return;
+				const checklist = normalizeCanvasEditorStickyChecklist(
+					element.customData?.stickyChecklist,
+				);
+				commitCanvasElements(
+					currentElements.map((candidate) =>
+						candidate.id === elementId
+							? {
+									...candidate,
+									customData: {
+										...(candidate.customData ?? {}),
+										stickyChecklist: toggleCanvasEditorStickyChecklistItem(
+											checklist,
+											itemId,
+										),
+									},
+								}
+							: candidate,
+					),
+				);
+			},
+			[commitCanvasElements, currentElements, readOnly],
+		);
+
 		const rendererConfig = useMemo<CanvasRendererConfig>(
 			() => ({
 				interactive: !readOnly,
@@ -2363,19 +2493,21 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				actions: {
 					addKanbanCard: insertKanbanCard,
 					addTemplateSticky: insertTemplateSticky,
+					toggleStickyChecklistItem,
 				},
 			}),
-			[insertKanbanCard, insertTemplateSticky, readOnly, svgIdPrefix],
+			[
+				insertKanbanCard,
+				insertTemplateSticky,
+				readOnly,
+				svgIdPrefix,
+				toggleStickyChecklistItem,
+			],
 		);
 		const draftRendererConfig = useMemo<CanvasRendererConfig>(
 			() => ({ ...rendererConfig, interactive: false }),
 			[rendererConfig],
 		);
-
-		const pickAndInsertImage = async () => {
-			const file = await pickBrowserFile("image/*");
-			if (file) await insertImage(file, { name: file.name });
-		};
 
 		const pickAndImportDocument = async () => {
 			const file = await pickBrowserFile(
@@ -2481,570 +2613,462 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			});
 		};
 
+		const toolbarItems: CanvasEditorToolbarItem[] = [
+			{
+				type: "menu",
+				id: "templates",
+				label: "Templates",
+				icon: <LayoutTemplate size={17} strokeWidth={2} />,
+				disabled: readOnly,
+				onOpen: () => setTool("select"),
+				items: SKEDRA_TEMPLATES.map((template) => ({
+					id: template.id,
+					label: template.name,
+					trailingIcon: <Plus size={14} strokeWidth={2} />,
+					onSelect: () => {
+						insertTemplate(template.id);
+					},
+				})),
+			},
+			{
+				type: "action",
+				id: "insert-image",
+				label: "Insert image",
+				icon: <ImagePlus size={17} strokeWidth={2} />,
+				disabled: readOnly,
+				onSelect: pickAndInsertImage,
+			},
+			{
+				type: "menu",
+				id: "libraries",
+				label: "Shape libraries",
+				icon: <Library size={17} strokeWidth={2} />,
+				popoverClassName: "skedra-sdk__menu-wide",
+				items: [
+					{
+						id: "import-library",
+						label: "Import library",
+						onSelect: pickAndAddLibrary,
+					},
+					{
+						id: "export-libraries",
+						label: "Export libraries",
+						disabled: currentLibraries.length === 0,
+						onSelect: downloadLibraries,
+					},
+					{
+						id: "save-selection",
+						label: "Save selection",
+						disabled: selectedElements.length === 0,
+						onSelect: saveSelectionToLibrary,
+					},
+					...currentLibraries.flatMap((library) =>
+						library.items.map((item) => ({
+							id: `${library.name ?? library.source ?? "library"}-${item.id}`,
+							label: item.name ?? "Shape",
+							trailingIcon: <Plus size={14} />,
+							onSelect: () => {
+								insertLibraryItem(item);
+							},
+						})),
+					),
+				],
+			},
+			{
+				type: "menu",
+				id: "commands",
+				label: "Edit commands",
+				icon: <Copy size={17} />,
+				popoverClassName: "skedra-sdk__command-grid",
+				items: (
+					[
+						["Copy", "copy"],
+						["Cut", "cut"],
+						["Paste", "paste"],
+						["Duplicate", "duplicate"],
+						["Group", "group"],
+						["Ungroup", "ungroup"],
+						["Align left", "align-left"],
+						["Align right", "align-right"],
+						["Align top", "align-top"],
+						["Align bottom", "align-bottom"],
+						["Distribute horizontal", "distribute-horizontal"],
+						["Distribute vertical", "distribute-vertical"],
+						["Bring forward", "bring-forward"],
+						["Send backward", "send-backward"],
+						["Bring to front", "bring-to-front"],
+						["Send to back", "send-to-back"],
+						["Flip horizontal", "flip-horizontal"],
+						["Flip vertical", "flip-vertical"],
+					] as const
+				).map(([label, command]) => ({
+					id: command,
+					label,
+					onSelect: () => executeCommand(command),
+				})),
+			},
+			{
+				type: "menu",
+				id: "views",
+				label: "Saved views and presentation",
+				icon: <Frame size={17} />,
+				popoverClassName: "skedra-sdk__menu-wide",
+				items: [
+					{
+						id: "save-view",
+						label: "Save current view",
+						onSelect: captureCurrentView,
+					},
+					{
+						id: "start-presentation",
+						label: "Start presentation",
+						disabled: currentViews.length === 0,
+						onSelect: startPresentation,
+					},
+					...currentViews.map((view) => ({
+						id: view.id,
+						label: view.name,
+						onSelect: () => goToView(view.id),
+						secondaryActions: [
+							{
+								id: "rename",
+								label: `Rename ${view.name}`,
+								onSelect: () => {
+									const name = window.prompt("View name", view.name);
+									if (name?.trim()) updateView(view.id, { name: name.trim() });
+								},
+							},
+							{
+								id: "delete",
+								label: `Delete ${view.name}`,
+								onSelect: () => deleteView(view.id),
+							},
+						],
+					})),
+				],
+			},
+			{
+				type: "menu",
+				id: "import-export",
+				label: "Import and export",
+				icon: <Download size={17} />,
+				popoverClassName: "skedra-sdk__export-menu",
+				items: [
+					{
+						id: "import-skedra",
+						label: "Import .skedra",
+						onSelect: pickAndImportDocument,
+					},
+					{
+						id: "export-skedra",
+						label: "Export .skedra",
+						onSelect: () => downloadDocument(false),
+					},
+					{
+						id: "export-encrypted",
+						label: "Export encrypted",
+						onSelect: () => downloadDocument(true),
+					},
+					...(["svg", "png", "pdf", "pptx"] as const).map((format) => ({
+						id: `export-${format}`,
+						label: `Export ${format.toUpperCase()}`,
+						onSelect: () => downloadVisual(format),
+					})),
+				],
+			},
+			{
+				type: "action",
+				id: "undo",
+				label: "Undo",
+				icon: <Undo2 size={17} />,
+				disabled: undoStackRef.current.length === 0,
+				onSelect: undo,
+			},
+			{
+				type: "action",
+				id: "redo",
+				label: "Redo",
+				icon: <Redo2 size={17} />,
+				disabled: redoStackRef.current.length === 0,
+				onSelect: redo,
+			},
+			{
+				type: "action",
+				id: "grid",
+				label: "Grid",
+				icon: <Grid3X3 size={17} />,
+				active: gridEnabled,
+				onSelect: () => setGridEnabled((enabled) => !enabled),
+			},
+			{
+				type: "action",
+				id: "object-snapping",
+				label: "Object snapping (Alt+S)",
+				icon: <Magnet size={17} />,
+				active: snapToObjects,
+				onSelect: () => setSnapToObjects((enabled) => !enabled),
+			},
+			{ type: "separator", id: "style-separator" },
+			{
+				type: "color",
+				id: "stroke-color",
+				label: "Stroke color",
+				value: stroke,
+				onChange: setStroke,
+			},
+			{
+				type: "color",
+				id: "fill-color",
+				label: "Fill color",
+				value: fill === "transparent" ? "#ffffff" : fill,
+				onChange: setFill,
+			},
+			{
+				type: "action",
+				id: "transparent-fill",
+				label: "Transparent fill",
+				icon: "/",
+				className: "skedra-sdk__clear-fill",
+				onSelect: () => setFill("transparent"),
+			},
+			{ type: "separator", id: "delete-separator" },
+			{
+				type: "action",
+				id: "delete",
+				label: "Delete selection",
+				icon: <Trash2 size={17} strokeWidth={2} />,
+				disabled: readOnly || selectedIds.size === 0,
+				onSelect: clearSelected,
+			},
+		];
+
 		return (
-			<div
+			<CanvasEditor
+				rootRef={rootRef}
+				documentAdapter={editorDocumentAdapter}
+				collaboration={{ enabled: false }}
 				className={normalizeClassName(className)}
 				style={style}
 				data-theme={theme}
 				data-history-revision={historyRevision}
 			>
-				{showToolbar && !presentationViewId && (
-					<div className="skedra-sdk__toolbar" role="toolbar">
-						{SDK_TOOLS.map((entry) => {
-							const Icon = entry.icon;
-							return (
-								<button
-									key={entry.id}
-									type="button"
-									className="skedra-sdk__tool"
-									data-active={tool === entry.id}
-									title={entry.label}
-									aria-label={entry.label}
-									disabled={readOnly && !SDK_READ_ONLY_TOOLS.has(entry.id)}
-									onClick={() => {
-										setTemplateMenuOpen(false);
-										setTool(entry.id);
-									}}
-								>
-									<Icon size={17} strokeWidth={2} />
-								</button>
-							);
-						})}
-						{(tool === "line" || tool === "arrow") && (
-							<>
-								<div className="skedra-sdk__divider" />
-								<select
-									className="skedra-sdk__path-control"
-									value={pathDrawMode}
-									aria-label="Path draw mode"
-									title="Path draw mode"
-									onChange={(event) =>
-										setPathDrawMode(event.target.value as SkedraPathDrawMode)
-									}
-								>
-									{CANVAS_PATH_DRAW_MODE_OPTIONS.map((mode) => (
-										<option key={mode} value={mode}>
-											{mode === "normal" ? "Single segment" : "Multi-line"}
-										</option>
-									))}
-								</select>
-								<select
-									className="skedra-sdk__path-control"
-									value={pathMode}
-									aria-label="Path style"
-									title="Path style"
-									onChange={(event) =>
-										setPathMode(event.target.value as ArrowMode)
-									}
-								>
-									{CANVAS_PATH_MODE_OPTIONS.map((mode) => (
-										<option key={mode} value={mode}>
-											{mode === "straight"
-												? "Corners"
-												: mode === "curve"
-													? "Curves"
-													: "Elbow"}
-										</option>
-									))}
-								</select>
-							</>
-						)}
-						<div className="skedra-sdk__template-menu">
-							<button
-								type="button"
-								className="skedra-sdk__tool"
-								title="Templates"
-								aria-label="Templates"
-								disabled={readOnly}
-								data-active={templateMenuOpen}
-								onClick={() => {
-									setTool("select");
-									setTemplateMenuOpen((open) => !open);
-								}}
-							>
-								<LayoutTemplate size={17} strokeWidth={2} />
-							</button>
-							{templateMenuOpen && (
-								<div className="skedra-sdk__template-popover">
-									{SKEDRA_TEMPLATES.map((template) => (
-										<button
-											key={template.id}
-											type="button"
-											className="skedra-sdk__template-item"
-											onClick={() => insertTemplate(template.id)}
-										>
-											<span>{template.name}</span>
-											<Plus size={14} strokeWidth={2} />
-										</button>
-									))}
-								</div>
-							)}
-						</div>
-						<button
-							type="button"
-							className="skedra-sdk__tool"
-							title="Insert image"
-							aria-label="Insert image"
-							disabled={readOnly}
-							onClick={() => void pickAndInsertImage()}
-						>
-							<ImagePlus size={17} strokeWidth={2} />
-						</button>
-						<div className="skedra-sdk__template-menu">
-							<button
-								type="button"
-								className="skedra-sdk__tool"
-								title="Shape libraries"
-								aria-label="Shape libraries"
-								data-active={libraryMenuOpen}
-								onClick={() => setLibraryMenuOpen((open) => !open)}
-							>
-								<Library size={17} strokeWidth={2} />
-							</button>
-							{libraryMenuOpen && (
-								<div className="skedra-sdk__template-popover skedra-sdk__menu-wide">
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										onClick={() => void pickAndAddLibrary()}
-									>
-										Import library
-									</button>
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										disabled={currentLibraries.length === 0}
-										onClick={downloadLibraries}
-									>
-										Export libraries
-									</button>
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										disabled={selectedElements.length === 0}
-										onClick={saveSelectionToLibrary}
-									>
-										Save selection
-									</button>
-									{currentLibraries.flatMap((library) =>
-										library.items.map((item) => (
-											<button
-												key={`${library.name ?? library.source ?? "library"}-${item.id}`}
-												type="button"
-												className="skedra-sdk__template-item"
-												onClick={() => {
-													insertLibraryItem(item);
-													setLibraryMenuOpen(false);
-												}}
-											>
-												{item.name ?? "Shape"}
-												<Plus size={14} />
-											</button>
-										)),
-									)}
-								</div>
-							)}
-						</div>
-						<div className="skedra-sdk__template-menu">
-							<button
-								type="button"
-								className="skedra-sdk__tool"
-								title="Edit commands"
-								aria-label="Edit commands"
-								data-active={commandMenuOpen}
-								onClick={() => setCommandMenuOpen((open) => !open)}
-							>
-								<Copy size={17} />
-							</button>
-							{commandMenuOpen && (
-								<div className="skedra-sdk__template-popover skedra-sdk__command-grid">
-									{(
-										[
-											["Copy", "copy"],
-											["Cut", "cut"],
-											["Paste", "paste"],
-											["Duplicate", "duplicate"],
-											["Group", "group"],
-											["Ungroup", "ungroup"],
-											["Align left", "align-left"],
-											["Align right", "align-right"],
-											["Align top", "align-top"],
-											["Align bottom", "align-bottom"],
-											["Distribute horizontal", "distribute-horizontal"],
-											["Distribute vertical", "distribute-vertical"],
-											["Bring forward", "bring-forward"],
-											["Send backward", "send-backward"],
-											["Bring to front", "bring-to-front"],
-											["Send to back", "send-to-back"],
-											["Flip horizontal", "flip-horizontal"],
-											["Flip vertical", "flip-vertical"],
-										] as const
-									).map(([label, command]) => (
-										<button
-											key={command}
-											type="button"
-											className="skedra-sdk__template-item"
-											onClick={() => executeCommand(command)}
-										>
-											{label}
-										</button>
-									))}
-								</div>
-							)}
-						</div>
-						<div className="skedra-sdk__template-menu">
-							<button
-								type="button"
-								className="skedra-sdk__tool"
-								title="Saved views and presentation"
-								aria-label="Saved views and presentation"
-								data-active={viewMenuOpen}
-								onClick={() => setViewMenuOpen((open) => !open)}
-							>
-								<Frame size={17} />
-							</button>
-							{viewMenuOpen && (
-								<div className="skedra-sdk__template-popover skedra-sdk__menu-wide">
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										onClick={captureCurrentView}
-									>
-										Save current view
-									</button>
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										disabled={currentViews.length === 0}
-										onClick={() => startPresentation()}
-									>
-										Start presentation
-									</button>
-									{currentViews.map((view) => (
-										<div key={view.id} className="skedra-sdk__view-row">
-											<button type="button" onClick={() => goToView(view.id)}>
-												{view.name}
-											</button>
-											<button
-												type="button"
-												aria-label={`Rename ${view.name}`}
-												onClick={() => {
-													const name = window.prompt("View name", view.name);
-													if (name?.trim())
-														updateView(view.id, { name: name.trim() });
-												}}
-											>
-												Rename
-											</button>
-											<button
-												type="button"
-												aria-label={`Delete ${view.name}`}
-												onClick={() => deleteView(view.id)}
-											>
-												Delete
-											</button>
-										</div>
-									))}
-								</div>
-							)}
-						</div>
-						<div className="skedra-sdk__template-menu">
-							<button
-								type="button"
-								className="skedra-sdk__tool"
-								title="Import and export"
-								aria-label="Import and export"
-								data-active={exportMenuOpen}
-								onClick={() => setExportMenuOpen((open) => !open)}
-							>
-								<Download size={17} />
-							</button>
-							{exportMenuOpen && (
-								<div className="skedra-sdk__template-popover skedra-sdk__export-menu">
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										onClick={() => void pickAndImportDocument()}
-									>
-										Import .skedra
-									</button>
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										onClick={() => void downloadDocument(false)}
-									>
-										Export .skedra
-									</button>
-									<button
-										type="button"
-										className="skedra-sdk__template-item"
-										onClick={() => void downloadDocument(true)}
-									>
-										Export encrypted
-									</button>
-									{(["svg", "png", "pdf", "pptx"] as const).map((format) => (
-										<button
-											key={format}
-											type="button"
-											className="skedra-sdk__template-item"
-											onClick={() => void downloadVisual(format)}
-										>
-											Export {format.toUpperCase()}
-										</button>
-									))}
-								</div>
-							)}
-						</div>
-						<button
-							type="button"
-							className="skedra-sdk__tool"
-							title="Undo"
-							aria-label="Undo"
-							disabled={undoStackRef.current.length === 0}
-							onClick={undo}
-						>
-							<Undo2 size={17} />
-						</button>
-						<button
-							type="button"
-							className="skedra-sdk__tool"
-							title="Redo"
-							aria-label="Redo"
-							disabled={redoStackRef.current.length === 0}
-							onClick={redo}
-						>
-							<Redo2 size={17} />
-						</button>
-						<button
-							type="button"
-							className="skedra-sdk__tool"
-							title="Grid"
-							aria-label="Grid"
-							data-active={gridEnabled}
-							onClick={() => setGridEnabled((enabled) => !enabled)}
-						>
-							<Grid3X3 size={17} />
-						</button>
-						<div className="skedra-sdk__divider" />
-						<label className="skedra-sdk__color" title="Stroke color">
-							<input
-								type="color"
-								value={stroke}
-								aria-label="Stroke color"
-								onChange={(event) => setStroke(event.target.value)}
-							/>
-						</label>
-						<label className="skedra-sdk__color" title="Fill color">
-							<input
-								type="color"
-								value={fill === "transparent" ? "#ffffff" : fill}
-								aria-label="Fill color"
-								onChange={(event) => setFill(event.target.value)}
-							/>
-						</label>
-						<button
-							type="button"
-							className="skedra-sdk__clear-fill"
-							title="Transparent fill"
-							aria-label="Transparent fill"
-							onClick={() => setFill("transparent")}
-						>
-							/
-						</button>
-						<div className="skedra-sdk__divider" />
-						<button
-							type="button"
-							className="skedra-sdk__tool"
-							title="Delete selection"
-							aria-label="Delete selection"
-							disabled={readOnly || selectedIds.size === 0}
-							onClick={clearSelected}
-						>
-							<Trash2 size={17} strokeWidth={2} />
-						</button>
-					</div>
+				{showToolbar && !zenMode && !presentationViewId && (
+					<CanvasEditorToolbar
+						toolStrip={{
+							activeTool: tool,
+							onToolSelect: setTool,
+							renderIcon: (toolId) => {
+								const Icon = SDK_TOOL_ICONS[toolId];
+								return <Icon size={17} strokeWidth={2} />;
+							},
+							isToolDisabled: (toolId) =>
+								readOnly && !isCanvasEditorToolAvailableReadOnly(toolId),
+							classes: {
+								button: "skedra-sdk__tool",
+								divider: "skedra-sdk__divider",
+								pathSelect: "skedra-sdk__path-control",
+							},
+							pathDrawMode,
+							pathMode,
+							onPathDrawModeChange: setPathDrawMode,
+							onPathModeChange: setPathMode,
+							toolLocked,
+							onToolLockChange: setToolLocked,
+							renderToolLockIcon: (locked) =>
+								locked ? (
+									<Lock size={17} strokeWidth={2} />
+								) : (
+									<Unlock size={17} strokeWidth={2} />
+								),
+						}}
+						items={toolbarItems}
+						classes={{
+							root: "skedra-sdk__toolbar",
+							action: "skedra-sdk__tool",
+							separator: "skedra-sdk__divider",
+							menu: "skedra-sdk__template-menu",
+							popover: "skedra-sdk__template-popover",
+							menuItem: "skedra-sdk__template-item",
+							menuRow: "skedra-sdk__view-row",
+							color: "skedra-sdk__color",
+						}}
+					/>
 				)}
-				<svg
-					ref={svgRef}
+				<CanvasEditorSurface
+					svgRef={svgRef}
+					viewport={viewport}
+					activeTool={tool}
 					className="skedra-sdk__surface"
 					data-tool={tool}
-					onPointerDown={handlePointerDown}
-					onPointerMove={handlePointerMove}
-					onPointerUp={handlePointerUp}
-					onDoubleClick={handleDoubleClick}
-					onWheel={handleWheel}
+					onPointerDown={editorPointer.onPointerDown}
+					onPointerMove={editorPointer.onPointerMove}
+					onPointerUp={editorPointer.onPointerUp}
+					onPointerCancel={editorPointer.onPointerCancel}
+					onLostPointerCapture={editorPointer.onLostPointerCapture}
+					onDoubleClick={(event) => {
+						if (!editorPointer.onDoubleClick()) handleDoubleClick(event);
+					}}
+					onWheel={editorPointer.onWheel}
+					worldDataAttribute="true"
 				>
-					<title>Skedra canvas</title>
-					<defs>
-						<pattern
-							id={gridPatternId}
-							width={GRID_SIZE}
-							height={GRID_SIZE}
-							patternUnits="userSpaceOnUse"
-						>
-							<path
-								d={`M ${GRID_SIZE} 0 L 0 0 0 ${GRID_SIZE}`}
-								fill="none"
-								stroke="currentColor"
-								strokeOpacity="0.08"
-								strokeWidth="1"
+					<CanvasEditorGridOverlay
+						enabled={gridEnabled}
+						zoom={viewport.zoom}
+						patternId={gridPatternId}
+						color="currentColor"
+						opacity={0.08}
+					/>
+					<CanvasRendererProvider config={rendererConfig}>
+						{sortedElements.map((element) => (
+							<CanvasElementRenderer
+								key={element.id}
+								element={element}
+								isEditingText={element.id === editingTextId}
 							/>
-						</pattern>
-					</defs>
-					{gridEnabled && (
-						<rect
-							width="100%"
-							height="100%"
-							fill={`url(#${gridPatternId})`}
-							data-skedra-ui="grid"
-						/>
-					)}
-					<g
-						transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}
-						data-skedra-elements="true"
-					>
-						<CanvasRendererProvider config={rendererConfig}>
-							{sortedElements.map((element) => (
-								<CanvasElementRenderer
-									key={element.id}
-									element={element}
-									isEditingText={false}
-								/>
-							))}
-							{draftElement && (
+						))}
+						{editorPointer.drawingPreview && (
+							<g data-ui-only="true" data-skedra-ui="drawing-preview">
 								<CanvasRendererProvider config={draftRendererConfig}>
 									<CanvasElementRenderer
 										element={{
-											...draftElement,
-											opacity: draftElement.opacity * 0.72,
+											...editorPointer.drawingPreview,
+											opacity: editorPointer.drawingPreview.opacity * 0.72,
 										}}
 										isEditingText={false}
 									/>
 								</CanvasRendererProvider>
-							)}
-						</CanvasRendererProvider>
-						<CanvasPathStartSnapIndicator
-							snap={pathStartSnap}
-							zoom={viewport.zoom}
-							className="skedra-sdk__path-start-snap"
-						/>
-						{selectedElements.map((element) => {
-							const bbox = getBBox(element);
-							return (
-								<rect
-									key={`selected-${element.id}`}
-									className="skedra-sdk__selected-outline"
-									x={bbox.x - 4 / viewport.zoom}
-									y={bbox.y - 4 / viewport.zoom}
-									width={bbox.width + 8 / viewport.zoom}
-									height={bbox.height + 8 / viewport.zoom}
-									strokeWidth={1.5 / viewport.zoom}
-									rx={3 / viewport.zoom}
-								/>
-							);
-						})}
-						{!readOnly &&
-							selectedElements.length === 1 &&
-							!selectedElements[0].locked &&
-							!isCanvasPointPathElement(selectedElements[0]) &&
-							SDK_RESIZE_HANDLES.map((handle) => {
-								const element = selectedElements[0];
-								const bbox = getBBox(element);
-								const x = handle.includes("w")
-									? bbox.x
-									: handle.includes("e")
-										? bbox.x + bbox.width
-										: bbox.x + bbox.width / 2;
-								const y = handle.includes("n")
-									? bbox.y
-									: handle.includes("s")
-										? bbox.y + bbox.height
-										: bbox.y + bbox.height / 2;
-								return (
-									<circle
-										key={`resize-${element.id}-${handle}`}
-										cx={x}
-										cy={y}
-										r={5 / viewport.zoom}
-										fill="var(--skedra-sdk-background, #fff)"
-										stroke="var(--skedra-sdk-accent, #2563eb)"
-										strokeWidth={1.5 / viewport.zoom}
-										role="button"
-										data-skedra-ui="resize-handle"
-										tabIndex={0}
-										aria-label={`Resize ${handle}`}
-										onPointerDown={(event) =>
-											startResize(event, element, handle)
-										}
-										onKeyDown={(event) =>
-											resizeWithKeyboard(event, element, handle)
-										}
-									/>
-								);
-							})}
-						{!readOnly &&
-							selectedElements.length === 1 &&
-							!selectedElements[0].locked &&
-							isCanvasPointPathElement(selectedElements[0]) && (
-								<CanvasPathPointHandles
-									element={selectedElements[0]}
-									zoom={viewport.zoom}
-									background="var(--skedra-sdk-panel)"
-									accent="var(--skedra-sdk-primary)"
-									controlLine="color-mix(in srgb, var(--skedra-sdk-primary) 55%, transparent)"
-									onPointPointerDown={(pointIndex, event) =>
-										startPathPointDrag(event, selectedElements[0], pointIndex)
-									}
-									onInsertPoint={(pointIndex, point) =>
-										insertPathPoint(selectedElements[0], pointIndex, point)
-									}
-								/>
-							)}
-						{selectionRect && (
-							<rect
-								className="skedra-sdk__selection"
-								x={selectionRect.x}
-								y={selectionRect.y}
-								width={selectionRect.width}
-								height={selectionRect.height}
-								strokeWidth={1 / viewport.zoom}
-							/>
+							</g>
 						)}
-						{lassoPathData && (
-							<path
-								className="skedra-sdk__lasso"
-								d={lassoPathData}
-								strokeWidth={1.5 / viewport.zoom}
-							/>
-						)}
-						{laserTrail && laserTrail.points.length > 1 && (
-							<polyline
-								className="skedra-sdk__laser"
-								data-finished={laserTrail.finished}
-								points={laserTrail.points
-									.map((point) => `${point.x},${point.y}`)
-									.join(" ")}
-								strokeWidth={4 / viewport.zoom}
-							/>
-						)}
-						{!readOnly &&
-							selectedElements.map((element) =>
-								isMindmapNode(element) ? (
-									<SdkMindmapActions
-										key={`mindmap-actions-${element.id}`}
-										element={element}
-										viewport={viewport}
-										onInsertChild={insertMindmapChild}
-									/>
-								) : null,
-							)}
-					</g>
-				</svg>
-				{showProperties && !presentationViewId && (
-					<SkedraPropertiesPanel
+					</CanvasRendererProvider>
+					<CanvasPathStartSnapIndicator
+						snap={editorPointer.pathStartSnap}
+						zoom={viewport.zoom}
+						className="skedra-sdk__path-start-snap"
+					/>
+					<CanvasEditorSnapOverlay
+						guides={snapGuides}
+						points={snapPointIndicators}
+						zoom={viewport.zoom}
+					/>
+					<CanvasEditorSelectionOverlay
 						selected={selectedElements}
+						zoom={viewport.zoom}
 						readOnly={readOnly}
-						onSetProperties={setSelectionProperties}
+						outlinePadding={4}
+						handleSize={10}
+						outlineStroke="var(--skedra-sdk-accent, #2563eb)"
+						handleFill="var(--skedra-sdk-background, #fff)"
+						handleStroke="var(--skedra-sdk-accent, #2563eb)"
+						dashedOutline={false}
+						classes={{
+							outline: "skedra-sdk__selected-outline",
+							handle: "skedra-sdk__resize-handle",
+						}}
+						onResizeStart={editorPointer.beginResize}
+						onResizeKeyDown={resizeWithKeyboard}
+						onPathPointDragStart={editorPointer.beginPathPointDrag}
+						onInsertPathPoint={insertPathPoint}
+						pathBackground="var(--skedra-sdk-panel)"
+						pathAccent="var(--skedra-sdk-primary)"
+						pathControlLine="color-mix(in srgb, var(--skedra-sdk-primary) 55%, transparent)"
+					/>
+					<CanvasEditorSelectionGestureOverlay
+						selectionRect={selectionRect}
+						lassoPath={lassoPath?.map((point): [number, number] => [
+							point.x,
+							point.y,
+						])}
+						zoom={viewport.zoom}
+						selectionClassName="skedra-sdk__selection"
+						lassoClassName="skedra-sdk__lasso"
+					/>
+					{laserTrail && laserTrail.points.length > 1 && (
+						<polyline
+							className="skedra-sdk__laser"
+							data-ui-only="true"
+							data-skedra-ui="laser"
+							data-finished={laserTrail.finished}
+							points={laserTrail.points
+								.map((point) => `${point.x},${point.y}`)
+								.join(" ")}
+							strokeWidth={4 / viewport.zoom}
+						/>
+					)}
+					{croppingImage && (
+						<CanvasEditorImageCropOverlay
+							element={croppingImage}
+							viewport={viewport}
+							onApply={(crop) => {
+								cropImage(croppingImage.id, crop);
+								setCroppingImageId(null);
+							}}
+							onCancel={() => setCroppingImageId(null)}
+						/>
+					)}
+					{!readOnly &&
+						selectedElements.map((element) =>
+							isMindmapNode(element) ? (
+								<SdkMindmapActions
+									key={`mindmap-actions-${element.id}`}
+									element={element}
+									viewport={viewport}
+									onInsertChild={insertMindmapChild}
+								/>
+							) : null,
+						)}
+				</CanvasEditorSurface>
+				{(pendingText || editingSession) &&
+					(editingSession?.editingText.variant === "sticky-note" ? (
+						<CanvasEditorStickyNoteOverlay
+							editing={editingSession.editingText}
+							stickyNoteMode={editingSession.stickyNoteMode ?? "note"}
+							stickyChecklist={editingSession.stickyChecklist ?? []}
+							viewport={viewport}
+							svgRef={svgRef}
+							onUpdateStickyNote={updateInlineStickyNote}
+							onClose={closeInlineTextEditor}
+						/>
+					) : (
+						<CanvasEditorTextOverlay
+							pending={pendingText}
+							editing={editingSession?.editingText}
+							viewport={viewport}
+							svgRef={svgRef}
+							onCreateText={createInlineText}
+							onUpdateText={updateInlineText}
+							onClose={closeInlineTextEditor}
+						/>
+					))}
+				{showProperties && !zenMode && !presentationViewId && (
+					<SkedraPropertiesPanel
+						selected={propertiesSelection}
+						mode={selectedElements.length > 0 ? "selection" : "defaults"}
+						readOnly={readOnly}
+						pathDrawMode={pathDrawMode}
+						onPathDrawModeChange={setPathDrawMode}
+						onSetProperties={
+							selectedElements.length > 0
+								? setSelectionProperties
+								: setDrawingDefaultProperties
+						}
+						onSetGeometryWidth={
+							selectedElements.length === 0
+								? (width) => setDrawingDefaultProperties({ width })
+								: undefined
+						}
+						onSetGeometryHeight={
+							selectedElements.length === 0
+								? (height) => setDrawingDefaultProperties({ height })
+								: undefined
+						}
+						onSetEllipseDiameter={(diameter) =>
+							selectedElements.length === 0
+								? setDrawingDefaultProperties({
+										width: diameter,
+										height: diameter,
+									})
+								: setSelectionProperties({ width: diameter, height: diameter })
+						}
 						onDelete={deleteSelection}
 						onGroup={groupSelection}
 						onUngroup={ungroupSelection}
@@ -3056,6 +3080,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						onCropImage={(id, crop) => {
 							cropImage(id, crop);
 						}}
+						onStartImageCrop={setCroppingImageId}
 						onAddFlowchartStep={(nodeId, options) => {
 							addFlowchartStep(nodeId, options);
 						}}
@@ -3085,7 +3110,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						</button>
 					</div>
 				)}
-			</div>
+			</CanvasEditor>
 		);
 	},
 );

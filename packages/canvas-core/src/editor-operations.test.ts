@@ -272,6 +272,18 @@ test("shared movement expands frame children and mindmap descendants", () => {
 			frameId: frame.id,
 		},
 	);
+	const lockedFrameChild = createBaseCanvasElement(
+		{ createId: () => "locked-frame-child", stroke: "#111" },
+		{
+			type: "rectangle",
+			x: 140,
+			y: 60,
+			width: 80,
+			height: 50,
+			frameId: frame.id,
+			locked: true,
+		},
+	);
 	const root = createMindmapNode({
 		id: "move-root",
 		x: 500,
@@ -299,7 +311,7 @@ test("shared movement expands frame children and mindmap descendants", () => {
 		target: child,
 		stroke: "#111",
 	});
-	const elements = [frame, frameChild, root, child, edge];
+	const elements = [frame, frameChild, lockedFrameChild, root, child, edge];
 	const moveStart = new Map([
 		[frame.id, { x: frame.x, y: frame.y }],
 		[root.id, { x: root.x, y: root.y }],
@@ -316,6 +328,7 @@ test("shared movement expands frame children and mindmap descendants", () => {
 	);
 
 	assert.equal(moveStart.has(frameChild.id), true);
+	assert.equal(moveStart.has(lockedFrameChild.id), false);
 	assert.equal(moveStart.has(child.id), true);
 	assert.deepEqual(
 		{ x: moved.get(frameChild.id)?.x, y: moved.get(frameChild.id)?.y },
@@ -324,6 +337,13 @@ test("shared movement expands frame children and mindmap descendants", () => {
 	assert.deepEqual(
 		{ x: moved.get(child.id)?.x, y: moved.get(child.id)?.y },
 		{ x: child.x + 25, y: child.y - 15 },
+	);
+	assert.deepEqual(
+		{
+			x: moved.get(lockedFrameChild.id)?.x,
+			y: moved.get(lockedFrameChild.id)?.y,
+		},
+		{ x: lockedFrameChild.x, y: lockedFrameChild.y },
 	);
 	assert.ok(updates.some((update) => update.id === edge.id));
 });

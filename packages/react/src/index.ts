@@ -1,4 +1,8 @@
-export { SKEDRA_SDK_TOOL_IDS, SkedraCanvas } from "./skedra-canvas.js";
+export {
+	SKEDRA_SDK_TOOL_IDS,
+	SkedraCanvas,
+	SkedraCanvas as CanvasEditor,
+} from "./skedra-canvas.js";
 export { SKEDRA_CANVAS_COMMAND_IDS } from "./commands.js";
 export {
 	exportSkedraPdf,

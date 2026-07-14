@@ -34,7 +34,12 @@ export async function createPendingE2eeUpdateBatch(
 	for (const record of pending) {
 		// A key rotation should never combine records authorized by two different
 		// key verifiers. The next flush can handle the following group separately.
-		if (record.keyHash !== first.keyHash) break;
+		if (
+			record.keyHash !== first.keyHash ||
+			record.clientId !== first.clientId
+		) {
+			break;
+		}
 		const decrypted = await decryptYjsUpdate(record.update, key);
 		if (updates.length > 0 && rawBytes + decrypted.byteLength > maxRawBytes) {
 			break;

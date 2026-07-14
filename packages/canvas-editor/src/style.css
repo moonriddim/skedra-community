@@ -1,0 +1,206 @@
+.skedra-sdk__properties {
+	position: absolute;
+	top: 72px;
+	right: 12px;
+	z-index: 2;
+	display: grid;
+	width: min(330px, calc(100% - 24px));
+	max-height: calc(100% - 96px);
+	overflow-y: auto;
+	gap: 0;
+	border: 1px solid var(--skedra-sdk-panel-border);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--skedra-sdk-panel) 96%, transparent);
+	box-shadow: 0 20px 54px -34px rgba(0, 0, 0, 0.48);
+	user-select: text;
+}
+
+.skedra-sdk__properties section,
+.skedra-sdk__properties-header {
+	display: grid;
+	gap: 8px;
+	padding: 12px;
+	border-bottom: 1px solid var(--skedra-sdk-panel-border);
+}
+
+.skedra-sdk__properties-header {
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+}
+
+.skedra-sdk__properties-header div,
+.skedra-sdk__property-stack {
+	display: grid;
+	gap: 3px;
+}
+
+.skedra-sdk__properties h3,
+.skedra-sdk__properties strong,
+.skedra-sdk__properties small {
+	margin: 0;
+}
+
+.skedra-sdk__properties h3 {
+	font-size: 11px;
+	font-weight: 750;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.skedra-sdk__properties small {
+	overflow: hidden;
+	color: var(--skedra-sdk-muted);
+	font-size: 10px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.skedra-sdk__property-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.skedra-sdk__property-grid label,
+.skedra-sdk__property-stack {
+	min-width: 0;
+	font-size: 11px;
+}
+
+.skedra-sdk__property-grid label {
+	display: grid;
+	gap: 3px;
+}
+
+.skedra-sdk__properties input,
+.skedra-sdk__properties select,
+.skedra-sdk__properties textarea,
+.skedra-sdk__properties button {
+	min-width: 0;
+	border: 1px solid var(--skedra-sdk-panel-border);
+	border-radius: 6px;
+	background: var(--skedra-sdk-panel);
+	color: var(--skedra-sdk-text);
+	font: inherit;
+}
+
+.skedra-sdk__properties input,
+.skedra-sdk__properties select,
+.skedra-sdk__properties textarea {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 6px 7px;
+}
+
+.skedra-sdk__properties input[type="color"],
+.skedra-sdk__properties input[type="checkbox"],
+.skedra-sdk__properties input[type="range"] {
+	padding: 1px;
+}
+
+.skedra-sdk__properties textarea {
+	min-height: 62px;
+	resize: vertical;
+}
+
+.skedra-sdk__properties button {
+	padding: 6px 8px;
+	cursor: pointer;
+}
+
+.skedra-sdk__properties button:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.skedra-sdk__property-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+
+.skedra-sdk__property-actions button {
+	font-size: 10px;
+}
+
+.canvas-editor__text-overlay {
+	position: fixed;
+	z-index: 200;
+	box-sizing: border-box;
+	resize: none;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	outline: none;
+}
+
+.canvas-editor__text-overlay[data-variant="dialog"] {
+	padding: 8px;
+	border: 2px solid var(--skedra-sdk-primary, #0f766e);
+	border-radius: 6px;
+	background: color-mix(
+		in srgb,
+		var(--skedra-sdk-panel, #fffef9) 95%,
+		transparent
+	);
+}
+
+.canvas-editor__text-overlay::placeholder {
+	color: color-mix(in srgb, currentColor 42%, transparent);
+}
+
+.canvas-editor__sticky-overlay {
+	position: fixed;
+	z-index: 200;
+	box-sizing: border-box;
+}
+
+.canvas-editor__sticky-note-input,
+.canvas-editor__sticky-title-input,
+.canvas-editor__sticky-item-input {
+	width: 100%;
+	box-sizing: border-box;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	outline: none;
+}
+
+.canvas-editor__sticky-note-input {
+	resize: none;
+}
+
+.canvas-editor__sticky-title-input {
+	margin-bottom: 8px;
+}
+
+.canvas-editor__sticky-checklist {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.canvas-editor__sticky-checklist-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+}
+
+.canvas-editor__sticky-checkbox {
+	margin-top: 1px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.canvas-editor__sticky-item-input {
+	min-width: 0;
+	flex: 1;
+}
+
+.canvas-editor__sticky-note-input::placeholder,
+.canvas-editor__sticky-title-input::placeholder,
+.canvas-editor__sticky-item-input::placeholder {
+	color: color-mix(in srgb, currentColor 38%, transparent);
+}

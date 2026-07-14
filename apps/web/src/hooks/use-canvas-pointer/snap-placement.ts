@@ -4,13 +4,12 @@
 
 import { isStickyNote } from "@/lib/canvas/sticky-note-utils";
 import { isKanbanCard } from "@skedra/canvas-core";
-import {
-	calcSnap,
-	findClosestSnapAnchor,
-	getVisibleSnapPointIndicators,
-} from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useCallback, useEffect } from "react";
+import {
+	resolveCanvasEditorPointSnap,
+	resolveCanvasEditorRectSnap,
+} from "@skedra/canvas-editor";
+import { useCallback } from "react";
 import { useCanvasStore, useCanvasStoreRef } from "../use-canvas-store";
 import {
 	STICKY_NOTE_PLACEMENT_SIZE,
@@ -40,19 +39,6 @@ export function usePointerSnapPlacement({
 		}
 	}, []);
 
-	useEffect(() => {
-		const clearAfterGesture = () => clearSnapVisuals();
-		window.addEventListener("pointerup", clearAfterGesture);
-		window.addEventListener("pointercancel", clearAfterGesture);
-		window.addEventListener("blur", clearAfterGesture);
-		return () => {
-			window.removeEventListener("pointerup", clearAfterGesture);
-			window.removeEventListener("pointercancel", clearAfterGesture);
-			window.removeEventListener("blur", clearAfterGesture);
-			clearSnapVisuals();
-		};
-	}, [clearSnapVisuals]);
-
 	const resolveCenteredPlacementSnap = useCallback(
 		(screenX: number, screenY: number, width: number, height: number) => {
 			const canvas = toCanvas(screenX, screenY);
@@ -63,39 +49,23 @@ export function usePointerSnapPlacement({
 			let y = centerY - height / 2;
 
 			if (snapState.snapToObjects) {
-				const snap = calcSnap(
-					{ x, y, width, height },
+				const snap = resolveCanvasEditorRectSnap({
+					rect: { x, y, width, height },
 					elements,
-					new Set(["__preview"]),
-				);
-				x += snap.dx;
-				y += snap.dy;
+					excludeIds: new Set(["__preview"]),
+					snap: {
+						enabled: true,
+						includeCenters: snapState.snapToCenters,
+						includeMidpoints: snapState.snapToMidpoints,
+						showInactivePoints: snapState.showSnapPoints,
+					},
+				});
+				x = snap.rect.x;
+				y = snap.rect.y;
 				centerX = x + width / 2;
 				centerY = y + height / 2;
 				snapState.setSnapGuides(snap.guides);
-
-				const anchor = findClosestSnapAnchor(
-					{ x: centerX, y: centerY },
-					elements,
-					new Set(["__preview"]),
-					{
-						includeCenters: snapState.snapToCenters,
-						includeMidpoints: snapState.snapToMidpoints,
-					},
-				);
-				snapState.setSnapPointIndicators(
-					getVisibleSnapPointIndicators(
-						{ x: centerX, y: centerY },
-						elements,
-						new Set(["__preview"]),
-						{
-							includeCenters: snapState.snapToCenters,
-							includeMidpoints: snapState.snapToMidpoints,
-						},
-						anchor,
-						snapState.showSnapPoints,
-					),
-				);
+				snapState.setSnapPointIndicators(snap.indicators);
 			} else {
 				clearSnapVisuals();
 			}
@@ -134,42 +104,26 @@ export function usePointerSnapPlacement({
 				return { canvas, x: gridX, y: gridY, anchor: null };
 			}
 
-			const anchor = findClosestSnapAnchor(
-				{ x: gridX, y: gridY },
+			const snap = resolveCanvasEditorPointSnap({
+				point: { x: gridX, y: gridY },
 				elements,
-				new Set(["__preview"]),
-				{
+				excludeIds: new Set(["__preview"]),
+				snap: {
+					enabled: true,
 					includeCenters: store.snapToCenters,
 					includeMidpoints: store.snapToMidpoints,
+					showInactivePoints: store.showSnapPoints,
 				},
-				options?.forceAnchor ? 18 : undefined,
-			);
-
-			const indicators = getVisibleSnapPointIndicators(
-				{ x: gridX, y: gridY },
-				elements,
-				new Set(["__preview"]),
-				{
-					includeCenters: store.snapToCenters,
-					includeMidpoints: store.snapToMidpoints,
-				},
-				anchor,
-				store.showSnapPoints,
-			);
-			store.setSnapPointIndicators(indicators);
-
-			if (anchor) {
-				store.setSnapGuides([]);
-				return { canvas, x: anchor.x, y: anchor.y, anchor };
-			}
-
-			const snap = calcSnap(
-				{ x: gridX - 1, y: gridY - 1, width: 2, height: 2 },
-				elements,
-				new Set(["__preview"]),
-			);
+				forceAnchor: options?.forceAnchor,
+			});
+			store.setSnapPointIndicators(snap.indicators);
 			store.setSnapGuides(snap.guides);
-			return { canvas, x: gridX + snap.dx, y: gridY + snap.dy, anchor: null };
+			return {
+				canvas,
+				x: snap.point.x,
+				y: snap.point.y,
+				anchor: snap.anchor,
+			};
 		},
 		[toCanvas, storeRef, elements, clearSnapVisuals],
 	);

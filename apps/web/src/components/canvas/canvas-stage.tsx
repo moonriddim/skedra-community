@@ -13,17 +13,22 @@ import type {
 	Viewport,
 } from "@skedra/canvas-core";
 import type { ImageCropRect } from "@skedra/canvas-core";
-import { lassoPathToSvgD } from "@skedra/canvas-core";
-import { CanvasPathStartSnapIndicator } from "@skedra/canvas-editor";
+import {
+	CanvasEditorGridOverlay,
+	CanvasEditorImageCropOverlay,
+	CanvasEditorSelectionGestureOverlay,
+	CanvasEditorSelectionOverlay,
+	CanvasEditorSnapOverlay,
+	CanvasEditorSurface,
+	CanvasPathStartSnapIndicator,
+} from "@skedra/canvas-editor";
 import type { RefObject } from "react";
 import { useLayoutEffect, useMemo, useState } from "react";
+import { useCanvasCommands } from "./canvas-commands";
 import { CanvasRenderer } from "./canvas-renderer";
-import { GridOverlay } from "./grid-overlay";
-import { ImageCropOverlay } from "./image-crop-overlay";
 import { LaserOverlay } from "./laser-overlay";
 import { RemoteSelectionOverlays } from "./presence-overlays";
 import { SavedViewOverlay } from "./saved-view-overlay";
-import { SelectionHandles } from "./selection-handles";
 
 interface CanvasStageProps {
 	svgRef: RefObject<SVGSVGElement | null>;
@@ -32,6 +37,8 @@ interface CanvasStageProps {
 	scene: CanvasScene;
 	elements: Map<string, CanvasElement>;
 	selectedIds: Set<string>;
+	readOnly?: boolean;
+	gridEnabled: boolean;
 	editingTextId: string | null;
 	remotePresence: RemoteCanvasPresence[];
 	editingView: SavedCanvasView | null;
@@ -52,8 +59,20 @@ interface CanvasStageProps {
 	onPointerMove: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerUp: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerCancel: () => void;
+	onLostPointerCapture: () => void;
+	onWheel: (event: React.WheelEvent<SVGSVGElement>) => void;
 	onPointerLeave: () => void;
 	onDoubleClick: (event: React.MouseEvent<SVGSVGElement>) => void;
+	onElementResizeStart: (
+		event: React.PointerEvent<SVGRectElement>,
+		element: CanvasElement,
+		handle: HandlePosition,
+	) => void;
+	onPathPointDragStart: (
+		event: React.PointerEvent<SVGCircleElement>,
+		element: CanvasElement,
+		pointIndex: number,
+	) => void;
 	onViewMoveStart: (event: React.PointerEvent<SVGRectElement>) => void;
 	onViewResizeStart: (
 		handle: HandlePosition,
@@ -68,6 +87,8 @@ export function CanvasStage({
 	scene,
 	elements,
 	selectedIds,
+	readOnly = false,
+	gridEnabled,
 	editingTextId,
 	remotePresence,
 	editingView,
@@ -88,15 +109,27 @@ export function CanvasStage({
 	onPointerMove,
 	onPointerUp,
 	onPointerCancel,
+	onLostPointerCapture,
+	onWheel,
 	onPointerLeave,
 	onDoubleClick,
+	onElementResizeStart,
+	onPathPointDragStart,
 	onViewMoveStart,
 	onViewResizeStart,
 }: CanvasStageProps) {
+	const canvasCommands = useCanvasCommands();
 	const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
 	const previewScene = useMemo(
 		() => (drawingPreview ? CanvasScene.from([drawingPreview]) : null),
 		[drawingPreview],
+	);
+	const selectedElements = useMemo(
+		() =>
+			Array.from(selectedIds)
+				.map((id) => elements.get(id))
+				.filter((element): element is CanvasElement => Boolean(element)),
+		[elements, selectedIds],
 	);
 
 	useLayoutEffect(() => {
@@ -113,200 +146,121 @@ export function CanvasStage({
 		return () => observer.disconnect();
 	}, [svgRef]);
 
-	const cursor =
-		activeTool === "select"
-			? "default"
-			: activeTool === "lasso"
-				? "crosshair"
-				: activeTool === "pan"
-					? "grab"
-					: activeTool === "eraser"
-						? "cell"
-						: activeTool === "laser"
-							? "crosshair"
-							: activeTool === "eyedropper"
-								? "copy"
-								: "crosshair";
-
-	const lassoPreviewPath = lassoPath ? lassoPathToSvgD(lassoPath) : null;
-
 	return (
-		<svg
-			ref={svgRef}
+		<CanvasEditorSurface
+			svgRef={svgRef}
+			viewport={viewport}
+			activeTool={activeTool}
+			worldDataAttribute="true"
 			className="h-full w-full"
-			style={{
-				cursor,
-				touchAction: "none",
-				backgroundColor: "inherit",
-			}}
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
 			onPointerUp={onPointerUp}
 			onPointerCancel={onPointerCancel}
-			onLostPointerCapture={onPointerCancel}
+			onLostPointerCapture={onLostPointerCapture}
+			onWheel={onWheel}
 			onPointerLeave={onPointerLeave}
 			onDoubleClick={onDoubleClick}
 		>
-			<title>Skedra canvas</title>
-			<g
-				transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}
-			>
-				<GridOverlay zoom={viewport.zoom} />
-				<CanvasRenderer
-					scene={scene}
-					selectedIds={selectedIds}
-					editingTextId={editingTextId}
-					viewport={viewport}
-					svgSize={svgSize}
-					resolveAssetUrl={resolveAssetUrl}
-				/>
-				<RemoteSelectionOverlays
-					peers={remotePresence}
-					elements={elements}
+			<CanvasEditorGridOverlay enabled={gridEnabled} zoom={viewport.zoom} />
+			<CanvasRenderer
+				scene={scene}
+				selectedIds={selectedIds}
+				editingTextId={editingTextId}
+				viewport={viewport}
+				svgSize={svgSize}
+				resolveAssetUrl={resolveAssetUrl}
+			/>
+			<RemoteSelectionOverlays
+				peers={remotePresence}
+				elements={elements}
+				zoom={viewport.zoom}
+			/>
+			{editingView && !textEditorOpen && (
+				<SavedViewOverlay
+					view={editingView}
 					zoom={viewport.zoom}
+					onMoveStart={onViewMoveStart}
+					onResizeStart={onViewResizeStart}
 				/>
-				{editingView && !textEditorOpen && (
-					<SavedViewOverlay
-						view={editingView}
-						zoom={viewport.zoom}
-						onMoveStart={onViewMoveStart}
-						onResizeStart={onViewResizeStart}
-					/>
-				)}
-				{!textEditorOpen && !croppingElement && (
-					<SelectionHandles
-						elements={elements}
-						selectedIds={selectedIds}
-						zoom={viewport.zoom}
-					/>
-				)}
+			)}
+			{!textEditorOpen && !croppingElement && (
+				<CanvasEditorSelectionOverlay
+					selected={selectedElements}
+					zoom={viewport.zoom}
+					readOnly={readOnly}
+					onResizeStart={onElementResizeStart}
+					onPathPointDragStart={onPathPointDragStart}
+					onInsertPathPoint={(element, pointIndex, point) =>
+						canvasCommands.insertWaypoint(element.id, pointIndex, point)
+					}
+				/>
+			)}
 
-				{selectionBox && (
-					<rect
-						x={Math.min(selectionBox.startX, selectionBox.endX)}
-						y={Math.min(selectionBox.startY, selectionBox.endY)}
-						width={Math.abs(selectionBox.endX - selectionBox.startX)}
-						height={Math.abs(selectionBox.endY - selectionBox.startY)}
-						fill="rgba(99, 102, 241, 0.1)"
-						stroke="rgba(99, 102, 241, 0.6)"
-						strokeWidth={1 / viewport.zoom}
-						strokeDasharray={`${4 / viewport.zoom}`}
-					/>
-				)}
+			<CanvasEditorSelectionGestureOverlay
+				selectionRect={
+					selectionBox
+						? {
+								x: Math.min(selectionBox.startX, selectionBox.endX),
+								y: Math.min(selectionBox.startY, selectionBox.endY),
+								width: Math.abs(selectionBox.endX - selectionBox.startX),
+								height: Math.abs(selectionBox.endY - selectionBox.startY),
+							}
+						: null
+				}
+				lassoPath={lassoPath}
+				zoom={viewport.zoom}
+			/>
 
-				{lassoPreviewPath && (
-					<path
-						d={lassoPreviewPath}
-						fill="rgba(99, 102, 241, 0.1)"
-						stroke="rgba(99, 102, 241, 0.6)"
-						strokeWidth={1 / viewport.zoom}
-						strokeDasharray={`${4 / viewport.zoom}`}
-						data-ui-only
-					/>
-				)}
+			{viewDraft && (
+				<rect
+					data-ui-only="true"
+					data-skedra-ui="saved-view-draft"
+					x={viewDraft.x}
+					y={viewDraft.y}
+					width={viewDraft.width}
+					height={viewDraft.height}
+					fill="rgba(16, 185, 129, 0.12)"
+					stroke="rgba(16, 185, 129, 0.9)"
+					strokeWidth={1.5 / viewport.zoom}
+					strokeDasharray={`${5 / viewport.zoom}`}
+				/>
+			)}
 
-				{viewDraft && (
-					<rect
-						x={viewDraft.x}
-						y={viewDraft.y}
-						width={viewDraft.width}
-						height={viewDraft.height}
-						fill="rgba(16, 185, 129, 0.12)"
-						stroke="rgba(16, 185, 129, 0.9)"
-						strokeWidth={1.5 / viewport.zoom}
-						strokeDasharray={`${5 / viewport.zoom}`}
-					/>
-				)}
-
-				{previewScene && (
+			{previewScene && (
+				<g data-ui-only="true" data-skedra-ui="drawing-preview">
 					<CanvasRenderer
 						scene={previewScene}
 						selectedIds={new Set()}
 						resolveAssetUrl={resolveAssetUrl}
 					/>
-				)}
+				</g>
+			)}
 
-				<CanvasPathStartSnapIndicator
-					snap={pathStartSnap}
-					zoom={viewport.zoom}
-					activeFill="rgba(16, 185, 129, 0.95)"
-					inactiveFill="rgba(99, 102, 241, 0.92)"
-					stroke="rgba(255, 255, 255, 0.9)"
+			<CanvasPathStartSnapIndicator
+				snap={pathStartSnap}
+				zoom={viewport.zoom}
+				activeFill="rgba(16, 185, 129, 0.95)"
+				inactiveFill="rgba(99, 102, 241, 0.92)"
+				stroke="rgba(255, 255, 255, 0.9)"
+			/>
+
+			<LaserOverlay trails={laserTrails} viewport={viewport} />
+
+			{croppingElement && onApplyImageCrop && onCancelImageCrop && (
+				<CanvasEditorImageCropOverlay
+					element={croppingElement}
+					viewport={viewport}
+					onApply={onApplyImageCrop}
+					onCancel={onCancelImageCrop}
 				/>
+			)}
 
-				<LaserOverlay trails={laserTrails} viewport={viewport} />
-
-				{croppingElement && onApplyImageCrop && onCancelImageCrop && (
-					<ImageCropOverlay
-						element={croppingElement}
-						viewport={viewport}
-						onApply={onApplyImageCrop}
-						onCancel={onCancelImageCrop}
-					/>
-				)}
-
-				{snapGuides.map((guide, index) => (
-					<line
-						// biome-ignore lint/suspicious/noArrayIndexKey: Snap guides are ordered transient render slots whose coordinates must not define their identity.
-						key={`snap-guide-${index}`}
-						x1={guide.orientation === "v" ? guide.pos : guide.from}
-						y1={guide.orientation === "h" ? guide.pos : guide.from}
-						x2={guide.orientation === "v" ? guide.pos : guide.to}
-						y2={guide.orientation === "h" ? guide.pos : guide.to}
-						stroke="rgba(99, 102, 241, 0.8)"
-						strokeWidth={1 / viewport.zoom}
-						strokeDasharray={`${3 / viewport.zoom}`}
-						pointerEvents="none"
-					/>
-				))}
-
-				{snapPointIndicators.map((point, index) => {
-					const size = (point.active ? 10 : 7) / viewport.zoom;
-					const strokeWidth = 1.5 / viewport.zoom;
-					const isRoundPoint =
-						point.kind === "center" ||
-						point.kind === "edge-midpoint" ||
-						point.kind === "segment-midpoint";
-
-					return (
-						<g
-							// biome-ignore lint/suspicious/noArrayIndexKey: Snap points use stable transient slots so moving coordinates do not remount SVG nodes.
-							key={`snap-point-${index}`}
-							pointerEvents="none"
-						>
-							{isRoundPoint ? (
-								<circle
-									cx={point.x}
-									cy={point.y}
-									r={size / 2}
-									fill={
-										point.active
-											? "rgba(16, 185, 129, 0.95)"
-											: "rgba(99, 102, 241, 0.92)"
-									}
-									stroke="rgba(255, 255, 255, 0.9)"
-									strokeWidth={strokeWidth}
-								/>
-							) : (
-								<rect
-									x={point.x - size / 2}
-									y={point.y - size / 2}
-									width={size}
-									height={size}
-									rx={1.5 / viewport.zoom}
-									fill={
-										point.active
-											? "rgba(16, 185, 129, 0.95)"
-											: "rgba(99, 102, 241, 0.92)"
-									}
-									stroke="rgba(255, 255, 255, 0.9)"
-									strokeWidth={strokeWidth}
-								/>
-							)}
-						</g>
-					);
-				})}
-			</g>
-		</svg>
+			<CanvasEditorSnapOverlay
+				guides={snapGuides}
+				points={snapPointIndicators}
+				zoom={viewport.zoom}
+			/>
+		</CanvasEditorSurface>
 	);
 }

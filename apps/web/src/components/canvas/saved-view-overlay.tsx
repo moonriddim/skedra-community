@@ -42,7 +42,12 @@ export function SavedViewOverlay({
 	const labelHeight = 24 / zoom;
 
 	return (
-		<g className="saved-view-overlay" pointerEvents="none">
+		<g
+			className="saved-view-overlay"
+			data-ui-only="true"
+			data-skedra-ui="saved-view"
+			pointerEvents="none"
+		>
 			<rect
 				x={bounds.x}
 				y={bounds.y}

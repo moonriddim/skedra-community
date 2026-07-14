@@ -2,9 +2,7 @@
  * Gemeinsamer Kontext fuer Canvas-Tastatur-Shortcuts.
  */
 
-import type { CanvasStoreState } from "@/hooks/use-canvas-store";
-import type { CanvasElement, FlowchartDirection } from "@skedra/canvas-core";
-import type { useCanvasKeyboardOperations } from "./operations";
+import type { FlowchartDirection } from "@skedra/canvas-core";
 
 export interface CanvasKeyboardActions {
 	fitAll?: () => void;
@@ -21,22 +19,4 @@ export interface CanvasKeyboardActions {
 	flowchartNavigate?: (direction: FlowchartDirection) => void;
 	mindmapCreateSibling?: (nodeId: string) => void;
 	openCommandPalette?: () => void;
-}
-
-export interface CanvasKeyDownContext {
-	store: CanvasStoreState;
-	elements: Map<string, CanvasElement>;
-	deleteElements: (ids: string[]) => void;
-	undo: () => void;
-	redo: () => void;
-	actions?: CanvasKeyboardActions;
-	ops: ReturnType<typeof useCanvasKeyboardOperations>;
-}
-
-export function getKeyModifiers(e: KeyboardEvent) {
-	return {
-		ctrl: e.ctrlKey || e.metaKey,
-		shift: e.shiftKey,
-		alt: e.altKey,
-	};
 }

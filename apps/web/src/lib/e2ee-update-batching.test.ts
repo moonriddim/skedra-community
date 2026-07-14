@@ -63,3 +63,23 @@ test("keeps different key-verifier groups separate", async () => {
 		["1"],
 	);
 });
+
+test("keeps updates from different clients separate", async () => {
+	const key = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+	const source = new Y.Doc();
+	const update = Y.encodeStateAsUpdate(source);
+	const encrypted = await encryptYjsUpdate(update, key);
+	const batch = await createPendingE2eeUpdateBatch(
+		[
+			pending("1", encrypted),
+			pending("2", encrypted, { clientId: "client-2" }),
+		],
+		key,
+	);
+
+	assert.ok(batch);
+	assert.deepEqual(
+		batch.records.map((record) => record.id),
+		["1"],
+	);
+});

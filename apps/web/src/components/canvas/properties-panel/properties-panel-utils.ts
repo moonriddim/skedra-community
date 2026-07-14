@@ -3,11 +3,9 @@
  */
 
 import type { CanvasElement } from "@skedra/canvas-core";
-import type { PendingText } from "../text-editor";
+import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
 
-export function buildPendingTextElement(
-	pendingText: PendingText,
-): CanvasElement {
+function buildPendingTextElement(pendingText: PendingText): CanvasElement {
 	return {
 		id: "__pending-text__",
 		type: "text",

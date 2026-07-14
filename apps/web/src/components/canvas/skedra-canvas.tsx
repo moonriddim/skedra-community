@@ -4,13 +4,13 @@
  */
 
 import { useCanvasHistory } from "@/hooks/use-canvas-history";
-import { useCanvasKeyboard } from "@/hooks/use-canvas-keyboard";
-import { useCanvasPointer } from "@/hooks/use-canvas-pointer";
 import {
 	type CanvasStoreState,
 	useCanvasStore,
 	useCanvasStoreRef,
 } from "@/hooks/use-canvas-store";
+import { useCommunityCanvasKeyboardAdapter } from "@/hooks/use-community-canvas-keyboard-adapter";
+import { useCommunityCanvasPointerAdapter } from "@/hooks/use-community-canvas-pointer-adapter";
 import { useE2eeCanvasSync } from "@/hooks/use-e2ee-canvas-sync";
 import { useEncryptedAssetUrls } from "@/hooks/use-encrypted-asset-urls";
 import { useLibraryDeepLink } from "@/hooks/use-library-deep-link";
@@ -21,6 +21,12 @@ import { usePresenterNotes } from "@/hooks/use-presenter-notes";
 import { useServerCanvasSync } from "@/hooks/use-server-canvas-sync";
 import type { AssetAccessTokens } from "@/lib/canvas/asset-urls";
 import { mergeElementCustomData } from "@/lib/canvas/custom-data-utils";
+import {
+	exportPDF,
+	exportPNG,
+	exportPPTX,
+	exportSVG,
+} from "@/lib/canvas/export-utils";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import type { SkedraCanvasFileActions } from "@/lib/canvas/skedra-file-utils";
 import {
@@ -48,6 +54,7 @@ import type {
 	CanvasElement,
 	KanbanAssignmentOptions,
 } from "@skedra/canvas-core";
+import { CanvasEditor } from "@skedra/canvas-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { useShallow } from "zustand/react/shallow";
@@ -762,7 +769,7 @@ export function SkedraCanvas({
 		}
 	}, [editingViewId, setEditingViewId, sync.views]);
 
-	const keyboard = useCanvasKeyboard({
+	const keyboard = useCommunityCanvasKeyboardAdapter({
 		enabled: !presentationMode && !sync.isReadonly,
 		elements: sync.elements,
 		createElement: sync.createElement,
@@ -794,8 +801,9 @@ export function SkedraCanvas({
 		},
 	});
 
-	const pointerHandlers = useCanvasPointer({
+	const pointerHandlers = useCommunityCanvasPointerAdapter({
 		svgRef,
+		readOnly: presentationMode || sync.isReadonly,
 		elements: sync.elements,
 		scene: sync.scene,
 		createElement: sync.createElement,
@@ -974,9 +982,22 @@ export function SkedraCanvas({
 		[store, sync.elements, sync.updateElement],
 	);
 
+	const exportVisual = useCallback<CanvasCommands["exportVisual"]>(
+		async (format) => {
+			const svg = svgRef.current;
+			if (!svg) return;
+			if (format === "svg") exportSVG(svg);
+			else if (format === "png") await exportPNG(svg);
+			else if (format === "pdf") await exportPDF(svg);
+			else await exportPPTX(svg);
+		},
+		[],
+	);
+
 	const canvasCommands = useMemo<CanvasCommands>(
 		() => ({
 			openHelp: () => setHelpDialogOpen(true),
+			exportVisual,
 			pasteElement,
 			startTextPlacement,
 			openKanbanCard,
@@ -1001,6 +1022,7 @@ export function SkedraCanvas({
 			addTemplateStickyNote,
 			createMindmapChild,
 			createMindmapSibling,
+			exportVisual,
 			insertWaypoint,
 			openKanbanCard,
 			openKanbanList,
@@ -1042,6 +1064,7 @@ export function SkedraCanvas({
 		handleCanvasPointerMove,
 		handlePointerUp,
 		handlePointerCancel,
+		handleLostPointerCapture,
 		handleCanvasPointerLeave,
 	} = useSkedraCanvasPointerBridge({
 		svgRef,
@@ -1076,8 +1099,17 @@ export function SkedraCanvas({
 
 	return (
 		<CanvasCommandsProvider value={canvasCommands}>
-			<div
-				ref={containerRef}
+			<CanvasEditor
+				rootRef={containerRef}
+				documentAdapter={pointerHandlers.documentAdapter}
+				translations={{
+					translate: (key, fallback) => {
+						const translated = t(key as `canvas.${string}`);
+						return translated === key ? fallback : translated;
+					},
+				}}
+				assetAdapter={{ resolveAssetUrl }}
+				collaboration={{ enabled: !localMode }}
 				className={`skedra-canvas h-full w-full relative overflow-hidden select-none${store.isSpacePressed ? " cursor-grab" : ""}`}
 				style={{ backgroundColor: canvasBg || "var(--background)" }}
 				onContextMenu={handleContextMenu}
@@ -1117,6 +1149,7 @@ export function SkedraCanvas({
 					onExportSkedra={handleExportSkedra}
 					onExportEncryptedSkedra={() => void handleExportEncryptedSkedra()}
 					onImportSkedra={() => void handleImportSkedra()}
+					onExportVisual={exportVisual}
 					imageUploadOptions={imageUploadOptions}
 					resolveAssetUrl={resolveAssetUrl}
 					kanbanDetailId={kanbanDetailId}
@@ -1135,6 +1168,7 @@ export function SkedraCanvas({
 					scene={sync.scene}
 					elements={sync.elements}
 					selectedIds={selectedIds}
+					readOnly={presentationMode || sync.isReadonly}
 					editingTextId={store.editingTextId}
 					remotePresence={sync.remotePresence}
 					editingView={editingView}
@@ -1150,8 +1184,12 @@ export function SkedraCanvas({
 					onPointerMove={handleCanvasPointerMove}
 					onPointerUp={handlePointerUp}
 					onPointerCancel={handlePointerCancel}
+					onLostPointerCapture={handleLostPointerCapture}
+					onWheel={pointerHandlers.onWheel}
 					onPointerLeave={handleCanvasPointerLeave}
 					onDoubleClick={handleDoubleClick}
+					onElementResizeStart={pointerHandlers.beginResize}
+					onPathPointDragStart={pointerHandlers.beginPathPointDrag}
 					onViewMoveStart={(event) => {
 						if (editingView) beginViewMove(editingView.id, event);
 					}}
@@ -1307,7 +1345,7 @@ export function SkedraCanvas({
 					fileError={fileError}
 					onClearFileError={() => setFileError("")}
 				/>
-			</div>
+			</CanvasEditor>
 		</CanvasCommandsProvider>
 	);
 }
@@ -1316,6 +1354,7 @@ type SkedraCanvasStageSurfaceProps = Omit<
 	React.ComponentProps<typeof CanvasStage>,
 	| "selectionBox"
 	| "lassoPath"
+	| "gridEnabled"
 	| "snapGuides"
 	| "snapPointIndicators"
 	| "laserTrails"
@@ -1324,6 +1363,7 @@ type SkedraCanvasStageSurfaceProps = Omit<
 function SkedraCanvasStageSurface(props: SkedraCanvasStageSurfaceProps) {
 	const visualState = useCanvasStore(
 		useShallow((state) => ({
+			gridEnabled: state.gridEnabled,
 			lassoPath: state.lassoPath,
 			laserTrails: state.laserTrails,
 			selectionBox: state.selectionBox,

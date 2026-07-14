@@ -5,12 +5,12 @@
 import type { CanvasCommands } from "@/components/canvas/canvas-commands";
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
 import { PropertiesPanel } from "@/components/canvas/properties-panel";
-import type { PendingText } from "@/components/canvas/text-editor";
-import type { useCanvasKeyboard } from "@/hooks/use-canvas-keyboard";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
+import type { useCommunityCanvasKeyboardAdapter as useCanvasKeyboard } from "@/hooks/use-community-canvas-keyboard-adapter";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import type { KanbanAssignmentOptions } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
+import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
 import { type ComponentProps, Suspense, lazy, memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -48,6 +48,13 @@ type KeyboardPanelApi = Pick<
 	| "sendToBack"
 	| "copySelection"
 	| "addLink"
+	| "flipHorizontal"
+	| "flipVertical"
+	| "toggleLock"
+	| "groupSelection"
+	| "ungroupSelection"
+	| "alignSelection"
+	| "distributeSelection"
 >;
 
 interface SkedraCanvasToolPanelsProps {
@@ -89,6 +96,7 @@ interface SkedraCanvasToolPanelsProps {
 	onExportSkedra: () => void;
 	onExportEncryptedSkedra: () => void;
 	onImportSkedra: () => void;
+	onExportVisual: CanvasCommands["exportVisual"];
 	imageUploadOptions?: ImageUploadOptions;
 	resolveAssetUrl?: (src: string) => string;
 	kanbanDetailId: string | null;
@@ -130,6 +138,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	onExportSkedra,
 	onExportEncryptedSkedra,
 	onImportSkedra,
+	onExportVisual,
 	imageUploadOptions,
 	resolveAssetUrl,
 	kanbanDetailId,
@@ -161,6 +170,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					onExportSkedra={onExportSkedra}
 					onExportEncryptedSkedra={onExportEncryptedSkedra}
 					onImportSkedra={onImportSkedra}
+					onExportVisual={onExportVisual}
 					imageUploadOptions={imageUploadOptions}
 				/>
 			)}
@@ -169,7 +179,6 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 				<PropertiesPanel
 					elements={sync.elements}
 					selectedIds={selectedIds}
-					getViewportCenter={getViewportCenter}
 					editingTextId={editingTextId}
 					editingArrowTextSide={editingArrowTextSide}
 					editingArrowTextOrientation={editingArrowTextOrientation}
@@ -189,8 +198,13 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					onBringToFront={keyboard.bringToFront}
 					onSendToBack={keyboard.sendToBack}
 					onCopy={keyboard.copySelection}
-					onAddLink={keyboard.addLink}
-					onCreateElements={addElements}
+					onFlipHorizontal={keyboard.flipHorizontal}
+					onFlipVertical={keyboard.flipVertical}
+					onToggleLock={keyboard.toggleLock}
+					onGroup={keyboard.groupSelection}
+					onUngroup={keyboard.ungroupSelection}
+					onAlign={keyboard.alignSelection}
+					onDistribute={keyboard.distributeSelection}
 					commands={commands}
 				/>
 			)}

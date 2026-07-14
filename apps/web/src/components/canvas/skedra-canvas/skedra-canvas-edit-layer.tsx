@@ -4,15 +4,17 @@
 
 import { ContextMenu } from "@/components/canvas/context-menu";
 import type { useCanvasTextEditing } from "@/components/canvas/hooks/use-canvas-text-editing";
-import { StickyNoteEditor } from "@/components/canvas/sticky-note-editor";
-import { TextEditor } from "@/components/canvas/text-editor";
-import type { useCanvasKeyboard } from "@/hooks/use-canvas-keyboard";
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
+import type { useCommunityCanvasKeyboardAdapter as useCanvasKeyboard } from "@/hooks/use-community-canvas-keyboard-adapter";
 import type {
 	StickyChecklistItem,
 	StickyNoteMode,
 } from "@/lib/canvas/sticky-note-utils";
 import type { CanvasElement } from "@skedra/canvas-core";
+import {
+	CanvasEditorStickyNoteOverlay,
+	CanvasEditorTextOverlay,
+} from "@skedra/canvas-editor";
 import type { RefObject } from "react";
 
 type TextEditingApi = Pick<
@@ -105,7 +107,7 @@ export function SkedraCanvasEditLayer({
 		<>
 			{textEditorOpen &&
 				(editingText?.variant === "sticky-note" ? (
-					<StickyNoteEditor
+					<CanvasEditorStickyNoteOverlay
 						key={`${editingText.id}-${liveStickyNoteEditor?.mode ?? editingStickyNoteMode}`}
 						editing={{
 							...editingText,
@@ -122,7 +124,7 @@ export function SkedraCanvasEditLayer({
 						onRegisterCommit={registerTextEditorCommit}
 					/>
 				) : (
-					<TextEditor
+					<CanvasEditorTextOverlay
 						pending={pendingText}
 						editing={editingText}
 						viewport={viewport}

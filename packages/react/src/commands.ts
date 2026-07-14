@@ -34,6 +34,7 @@ export const SKEDRA_CANVAS_COMMAND_IDS = [
 	"flip-vertical",
 	"toggle-lock",
 	"toggle-grid",
+	"toggle-object-snap",
 	"fit-to-content",
 ] as const;
 
@@ -130,6 +131,8 @@ export interface SkedraCanvasExtendedApi {
 	setProperties: (properties: Partial<CanvasElement>) => void;
 	setGrid: (enabled: boolean) => void;
 	getGrid: () => boolean;
+	setObjectSnap: (enabled: boolean) => void;
+	getObjectSnap: () => boolean;
 	getViewport: () => Viewport;
 	setViewport: (viewport: Viewport) => void;
 	insertImage: (

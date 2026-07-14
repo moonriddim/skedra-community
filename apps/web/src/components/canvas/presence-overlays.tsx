@@ -29,7 +29,12 @@ export function RemoteSelectionOverlays({
 	zoom,
 }: RemoteSelectionOverlaysProps) {
 	return (
-		<g className="remote-selection-overlays" pointerEvents="none">
+		<g
+			className="remote-selection-overlays"
+			data-ui-only="true"
+			data-skedra-ui="remote-selection"
+			pointerEvents="none"
+		>
 			{peers.map((peer) => {
 				if (peer.selection.length === 0) return null;
 

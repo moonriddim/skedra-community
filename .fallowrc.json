@@ -1,7 +1,9 @@
 {
 	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+	"entry": ["apps/web/public/config.js", "apps/libraries/public/config.js"],
 	"workspaces": {
 		"packages": ["apps/*", "packages/*"]
 	},
-	"ignoreDependencies": ["@tailwindcss/vite"]
+	"ignoreDependencies": ["@tailwindcss/vite"],
+	"ignoreUnresolvedImports": ["/config.js"]
 }

@@ -36,9 +36,9 @@ import {
 	DEFAULT_ROUGH_FILL_SCALE,
 	DEFAULT_ROUGH_FILL_STYLE,
 } from "@skedra/canvas-core";
+import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
 import { useMemo } from "react";
 import { hasCanvasToolProperties } from "../canvas-tool-types";
-import type { PendingText } from "../text-editor";
 import { isGenericGeometry } from "./properties-panel-utils";
 import type { PropertiesPanelStoreSlice } from "./use-properties-panel";
 
@@ -53,9 +53,10 @@ export interface PropertiesPanelDerivationsInput {
 	editingArrowTextOrientation?: ArrowTextOrientation | null;
 }
 
-export interface PropertiesPanelDerivations {
+interface PropertiesPanelDerivations {
 	hasSelection: boolean;
 	hasInspectionTarget: boolean;
+	inspected: CanvasElement[];
 	isEditingTextContext: boolean;
 	mindmapBranchRoot: CanvasElement | null;
 	inspectedPathTextElements: CanvasElement[];
@@ -132,7 +133,7 @@ export interface PropertiesPanelDerivations {
 	flowchartConnectorMeta: ReturnType<typeof getFlowchartConnectorMeta>;
 }
 
-export function derivePropertiesPanelState({
+function derivePropertiesPanelState({
 	store,
 	elements,
 	selected,
@@ -475,6 +476,7 @@ export function derivePropertiesPanelState({
 	return {
 		hasSelection,
 		hasInspectionTarget,
+		inspected,
 		isEditingTextContext,
 		mindmapBranchRoot,
 		inspectedPathTextElements,

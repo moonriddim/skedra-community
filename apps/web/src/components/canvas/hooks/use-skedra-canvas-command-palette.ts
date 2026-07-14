@@ -64,6 +64,12 @@ export function useSkedraCanvasCommandPalette({
 				run: () => store.toggleGrid(),
 			},
 			{
+				id: "toggle-object-snap",
+				labelKey: "canvas.contextMenu.snapToObjects",
+				groupKey: "canvas.commandPalette.groups.view",
+				run: () => store.toggleSnapToObjects(),
+			},
+			{
 				id: "toggle-zen",
 				labelKey: "canvas.commandPalette.toggleZen",
 				groupKey: "canvas.commandPalette.groups.view",

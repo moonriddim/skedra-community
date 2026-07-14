@@ -44,6 +44,9 @@ export function Whiteboard() {
 - `initialTool`: selects the initial tool.
 - `initialPathDrawMode` / `onPathDrawModeChange`: selects single-segment or multi-line drawing.
 - `initialPathMode` / `onPathModeChange`: selects cornered, curved, or elbow paths.
+- `theme` / `onThemeChange`: controls the light/dark theme and reports shortcut changes.
+- `onZenModeChange`: reports Zen-mode changes triggered by the shared shortcut.
+- `onHelpRequest` / `onCommandPaletteRequest`: handles the shared help and command-palette shortcuts. Without callbacks, the canvas dispatches bubbling `skedra:help-request` and `skedra:command-palette-request` DOM events.
 
 ## Imperative API
 
@@ -104,10 +107,11 @@ implementation. `@skedra/canvas-core` owns storage-independent mutation plans,
 drawing and selection geometry, keyboard commands, template generation and
 layout, Kanban/Flowchart operations, alignment/distribution, grouping,
 clipboard relation remapping, and mindmap operations. `@skedra/canvas-editor`
-owns shared editor gestures and interaction UI, while `@skedra/canvas-react`
-owns the SVG renderer. The web application only adapts these layers to its Yjs,
-translation, dialog, and collaboration services; the public package adapts them
-to controlled or local React state.
+owns shared editor gestures and interaction UI, `@skedra/canvas-react` owns the
+SVG renderer, and `@skedra/canvas-io` owns file codecs, encryption, and visual
+exporters. The web application only adapts these layers to its Yjs, translation,
+dialog, and collaboration services; the public package adapts them to controlled
+or local React state.
 
 Multi-line points, corner/curve modes, elbow routing, hover previews,
 start-point closing snaps, closing/filling, and path point editing run through

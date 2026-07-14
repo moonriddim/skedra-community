@@ -5,12 +5,19 @@ import {
 	sanitizeStickyChecklistForStorage,
 } from "@/lib/canvas/sticky-note-utils";
 import { useI18n } from "@/lib/i18n";
-import type { ArrowTextOrientation, ArrowTextSide } from "@skedra/canvas-core";
+import {
+	type ArrowTextOrientation,
+	type ArrowTextSide,
+	isCanvasTextEditableElement,
+} from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
+import type {
+	CanvasEditorEditingText as EditingText,
+	CanvasEditorPendingText as PendingText,
+} from "@skedra/canvas-editor";
 import { nanoid } from "nanoid";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasStore, CanvasSync } from "../canvas-tool-types";
-import type { EditingText, PendingText } from "../text-editor";
 import { buildEditingTextSession } from "./text-editing-builders";
 import { buildTextElementUpdate } from "./text-element-updates";
 
@@ -19,18 +26,8 @@ interface UseCanvasTextEditingOptions {
 	store: CanvasStore;
 }
 
-const SHAPE_TEXT_TYPES = new Set([
-	"text",
-	"rectangle",
-	"ellipse",
-	"diamond",
-	"frame",
-	"line",
-	"arrow",
-]);
-
 export function isTextEditableElement(element: CanvasElement) {
-	return SHAPE_TEXT_TYPES.has(element.type);
+	return isCanvasTextEditableElement(element);
 }
 
 export function useCanvasTextEditing({

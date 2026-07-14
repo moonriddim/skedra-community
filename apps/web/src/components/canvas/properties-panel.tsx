@@ -1,30 +1,41 @@
 /**
- * Eigenschaften-Panel (links): Zeigt und aendert Eigenschaften
- * der selektierten Elemente oder die globalen Zeichenoptionen.
+ * Community adapter for the shared canvas-editor properties surface.
+ * Collaboration state remains in the Web app; the UI and feature controls do not.
  */
 
 import { useCanvasStore } from "@/hooks/use-canvas-store";
-import { useI18n } from "@/lib/i18n";
 import type { ArrowTextOrientation, ArrowTextSide } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useEffect } from "react";
+import {
+	type CanvasEditorAlignment,
+	type CanvasEditorDistribution,
+	CanvasEditorPropertiesPanel,
+	type CanvasEditorEditingText as EditingText,
+	type CanvasEditorPendingText as PendingText,
+	buildCanvasEditorDefaultsElement,
+} from "@skedra/canvas-editor";
+import "@skedra/canvas-editor/style.css";
+import { type CSSProperties, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { CanvasCommands } from "./canvas-commands";
-import { AppearanceProperties } from "./properties-panel/appearance-properties";
-import { ArrowProperties } from "./properties-panel/arrow-properties";
-import { FlowchartProperties } from "./properties-panel/flowchart-properties";
-import { KanbanProperties } from "./properties-panel/kanban-properties";
-import { SelectionFooterProperties } from "./properties-panel/selection-footer";
-import { StickyNoteProperties } from "./properties-panel/sticky-note-properties";
-import { TemplateProperties } from "./properties-panel/template-properties";
-import { TextStyleSection } from "./properties-panel/text-style-section";
 import { usePropertiesPanel } from "./properties-panel/use-properties-panel";
-import type { EditingText, PendingText } from "./text-editor";
+
+const WEB_PROPERTIES_PANEL_STYLE = {
+	top: "3.5rem",
+	right: "auto",
+	left: "0.75rem",
+	zIndex: 40,
+	"--skedra-sdk-panel": "var(--card)",
+	"--skedra-sdk-panel-border": "var(--border-color)",
+	"--skedra-sdk-text": "var(--card-foreground)",
+	"--skedra-sdk-muted": "var(--muted-foreground)",
+	"--skedra-sdk-primary": "var(--primary)",
+	"--skedra-sdk-danger": "var(--destructive)",
+} as CSSProperties;
 
 interface PropertiesPanelProps {
 	elements: Map<string, CanvasElement>;
 	selectedIds: Set<string>;
-	getViewportCenter: () => { x: number; y: number };
 	editingTextId?: string | null;
 	editingArrowTextSide?: ArrowTextSide | null;
 	editingArrowTextOrientation?: ArrowTextOrientation | null;
@@ -45,8 +56,13 @@ interface PropertiesPanelProps {
 	onBringToFront: () => void;
 	onSendToBack: () => void;
 	onCopy: () => void;
-	onAddLink: () => void;
-	onCreateElements: (elements: CanvasElement[]) => void;
+	onFlipHorizontal: () => void;
+	onFlipVertical: () => void;
+	onToggleLock: () => void;
+	onGroup: () => void;
+	onUngroup: () => void;
+	onAlign: (alignment: CanvasEditorAlignment) => void;
+	onDistribute: (axis: CanvasEditorDistribution) => void;
 	commands: Pick<
 		CanvasCommands,
 		| "addKanbanCard"
@@ -76,16 +92,22 @@ export function PropertiesPanel({
 	onBringToFront,
 	onSendToBack,
 	onCopy,
-	onAddLink,
+	onFlipHorizontal,
+	onFlipVertical,
+	onToggleLock,
+	onGroup,
+	onUngroup,
+	onAlign,
+	onDistribute,
 	commands,
 }: PropertiesPanelProps) {
 	const propertyFocus = useCanvasStore(
 		useShallow((state) => ({
 			propertyFocusHint: state.propertyFocusHint,
 			clearPropertyFocus: state.clearPropertyFocus,
+			setCroppingImageId: state.setCroppingImageId,
 		})),
 	);
-	const { t } = useI18n();
 
 	const panel = usePropertiesPanel({
 		elements,
@@ -103,7 +125,41 @@ export function PropertiesPanel({
 		commands,
 	});
 
-	/** Tastatur S/G/Shift+F: zum passenden Eigenschaften-Abschnitt scrollen */
+	const defaultsElement = buildCanvasEditorDefaultsElement({
+		tool: panel.activeTool,
+		width: panel.currentShapeWidth,
+		height: panel.currentShapeHeight,
+		style: {
+			stroke: panel.currentStroke,
+			fill: panel.currentFill,
+			strokeWidth: panel.currentStrokeWidth,
+			strokeStyle: panel.currentStrokeStyle,
+			opacity: panel.currentOpacity,
+			cornerRadiusPercent: panel.currentCornerRadiusPercent,
+			roughness: panel.currentRoughness,
+			roughFillStyle: panel.currentRoughFillStyle,
+			roughFillScale: panel.roughFillScalePercent / 100,
+			arrowMode: panel.currentArrowMode,
+			arrowHeadStart: panel.currentArrowHeadStart,
+			arrowHeadEnd: panel.currentArrowHeadEnd,
+			arrowHeadScale: panel.currentArrowHeadScale,
+			arrowHeadFilled: panel.currentArrowHeadFilled,
+			fontFamily: panel.currentFontFamily,
+			fontSize: panel.currentFontSize,
+			textAlign: panel.currentTextAlign,
+			fontWeight: panel.currentFontWeight,
+			fontStyle: panel.currentFontStyle,
+			textDecoration: panel.currentTextDecoration,
+			textColor: panel.currentTextColor,
+		},
+	});
+	const editorSelection =
+		panel.inspected.length > 0
+			? panel.inspected
+			: defaultsElement
+				? [defaultsElement]
+				: [];
+
 	useEffect(() => {
 		const hint = propertyFocus.propertyFocusHint;
 		if (!hint) return;
@@ -116,162 +172,93 @@ export function PropertiesPanel({
 	if (!panel.shouldRender) return null;
 
 	return (
-		<div
-			data-text-editor-safe="true"
-			className="absolute top-14 left-3 z-40 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-card/90 shadow-xl backdrop-blur-md p-2.5 space-y-2.5 text-card-foreground text-xs select-none"
-			onWheel={(e) => e.stopPropagation()}
-		>
-			{panel.isStickyNoteOnly && (
-				<StickyNoteProperties
-					currentMode={panel.currentStickyNoteMode}
-					currentFill={panel.currentFill}
-					onModeChange={panel.setStickyNoteMode}
-					onFillChange={(color) => panel.setProperty("fill", color)}
-				/>
-			)}
-
-			<KanbanProperties
-				selected={panel.selected}
-				isKanbanListSelection={panel.isKanbanListSelection}
-				isKanbanCardSelection={panel.isKanbanCardSelection}
-				kanbanList={panel.kanbanList}
-				currentPriority={panel.currentPriority}
-				onSetPriority={panel.setKanbanPriority}
-				onOpenListDetail={panel.openKanbanListDetail}
-				onAddCardToList={panel.addCardToList}
-				onOpenCardDetail={panel.openKanbanDetail}
-			/>
-
-			<TemplateProperties
-				templateSection={panel.templateSection}
-				templateNoteMeta={panel.templateNoteMeta}
-				isTemplateNoteSelection={panel.isTemplateNoteSelection}
-				selectedCount={panel.selected.length}
-				onAddTemplateNote={panel.addTemplateNote}
-			/>
-
-			<FlowchartProperties
-				flowchartNode={panel.flowchartNode}
-				flowchartNodeMeta={panel.flowchartNodeMeta}
-				flowchartConnector={panel.flowchartConnector}
-				flowchartConnectorMeta={panel.flowchartConnectorMeta}
-				flowchartInsertKind={panel.flowchartInsertKind}
-				onSetInsertKind={panel.setFlowchartInsertKind}
-				onEditNodeText={panel.editFlowchartNodeText}
-				onSetNodeKind={panel.setFlowchartNodeKind}
-				onAddNodeOnSide={panel.addFlowchartNodeOnSide}
-				onSetConnectorLabel={panel.setFlowchartConnectorLabel}
-				onEditConnectorLabel={panel.editFlowchartConnectorLabel}
-			/>
-
-			<AppearanceProperties
-				showStroke={panel.showStroke}
-				isTextOnly={panel.isTextOnly}
-				mindmapBranchRoot={panel.mindmapBranchRoot}
-				selectedTemplateSection={panel.selectedTemplateSection}
-				currentStroke={panel.currentStroke}
-				showBackgroundFill={panel.showBackgroundFill}
-				currentFill={panel.currentFill}
-				showGeometryFill={panel.showGeometryFill}
-				currentRoughFillStyle={panel.currentRoughFillStyle}
-				showRoughFillScale={panel.showRoughFillScale}
-				roughFillScalePercent={panel.roughFillScalePercent}
-				showStrokeWidth={panel.showStrokeWidth}
-				currentStrokeWidth={panel.currentStrokeWidth}
-				showStrokeStyle={panel.showStrokeStyle}
-				currentStrokeStyle={panel.currentStrokeStyle}
-				showRoughness={panel.showRoughness}
-				currentRoughness={panel.currentRoughness}
-				showCornerRadius={panel.showCornerRadius}
-				currentCornerRadiusPercent={panel.currentCornerRadiusPercent}
-				cornerRadiusWidth={panel.cornerRadiusWidth}
-				cornerRadiusHeight={panel.cornerRadiusHeight}
-				isCornerPresetActive={panel.isCornerPresetActive}
-				showDimensions={panel.showDimensions}
-				singleGeometryElement={panel.singleGeometryElement}
-				geometryPresetTool={panel.geometryPresetTool}
-				currentShapeWidth={panel.currentShapeWidth}
-				currentShapeHeight={panel.currentShapeHeight}
-				ellipseDiameter={panel.ellipseDiameter}
-				currentOpacity={panel.currentOpacity}
-				strokeColors={panel.strokeColors}
-				onPropertyChange={panel.setProperty}
-				onSetSingleGeometryWidth={panel.setSingleGeometryWidth}
-				onSetSingleGeometryHeight={panel.setSingleGeometryHeight}
-				onSetPerfectCircleDiameter={panel.setPerfectCircleDiameter}
-				onStartPresetGeometryPlacement={panel.startPresetGeometryPlacement}
-			/>
-
-			<ArrowProperties
-				showPathDrawMode={panel.showPathDrawMode}
-				isPathElement={panel.isPathElement}
-				isArrowElement={panel.isArrowElement}
-				showPathClosed={panel.showPathClosed}
-				currentPathClosed={panel.currentPathClosed}
-				showArrowTextPosition={panel.showArrowTextPosition}
-				pathDrawMode={panel.pathDrawMode}
-				currentArrowMode={panel.currentArrowMode}
-				currentArrowHeadStart={panel.currentArrowHeadStart}
-				currentArrowHeadEnd={panel.currentArrowHeadEnd}
-				currentArrowHeadScale={panel.currentArrowHeadScale}
-				currentArrowHeadFilled={panel.currentArrowHeadFilled}
-				showArrowHeadScale={panel.showArrowHeadScale}
-				showArrowHeadFill={panel.showArrowHeadFill}
-				currentArrowTextSide={panel.currentArrowTextSide}
-				currentArrowTextOrientation={panel.currentArrowTextOrientation}
-				onPathDrawModeChange={panel.setPathDrawMode}
-				onPropertyChange={panel.setProperty}
-				onArrowTextSideChange={panel.setArrowTextSide}
-				onArrowTextOrientationChange={panel.setArrowTextOrientation}
-			/>
-
-			{panel.hasTextElement && (
-				<div data-property-focus="font">
-					<TextStyleSection
-						strokeColors={panel.strokeColors}
-						currentTextColor={panel.currentTextColor}
-						currentFontFamily={panel.currentFontFamily}
-						currentFontSize={panel.currentFontSize}
-						currentTextAlign={panel.currentTextAlign}
-						currentFontWeight={panel.currentFontWeight}
-						currentFontStyle={panel.currentFontStyle}
-						currentTextDecoration={panel.currentTextDecoration}
-						textColorLabel={t("canvas.properties.textColor")}
-						onTextColorChange={(color) => panel.setProperty("textColor", color)}
-						onFontFamilyChange={(fontFamily) =>
-							panel.setProperty("fontFamily", fontFamily)
-						}
-						onFontSizeChange={(fontSize) =>
-							panel.setProperty("fontSize", fontSize)
-						}
-						onTextAlignChange={(textAlign) =>
-							panel.setProperty("textAlign", textAlign)
-						}
-						onFontWeightChange={(fontWeight) =>
-							panel.setProperty("fontWeight", fontWeight)
-						}
-						onFontStyleChange={(fontStyle) =>
-							panel.setProperty("fontStyle", fontStyle)
-						}
-						onTextDecorationChange={(textDecoration) =>
-							panel.setProperty("textDecoration", textDecoration)
-						}
-					/>
-				</div>
-			)}
-
-			<SelectionFooterProperties
-				hasSelection={panel.hasSelection}
-				selectedIds={selectedIds}
-				canvasBgOptions={panel.canvasBgOptions}
-				onBringForward={onBringForward}
-				onSendBackward={onSendBackward}
-				onBringToFront={onBringToFront}
-				onSendToBack={onSendToBack}
-				onCopy={onCopy}
-				onDeleteElements={onDeleteElements}
-				onAddLink={onAddLink}
-			/>
-		</div>
+		<CanvasEditorPropertiesPanel
+			selected={editorSelection}
+			mode={panel.hasInspectionTarget ? "selection" : "defaults"}
+			className="skedra-community__properties"
+			style={WEB_PROPERTIES_PANEL_STYLE}
+			canvasBackground={{
+				value: panel.canvasBg,
+				options: panel.canvasBgOptions,
+				onChange: panel.setCanvasBg,
+			}}
+			pathDrawMode={panel.pathDrawMode}
+			onPathDrawModeChange={panel.setPathDrawMode}
+			onSetProperties={(properties) => {
+				for (const [key, value] of Object.entries(properties)) {
+					panel.setProperty(key as keyof CanvasElement, value);
+				}
+			}}
+			onSetGeometryWidth={panel.setSingleGeometryWidth}
+			onSetGeometryHeight={panel.setSingleGeometryHeight}
+			onSetEllipseDiameter={panel.setPerfectCircleDiameter}
+			onPlaceDefaultElement={
+				panel.hasInspectionTarget
+					? undefined
+					: panel.startPresetGeometryPlacement
+			}
+			onDelete={() => onDeleteElements(Array.from(selectedIds))}
+			onGroup={onGroup}
+			onUngroup={onUngroup}
+			onAlign={onAlign}
+			onDistribute={onDistribute}
+			onLayer={(command) => {
+				if (command === "bring-forward") onBringForward();
+				else if (command === "send-backward") onSendBackward();
+				else if (command === "bring-to-front") onBringToFront();
+				else onSendToBack();
+			}}
+			onFlip={(axis) =>
+				axis === "horizontal" ? onFlipHorizontal() : onFlipVertical()
+			}
+			onLock={onToggleLock}
+			onCropImage={(id, crop) => {
+				const element = elements.get(id);
+				if (!element) return;
+				onUpdateElement(id, {
+					customData: { ...(element.customData ?? {}), imageCrop: crop },
+				});
+			}}
+			onStartImageCrop={propertyFocus.setCroppingImageId}
+			onAddFlowchartStep={(nodeId, options) =>
+				commands.addFlowchartStep(nodeId, options)
+			}
+			onSetFlowchartNodeKind={(_id, kind) => panel.setFlowchartNodeKind(kind)}
+			flowchartInsertKind={panel.flowchartInsertKind}
+			onFlowchartInsertKindChange={panel.setFlowchartInsertKind}
+			onAddFlowchartNodeOnSide={panel.addFlowchartNodeOnSide}
+			onEditFlowchartNodeText={panel.editFlowchartNodeText}
+			onEditFlowchartConnectorLabel={panel.editFlowchartConnectorLabel}
+			onSetFlowchartConnectorLabel={panel.setFlowchartConnectorLabel}
+			onUpdateKanbanCard={(cardId, details) => {
+				const element = elements.get(cardId);
+				if (!element) return;
+				onUpdateElement(cardId, {
+					...(details.title !== undefined ? { text: details.title } : {}),
+					customData: {
+						...(element.customData ?? {}),
+						skedraType: "kanban-card",
+						...details,
+					},
+				});
+			}}
+			onUpdateKanbanList={(listId, details) => {
+				const element = elements.get(listId);
+				if (!element) return;
+				onUpdateElement(listId, {
+					...(details.name !== undefined ? { frameLabel: details.name } : {}),
+					customData: {
+						...(element.customData ?? {}),
+						skedraType: "kanban-list",
+						...details,
+					},
+				});
+			}}
+			onOpenKanbanCard={commands.openKanbanCard}
+			onOpenKanbanList={commands.openKanbanList}
+			onAddKanbanCard={commands.addKanbanCard}
+			onAddTemplateSticky={commands.addTemplateSticky}
+			onCopy={onCopy}
+		/>
 	);
 }

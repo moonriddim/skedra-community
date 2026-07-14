@@ -25,4 +25,5 @@ export * from "./viewport";
 export * from "./flowchart-navigation";
 export * from "./encrypted-assets";
 export * from "./editor-operations";
+export * from "./element-capabilities";
 export * from "./templates";

@@ -1,3 +1,5 @@
+@import "@skedra/canvas-editor/style.css";
+
 .skedra-sdk {
 	--skedra-sdk-bg: #f7f6ef;
 	--skedra-sdk-panel: #fffef9;
@@ -346,133 +348,6 @@
 	word-break: break-word;
 }
 
-.skedra-sdk__properties {
-	position: absolute;
-	top: 72px;
-	right: 12px;
-	z-index: 2;
-	display: grid;
-	width: min(330px, calc(100% - 24px));
-	max-height: calc(100% - 96px);
-	overflow-y: auto;
-	gap: 0;
-	border: 1px solid var(--skedra-sdk-panel-border);
-	border-radius: 10px;
-	background: color-mix(in srgb, var(--skedra-sdk-panel) 96%, transparent);
-	box-shadow: 0 20px 54px -34px rgba(0, 0, 0, 0.48);
-	user-select: text;
-}
-
-.skedra-sdk__properties section,
-.skedra-sdk__properties-header {
-	display: grid;
-	gap: 8px;
-	padding: 12px;
-	border-bottom: 1px solid var(--skedra-sdk-panel-border);
-}
-
-.skedra-sdk__properties-header {
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: center;
-}
-
-.skedra-sdk__properties-header div,
-.skedra-sdk__property-stack {
-	display: grid;
-	gap: 3px;
-}
-
-.skedra-sdk__properties h3,
-.skedra-sdk__properties strong,
-.skedra-sdk__properties small {
-	margin: 0;
-}
-
-.skedra-sdk__properties h3 {
-	font-size: 11px;
-	font-weight: 750;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-
-.skedra-sdk__properties small {
-	overflow: hidden;
-	color: var(--skedra-sdk-muted);
-	font-size: 10px;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.skedra-sdk__property-grid {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px;
-}
-
-.skedra-sdk__property-grid label,
-.skedra-sdk__property-stack {
-	min-width: 0;
-	font-size: 11px;
-}
-
-.skedra-sdk__property-grid label {
-	display: grid;
-	gap: 3px;
-}
-
-.skedra-sdk__properties input,
-.skedra-sdk__properties select,
-.skedra-sdk__properties textarea,
-.skedra-sdk__properties button,
-.skedra-sdk__presentation button {
-	min-width: 0;
-	border: 1px solid var(--skedra-sdk-panel-border);
-	border-radius: 6px;
-	background: var(--skedra-sdk-panel);
-	color: var(--skedra-sdk-text);
-	font: inherit;
-}
-
-.skedra-sdk__properties input,
-.skedra-sdk__properties select,
-.skedra-sdk__properties textarea {
-	width: 100%;
-	box-sizing: border-box;
-	padding: 6px 7px;
-}
-
-.skedra-sdk__properties input[type="color"],
-.skedra-sdk__properties input[type="checkbox"],
-.skedra-sdk__properties input[type="range"] {
-	padding: 1px;
-}
-
-.skedra-sdk__properties textarea {
-	min-height: 62px;
-	resize: vertical;
-}
-
-.skedra-sdk__properties button,
-.skedra-sdk__presentation button {
-	padding: 6px 8px;
-	cursor: pointer;
-}
-
-.skedra-sdk__properties button:disabled {
-	cursor: default;
-	opacity: 0.45;
-}
-
-.skedra-sdk__property-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 5px;
-}
-
-.skedra-sdk__property-actions button {
-	font-size: 10px;
-}
-
 .skedra-sdk__presentation {
 	position: absolute;
 	right: 50%;
@@ -487,6 +362,17 @@
 	background: var(--skedra-sdk-panel);
 	box-shadow: 0 16px 40px -28px rgba(0, 0, 0, 0.5);
 	transform: translateX(50%);
+}
+
+.skedra-sdk__presentation button {
+	min-width: 0;
+	padding: 6px 8px;
+	border: 1px solid var(--skedra-sdk-panel-border);
+	border-radius: 6px;
+	background: var(--skedra-sdk-panel);
+	color: var(--skedra-sdk-text);
+	font: inherit;
+	cursor: pointer;
 }
 
 @media (max-width: 720px) {

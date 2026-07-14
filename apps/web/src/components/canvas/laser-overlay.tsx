@@ -38,7 +38,12 @@ export function LaserOverlay({ trails, viewport }: LaserOverlayProps) {
 	if (trails.length === 0) return null;
 
 	return (
-		<g pointerEvents="none" className="laser-overlay">
+		<g
+			pointerEvents="none"
+			className="laser-overlay"
+			data-ui-only="true"
+			data-skedra-ui="laser"
+		>
 			{trails.map((trail) => {
 				const d = trailToSvgPath(trail, viewport.zoom);
 				if (!d) return null;

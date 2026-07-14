@@ -14,6 +14,7 @@
 		"./element-factory": "./src/element-factory.ts",
 		"./encrypted-assets": "./src/encrypted-assets.ts",
 		"./editor-operations": "./src/editor-operations.ts",
+		"./element-capabilities": "./src/element-capabilities.ts",
 		"./templates": "./src/templates.ts",
 		"./excalidraw-import": "./src/excalidraw-import.ts",
 		"./flowchart": "./src/flowchart.ts",

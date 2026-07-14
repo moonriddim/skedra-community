@@ -20,6 +20,7 @@ import {
 	Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import "@livekit/components-styles";
 
 type LiveKitCredentials = {
 	serverUrl: string;

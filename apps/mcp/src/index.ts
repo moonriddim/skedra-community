@@ -12,7 +12,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
 	type CanvasElement,
-	createBaseCanvasElement,
 	createKanbanBoardElements,
 } from "@skedra/canvas-core";
 import { z } from "zod";
@@ -24,6 +23,7 @@ import {
 	readPlainBoardState,
 } from "./canvas-e2ee.js";
 import { type SkedraApiClient, createSkedraClientFromEnv } from "./client.js";
+import { createMcpCanvasElement, elementInputSchema } from "./element-input.js";
 
 /** Factory-Defaults für Canvas-Elemente aus dem MCP (eigene IDs, neutraler Stroke). */
 const elementDefaults = {
@@ -286,25 +286,6 @@ server.registerTool(
 // Änderung erscheint dank Live-Bus sofort bei allen Web-Clients. Der Agent muss den
 // E2EE-Schlüssel (#skedraKey aus der Board-URL) übergeben; create_board liefert ihn.
 
-const elementInputSchema = z.object({
-	type: z.enum([
-		"rectangle",
-		"ellipse",
-		"diamond",
-		"line",
-		"arrow",
-		"text",
-		"frame",
-	]),
-	x: z.number(),
-	y: z.number(),
-	width: z.number().positive(),
-	height: z.number().positive(),
-	text: z.string().optional(),
-	fill: z.string().optional(),
-	stroke: z.string().optional(),
-});
-
 server.registerTool(
 	"add_board_elements",
 	{
@@ -318,17 +299,8 @@ server.registerTool(
 		}),
 	},
 	async ({ boardId, e2eeKey, elements }) => {
-		const built = elements.map((el) =>
-			createBaseCanvasElement(elementDefaults, {
-				type: el.type,
-				x: el.x,
-				y: el.y,
-				width: el.width,
-				height: el.height,
-				...(el.text !== undefined ? { text: el.text } : {}),
-				...(el.fill !== undefined ? { fill: el.fill } : {}),
-				...(el.stroke !== undefined ? { stroke: el.stroke } : {}),
-			}),
+		const built = elements.map((element) =>
+			createMcpCanvasElement(elementDefaults, element),
 		);
 		return textResult(
 			await pushBoardElements(getClient(), boardId, e2eeKey, built),

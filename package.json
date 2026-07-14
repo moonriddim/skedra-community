@@ -10,7 +10,7 @@
 		"test": "turbo test && node --test scripts/*.test.mjs",
 		"lint": "node scripts/check-canvas-boundary.mjs && biome check .",
 		"lint:canvas-boundary": "node scripts/check-canvas-boundary.mjs",
-		"sdk:verify": "pnpm lint:canvas-boundary && pnpm --filter @skedra/canvas-core test && pnpm --filter @skedra/canvas-editor test && pnpm --filter @skedra/canvas-editor build && node --test scripts/canvas-parity.test.mjs && pnpm --filter @skedra/react test && pnpm --filter @skedra/web build",
+		"sdk:verify": "pnpm lint:canvas-boundary && pnpm --filter @skedra/canvas-core test && pnpm --filter @skedra/canvas-editor test && pnpm --filter @skedra/canvas-editor build && pnpm --filter @skedra/canvas-io test && pnpm --filter @skedra/canvas-io build && node --test scripts/canvas-parity.test.mjs && pnpm --filter @skedra/react test && pnpm --filter @skedra/mcp test && pnpm --filter @skedra/web test && pnpm --filter @skedra/web build",
 		"analyze": "fallow",
 		"analyze:fix": "fallow fix --yes",
 		"format": "biome format --write .",

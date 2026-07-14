@@ -4,16 +4,31 @@ import {
 	convertExcalidrawLibraryGroups,
 	getCombinedBBox,
 } from "@skedra/canvas-core";
+import { decodeCanvasElement } from "@skedra/canvas-io/codecs";
+import {
+	SKEDRA_ENCRYPTED_FILE_TYPE as SHARED_ENCRYPTED_FILE_TYPE,
+	SKEDRA_FILE_MIME as SHARED_FILE_MIME,
+	SKEDRA_FILE_TYPE as SHARED_FILE_TYPE,
+	SKEDRA_FILE_VERSION as SHARED_FILE_VERSION,
+	SkedraIoError as SharedSkedraIoError,
+	createCanvasSkedraFile,
+	decryptCanvasSkedraFile,
+	downloadCanvasBlob,
+	encryptCanvasSkedraFile,
+	parseCanvasSkedraFile,
+	parseCanvasSkedraFileContents,
+	serializeCanvasSkedraFile,
+} from "@skedra/canvas-io/file";
 import {
 	createSkedraElementId,
 	getSkedraElementFactoryDefaults,
 } from "./factories.js";
 import type { CanvasElement, SavedCanvasView, Viewport } from "./types.js";
 
-export const SKEDRA_FILE_TYPE = "skedra" as const;
-export const SKEDRA_ENCRYPTED_FILE_TYPE = "skedra-encrypted" as const;
-export const SKEDRA_FILE_VERSION = 1;
-export const SKEDRA_FILE_MIME = "application/vnd.skedra+json";
+export const SKEDRA_FILE_TYPE = SHARED_FILE_TYPE;
+export const SKEDRA_ENCRYPTED_FILE_TYPE = SHARED_ENCRYPTED_FILE_TYPE;
+export const SKEDRA_FILE_VERSION = SHARED_FILE_VERSION;
+export const SKEDRA_FILE_MIME = SHARED_FILE_MIME;
 export const SKEDRA_LIBRARY_TYPE = "skedralib" as const;
 export const SKEDRA_LIBRARY_VERSION = 1;
 export const SKEDRA_LIBRARY_MIME = "application/vnd.skedra.library+json";
@@ -76,6 +91,13 @@ export class SkedraIoError extends Error {
 	}
 }
 
+function throwPublicIoError(error: unknown): never {
+	if (error instanceof SharedSkedraIoError) {
+		throw new SkedraIoError(error.message);
+	}
+	throw error;
+}
+
 export function serializeSkedraClipboard(elements: CanvasElement[]): string {
 	return JSON.stringify({
 		type: SKEDRA_CLIPBOARD_TYPE,
@@ -107,57 +129,19 @@ export function createSkedraFile(options: {
 	canvasBg?: string;
 	source?: string;
 }): SkedraFile {
-	return {
-		type: SKEDRA_FILE_TYPE,
-		version: SKEDRA_FILE_VERSION,
-		source: options.source,
-		elements: cloneJson(Array.from(options.elements)),
-		views: options.views ? cloneJson(Array.from(options.views)) : undefined,
-		appState:
-			options.viewport || options.canvasBg
-				? { viewport: options.viewport, canvasBg: options.canvasBg }
-				: undefined,
-	};
+	return createCanvasSkedraFile(options) as SkedraFile;
 }
 
 export function serializeSkedraFile(file: SkedraFile): string {
-	return JSON.stringify(file, null, 2);
+	return serializeCanvasSkedraFile(file);
 }
 
 export function parseSkedraFile(value: string | unknown): SkedraFile {
-	const parsed = typeof value === "string" ? parseJson(value) : value;
-	if (!isRecord(parsed) || parsed.type !== SKEDRA_FILE_TYPE) {
-		throw new SkedraIoError("invalidFormat");
+	try {
+		return parseCanvasSkedraFile(value) as SkedraFile;
+	} catch (error) {
+		throwPublicIoError(error);
 	}
-	if (!Number.isInteger(parsed.version) || Number(parsed.version) < 1) {
-		throw new SkedraIoError("invalidVersion");
-	}
-	if (Number(parsed.version) > SKEDRA_FILE_VERSION) {
-		throw new SkedraIoError("unsupportedVersion");
-	}
-	if (!Array.isArray(parsed.elements))
-		throw new SkedraIoError("invalidElements");
-	const elements = parsed.elements.flatMap((entry) => {
-		const element = decodeCanvasElement(entry);
-		return element ? [element] : [];
-	});
-	if (elements.length !== parsed.elements.length) {
-		throw new SkedraIoError("invalidElements");
-	}
-	const views = Array.isArray(parsed.views)
-		? parsed.views.flatMap((entry) => {
-				const view = decodeSavedView(entry);
-				return view ? [view] : [];
-			})
-		: undefined;
-	return {
-		type: SKEDRA_FILE_TYPE,
-		version: Number(parsed.version),
-		source: typeof parsed.source === "string" ? parsed.source : undefined,
-		elements,
-		views,
-		appState: decodeAppState(parsed.appState),
-	};
 }
 
 export async function encryptSkedraFile(
@@ -165,54 +149,25 @@ export async function encryptSkedraFile(
 	passphrase: string,
 	iterations = 250_000,
 ): Promise<SkedraEncryptedFile> {
-	if (!passphrase) throw new SkedraIoError("passphraseRequired");
-	const cryptoApi = requireCrypto();
-	const salt = cryptoApi.getRandomValues(new Uint8Array(16));
-	const iv = cryptoApi.getRandomValues(new Uint8Array(12));
-	const key = await deriveKey(passphrase, salt, iterations, ["encrypt"]);
-	const plaintext = new TextEncoder().encode(serializeSkedraFile(file));
-	const ciphertext = await cryptoApi.subtle.encrypt(
-		{ name: "AES-GCM", iv: toArrayBuffer(iv) },
-		key,
-		toArrayBuffer(plaintext),
-	);
-	return {
-		type: SKEDRA_ENCRYPTED_FILE_TYPE,
-		version: SKEDRA_FILE_VERSION,
-		source: file.source,
-		algorithm: "PBKDF2-SHA256-AES-GCM",
-		kdf: {
-			name: "PBKDF2",
-			hash: "SHA-256",
+	try {
+		return (await encryptCanvasSkedraFile(
+			file,
+			passphrase,
 			iterations,
-			salt: bytesToBase64(salt),
-		},
-		iv: bytesToBase64(iv),
-		ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
-	};
+		)) as SkedraEncryptedFile;
+	} catch (error) {
+		throwPublicIoError(error);
+	}
 }
 
 export async function decryptSkedraFile(
 	value: string | SkedraEncryptedFile,
 	passphrase: string,
 ): Promise<SkedraFile> {
-	if (!passphrase) throw new SkedraIoError("passphraseRequired");
-	const parsed = typeof value === "string" ? parseJson(value) : value;
-	if (!isEncryptedSkedraFile(parsed)) throw new SkedraIoError("invalidFormat");
 	try {
-		const salt = base64ToBytes(parsed.kdf.salt);
-		const key = await deriveKey(passphrase, salt, parsed.kdf.iterations, [
-			"decrypt",
-		]);
-		const plaintext = await requireCrypto().subtle.decrypt(
-			{ name: "AES-GCM", iv: toArrayBuffer(base64ToBytes(parsed.iv)) },
-			key,
-			toArrayBuffer(base64ToBytes(parsed.ciphertext)),
-		);
-		return parseSkedraFile(new TextDecoder().decode(plaintext));
+		return (await decryptCanvasSkedraFile(value, passphrase)) as SkedraFile;
 	} catch (error) {
-		if (error instanceof SkedraIoError) throw error;
-		throw new SkedraIoError("decryptFailed");
+		throwPublicIoError(error);
 	}
 }
 
@@ -220,12 +175,11 @@ export async function parseSkedraFileContents(
 	raw: string,
 	passphrase?: string,
 ): Promise<SkedraFile> {
-	const parsed = parseJson(raw);
-	if (isEncryptedSkedraFile(parsed)) {
-		if (passphrase == null) throw new SkedraIoError("passphraseRequired");
-		return decryptSkedraFile(parsed, passphrase);
+	try {
+		return (await parseCanvasSkedraFileContents(raw, passphrase)) as SkedraFile;
+	} catch (error) {
+		throwPublicIoError(error);
 	}
-	return parseSkedraFile(parsed);
 }
 
 export function createSkedraLibraryFile(
@@ -386,61 +340,7 @@ export function cropSkedraImage(
 }
 
 export function downloadSkedraBlob(blob: Blob, filename: string): void {
-	const url = URL.createObjectURL(blob);
-	const anchor = document.createElement("a");
-	anchor.href = url;
-	anchor.download = filename;
-	anchor.click();
-	setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-function decodeCanvasElement(value: unknown): CanvasElement | null {
-	if (!isRecord(value)) return null;
-	if (
-		typeof value.id !== "string" ||
-		![
-			"rectangle",
-			"ellipse",
-			"diamond",
-			"line",
-			"arrow",
-			"image",
-			"text",
-			"freehand",
-			"frame",
-		].includes(String(value.type)) ||
-		!["x", "y", "width", "height", "rotation", "strokeWidth", "opacity"].every(
-			(key) => typeof value[key] === "number" && Number.isFinite(value[key]),
-		) ||
-		typeof value.fill !== "string" ||
-		typeof value.stroke !== "string" ||
-		!(["solid", "dashed", "dotted"] as unknown[]).includes(value.strokeStyle) ||
-		typeof value.locked !== "boolean" ||
-		!(value.groupId === null || typeof value.groupId === "string") ||
-		typeof value.flipX !== "boolean" ||
-		typeof value.flipY !== "boolean"
-	) {
-		return null;
-	}
-	return cloneJson(value) as unknown as CanvasElement;
-}
-
-function decodeSavedView(value: unknown): SavedCanvasView | null {
-	if (
-		!isRecord(value) ||
-		typeof value.id !== "string" ||
-		typeof value.name !== "string"
-	) {
-		return null;
-	}
-	if (
-		!["x", "y", "width", "height", "createdAt", "updatedAt"].every(
-			(key) => typeof value[key] === "number" && Number.isFinite(value[key]),
-		)
-	) {
-		return null;
-	}
-	return cloneJson(value) as unknown as SavedCanvasView;
+	downloadCanvasBlob(blob, filename);
 }
 
 function decodeLibraryItem(value: unknown): SkedraLibraryItem | null {
@@ -458,37 +358,6 @@ function decodeLibraryItem(value: unknown): SkedraLibraryItem | null {
 		name: stringOrUndefined(value.name),
 		elements: elements as CanvasElement[],
 	};
-}
-
-function decodeAppState(value: unknown): SkedraFile["appState"] {
-	if (!isRecord(value)) return undefined;
-	const viewport = isRecord(value.viewport)
-		? {
-				x: Number(value.viewport.x),
-				y: Number(value.viewport.y),
-				zoom: Number(value.viewport.zoom),
-			}
-		: undefined;
-	return {
-		canvasBg: stringOrUndefined(value.canvasBg),
-		viewport:
-			viewport && Object.values(viewport).every(Number.isFinite)
-				? viewport
-				: undefined,
-	};
-}
-
-function isEncryptedSkedraFile(value: unknown): value is SkedraEncryptedFile {
-	return (
-		isRecord(value) &&
-		value.type === SKEDRA_ENCRYPTED_FILE_TYPE &&
-		value.algorithm === "PBKDF2-SHA256-AES-GCM" &&
-		isRecord(value.kdf) &&
-		typeof value.kdf.iterations === "number" &&
-		typeof value.kdf.salt === "string" &&
-		typeof value.iv === "string" &&
-		typeof value.ciphertext === "string"
-	);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -509,53 +378,6 @@ function parseJson(value: string): unknown {
 
 function cloneJson<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function requireCrypto() {
-	if (!globalThis.crypto?.subtle) throw new SkedraIoError("cryptoUnavailable");
-	return globalThis.crypto;
-}
-
-async function deriveKey(
-	passphrase: string,
-	salt: Uint8Array,
-	iterations: number,
-	usages: KeyUsage[],
-) {
-	const cryptoApi = requireCrypto();
-	const material = await cryptoApi.subtle.importKey(
-		"raw",
-		new TextEncoder().encode(passphrase),
-		"PBKDF2",
-		false,
-		["deriveKey"],
-	);
-	return cryptoApi.subtle.deriveKey(
-		{ name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
-		material,
-		{ name: "AES-GCM", length: 256 },
-		false,
-		usages,
-	);
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-	const copy = new Uint8Array(bytes.byteLength);
-	copy.set(bytes);
-	return copy.buffer;
-}
-
-function bytesToBase64(bytes: Uint8Array) {
-	let binary = "";
-	for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-		binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-	}
-	return btoa(binary);
-}
-
-function base64ToBytes(value: string) {
-	const binary = atob(value);
-	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

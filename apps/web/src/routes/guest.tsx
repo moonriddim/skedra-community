@@ -15,12 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
 import { authClient } from "@/lib/auth-client";
-import {
-	exportPDF,
-	exportPNG,
-	exportPPTX,
-	exportSVG,
-} from "@/lib/canvas/export-utils";
 import { clearLocalCanvasState } from "@/lib/canvas/local-canvas-storage";
 import type { SkedraCanvasFileActions } from "@/lib/canvas/skedra-file-utils";
 import {
@@ -187,24 +181,8 @@ export function GuestCanvasPage() {
 		});
 	};
 
-	const handleExportSvg = () => {
-		const svg = document.querySelector<SVGSVGElement>(".skedra-canvas svg");
-		if (svg) exportSVG(svg);
-	};
-
-	const handleExportPng = () => {
-		const svg = document.querySelector<SVGSVGElement>(".skedra-canvas svg");
-		if (svg) void exportPNG(svg);
-	};
-
-	const handleExportPdf = () => {
-		const svg = document.querySelector<SVGSVGElement>(".skedra-canvas svg");
-		if (svg) void exportPDF(svg);
-	};
-
-	const handleExportPptx = () => {
-		const svg = document.querySelector<SVGSVGElement>(".skedra-canvas svg");
-		if (svg) void exportPPTX(svg);
+	const handleExportVisual = (format: "svg" | "png" | "pdf" | "pptx") => {
+		void canvasCommandRef.current?.exportVisual(format);
 	};
 
 	const handleSaveSkedra = () => {
@@ -237,10 +215,10 @@ export function GuestCanvasPage() {
 					onSaveSkedra={handleSaveSkedra}
 					onSaveEncryptedSkedra={handleSaveEncryptedSkedra}
 					onOpenSkedra={handleOpenSkedra}
-					onExportSvg={handleExportSvg}
-					onExportPng={handleExportPng}
-					onExportPdf={handleExportPdf}
-					onExportPptx={handleExportPptx}
+					onExportSvg={() => handleExportVisual("svg")}
+					onExportPng={() => handleExportVisual("png")}
+					onExportPdf={() => handleExportVisual("pdf")}
+					onExportPptx={() => handleExportVisual("pptx")}
 					onClearCanvas={() => setClearDialogOpen(true)}
 					onOpenHelp={openHelp}
 					onOpenLiveCollaboration={handleLiveCollaborationClick}

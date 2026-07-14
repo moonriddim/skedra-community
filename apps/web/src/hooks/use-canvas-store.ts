@@ -19,7 +19,6 @@ import type {
 	ArrowHead,
 	ArrowMode,
 	FlowchartNodeKind,
-	HandlePosition,
 	KanbanPriority,
 	LaserTrail,
 	RoughFillStyle,
@@ -144,14 +143,6 @@ export interface CanvasStoreState {
 	/** Freihand-Lasso waehrend der Selektion */
 	lassoPath: [number, number][] | null;
 	setLassoPath: (path: [number, number][] | null) => void;
-
-	/* Aktiver Resize-Handle */
-	activeHandle: HandlePosition | null;
-	setActiveHandle: (handle: HandlePosition | null) => void;
-
-	/* Aktiver Punkt-Index (fuer Linien/Pfeile Punkt-Bearbeitung) */
-	activePointIndex: number | null;
-	setActivePointIndex: (idx: number | null) => void;
 
 	/* Feature-Panel (Sticky Notes, Kanban) */
 	activePanel: "sticky" | "kanban" | "library" | null;
@@ -367,12 +358,6 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
 	lassoPath: null,
 	setLassoPath: (path) => set({ lassoPath: path }),
-
-	activeHandle: null,
-	setActiveHandle: (handle) => set({ activeHandle: handle }),
-
-	activePointIndex: null,
-	setActivePointIndex: (idx) => set({ activePointIndex: idx }),
 
 	activePanel: null,
 	setActivePanel: (panel) =>

@@ -6,6 +6,11 @@ test("package root exports the canvas component and SDK factories", async () => 
 	const sdk = await import("@skedra/react");
 
 	assert.ok(sdk.SkedraCanvas);
+	assert.equal(
+		sdk.CanvasEditor,
+		sdk.SkedraCanvas,
+		"the public SDK must expose the shared editor entry point",
+	);
 	assert.equal(typeof sdk.createSkedraTemplateElements, "function");
 	assert.equal(typeof sdk.createSkedraStickyNoteElement, "function");
 	assert.deepEqual([...sdk.SKEDRA_SDK_TOOL_IDS].sort(), [
@@ -91,6 +96,7 @@ test("command contract exposes every shared SDK editing operation", async () => 
 		"flip-horizontal",
 		"toggle-lock",
 		"toggle-grid",
+		"toggle-object-snap",
 	]) {
 		assert.ok(commands.SKEDRA_CANVAS_COMMAND_IDS.includes(id), id);
 	}
@@ -166,6 +172,49 @@ test("canvas chrome renders tools, grid, and command menus on the server", async
 	assert.match(markup, /<option value="multi" selected="">Multi-line/u);
 	assert.match(markup, /<option value="curve" selected="">Curves/u);
 	assert.match(markup, /data-skedra-elements="true"/u);
+	assert.match(markup, /data-skedra-ui="grid"/u);
+	assert.match(markup, /data-skedra-ui="snap-overlay"/u);
+});
+
+test("visual export bounds ignore UI layers and restore live styles", async () => {
+	const { measureSkedraExportBounds } = await import("@skedra/react/exporters");
+	const uiElements = [
+		{
+			style: {
+				display: "inline",
+				removeProperty() {
+					this.display = "";
+				},
+			},
+		},
+		{
+			style: {
+				display: "",
+				removeProperty() {
+					this.display = "";
+				},
+			},
+		},
+	];
+	const bounds = { x: 10, y: 20, width: 300, height: 200 };
+	const layer = {
+		querySelectorAll(selector) {
+			assert.match(selector, /data-skedra-ui/u);
+			return uiElements;
+		},
+		getBBox() {
+			assert.deepEqual(
+				uiElements.map((element) => element.style.display),
+				["none", "none"],
+			);
+			return bounds;
+		},
+	};
+	assert.equal(measureSkedraExportBounds(layer), bounds);
+	assert.deepEqual(
+		uiElements.map((element) => element.style.display),
+		["inline", ""],
+	);
 });
 
 test("published runtime and declarations are self-contained", () => {
@@ -174,8 +223,12 @@ test("published runtime and declarations are self-contained", () => {
 		const source = readFileSync(`dist/${filename}`, "utf8");
 		assert.doesNotMatch(
 			source,
-			/@skedra\/canvas-(?:core|editor|react)/u,
+			/@skedra\/canvas-(?:core|editor|io|react)/u,
 			filename,
 		);
 	}
+	const css = readFileSync("dist/style.css", "utf8");
+	assert.doesNotMatch(css, /@skedra\/canvas-editor/u);
+	assert.match(css, /\.canvas-editor__text-overlay/u);
+	assert.match(css, /\.skedra-sdk__properties/u);
 });

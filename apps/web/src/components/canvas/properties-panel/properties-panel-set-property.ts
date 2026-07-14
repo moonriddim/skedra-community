@@ -17,7 +17,10 @@ import type {
 	RoughFillStyle,
 	StrokeStyle,
 } from "@skedra/canvas-core";
-import type { EditingText, PendingText } from "../text-editor";
+import type {
+	CanvasEditorEditingText as EditingText,
+	CanvasEditorPendingText as PendingText,
+} from "@skedra/canvas-editor";
 
 interface StoreDrawingDefaults {
 	setStrokeColor: (color: string) => void;

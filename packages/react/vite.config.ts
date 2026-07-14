@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => ({
 				index: "src/index.ts",
 				factories: "src/factories.ts",
 				io: "src/io.ts",
+				"keyboard-actions": "src/keyboard-actions.ts",
 				"workspace-hooks": "src/workspace-hooks.ts",
 			},
 			formats: ["es"],

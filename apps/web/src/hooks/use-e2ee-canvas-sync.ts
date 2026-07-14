@@ -28,7 +28,8 @@ import {
 import { trpc } from "@/lib/trpc";
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
-import type { CanvasRole, SkedraFile } from "@skedra/shared";
+import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
+import type { CanvasRole } from "@skedra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import type { LocalCanvasPresence } from "./canvas-sync-types";

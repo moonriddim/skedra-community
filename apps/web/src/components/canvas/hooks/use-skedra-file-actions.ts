@@ -19,7 +19,7 @@ import {
 } from "@/lib/canvas/skedra-file-utils";
 import { useI18n } from "@/lib/i18n";
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
-import type { SkedraFile } from "@skedra/shared";
+import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CanvasSyncSlice {

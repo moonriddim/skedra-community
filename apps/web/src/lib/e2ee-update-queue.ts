@@ -7,10 +7,23 @@ export interface PendingE2eeUpdate {
 	id: string;
 	whiteboardId: string;
 	clientId: string;
+	/** Missing on records written before the shared queue supported server mode. */
+	mode?: "e2ee";
 	keyHash: string;
 	update: string;
 	createdAt: number;
 }
+
+export interface PendingServerUpdate {
+	id: string;
+	whiteboardId: string;
+	clientId: string;
+	mode: "server";
+	update: string;
+	createdAt: number;
+}
+
+type PendingCanvasUpdate = PendingE2eeUpdate | PendingServerUpdate;
 
 function createPendingId() {
 	if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -42,7 +55,7 @@ function transactionDone(transaction: IDBTransaction) {
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openQueueDb() {
-	if (!("indexedDB" in window)) {
+	if (!("indexedDB" in globalThis)) {
 		return Promise.reject(new Error("IndexedDB is not available"));
 	}
 
@@ -77,12 +90,13 @@ function openQueueDb() {
 }
 
 export async function enqueuePendingE2eeUpdate(
-	input: Omit<PendingE2eeUpdate, "id" | "createdAt">,
+	input: Omit<PendingE2eeUpdate, "id" | "createdAt" | "mode">,
 ) {
 	const db = await openQueueDb();
 	const record: PendingE2eeUpdate = {
 		...input,
 		id: createPendingId(),
+		mode: "e2ee",
 		createdAt: Date.now(),
 	};
 	const transaction = db.transaction(STORE_NAME, "readwrite");
@@ -96,9 +110,42 @@ export async function listPendingE2eeUpdates(whiteboardId: string) {
 	const transaction = db.transaction(STORE_NAME, "readonly");
 	const store = transaction.objectStore(STORE_NAME);
 	const request = store.index(WHITEBOARD_INDEX).getAll(whiteboardId);
-	const records = (await requestToPromise(request)) as PendingE2eeUpdate[];
+	const records = (await requestToPromise(request)) as PendingCanvasUpdate[];
 	await transactionDone(transaction);
-	return records.sort((left, right) => left.createdAt - right.createdAt);
+	return records
+		.filter(
+			(record): record is PendingE2eeUpdate =>
+				record.mode == null || record.mode === "e2ee",
+		)
+		.sort((left, right) => left.createdAt - right.createdAt);
+}
+
+export async function enqueuePendingServerUpdate(
+	input: Omit<PendingServerUpdate, "id" | "createdAt" | "mode">,
+) {
+	const db = await openQueueDb();
+	const record: PendingServerUpdate = {
+		...input,
+		id: createPendingId(),
+		mode: "server",
+		createdAt: Date.now(),
+	};
+	const transaction = db.transaction(STORE_NAME, "readwrite");
+	transaction.objectStore(STORE_NAME).add(record);
+	await transactionDone(transaction);
+	return record;
+}
+
+export async function listPendingServerUpdates(whiteboardId: string) {
+	const db = await openQueueDb();
+	const transaction = db.transaction(STORE_NAME, "readonly");
+	const store = transaction.objectStore(STORE_NAME);
+	const request = store.index(WHITEBOARD_INDEX).getAll(whiteboardId);
+	const records = (await requestToPromise(request)) as PendingCanvasUpdate[];
+	await transactionDone(transaction);
+	return records
+		.filter((record): record is PendingServerUpdate => record.mode === "server")
+		.sort((left, right) => left.createdAt - right.createdAt);
 }
 
 export async function deletePendingE2eeUpdate(id: string) {
@@ -115,9 +162,11 @@ export async function deletePendingE2eeUpdates(ids: string[]) {
 	await transactionDone(transaction);
 }
 
+export const deletePendingServerUpdates = deletePendingE2eeUpdates;
+
 /** Closes and removes the complete offline queue when a user deletes the account. */
 export async function deletePendingE2eeUpdateDatabase() {
-	if (!("indexedDB" in window)) return;
+	if (!("indexedDB" in globalThis)) return;
 
 	const openDb = dbPromise ? await dbPromise.catch(() => null) : null;
 	openDb?.close();
