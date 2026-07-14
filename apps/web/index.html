@@ -32,6 +32,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Kalam:wght@400;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style id="seo-fallback-style">
+      html, body, #root { min-height: 100%; }
+      body { margin: 0; background: #ffffff; }
       .seo-fallback { box-sizing: border-box; max-width: 72rem; margin: 0 auto; padding: 4rem 1.5rem; color: #17211f; font-family: Outfit, system-ui, sans-serif; line-height: 1.65; }
       .seo-fallback h1 { max-width: 52rem; margin: 0 0 1rem; font-size: clamp(2.25rem, 6vw, 4.5rem); line-height: 1.05; }
       .seo-fallback h2 { margin-top: 2.5rem; font-size: 1.6rem; }
@@ -40,11 +42,14 @@
       .seo-fallback a { color: #0f766e; }
       .seo-fallback table { width: 100%; border-collapse: collapse; }
       .seo-fallback th, .seo-fallback td { padding: .75rem; border: 1px solid #cbd5e1; text-align: left; }
-      @media (prefers-color-scheme: dark) { .seo-fallback { color: #ecf4f2; background: #111816; } }
+      @media (prefers-color-scheme: dark) { body, .seo-fallback { color: #ecf4f2; background: #111816; } }
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <script id="skedra-clear-seo-fallback">
+      document.getElementById("root")?.replaceChildren();
+    </script>
     <script src="/config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
