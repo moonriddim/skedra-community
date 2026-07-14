@@ -95,14 +95,10 @@ export function CanvasToolbar({
 			activePanel: state.activePanel,
 			activeTool: state.activeTool,
 			strokeColor: state.strokeColor,
-			pathDrawMode: state.pathDrawMode,
-			arrowMode: state.arrowMode,
 			toolLocked: state.toolLocked,
 			activateEyedropper: state.activateEyedropper,
 			setActivePanel: state.setActivePanel,
 			setActiveTool: state.setActiveTool,
-			setPathDrawMode: state.setPathDrawMode,
-			setArrowMode: state.setArrowMode,
 			toggleToolLocked: state.toggleToolLocked,
 		})),
 	);
@@ -144,7 +140,38 @@ export function CanvasToolbar({
 			id: "insert-menu",
 			label: t("canvas.toolbar.insertMenu"),
 			icon: <LayoutTemplate className="h-3.5 w-3.5" />,
+			active:
+				store.activePanel === "sticky" ||
+				store.activePanel === "kanban" ||
+				store.activePanel === "library",
 			items: [
+				{
+					type: "label",
+					id: "panels-label",
+					label: t("canvas.toolbar.insertMenuPanels"),
+				},
+				{
+					id: "sticky-note",
+					label: t("canvas.toolbar.stickyNote"),
+					icon: <StickyNote className="h-4 w-4" />,
+					onSelect: () => store.setActivePanel("sticky"),
+				},
+				{
+					id: "kanban",
+					label: t("canvas.toolbar.kanban"),
+					icon: <Kanban className="h-4 w-4" />,
+					onSelect: () => store.setActivePanel("kanban"),
+				},
+				{
+					type: "separator",
+					id: "panels-separator",
+					label: "",
+				},
+				{
+					type: "label",
+					id: "templates-label",
+					label: t("canvas.toolbar.insertMenuTemplates"),
+				},
 				{
 					id: "mindmap",
 					label: t("canvas.toolbar.insertMindmap"),
@@ -269,6 +296,7 @@ export function CanvasToolbar({
 					} else store.setActiveTool(tool);
 				},
 				renderIcon: (tool) => TOOL_ICONS[tool],
+				includeTool: (definition) => definition.group !== "structured",
 				toolLocked: store.toolLocked,
 				onToolLockChange: () => store.toggleToolLocked(),
 				renderToolLockIcon: (locked) =>
@@ -288,10 +316,6 @@ export function CanvasToolbar({
 					pathSelect:
 						"h-7 rounded-md border border-border bg-background px-1 text-[11px] text-foreground",
 				},
-				pathDrawMode: store.pathDrawMode,
-				pathMode: store.arrowMode,
-				onPathDrawModeChange: store.setPathDrawMode,
-				onPathModeChange: store.setArrowMode,
 			}}
 			items={items}
 			classes={{
@@ -305,6 +329,8 @@ export function CanvasToolbar({
 					"absolute top-full left-1/2 z-50 mt-2 w-52 -translate-x-1/2 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md",
 				menuItem:
 					"flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent disabled:pointer-events-none disabled:opacity-50",
+				menuLabel: "px-2 py-1.5 text-sm font-semibold",
+				menuSeparator: "-mx-1 my-1 h-px border-0 bg-border",
 			}}
 		/>
 	);

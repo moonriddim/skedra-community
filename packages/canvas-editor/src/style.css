@@ -15,7 +15,7 @@
 	user-select: text;
 }
 
-.skedra-sdk__properties section,
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) section,
 .skedra-sdk__properties-header {
 	display: grid;
 	gap: 8px;
@@ -72,10 +72,10 @@
 	gap: 3px;
 }
 
-.skedra-sdk__properties input,
-.skedra-sdk__properties select,
-.skedra-sdk__properties textarea,
-.skedra-sdk__properties button {
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) input,
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) select,
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) textarea,
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) button {
 	min-width: 0;
 	border: 1px solid var(--skedra-sdk-panel-border);
 	border-radius: 6px;
@@ -84,31 +84,34 @@
 	font: inherit;
 }
 
-.skedra-sdk__properties input,
-.skedra-sdk__properties select,
-.skedra-sdk__properties textarea {
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) input,
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) select,
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) textarea {
 	width: 100%;
 	box-sizing: border-box;
 	padding: 6px 7px;
 }
 
-.skedra-sdk__properties input[type="color"],
-.skedra-sdk__properties input[type="checkbox"],
-.skedra-sdk__properties input[type="range"] {
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic)
+	input[type="color"],
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic)
+	input[type="checkbox"],
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic)
+	input[type="range"] {
 	padding: 1px;
 }
 
-.skedra-sdk__properties textarea {
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) textarea {
 	min-height: 62px;
 	resize: vertical;
 }
 
-.skedra-sdk__properties button {
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) button {
 	padding: 6px 8px;
 	cursor: pointer;
 }
 
-.skedra-sdk__properties button:disabled {
+.skedra-sdk__properties:not(.skedra-sdk__properties--classic) button:disabled {
 	cursor: default;
 	opacity: 0.45;
 }
@@ -121,6 +124,30 @@
 
 .skedra-sdk__property-actions button {
 	font-size: 10px;
+}
+
+/* Compact pre-unification properties UI, now hosted by the shared editor. */
+.skedra-sdk__properties--classic {
+	top: 3.5rem;
+	right: auto;
+	left: 0.75rem;
+	display: block;
+	width: min(16rem, calc(100vw - 1.5rem));
+	max-height: none;
+	overflow: visible;
+	padding: 0.625rem;
+	border-radius: 0.75rem;
+	background: color-mix(in srgb, var(--skedra-sdk-panel) 90%, transparent);
+	color: var(--skedra-sdk-text);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	user-select: none;
+}
+
+.skedra-sdk__properties--classic > * + * {
+	margin-top: 0.625rem;
 }
 
 .canvas-editor__text-overlay {

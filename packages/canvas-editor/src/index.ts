@@ -69,6 +69,7 @@ export type {
 	CanvasEditorElementStyle,
 } from "./editor-defaults";
 export { CanvasEditorPropertiesPanel } from "./canvas-editor-properties-panel";
+export { CanvasEditorClassicPropertiesPanel } from "./canvas-editor-classic-properties-panel";
 export { CanvasEditorImageCropOverlay } from "./canvas-editor-image-crop-overlay";
 export type { CanvasEditorImageCropOverlayProps } from "./canvas-editor-image-crop-overlay";
 export { CanvasEditorTextOverlay } from "./canvas-editor-text-overlay";
@@ -169,6 +170,12 @@ export type {
 	CanvasEditorLayerCommand,
 	CanvasEditorPropertiesPanelProps,
 } from "./canvas-editor-properties-panel";
+export type {
+	CanvasEditorClassicPropertiesView,
+	CanvasEditorPropertiesTranslate,
+	CanvasEditorTemplateNoteMeta,
+	CanvasEditorTemplateSectionMeta,
+} from "./canvas-editor-classic-properties-panel";
 export type {
 	CanvasEditorKeyboardAction,
 	CanvasEditorKeyboardContext,

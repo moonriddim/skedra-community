@@ -198,6 +198,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					onBringToFront={keyboard.bringToFront}
 					onSendToBack={keyboard.sendToBack}
 					onCopy={keyboard.copySelection}
+					onAddLink={keyboard.addLink}
 					onFlipHorizontal={keyboard.flipHorizontal}
 					onFlipVertical={keyboard.flipVertical}
 					onToggleLock={keyboard.toggleLock}

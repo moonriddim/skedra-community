@@ -1,6 +1,11 @@
 import type { CanvasElement, CanvasPathDrawMode } from "@skedra/canvas-core";
 import type { CSSProperties } from "react";
 import { useOptionalCanvasEditorServices } from "./canvas-editor";
+import {
+	CanvasEditorClassicPropertiesPanel,
+	type CanvasEditorClassicPropertiesView,
+	type CanvasEditorPropertiesTranslate,
+} from "./canvas-editor-classic-properties-panel";
 
 export type CanvasEditorAlignment =
 	| "top"
@@ -57,7 +62,8 @@ export interface CanvasEditorPropertiesPanelProps {
 	className?: string;
 	style?: CSSProperties;
 	ariaLabel?: string;
-	translate?: (key: string, fallback: string) => string;
+	translate?: CanvasEditorPropertiesTranslate;
+	classicView?: CanvasEditorClassicPropertiesView;
 	canvasBackground?: {
 		value: string;
 		options: readonly string[];
@@ -125,6 +131,7 @@ export function CanvasEditorPropertiesPanel({
 	style,
 	ariaLabel = "Canvas properties",
 	translate,
+	classicView,
 	canvasBackground,
 	pathDrawMode,
 	onPathDrawModeChange,
@@ -168,6 +175,22 @@ export function CanvasEditorPropertiesPanel({
 		translate ??
 		services?.translations?.translate ??
 		((_key, fallback) => fallback);
+	if (classicView) {
+		return (
+			<CanvasEditorClassicPropertiesPanel
+				view={classicView}
+				className={className}
+				style={style}
+				ariaLabel={
+					ariaLabel === "Canvas properties"
+						? t("canvas.properties.ariaLabel", ariaLabel)
+						: ariaLabel
+				}
+				disabled={disabled}
+				translate={t}
+			/>
+		);
+	}
 	const custom = element.customData ?? {};
 	const isFlowchart = custom.skedraType === "flowchart-node";
 	const isFlowchartConnector = custom.skedraType === "flowchart-connector";

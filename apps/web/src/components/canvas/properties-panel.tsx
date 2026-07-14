@@ -4,6 +4,7 @@
  */
 
 import { useCanvasStore } from "@/hooks/use-canvas-store";
+import { useI18n } from "@/lib/i18n";
 import type { ArrowTextOrientation, ArrowTextSide } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import {
@@ -56,6 +57,7 @@ interface PropertiesPanelProps {
 	onBringToFront: () => void;
 	onSendToBack: () => void;
 	onCopy: () => void;
+	onAddLink: () => void;
 	onFlipHorizontal: () => void;
 	onFlipVertical: () => void;
 	onToggleLock: () => void;
@@ -92,6 +94,7 @@ export function PropertiesPanel({
 	onBringToFront,
 	onSendToBack,
 	onCopy,
+	onAddLink,
 	onFlipHorizontal,
 	onFlipVertical,
 	onToggleLock,
@@ -101,6 +104,7 @@ export function PropertiesPanel({
 	onDistribute,
 	commands,
 }: PropertiesPanelProps) {
+	const { t } = useI18n();
 	const propertyFocus = useCanvasStore(
 		useShallow((state) => ({
 			propertyFocusHint: state.propertyFocusHint,
@@ -177,6 +181,111 @@ export function PropertiesPanel({
 			mode={panel.hasInspectionTarget ? "selection" : "defaults"}
 			className="skedra-community__properties"
 			style={WEB_PROPERTIES_PANEL_STYLE}
+			translate={(key, fallback, params) => {
+				const translated = t(key, params);
+				return translated === key ? fallback : translated;
+			}}
+			classicView={{
+				selected: panel.selected,
+				hasSelection: panel.hasSelection,
+				isStickyNoteOnly: panel.isStickyNoteOnly,
+				currentStickyNoteMode: panel.currentStickyNoteMode,
+				isKanbanListSelection: panel.isKanbanListSelection,
+				isKanbanCardSelection: panel.isKanbanCardSelection,
+				kanbanList: panel.kanbanList,
+				currentPriority: panel.currentPriority,
+				templateSection: panel.templateSection,
+				isTemplateNoteSelection: panel.isTemplateNoteSelection,
+				templateNoteMeta: panel.templateNoteMeta,
+				flowchartNode: panel.flowchartNode,
+				flowchartNodeMeta: panel.flowchartNodeMeta,
+				flowchartConnector: panel.flowchartConnector,
+				flowchartConnectorMeta: panel.flowchartConnectorMeta,
+				flowchartInsertKind: panel.flowchartInsertKind,
+				showStroke: panel.showStroke,
+				isTextOnly: panel.isTextOnly,
+				hasMindmapBranch: panel.mindmapBranchRoot != null,
+				selectedTemplateSection: panel.selectedTemplateSection,
+				currentStroke: panel.currentStroke,
+				showBackgroundFill: panel.showBackgroundFill,
+				currentFill: panel.currentFill,
+				showGeometryFill: panel.showGeometryFill,
+				currentRoughFillStyle: panel.currentRoughFillStyle,
+				showRoughFillScale: panel.showRoughFillScale,
+				roughFillScalePercent: panel.roughFillScalePercent,
+				showStrokeWidth: panel.showStrokeWidth,
+				currentStrokeWidth: panel.currentStrokeWidth,
+				showStrokeStyle: panel.showStrokeStyle,
+				currentStrokeStyle: panel.currentStrokeStyle,
+				showRoughness: panel.showRoughness,
+				currentRoughness: panel.currentRoughness,
+				showCornerRadius: panel.showCornerRadius,
+				currentCornerRadiusPercent: panel.currentCornerRadiusPercent,
+				cornerRadiusWidth: panel.cornerRadiusWidth,
+				cornerRadiusHeight: panel.cornerRadiusHeight,
+				showDimensions: panel.showDimensions,
+				singleGeometryElement: panel.singleGeometryElement,
+				geometryPresetTool: panel.geometryPresetTool,
+				currentShapeWidth: panel.currentShapeWidth,
+				currentShapeHeight: panel.currentShapeHeight,
+				ellipseDiameter: panel.ellipseDiameter,
+				currentOpacity: panel.currentOpacity,
+				strokeColors: panel.strokeColors,
+				showPathDrawMode: panel.showPathDrawMode,
+				isPathElement: panel.isPathElement,
+				isArrowElement: panel.isArrowElement,
+				showPathClosed: panel.showPathClosed,
+				currentPathClosed: panel.currentPathClosed,
+				showArrowTextPosition: panel.showArrowTextPosition,
+				pathDrawMode: panel.pathDrawMode,
+				currentArrowMode: panel.currentArrowMode,
+				currentArrowHeadStart: panel.currentArrowHeadStart,
+				currentArrowHeadEnd: panel.currentArrowHeadEnd,
+				currentArrowHeadScale: panel.currentArrowHeadScale,
+				currentArrowHeadFilled: panel.currentArrowHeadFilled,
+				showArrowHeadScale: panel.showArrowHeadScale,
+				showArrowHeadFill: panel.showArrowHeadFill,
+				currentArrowTextSide: panel.currentArrowTextSide,
+				currentArrowTextOrientation: panel.currentArrowTextOrientation,
+				hasTextElement: panel.hasTextElement,
+				currentTextColor: panel.currentTextColor,
+				currentFontFamily: panel.currentFontFamily,
+				currentFontSize: panel.currentFontSize,
+				currentTextAlign: panel.currentTextAlign,
+				currentFontWeight: panel.currentFontWeight,
+				currentFontStyle: panel.currentFontStyle,
+				currentTextDecoration: panel.currentTextDecoration,
+				canvasBackground: panel.canvasBg,
+				canvasBackgroundOptions: panel.canvasBgOptions,
+				onSetStickyNoteMode: panel.setStickyNoteMode,
+				onSetKanbanPriority: panel.setKanbanPriority,
+				onOpenKanbanList: panel.openKanbanListDetail,
+				onAddKanbanCard: panel.addCardToList,
+				onOpenKanbanCard: panel.openKanbanDetail,
+				onAddTemplateNote: panel.addTemplateNote,
+				onSetFlowchartInsertKind: panel.setFlowchartInsertKind,
+				onEditFlowchartNodeText: panel.editFlowchartNodeText,
+				onSetFlowchartNodeKind: panel.setFlowchartNodeKind,
+				onAddFlowchartNodeOnSide: panel.addFlowchartNodeOnSide,
+				onSetFlowchartConnectorLabel: panel.setFlowchartConnectorLabel,
+				onEditFlowchartConnectorLabel: panel.editFlowchartConnectorLabel,
+				onSetProperty: panel.setProperty,
+				onSetGeometryWidth: panel.setSingleGeometryWidth,
+				onSetGeometryHeight: panel.setSingleGeometryHeight,
+				onSetEllipseDiameter: panel.setPerfectCircleDiameter,
+				onStartPresetGeometryPlacement: panel.startPresetGeometryPlacement,
+				onPathDrawModeChange: panel.setPathDrawMode,
+				onArrowTextSideChange: panel.setArrowTextSide,
+				onArrowTextOrientationChange: panel.setArrowTextOrientation,
+				onSetCanvasBackground: panel.setCanvasBg,
+				onBringForward,
+				onSendBackward,
+				onBringToFront,
+				onSendToBack,
+				onCopy,
+				onDelete: () => onDeleteElements(Array.from(selectedIds)),
+				onAddLink,
+			}}
 			canvasBackground={{
 				value: panel.canvasBg,
 				options: panel.canvasBgOptions,

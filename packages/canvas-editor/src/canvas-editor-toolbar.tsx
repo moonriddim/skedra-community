@@ -32,6 +32,7 @@ export interface CanvasEditorToolbarMenuItemAction {
 export interface CanvasEditorToolbarMenuItem {
 	id: string;
 	label: string;
+	type?: "action" | "label" | "separator";
 	onSelect?: () => void | Promise<void>;
 	disabled?: boolean;
 	icon?: ReactNode;
@@ -47,6 +48,7 @@ export interface CanvasEditorToolbarMenu {
 	icon: ReactNode;
 	items: readonly CanvasEditorToolbarMenuItem[];
 	disabled?: boolean;
+	active?: boolean;
 	onOpen?: () => void;
 	popoverClassName?: string;
 }
@@ -80,6 +82,8 @@ export interface CanvasEditorToolbarClasses {
 	menu?: string;
 	popover?: string;
 	menuItem?: string;
+	menuLabel?: string;
+	menuSeparator?: string;
 	menuRow?: string;
 	secondaryAction?: string;
 	color?: string;
@@ -299,7 +303,7 @@ export function CanvasEditorToolbar({
 				const menuId = `${menuIdPrefix}-${item.id}-menu`;
 				const menuButtonClassName = [
 					classes?.action,
-					open ? classes?.actionActive : undefined,
+					open || item.active ? classes?.actionActive : undefined,
 				]
 					.filter(Boolean)
 					.join(" ");
@@ -350,6 +354,21 @@ export function CanvasEditorToolbar({
 								onKeyDown={handleMenuKeyDown}
 							>
 								{item.items.map((menuItem) => {
+									if (menuItem.type === "label") {
+										return (
+											<div key={menuItem.id} className={classes?.menuLabel}>
+												{menuItem.label}
+											</div>
+										);
+									}
+									if (menuItem.type === "separator") {
+										return (
+											<hr
+												key={menuItem.id}
+												className={classes?.menuSeparator}
+											/>
+										);
+									}
 									const mainAction = (
 										<button
 											key={menuItem.id}
