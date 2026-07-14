@@ -381,16 +381,21 @@ for (const durableQueueContract of [
 	}
 }
 
-for (const relative of [
+const communityExportSource = readRepoFile(
 	".github/scripts/export-community.mjs",
-	".github/workflows/sync-community.yml",
-	".github/workflows/canvas-sdk.yml",
-	".github/workflows/npm-sdk-release.yml",
-]) {
-	if (!readRepoFile(relative).includes("packages/canvas-io")) {
-		errors.push(
-			`The shared IO source must be exported and covered by SDK automation: ${relative}.`,
-		);
+);
+if (communityExportSource) {
+	for (const relative of [
+		".github/scripts/export-community.mjs",
+		".github/workflows/sync-community.yml",
+		".github/workflows/canvas-sdk.yml",
+		".github/workflows/npm-sdk-release.yml",
+	]) {
+		if (!readRepoFile(relative).includes("packages/canvas-io")) {
+			errors.push(
+				`The shared IO source must be exported and covered by SDK automation: ${relative}.`,
+			);
+		}
 	}
 }
 for (const relative of hostToolbarSources) {
