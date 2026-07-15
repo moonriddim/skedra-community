@@ -3,14 +3,17 @@
  */
 
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
+import type { CanvasEditorBeginAuxiliaryPointerGesture } from "@skedra/canvas-editor";
 import { useCallback, useRef } from "react";
 
 interface PointerGestureHandlers {
 	onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => void;
-	onPointerCancel: () => void;
-	onLostPointerCapture: () => boolean;
+	onPointerCancel: (e?: React.PointerEvent<SVGSVGElement>) => void;
+	onLostPointerCapture: (e?: React.PointerEvent<SVGSVGElement>) => boolean;
+	beginAuxiliaryPointerGesture: CanvasEditorBeginAuxiliaryPointerGesture;
+	isMultiTouchGesture: () => boolean;
 }
 
 interface UseSkedraCanvasPointerBridgeOptions {
@@ -19,9 +22,18 @@ interface UseSkedraCanvasPointerBridgeOptions {
 	presentationMode: boolean;
 	textEditorOpen: boolean;
 	isCapturingView: boolean;
-	startViewCapture: (canvasX: number, canvasY: number) => void;
-	handleViewPointerMove: (canvasX: number, canvasY: number) => boolean;
-	handleViewPointerUp: () => boolean;
+	startViewCapture: (
+		canvasX: number,
+		canvasY: number,
+		pointerId: number,
+	) => void;
+	handleViewPointerMove: (
+		canvasX: number,
+		canvasY: number,
+		pointerId: number,
+	) => boolean;
+	handleViewPointerUp: (pointerId: number) => boolean;
+	cancelViewInteraction: () => boolean;
 	pointerHandlers: PointerGestureHandlers;
 	getEventElement: (target: EventTarget | null) => CanvasElement | null;
 	getElementAtPosition: (
@@ -56,6 +68,7 @@ export function useSkedraCanvasPointerBridge({
 	startViewCapture,
 	handleViewPointerMove,
 	handleViewPointerUp,
+	cancelViewInteraction,
 	pointerHandlers,
 	getEventElement,
 	getElementAtPosition,
@@ -98,19 +111,32 @@ export function useSkedraCanvasPointerBridge({
 	const handlePointerDown = useCallback(
 		(e: React.PointerEvent<SVGSVGElement>) => {
 			if (isCapturingView && e.button === 0) {
+				if (
+					!pointerHandlers.beginAuxiliaryPointerGesture(
+						e,
+						cancelViewInteraction,
+					)
+				) {
+					return;
+				}
 				const rect = svgRef.current?.getBoundingClientRect();
 				if (!rect) return;
 				const canvasX =
 					(e.clientX - rect.left - store.viewport.x) / store.viewport.zoom;
 				const canvasY =
 					(e.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
-				startViewCapture(canvasX, canvasY);
+				startViewCapture(canvasX, canvasY, e.pointerId);
+				try {
+					e.currentTarget.setPointerCapture(e.pointerId);
+				} catch {
+					// The browser may already have cancelled the pointer.
+				}
 				return;
 			}
 
 			pointerGestureRef.current.downX = e.clientX;
 			pointerGestureRef.current.downY = e.clientY;
-			pointerGestureRef.current.dragged = false;
+			pointerGestureRef.current.dragged = pointerHandlers.isMultiTouchGesture();
 			pointerGestureRef.current.clickTargetId = null;
 			pointerGestureRef.current.clickTargetWasSelected = false;
 			pointerGestureRef.current.kanbanClickTargetId = null;
@@ -151,6 +177,7 @@ export function useSkedraCanvasPointerBridge({
 			getElementAtPosition,
 			getKanbanElementAtPosition,
 			isCapturingView,
+			cancelViewInteraction,
 			startViewCapture,
 			svgRef,
 		],
@@ -158,13 +185,18 @@ export function useSkedraCanvasPointerBridge({
 
 	const handlePointerMove = useCallback(
 		(e: React.PointerEvent<SVGSVGElement>) => {
+			pointerHandlers.onPointerMove(e);
+			if (pointerHandlers.isMultiTouchGesture()) {
+				pointerGestureRef.current.dragged = true;
+			}
+
 			const rect = svgRef.current?.getBoundingClientRect();
 			if (rect) {
 				const canvasX =
 					(e.clientX - rect.left - store.viewport.x) / store.viewport.zoom;
 				const canvasY =
 					(e.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
-				if (handleViewPointerMove(canvasX, canvasY)) return;
+				if (handleViewPointerMove(canvasX, canvasY, e.pointerId)) return;
 			}
 
 			const dx = e.clientX - pointerGestureRef.current.downX;
@@ -172,20 +204,30 @@ export function useSkedraCanvasPointerBridge({
 			if (!pointerGestureRef.current.dragged && Math.hypot(dx, dy) > 5) {
 				pointerGestureRef.current.dragged = true;
 			}
-			pointerHandlers.onPointerMove(e);
 		},
 		[pointerHandlers, store.viewport, handleViewPointerMove, svgRef],
 	);
 
 	const handlePointerUp = useCallback(
 		(e: React.PointerEvent<SVGSVGElement>) => {
-			if (handleViewPointerUp()) return;
+			const wasMultiTouch = pointerHandlers.isMultiTouchGesture();
+			pointerHandlers.onPointerUp(e);
+			if (handleViewPointerUp(e.pointerId)) {
+				pointerGestureRef.current.clickTargetId = null;
+				pointerGestureRef.current.clickTargetWasSelected = false;
+				pointerGestureRef.current.kanbanClickTargetId = null;
+				pointerGestureRef.current.kanbanClickTargetKind = null;
+				return;
+			}
 
-			if (pointerGestureRef.current.dragged) {
+			if (pointerGestureRef.current.dragged || wasMultiTouch) {
 				pointerGestureRef.current.suppressClickUntil = performance.now() + 250;
 			}
-			pointerHandlers.onPointerUp(e);
-			if (!pointerGestureRef.current.dragged && store.activeTool === "select") {
+			if (
+				!wasMultiTouch &&
+				!pointerGestureRef.current.dragged &&
+				store.activeTool === "select"
+			) {
 				const now = performance.now();
 				const targetId = pointerGestureRef.current.kanbanClickTargetId;
 				const targetKind = pointerGestureRef.current.kanbanClickTargetKind;
@@ -270,17 +312,23 @@ export function useSkedraCanvasPointerBridge({
 		setPresenceCursor(null);
 	}, [scheduleMindmapHoverClear, setPresenceCursor]);
 
-	const handlePointerCancel = useCallback(() => {
-		handleViewPointerUp();
-		pointerHandlers.onPointerCancel();
-		clearPointerGestureState();
-	}, [clearPointerGestureState, handleViewPointerUp, pointerHandlers]);
+	const handlePointerCancel = useCallback(
+		(event: React.PointerEvent<SVGSVGElement>) => {
+			pointerHandlers.onPointerCancel(event);
+			clearPointerGestureState();
+		},
+		[clearPointerGestureState, pointerHandlers],
+	);
 
-	const handleLostPointerCapture = useCallback(() => {
-		const viewHandled = handleViewPointerUp();
-		const gestureCancelled = pointerHandlers.onLostPointerCapture();
-		if (viewHandled || gestureCancelled) clearPointerGestureState();
-	}, [clearPointerGestureState, handleViewPointerUp, pointerHandlers]);
+	const handleLostPointerCapture = useCallback(
+		(event: React.PointerEvent<SVGSVGElement>) => {
+			const gestureCancelled = pointerHandlers.onLostPointerCapture(event);
+			if (gestureCancelled) {
+				clearPointerGestureState();
+			}
+		},
+		[clearPointerGestureState, pointerHandlers],
+	);
 
 	return {
 		pointerGestureRef,

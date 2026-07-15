@@ -13,6 +13,7 @@ import {
 	createCanvasHistoryEntry,
 	shouldApplyCanvasHistoryDelta,
 	shouldApplyCanvasHistoryPatchDelta,
+	squashCanvasHistoryEntries,
 } from "@skedra/canvas-core";
 import type * as Y from "yjs";
 
@@ -105,6 +106,19 @@ export function applyCanvasHistoryEntryToYDoc(
 		}
 	});
 	return applied;
+}
+
+/**
+ * Rolls back one in-progress gesture without adding it to undo/redo history.
+ * Conflict checks in applyCanvasHistoryEntryToYDoc keep concurrent remote
+ * changes intact when the live value no longer matches the local mutation.
+ */
+export function rollbackCanvasHistoryEntries(
+	target: Y.Doc,
+	entries: CanvasHistoryEntry[],
+) {
+	const entry = squashCanvasHistoryEntries(entries);
+	return entry ? applyCanvasHistoryEntryToYDoc(target, entry, "undo") : 0;
 }
 
 export function buildReplaceAllHistoryEntry(

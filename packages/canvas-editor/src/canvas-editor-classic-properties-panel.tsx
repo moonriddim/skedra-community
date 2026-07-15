@@ -509,7 +509,7 @@ export function CanvasEditorClassicPropertiesPanel({
 		<div
 			data-text-editor-safe="true"
 			className={[
-				"skedra-sdk__properties skedra-sdk__properties--classic absolute top-14 left-3 z-40 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-card/90 shadow-xl backdrop-blur-md p-2.5 space-y-2.5 text-card-foreground text-xs select-none",
+				"canvas-editor__properties skedra-sdk__properties skedra-sdk__properties--classic rounded-xl border border-border bg-card/90 shadow-xl backdrop-blur-md p-2.5 space-y-2.5 text-card-foreground text-xs select-none",
 				className,
 			]
 				.filter(Boolean)

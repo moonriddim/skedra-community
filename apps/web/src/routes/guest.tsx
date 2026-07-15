@@ -206,7 +206,7 @@ export function GuestCanvasPage() {
 	};
 
 	return (
-		<div className="relative h-screen overflow-hidden bg-background">
+		<div className="skedra-canvas-page relative h-screen overflow-hidden bg-background max-lg:h-dvh">
 			{!zenMode && (
 				<GuestCanvasChrome
 					isLoggedIn={!!session?.user}

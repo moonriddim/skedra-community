@@ -39,7 +39,7 @@ export function AuthFormLayout({
 	children,
 }: AuthFormLayoutProps) {
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+		<div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 max-lg:min-h-dvh max-lg:py-6">
 			<Card className="w-full max-w-md">
 				<CardHeader className="items-center text-center">
 					<BrandLogo

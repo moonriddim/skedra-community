@@ -2,7 +2,6 @@
  * Overlays um die Canvas-Stage: Mindmap, Flowchart, Presence, Kommentare, Bottom-Bar.
  */
 
-import { BottomBar } from "@/components/canvas/bottom-bar";
 import { FlowchartInsertButtons } from "@/components/canvas/flowchart-insert-buttons";
 import { RemoteCursorOverlay } from "@/components/canvas/presence-overlays";
 import { PresencePanel } from "@/components/canvas/presence-panel";
@@ -12,6 +11,7 @@ import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard
 import type { MentionCandidate } from "@/lib/mention-utils";
 import type { FlowchartNodeKind, FlowchartNodeMeta } from "@skedra/canvas-core";
 import type { CanvasElement, Viewport } from "@skedra/canvas-core";
+import { CanvasEditorSavedViewsBar } from "@skedra/canvas-editor";
 import { Plus } from "lucide-react";
 import type { ComponentProps, RefObject } from "react";
 
@@ -76,7 +76,7 @@ interface SkedraCanvasOverlaysProps {
 	presencePanelOffsetRight?: number;
 	presencePanelSummaryOffsetRight?: number;
 	presencePanelLayout?: ComponentProps<typeof PresencePanel>["layout"];
-	bottomBar: ComponentProps<typeof BottomBar> | null;
+	bottomBar: ComponentProps<typeof CanvasEditorSavedViewsBar> | null;
 }
 
 export function SkedraCanvasOverlays({
@@ -189,7 +189,7 @@ export function SkedraCanvasOverlays({
 				/>
 			)}
 
-			{!zenMode && bottomBar && <BottomBar {...bottomBar} />}
+			{!zenMode && bottomBar && <CanvasEditorSavedViewsBar {...bottomBar} />}
 		</>
 	);
 }

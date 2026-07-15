@@ -84,7 +84,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 				</div>
 
 				{menuOpen && (
-					<nav className="border-t border-border bg-background px-4 py-4 md:hidden">
+					<nav className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-background px-4 py-4 md:hidden">
 						<div className="mx-auto grid max-w-6xl gap-2">
 							<Button asChild variant="ghost" className="justify-start">
 								<Link

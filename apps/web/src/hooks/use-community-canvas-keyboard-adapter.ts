@@ -12,6 +12,7 @@ import { useCanvasStore, useCanvasStoreRef } from "./use-canvas-store";
 
 interface UseCommunityCanvasKeyboardAdapterOptions {
 	enabled?: boolean;
+	editingText?: boolean;
 	elements: Map<string, CanvasElement>;
 	createElement: (el: CanvasElement) => void;
 	deleteElements: (ids: string[]) => void;
@@ -25,6 +26,7 @@ interface UseCommunityCanvasKeyboardAdapterOptions {
 
 export function useCommunityCanvasKeyboardAdapter({
 	enabled = true,
+	editingText = false,
 	elements,
 	createElement,
 	deleteElements,
@@ -45,7 +47,7 @@ export function useCommunityCanvasKeyboardAdapter({
 		getState: () => ({
 			enabled,
 			readOnly: false,
-			editingText: storeRef.current.editingTextId != null,
+			editingText: editingText || storeRef.current.editingTextId != null,
 			hasSelection: storeRef.current.selectedIds.size > 0,
 		}),
 		onEditorAction: (action) => {

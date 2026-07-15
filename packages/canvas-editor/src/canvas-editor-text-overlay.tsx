@@ -13,7 +13,7 @@
  */
 
 import { DEFAULT_FONT_FAMILY, type Viewport } from "@skedra/canvas-core";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 export interface CanvasEditorPendingText {
 	x: number;
@@ -189,7 +189,7 @@ export function CanvasEditorTextOverlay({
 	}, [doSave, onRegisterCommit]);
 
 	/* Focus bei Mount */
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const ta = textareaRef.current;
 		if (!ta) return;
 		ta.focus();
@@ -255,6 +255,7 @@ export function CanvasEditorTextOverlay({
 	}, [doSave]);
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.nativeEvent.isComposing) return;
 		if (e.key === "Escape") {
 			e.preventDefault();
 			doSave();
@@ -316,6 +317,7 @@ export function CanvasEditorTextOverlay({
 	return (
 		<textarea
 			ref={textareaRef}
+			inputMode="text"
 			defaultValue={initialText}
 			onKeyDown={handleKeyDown}
 			onInput={handleInput}

@@ -43,6 +43,10 @@ const GROUP_ORDER: CanvasEditorToolDefinition["group"][] = [
 	"structured",
 ];
 
+function mergeClassNames(...classNames: Array<string | undefined>) {
+	return classNames.filter(Boolean).join(" ") || undefined;
+}
+
 export function CanvasEditorToolStrip({
 	activeTool,
 	onToolSelect,
@@ -82,9 +86,10 @@ export function CanvasEditorToolStrip({
 				<>
 					<button
 						type="button"
-						className={
-							getButtonClassName?.(activeTool, toolLocked) ?? classes?.button
-						}
+						className={mergeClassNames(
+							"canvas-editor__toolbar-action",
+							getButtonClassName?.(activeTool, toolLocked) ?? classes?.button,
+						)}
 						data-active={toolLocked}
 						title={toolLockTitle}
 						aria-label={toolLockTitle}
@@ -92,13 +97,25 @@ export function CanvasEditorToolStrip({
 					>
 						{renderToolLockIcon(toolLocked)}
 					</button>
-					<span aria-hidden="true" className={classes?.divider} />
+					<span
+						aria-hidden="true"
+						className={mergeClassNames(
+							"canvas-editor__toolbar-separator",
+							classes?.divider,
+						)}
+					/>
 				</>
 			)}
 			{groups.map(({ group, tools }, groupIndex) => (
 				<Fragment key={group}>
 					{groupIndex > 0 && (
-						<span aria-hidden="true" className={classes?.divider} />
+						<span
+							aria-hidden="true"
+							className={mergeClassNames(
+								"canvas-editor__toolbar-separator",
+								classes?.divider,
+							)}
+						/>
 					)}
 					{tools.map((definition) => {
 						const label = t(definition.labelKey, definition.label);
@@ -109,12 +126,13 @@ export function CanvasEditorToolStrip({
 							<button
 								key={definition.id}
 								type="button"
-								className={
+								className={mergeClassNames(
+									"canvas-editor__toolbar-action",
 									getButtonClassName?.(
 										definition.id,
 										activeTool === definition.id,
-									) ?? classes?.button
-								}
+									) ?? classes?.button,
+								)}
 								data-active={activeTool === definition.id}
 								title={title}
 								aria-label={label}
@@ -134,9 +152,18 @@ export function CanvasEditorToolStrip({
 				onPathDrawModeChange &&
 				onPathModeChange && (
 					<>
-						<span aria-hidden="true" className={classes?.divider} />
+						<span
+							aria-hidden="true"
+							className={mergeClassNames(
+								"canvas-editor__toolbar-separator",
+								classes?.divider,
+							)}
+						/>
 						<select
-							className={classes?.pathSelect}
+							className={mergeClassNames(
+								"canvas-editor__toolbar-path-select",
+								classes?.pathSelect,
+							)}
 							value={pathDrawMode}
 							aria-label={t("canvas.properties.pathDrawMode", "Path draw mode")}
 							title={t("canvas.properties.pathDrawMode", "Path draw mode")}
@@ -153,7 +180,10 @@ export function CanvasEditorToolStrip({
 							))}
 						</select>
 						<select
-							className={classes?.pathSelect}
+							className={mergeClassNames(
+								"canvas-editor__toolbar-path-select",
+								classes?.pathSelect,
+							)}
 							value={resolveCanvasEditorPathMode(pathMode)}
 							aria-label={t("canvas.properties.pathStyle", "Path style")}
 							title={t("canvas.properties.pathStyle", "Path style")}

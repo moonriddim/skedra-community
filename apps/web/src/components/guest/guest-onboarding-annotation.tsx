@@ -85,7 +85,7 @@ export function GuestOnboardingAnnotation({
 /** Skizzen-Pfeil unten rechts zum Hilfe-Button. */
 export function GuestHelpArrowHint({ label }: { label: string }) {
 	return (
-		<div className="pointer-events-none hidden flex-col items-end gap-1.5 pr-0.5 md:flex">
+		<div className="pointer-events-none hidden flex-col items-end gap-1.5 pr-0.5 lg:flex">
 			<p className="font-comic-note max-w-[190px] text-right text-base leading-snug text-foreground/70">
 				{label}
 			</p>

@@ -32,11 +32,15 @@ import {
 } from "./gesture-operations";
 import { isCanvasMultiPathTool } from "./path-editor-controller";
 import {
+	type CanvasEditorPinchPoints,
 	type CanvasEditorPointerAction,
 	type CanvasEditorPointerGestureAction,
+	createCanvasEditorTouchSession,
+	resolveCanvasEditorPinchViewport,
 	resolveCanvasEditorPointerDown,
 	resolveCanvasEditorWheelViewport,
 	shouldCancelCanvasEditorLostPointerCapture,
+	shouldDeferCanvasEditorTouchAction,
 } from "./pointer-contract";
 import { resolveCanvasEditorSelectPointerDown } from "./selection-pointer-controller";
 import { resolveCanvasEditorRectSnap } from "./snap-controller";
@@ -151,12 +155,18 @@ export interface UseCanvasEditorPointerOptions {
 		point: CanvasEditorResolvedPointerPoint,
 		event: ReactPointerEvent<SVGSVGElement>,
 	) => boolean;
+	shouldDeferTouchPointerDown?: () => boolean;
 	onIdlePointerMove?: (
 		point: CanvasEditorResolvedPointerPoint,
 		event: ReactPointerEvent<SVGSVGElement>,
 	) => boolean;
 	onGestureFinished?: () => void;
 }
+
+export type CanvasEditorBeginAuxiliaryPointerGesture = (
+	event: ReactPointerEvent<SVGElement>,
+	onCancel: () => void,
+) => boolean;
 
 interface PointerState {
 	action: CanvasEditorPointerGestureAction;
@@ -175,6 +185,31 @@ interface PointerState {
 	laserId: string | null;
 	lassoPath: [number, number][];
 }
+
+interface PinchGestureState {
+	pointerIds: [number, number];
+	startPoints: CanvasEditorPinchPoints;
+	startViewport: Viewport;
+}
+
+interface TouchInteractionSnapshot {
+	activeTool: CanvasEditorToolId;
+	selectedIds: Set<string>;
+}
+
+interface AuxiliaryPointerGesture {
+	pointerId: number;
+	onCancel: () => void;
+}
+
+type DeferredTouchAction =
+	| { type: "before-pointer-down" }
+	| { type: "eyedropper" }
+	| { type: "custom"; run: () => void }
+	| {
+			type: "placement";
+			action: CanvasEditorPointerPlacementContext["action"];
+	  };
 
 const INITIAL_POINTER_STATE: PointerState = {
 	action: "none",
@@ -206,10 +241,27 @@ export function useCanvasEditorPointer({
 	startTextPlacement,
 	onPlacement,
 	onBeforePointerDown,
+	shouldDeferTouchPointerDown,
 	onIdlePointerMove,
 	onGestureFinished,
 }: UseCanvasEditorPointerOptions) {
 	const stateRef = useRef<PointerState>({ ...INITIAL_POINTER_STATE });
+	const touchSessionRef = useRef<ReturnType<
+		typeof createCanvasEditorTouchSession
+	> | null>(null);
+	if (!touchSessionRef.current) {
+		touchSessionRef.current = createCanvasEditorTouchSession();
+	}
+	const pinchGestureRef = useRef<PinchGestureState | null>(null);
+	const touchInteractionSnapshotRef = useRef<TouchInteractionSnapshot | null>(
+		null,
+	);
+	const deferredTouchActionRef = useRef<DeferredTouchAction | null>(null);
+	const auxiliaryPointerGestureRef = useRef<AuxiliaryPointerGesture | null>(
+		null,
+	);
+	const transferredPointerCapturesRef = useRef(new Set<number>());
+	const historyActiveRef = useRef(false);
 	const [drawingPreview, setDrawingPreviewState] =
 		useState<CanvasElement | null>(null);
 	const drawingPreviewRef = useRef<CanvasElement | null>(null);
@@ -227,20 +279,39 @@ export function useCanvasEditorPointer({
 		[uiAdapter],
 	);
 
+	const beginHistory = useCallback(() => {
+		if (historyActiveRef.current || !documentAdapter.beginHistory) return;
+		documentAdapter.beginHistory();
+		historyActiveRef.current = true;
+	}, [documentAdapter]);
+
+	const finishHistory = useCallback(() => {
+		if (!historyActiveRef.current) return;
+		historyActiveRef.current = false;
+		documentAdapter.finishHistory?.();
+	}, [documentAdapter]);
+
+	const cancelHistory = useCallback(() => {
+		if (!historyActiveRef.current) return false;
+		historyActiveRef.current = false;
+		documentAdapter.cancelHistory?.();
+		return documentAdapter.cancelHistory != null;
+	}, [documentAdapter]);
+
 	const finishGesture = useCallback(
 		(commitHistory: boolean) => {
 			const state = stateRef.current;
 			if (state.action === "laser" && state.laserId) {
 				uiAdapter.finishLaser?.(state.laserId);
 			}
-			if (commitHistory) documentAdapter.finishHistory?.();
+			if (commitHistory) finishHistory();
 			stateRef.current = { ...INITIAL_POINTER_STATE };
 			uiAdapter.setSelectionBox(null);
 			uiAdapter.setLassoPath(null);
 			clearSnapVisuals();
 			onGestureFinished?.();
 		},
-		[clearSnapVisuals, documentAdapter, onGestureFinished, uiAdapter],
+		[clearSnapVisuals, finishHistory, onGestureFinished, uiAdapter],
 	);
 
 	const {
@@ -262,9 +333,9 @@ export function useCanvasEditorPointer({
 				return id;
 			},
 			setPreview: setDrawingPreview,
-			onBeginHistory: documentAdapter.beginHistory,
-			onFinishHistory: documentAdapter.finishHistory,
-			onCancelHistory: documentAdapter.cancelHistory,
+			onBeginHistory: beginHistory,
+			onFinishHistory: finishHistory,
+			onCancelHistory: cancelHistory,
 			onCreatedSelection: (id) => uiAdapter.setSelectedIds(new Set([id])),
 			onClearSelection: uiAdapter.clearSelection,
 			onExitTool: () => {
@@ -272,6 +343,144 @@ export function useCanvasEditorPointer({
 			},
 		},
 	});
+
+	const cancelActivePointerGesture = useCallback(() => {
+		const auxiliaryGesture = auxiliaryPointerGestureRef.current;
+		auxiliaryPointerGestureRef.current = null;
+		auxiliaryGesture?.onCancel();
+		const state = stateRef.current;
+		const pathWasActive = cancelPath();
+		const historyWasRolledBack = pathWasActive || cancelHistory();
+		if (
+			!historyWasRolledBack &&
+			state.action === "move" &&
+			state.moveStart.size > 0
+		) {
+			documentAdapter.updateElements(
+				[...state.moveStart].map(([id, position]) => ({
+					id,
+					changes: position,
+				})),
+			);
+		}
+		if (
+			!historyWasRolledBack &&
+			(state.action === "resize" || state.action === "drag-point") &&
+			state.resizeStart
+		) {
+			const { id, ...original } = state.resizeStart;
+			documentAdapter.updateElement(id, original);
+		}
+		const touchSnapshot = touchInteractionSnapshotRef.current;
+		if (touchSnapshot) {
+			uiAdapter.setActiveTool(touchSnapshot.activeTool);
+			uiAdapter.setSelectedIds(new Set(touchSnapshot.selectedIds));
+		}
+		touchInteractionSnapshotRef.current = null;
+		deferredTouchActionRef.current = null;
+		setDrawingPreview(null);
+		finishGesture(false);
+	}, [
+		cancelHistory,
+		cancelPath,
+		documentAdapter,
+		finishGesture,
+		setDrawingPreview,
+		uiAdapter,
+	]);
+
+	const startPinchFromActiveTouches = useCallback(() => {
+		const pointers = touchSessionRef.current?.entries() ?? [];
+		if (pointers.length < 2) {
+			pinchGestureRef.current = null;
+			return false;
+		}
+		const first = pointers[0];
+		const second = pointers[1];
+		pinchGestureRef.current = {
+			pointerIds: [first[0], second[0]],
+			startPoints: [first[1], second[1]],
+			startViewport: uiAdapter.getState().viewport,
+		};
+		return true;
+	}, [uiAdapter]);
+
+	const registerTouchPointer = useCallback(
+		(event: ReactPointerEvent<SVGElement>) => {
+			if (event.pointerType !== "touch") return false;
+			const rect = svgRef.current?.getBoundingClientRect();
+			if (!rect) return false;
+			event.preventDefault();
+			const touchSession = touchSessionRef.current;
+			if (!touchSession) return false;
+			if (touchSession.isEmpty()) {
+				const ui = uiAdapter.getState();
+				touchInteractionSnapshotRef.current = {
+					activeTool: ui.activeTool,
+					selectedIds: new Set(ui.selectedIds),
+				};
+			}
+			const registration = touchSession.register(event.pointerId, {
+				x: event.clientX - rect.left,
+				y: event.clientY - rect.top,
+			});
+			if (!registration.isMultiTouch) return false;
+			const auxiliaryPointerId =
+				auxiliaryPointerGestureRef.current?.pointerId ?? null;
+			if (registration.startedMultiTouch) cancelActivePointerGesture();
+			if (!pinchGestureRef.current) startPinchFromActiveTouches();
+			for (const [pointerId] of touchSession.entries()) {
+				if (!svgRef.current?.hasPointerCapture(pointerId)) {
+					if (pointerId === auxiliaryPointerId) {
+						transferredPointerCapturesRef.current.add(pointerId);
+					}
+					try {
+						svgRef.current?.setPointerCapture(pointerId);
+					} catch {
+						transferredPointerCapturesRef.current.delete(pointerId);
+						// The browser may already have cancelled a just-ended touch.
+					}
+				}
+			}
+			return true;
+		},
+		[
+			cancelActivePointerGesture,
+			startPinchFromActiveTouches,
+			svgRef,
+			uiAdapter,
+		],
+	);
+
+	const beginAuxiliaryPointerGesture =
+		useCallback<CanvasEditorBeginAuxiliaryPointerGesture>(
+			(event, onCancel) => {
+				event.preventDefault();
+				event.stopPropagation();
+				if (registerTouchPointer(event)) return false;
+				auxiliaryPointerGestureRef.current = {
+					pointerId: event.pointerId,
+					onCancel,
+				};
+				return true;
+			},
+			[registerTouchPointer],
+		);
+
+	const runPointerUpAction = useCallback(
+		(event: ReactPointerEvent<SVGElement>, action: () => void) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.pointerType !== "touch") {
+				action();
+				return;
+			}
+			if (registerTouchPointer(event)) return;
+			deferredTouchActionRef.current = { type: "custom", run: action };
+			svgRef.current?.setPointerCapture(event.pointerId);
+		},
+		[registerTouchPointer, svgRef],
+	);
 
 	const eraseAtPoint = useCallback(
 		(point: { x: number; y: number }) => {
@@ -296,6 +505,7 @@ export function useCanvasEditorPointer({
 
 	const onPointerDown = useCallback(
 		(event: ReactPointerEvent<SVGSVGElement>) => {
+			if (registerTouchPointer(event)) return;
 			const ui = uiAdapter.getState();
 			const middle =
 				event.button === 1
@@ -327,6 +537,23 @@ export function useCanvasEditorPointer({
 			const point =
 				middle ?? resolvePoint(event.clientX, event.clientY, undefined);
 			if (
+				event.pointerType === "touch" &&
+				event.button === 0 &&
+				!ui.readOnly &&
+				shouldDeferTouchPointerDown?.()
+			) {
+				deferredTouchActionRef.current = { type: "before-pointer-down" };
+				stateRef.current = {
+					...INITIAL_POINTER_STATE,
+					startScreenX: event.clientX,
+					startScreenY: event.clientY,
+					startCanvasX: point.snapped.x,
+					startCanvasY: point.snapped.y,
+				};
+				event.currentTarget.setPointerCapture(event.pointerId);
+				return;
+			}
+			if (
 				event.button === 0 &&
 				!ui.readOnly &&
 				onBeforePointerDown?.(point, event)
@@ -347,12 +574,23 @@ export function useCanvasEditorPointer({
 				pointerAction === "insert-kanban" ||
 				pointerAction === "insert-mindmap"
 			) {
+				if (
+					event.pointerType === "touch" &&
+					shouldDeferCanvasEditorTouchAction(pointerAction)
+				) {
+					deferredTouchActionRef.current = {
+						type: "placement",
+						action: pointerAction,
+					};
+					event.currentTarget.setPointerCapture(event.pointerId);
+					return;
+				}
 				onPlacement?.({ action: pointerAction, point: point.snapped, event });
 				return;
 			}
 
 			if (pointerAction === "erase") {
-				documentAdapter.beginHistory?.();
+				beginHistory();
 				stateRef.current.action = "erase";
 				eraseAtPoint(point.snapped);
 				event.currentTarget.setPointerCapture(event.pointerId);
@@ -365,6 +603,14 @@ export function useCanvasEditorPointer({
 				return;
 			}
 			if (pointerAction === "eyedropper") {
+				if (
+					event.pointerType === "touch" &&
+					shouldDeferCanvasEditorTouchAction(pointerAction)
+				) {
+					deferredTouchActionRef.current = { type: "eyedropper" };
+					event.currentTarget.setPointerCapture(event.pointerId);
+					return;
+				}
 				const hit = documentAdapter
 					.getScene()
 					.getElementAtPosition(point.raw.x, point.raw.y);
@@ -395,7 +641,7 @@ export function useCanvasEditorPointer({
 				});
 				if (!result.handled || "earlyExit" in result) return;
 				Object.assign(stateRef.current, result.patch);
-				if (result.action === "move") documentAdapter.beginHistory?.();
+				if (result.action === "move") beginHistory();
 				event.currentTarget.setPointerCapture(event.pointerId);
 				return;
 			}
@@ -411,7 +657,7 @@ export function useCanvasEditorPointer({
 			}
 			if (pointerAction !== "draw" && pointerAction !== "text") return;
 
-			if (ui.activeTool !== "text") documentAdapter.beginHistory?.();
+			if (ui.activeTool !== "text") beginHistory();
 			stateRef.current.action = "draw";
 			if (ui.activeTool === "freehand")
 				stateRef.current.freehandPoints = [[0, 0]];
@@ -437,18 +683,53 @@ export function useCanvasEditorPointer({
 		},
 		[
 			beginPath,
+			beginHistory,
 			documentAdapter,
 			eraseAtPoint,
 			onBeforePointerDown,
 			onPlacement,
+			registerTouchPointer,
 			resolvePoint,
 			setDrawingPreview,
+			shouldDeferTouchPointerDown,
 			uiAdapter,
 		],
 	);
 
 	const onPointerMove = useCallback(
 		(event: ReactPointerEvent<SVGSVGElement>) => {
+			if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+				transferredPointerCapturesRef.current.delete(event.pointerId);
+			}
+			const touchSession = touchSessionRef.current;
+			if (event.pointerType === "touch" && touchSession?.has(event.pointerId)) {
+				const rect = event.currentTarget.getBoundingClientRect();
+				touchSession.move(event.pointerId, {
+					x: event.clientX - rect.left,
+					y: event.clientY - rect.top,
+				});
+				if (touchSession.isMultiTouch()) {
+					event.preventDefault();
+					const pinch = pinchGestureRef.current;
+					if (pinch) {
+						const first = touchSession.get(pinch.pointerIds[0]);
+						const second = touchSession.get(pinch.pointerIds[1]);
+						if (first && second) {
+							uiAdapter.setViewport(
+								resolveCanvasEditorPinchViewport(
+									pinch.startViewport,
+									pinch.startPoints,
+									[first, second],
+								),
+							);
+						}
+					}
+					return;
+				}
+			}
+			if (auxiliaryPointerGestureRef.current?.pointerId === event.pointerId) {
+				return;
+			}
 			const ui = uiAdapter.getState();
 			const state = stateRef.current;
 			const point = resolvePoint(event.clientX, event.clientY);
@@ -646,9 +927,66 @@ export function useCanvasEditorPointer({
 
 	const onPointerUp = useCallback(
 		(event: ReactPointerEvent<SVGSVGElement>) => {
+			transferredPointerCapturesRef.current.delete(event.pointerId);
+			const auxiliaryPointerId =
+				auxiliaryPointerGestureRef.current?.pointerId ?? null;
+			if (event.pointerType === "touch") {
+				const release = touchSessionRef.current?.release(event.pointerId);
+				if (release?.wasMultiTouch) {
+					event.preventDefault();
+					pinchGestureRef.current = null;
+					if ((release.remainingPointers ?? 0) >= 2) {
+						startPinchFromActiveTouches();
+					}
+					return;
+				}
+				touchInteractionSnapshotRef.current = null;
+			}
+			if (auxiliaryPointerId === event.pointerId) {
+				auxiliaryPointerGestureRef.current = null;
+				finishGesture(false);
+				return;
+			}
 			const ui = uiAdapter.getState();
 			const state = stateRef.current;
 			const point = resolvePoint(event.clientX, event.clientY);
+			const deferredTouchAction = deferredTouchActionRef.current;
+			if (deferredTouchAction) {
+				deferredTouchActionRef.current = null;
+				if (deferredTouchAction.type === "custom") {
+					deferredTouchAction.run();
+					finishGesture(false);
+					return;
+				}
+				if (deferredTouchAction.type === "eyedropper") {
+					const hit = documentAdapter
+						.getScene()
+						.getElementAtPosition(point.raw.x, point.raw.y);
+					if (hit) {
+						uiAdapter.setEyedropperColors?.({
+							stroke: hit.stroke,
+							fill: hit.fill,
+						});
+					}
+					uiAdapter.setActiveTool("select");
+					finishGesture(false);
+					return;
+				}
+
+				beginHistory();
+				const handled =
+					deferredTouchAction.type === "before-pointer-down"
+						? (onBeforePointerDown?.(point, event) ?? false)
+						: (onPlacement?.({
+								action: deferredTouchAction.action,
+								point: point.snapped,
+								event,
+							}) ?? false);
+				if (handled) finishHistory();
+				else cancelHistory();
+				finishGesture(false);
+				return;
+			}
 			if (
 				state.action === "draw" &&
 				isCanvasMultiPathTool(ui.activeTool, ui.pathDrawMode) &&
@@ -764,30 +1102,66 @@ export function useCanvasEditorPointer({
 			);
 		},
 		[
+			beginHistory,
+			cancelHistory,
 			documentAdapter,
+			finishHistory,
 			finishGesture,
+			onBeforePointerDown,
+			onPlacement,
 			pathEditorRef,
 			releasePath,
 			resolvePoint,
 			setDrawingPreview,
+			startPinchFromActiveTouches,
 			startTextPlacement,
 			uiAdapter,
 		],
 	);
 
-	const onPointerCancel = useCallback(() => {
-		documentAdapter.cancelHistory?.();
-		setDrawingPreview(null);
-		finishGesture(false);
-	}, [documentAdapter, finishGesture, setDrawingPreview]);
+	const onPointerCancel = useCallback(
+		(_event?: ReactPointerEvent<SVGSVGElement>) => {
+			transferredPointerCapturesRef.current.clear();
+			touchSessionRef.current?.clear();
+			pinchGestureRef.current = null;
+			cancelActivePointerGesture();
+		},
+		[cancelActivePointerGesture],
+	);
 
-	const onLostPointerCapture = useCallback(() => {
-		if (!shouldCancelCanvasEditorLostPointerCapture(stateRef.current.action)) {
-			return false;
-		}
-		onPointerCancel();
-		return true;
-	}, [onPointerCancel]);
+	const onLostPointerCapture = useCallback(
+		(event?: ReactPointerEvent<SVGSVGElement>) => {
+			if (
+				event &&
+				transferredPointerCapturesRef.current.delete(event.pointerId)
+			) {
+				return false;
+			}
+			if (
+				auxiliaryPointerGestureRef.current &&
+				(event == null ||
+					auxiliaryPointerGestureRef.current.pointerId === event.pointerId)
+			) {
+				onPointerCancel(event);
+				return true;
+			}
+			if (
+				event?.pointerType === "touch" &&
+				touchSessionRef.current?.has(event.pointerId)
+			) {
+				onPointerCancel(event);
+				return true;
+			}
+			if (
+				!shouldCancelCanvasEditorLostPointerCapture(stateRef.current.action)
+			) {
+				return false;
+			}
+			onPointerCancel(event);
+			return true;
+		},
+		[onPointerCancel],
+	);
 
 	const onWheel = useCallback(
 		(event: ReactWheelEvent<SVGSVGElement>) => {
@@ -819,9 +1193,10 @@ export function useCanvasEditorPointer({
 			handle: HandlePosition,
 		) => {
 			event.stopPropagation();
+			if (registerTouchPointer(event)) return;
 			if (uiAdapter.getState().readOnly || element.locked) return;
 			const point = resolvePoint(event.clientX, event.clientY);
-			documentAdapter.beginHistory?.();
+			beginHistory();
 			stateRef.current = {
 				...INITIAL_POINTER_STATE,
 				action: "resize",
@@ -832,7 +1207,7 @@ export function useCanvasEditorPointer({
 			};
 			svgRef.current?.setPointerCapture(event.pointerId);
 		},
-		[documentAdapter, resolvePoint, svgRef, uiAdapter],
+		[beginHistory, registerTouchPointer, resolvePoint, svgRef, uiAdapter],
 	);
 
 	const beginPathPointDrag = useCallback(
@@ -842,9 +1217,10 @@ export function useCanvasEditorPointer({
 			pointIndex: number,
 		) => {
 			event.stopPropagation();
+			if (registerTouchPointer(event)) return;
 			if (uiAdapter.getState().readOnly || element.locked) return;
 			const point = resolvePoint(event.clientX, event.clientY);
-			documentAdapter.beginHistory?.();
+			beginHistory();
 			stateRef.current = {
 				...INITIAL_POINTER_STATE,
 				action: "drag-point",
@@ -856,7 +1232,7 @@ export function useCanvasEditorPointer({
 			};
 			svgRef.current?.setPointerCapture(event.pointerId);
 		},
-		[documentAdapter, resolvePoint, svgRef, uiAdapter],
+		[beginHistory, registerTouchPointer, resolvePoint, svgRef, uiAdapter],
 	);
 
 	return {
@@ -869,6 +1245,9 @@ export function useCanvasEditorPointer({
 		onDoubleClick,
 		beginResize,
 		beginPathPointDrag,
+		beginAuxiliaryPointerGesture,
+		runPointerUpAction,
+		isMultiTouchGesture: () => touchSessionRef.current?.isMultiTouch() ?? false,
 		isPathActive: () => pathEditorRef.current.isActive(),
 		finishPath,
 		cancelPath,

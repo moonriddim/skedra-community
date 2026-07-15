@@ -40,8 +40,21 @@ export function handleCanvasEditorTemporaryPanKeyDown(
 
 function isEditableTarget(target: EventTarget | null): boolean {
 	return (
+		typeof Element !== "undefined" &&
 		target instanceof Element &&
 		target.closest("input, textarea, select, [contenteditable='true']") != null
+	);
+}
+
+export function shouldIgnoreCanvasEditorKeyboardEvent(
+	event: Pick<KeyboardEvent, "isComposing" | "target">,
+	state: Pick<CanvasEditorKeyboardState, "enabled" | "editingText">,
+) {
+	return (
+		event.isComposing ||
+		!state.enabled ||
+		state.editingText ||
+		isEditableTarget(event.target)
 	);
 }
 
@@ -54,11 +67,7 @@ export function useCanvasEditorKeyboard(adapter: CanvasEditorKeyboardAdapter) {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			const current = adapterRef.current;
 			const state = current.getState();
-			if (
-				!state.enabled ||
-				state.editingText ||
-				isEditableTarget(event.target)
-			) {
+			if (shouldIgnoreCanvasEditorKeyboardEvent(event, state)) {
 				return;
 			}
 

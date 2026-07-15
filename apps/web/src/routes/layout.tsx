@@ -47,7 +47,7 @@ export function AuthLayout() {
 	}
 
 	return (
-		<div className="flex h-screen overflow-hidden bg-background">
+		<div className="flex h-screen overflow-hidden bg-background max-lg:h-dvh">
 			<main
 				className={`min-h-0 flex-1 ${isBoardRoute ? "overflow-hidden" : "overflow-y-auto"}`}
 			>

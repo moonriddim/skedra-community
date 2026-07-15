@@ -16,19 +16,21 @@ import type { ImageCropRect } from "@skedra/canvas-core";
 import {
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
+	CanvasEditorSavedViewDraft,
+	CanvasEditorSavedViewOverlay,
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
 	CanvasEditorSnapOverlay,
 	CanvasEditorSurface,
 	CanvasPathStartSnapIndicator,
 } from "@skedra/canvas-editor";
+import type { CanvasEditorBeginAuxiliaryPointerGesture } from "@skedra/canvas-editor";
 import type { RefObject } from "react";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { useCanvasCommands } from "./canvas-commands";
 import { CanvasRenderer } from "./canvas-renderer";
 import { LaserOverlay } from "./laser-overlay";
 import { RemoteSelectionOverlays } from "./presence-overlays";
-import { SavedViewOverlay } from "./saved-view-overlay";
 
 interface CanvasStageProps {
 	svgRef: RefObject<SVGSVGElement | null>;
@@ -55,11 +57,12 @@ interface CanvasStageProps {
 	resolveAssetUrl?: (src: string) => string;
 	onApplyImageCrop?: (crop: ImageCropRect) => void;
 	onCancelImageCrop?: () => void;
+	beginAuxiliaryPointerGesture: CanvasEditorBeginAuxiliaryPointerGesture;
 	onPointerDown: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerMove: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerUp: (event: React.PointerEvent<SVGSVGElement>) => void;
-	onPointerCancel: () => void;
-	onLostPointerCapture: () => void;
+	onPointerCancel: (event: React.PointerEvent<SVGSVGElement>) => void;
+	onLostPointerCapture: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onWheel: (event: React.WheelEvent<SVGSVGElement>) => void;
 	onPointerLeave: () => void;
 	onDoubleClick: (event: React.MouseEvent<SVGSVGElement>) => void;
@@ -72,6 +75,10 @@ interface CanvasStageProps {
 		event: React.PointerEvent<SVGCircleElement>,
 		element: CanvasElement,
 		pointIndex: number,
+	) => void;
+	runPointerUpAction: (
+		event: React.PointerEvent<SVGElement>,
+		action: () => void,
 	) => void;
 	onViewMoveStart: (event: React.PointerEvent<SVGRectElement>) => void;
 	onViewResizeStart: (
@@ -105,6 +112,7 @@ export function CanvasStage({
 	resolveAssetUrl,
 	onApplyImageCrop,
 	onCancelImageCrop,
+	beginAuxiliaryPointerGesture,
 	onPointerDown,
 	onPointerMove,
 	onPointerUp,
@@ -115,6 +123,7 @@ export function CanvasStage({
 	onDoubleClick,
 	onElementResizeStart,
 	onPathPointDragStart,
+	runPointerUpAction,
 	onViewMoveStart,
 	onViewResizeStart,
 }: CanvasStageProps) {
@@ -177,7 +186,7 @@ export function CanvasStage({
 				zoom={viewport.zoom}
 			/>
 			{editingView && !textEditorOpen && (
-				<SavedViewOverlay
+				<CanvasEditorSavedViewOverlay
 					view={editingView}
 					zoom={viewport.zoom}
 					onMoveStart={onViewMoveStart}
@@ -191,8 +200,10 @@ export function CanvasStage({
 					readOnly={readOnly}
 					onResizeStart={onElementResizeStart}
 					onPathPointDragStart={onPathPointDragStart}
-					onInsertPathPoint={(element, pointIndex, point) =>
-						canvasCommands.insertWaypoint(element.id, pointIndex, point)
+					onInsertPathPoint={(element, pointIndex, point, event) =>
+						runPointerUpAction(event, () =>
+							canvasCommands.insertWaypoint(element.id, pointIndex, point),
+						)
 					}
 				/>
 			)}
@@ -213,18 +224,7 @@ export function CanvasStage({
 			/>
 
 			{viewDraft && (
-				<rect
-					data-ui-only="true"
-					data-skedra-ui="saved-view-draft"
-					x={viewDraft.x}
-					y={viewDraft.y}
-					width={viewDraft.width}
-					height={viewDraft.height}
-					fill="rgba(16, 185, 129, 0.12)"
-					stroke="rgba(16, 185, 129, 0.9)"
-					strokeWidth={1.5 / viewport.zoom}
-					strokeDasharray={`${5 / viewport.zoom}`}
-				/>
+				<CanvasEditorSavedViewDraft bounds={viewDraft} zoom={viewport.zoom} />
 			)}
 
 			{previewScene && (
@@ -253,6 +253,7 @@ export function CanvasStage({
 					viewport={viewport}
 					onApply={onApplyImageCrop}
 					onCancel={onCancelImageCrop}
+					beginAuxiliaryPointerGesture={beginAuxiliaryPointerGesture}
 				/>
 			)}
 

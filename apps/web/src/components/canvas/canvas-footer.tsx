@@ -63,7 +63,7 @@ export function CanvasFooter({
 
 	return (
 		<TooltipProvider delayDuration={200}>
-			<div className="pointer-events-none absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+			<div className="pointer-events-none absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:bottom-[calc(4.75rem+env(safe-area-inset-bottom))]">
 				{annotation}
 
 				<div className="pointer-events-auto flex items-center gap-1.5">
@@ -72,7 +72,7 @@ export function CanvasFooter({
 							<Button
 								variant="ghost"
 								size="icon"
-								className="h-9 w-9 rounded-lg border border-border/60 bg-card/80 text-primary shadow-sm backdrop-blur-md"
+								className="h-9 w-9 rounded-lg border border-border/60 bg-card/80 text-primary shadow-sm backdrop-blur-md max-lg:h-11 max-lg:w-11"
 								aria-label={t(keys.label)}
 							>
 								<ShieldCheck className="h-4 w-4" />
@@ -95,7 +95,7 @@ export function CanvasFooter({
 							<Button
 								variant="ghost"
 								size="icon"
-								className="h-9 w-9 rounded-lg border border-border/60 bg-card/80 shadow-sm backdrop-blur-md"
+								className="h-9 w-9 rounded-lg border border-border/60 bg-card/80 shadow-sm backdrop-blur-md max-lg:h-11 max-lg:w-11"
 								onClick={onOpenHelp}
 								aria-label={t(keys.help)}
 							>

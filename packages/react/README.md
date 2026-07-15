@@ -30,6 +30,22 @@ export function Whiteboard() {
 }
 ```
 
+The host owns the size of the SDK container; the bundled editor responds to
+that container rather than only to the browser viewport. Its toolbar,
+properties panel, popovers, touch targets, and safe-area spacing therefore use
+the same responsive implementation as the Community canvas. Full-screen hosts
+can override `--canvas-editor-safe-*` or the other documented
+`--canvas-editor-*` variables through the `style` prop when surrounding product
+chrome reserves additional space.
+
+The main layout hooks are:
+
+- `--canvas-editor-safe-top/right/bottom/left` for full-screen safe areas;
+- `--canvas-editor-toolbar-mobile-top` for host controls above the toolbar;
+- `--canvas-editor-properties-mobile-top` for the properties-panel start;
+- `--canvas-editor-mobile-bottom-reserved` for host controls below panels;
+- `--canvas-editor-chrome-inline` for the shared horizontal inset.
+
 ## Props
 
 - `elements`: controlled canvas elements.

@@ -518,16 +518,16 @@ export function HomePage() {
 	);
 
 	return (
-		<div className="mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 md:py-10">
+		<div className="mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 md:py-10 max-lg:py-5 max-sm:px-3">
 			{/* HEADER-BEREICH */}
-			<header className="mb-10 flex flex-col justify-between gap-6 rounded-3xl border border-border/80 bg-gradient-to-r from-card/90 via-card/50 to-card/90 p-6 shadow-sm sm:flex-row sm:items-center">
+			<header className="mb-10 flex flex-col justify-between gap-6 rounded-3xl border border-border/80 bg-gradient-to-r from-card/90 via-card/50 to-card/90 p-6 shadow-sm sm:flex-row sm:items-center max-lg:mb-6 max-lg:p-4 max-sm:rounded-2xl">
 				<div className="space-y-4">
 					<BrandLogo markClassName="h-12 w-12" wordmarkClassName="text-2xl" />
 					<div className="space-y-1">
 						<span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold tracking-wider text-primary uppercase">
 							Workspace
 						</span>
-						<h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+						<h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent max-sm:text-2xl">
 							{t("project.canvasLibrary.title")}
 						</h1>
 						<p className="text-sm text-muted-foreground">
@@ -535,7 +535,7 @@ export function HomePage() {
 						</p>
 					</div>
 				</div>
-				<div className="flex flex-wrap items-center gap-3">
+				<div className="flex flex-wrap items-center gap-3 max-sm:w-full max-sm:gap-2">
 					<BoardAppearanceMenu />
 					<Button
 						asChild
@@ -577,7 +577,7 @@ export function HomePage() {
 					{/* Sektion 1: SCHNELLSTART / VORLAGEN (Nur im aktiven Boards-Tab sichtbar) */}
 					{tab === "boards" && (
 						<section className="space-y-4">
-							<div className="flex items-center justify-between">
+							<div className="flex items-center justify-between max-sm:flex-col max-sm:items-start max-sm:gap-1">
 								<h2 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
 									<Sparkles className="h-4.5 w-4.5 text-primary" />
 									Schnellstart mit Vorlagen
@@ -662,7 +662,7 @@ export function HomePage() {
 									disabled={
 										createBoard.isPending || createBoardWithState.isPending
 									}
-									className="h-10 rounded-xl px-5"
+									className="h-10 rounded-xl px-5 max-sm:w-full"
 								>
 									{createBoard.isPending ? (
 										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -716,7 +716,7 @@ export function HomePage() {
 										</button>
 									))}
 								</div>
-								<div className="flex min-w-[220px] gap-2">
+								<div className="flex min-w-[220px] gap-2 max-sm:min-w-0 max-sm:w-full">
 									<Input
 										value={newFolderName}
 										onChange={(event) => setNewFolderName(event.target.value)}

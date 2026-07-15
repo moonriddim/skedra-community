@@ -22,10 +22,6 @@ import type { CanvasCommands } from "./canvas-commands";
 import { usePropertiesPanel } from "./properties-panel/use-properties-panel";
 
 const WEB_PROPERTIES_PANEL_STYLE = {
-	top: "3.5rem",
-	right: "auto",
-	left: "0.75rem",
-	zIndex: 40,
 	"--skedra-sdk-panel": "var(--card)",
 	"--skedra-sdk-panel-border": "var(--border-color)",
 	"--skedra-sdk-text": "var(--card-foreground)",
@@ -179,7 +175,6 @@ export function PropertiesPanel({
 		<CanvasEditorPropertiesPanel
 			selected={editorSelection}
 			mode={panel.hasInspectionTarget ? "selection" : "defaults"}
-			className="skedra-community__properties"
 			style={WEB_PROPERTIES_PANEL_STYLE}
 			translate={(key, fallback, params) => {
 				const translated = t(key, params);

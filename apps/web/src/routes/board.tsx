@@ -909,23 +909,25 @@ export function BoardPage() {
 				: t("whiteboardPage.share.inviteE2eeMissingKeyHint");
 
 	return (
-		<div className="relative h-screen overflow-hidden">
-			<div className="absolute left-4 top-4 z-50 flex items-center gap-2">
+		<div className="skedra-canvas-page relative h-screen overflow-hidden max-lg:h-dvh">
+			<div className="absolute left-4 top-4 z-50 flex items-center gap-2 max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))]">
 				<Button
 					asChild
 					variant="outline"
 					size="sm"
-					className="bg-card/90 backdrop-blur-md"
+					className="bg-card/90 backdrop-blur-md max-lg:h-11 max-lg:w-11 max-lg:p-0"
 				>
 					<Link to="/library">
-						<ArrowLeft className="mr-2 h-4 w-4" />
-						{t("whiteboardPage.backToLibrary")}
+						<ArrowLeft className="mr-2 h-4 w-4 max-lg:mr-0" />
+						<span className="max-lg:sr-only">
+							{t("whiteboardPage.backToLibrary")}
+						</span>
 					</Link>
 				</Button>
 			</div>
 
 			<TooltipProvider>
-				<div className="absolute right-4 top-4 z-50 flex items-center gap-2">
+				<div className="absolute right-4 top-4 z-50 flex items-center gap-2 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))] max-lg:gap-1">
 					<BoardAppearanceMenu />
 
 					{canViewActivity ? (
@@ -934,7 +936,7 @@ export function BoardPage() {
 								<Button
 									variant="outline"
 									size="icon"
-									className={`h-9 w-9 backdrop-blur-md ${
+									className={`h-9 w-9 backdrop-blur-md max-lg:h-11 max-lg:w-11 ${
 										activityOpen
 											? "border-primary bg-primary/10 text-primary"
 											: "bg-card/90"
@@ -962,7 +964,7 @@ export function BoardPage() {
 							<Button
 								variant="outline"
 								size="icon"
-								className={`h-9 w-9 backdrop-blur-md ${
+								className={`h-9 w-9 backdrop-blur-md max-lg:h-11 max-lg:w-11 ${
 									commentsOpen
 										? "border-primary bg-primary/10 text-primary"
 										: "bg-card/90"
@@ -992,7 +994,7 @@ export function BoardPage() {
 										<Button
 											variant="outline"
 											size="icon"
-											className="h-9 w-9 bg-card/90 backdrop-blur-md"
+											className="h-9 w-9 bg-card/90 backdrop-blur-md max-lg:h-11 max-lg:w-11"
 											aria-label={t("canvas.call.open")}
 										>
 											<MonitorPlay className="h-4 w-4" />
@@ -1032,10 +1034,12 @@ export function BoardPage() {
 							<Button
 								variant="outline"
 								size="sm"
-								className="bg-card/90 backdrop-blur-md"
+								className="bg-card/90 backdrop-blur-md max-lg:h-11 max-lg:w-11 max-lg:p-0"
 							>
-								<Share2 className="mr-2 h-4 w-4" />
-								{t("whiteboardPage.share.title")}
+								<Share2 className="mr-2 h-4 w-4 max-lg:mr-0" />
+								<span className="max-lg:sr-only">
+									{t("whiteboardPage.share.title")}
+								</span>
 							</Button>
 						</DialogTrigger>
 						<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">

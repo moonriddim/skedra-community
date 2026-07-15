@@ -319,14 +319,13 @@ export function CanvasToolbar({
 			}}
 			items={items}
 			classes={{
-				root: "absolute top-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-0.5 rounded-xl border border-border bg-card/90 px-1.5 py-1 shadow-xl backdrop-blur-md",
+				root: "rounded-xl border border-border bg-card/90 px-1.5 py-1 shadow-xl backdrop-blur-md",
 				action:
 					"flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
 				actionActive: "bg-primary/20 text-primary",
 				separator: "mx-0.5 h-4 w-px bg-border",
-				menu: "relative",
 				popover:
-					"absolute top-full left-1/2 z-50 mt-2 w-52 -translate-x-1/2 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md",
+					"w-52 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md",
 				menuItem:
 					"flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent disabled:pointer-events-none disabled:opacity-50",
 				menuLabel: "px-2 py-1.5 text-sm font-semibold",

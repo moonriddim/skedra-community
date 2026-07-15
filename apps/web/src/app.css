@@ -524,3 +524,73 @@ select {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* Product chrome offsets around the shared responsive canvas surface. */
+.skedra-canvas {
+	--canvas-editor-properties-left: 0.75rem;
+	--canvas-editor-properties-right: auto;
+	--canvas-editor-properties-top: 3.5rem;
+	--canvas-editor-toolbar-mobile-top: calc(4rem + var(--canvas-editor-safe-top));
+	--canvas-editor-properties-mobile-top: calc(
+		8rem +
+		var(--canvas-editor-safe-top)
+	);
+	--canvas-editor-mobile-bottom-reserved: calc(
+		5rem +
+		var(--canvas-editor-safe-bottom)
+	);
+}
+
+@media (max-width: 1023px) {
+	.skedra-canvas-page {
+		min-width: 0;
+		overflow: hidden;
+		overscroll-behavior: none;
+	}
+
+	.guest-welcome-scroll {
+		align-items: safe center;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
+		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+	}
+}
+
+@media (max-width: 1023px) and (max-height: 500px) {
+	.guest-welcome-scroll {
+		align-items: flex-start;
+		overflow-y: auto;
+		padding-top: calc(8rem + env(safe-area-inset-top)) !important;
+		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+		pointer-events: auto;
+	}
+
+	.guest-welcome-scroll > div {
+		max-width: 38rem;
+	}
+
+	.guest-welcome-scroll img {
+		width: 3rem;
+		height: 3rem;
+	}
+
+	.guest-welcome-scroll h1 {
+		font-size: 2.25rem;
+	}
+
+	.guest-welcome-scroll p {
+		margin-top: 0.5rem;
+	}
+
+	.guest-welcome-scroll ul {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.5rem 1.5rem;
+		margin-top: 1rem;
+	}
+
+	.guest-welcome-scroll ul > li {
+		margin-top: 0;
+	}
+}

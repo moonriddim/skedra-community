@@ -226,7 +226,11 @@ export function CanvasEditorPropertiesPanel({
 
 	return (
 		<aside
-			className={["skedra-sdk__properties", className]
+			className={[
+				"canvas-editor__properties",
+				"skedra-sdk__properties",
+				className,
+			]
 				.filter(Boolean)
 				.join(" ")}
 			style={style}

@@ -70,7 +70,7 @@ export function WhiteboardCommentsPanel({
 	return (
 		<div
 			className={cn(
-				"pointer-events-none absolute inset-y-0 right-0 z-50 flex items-start justify-end p-4 pt-20 transition-[transform,opacity] duration-300 ease-out",
+				"pointer-events-none absolute inset-y-0 right-0 z-50 flex items-start justify-end p-4 pt-20 transition-[transform,opacity] duration-300 ease-out max-lg:p-3 max-lg:pt-[calc(8rem+env(safe-area-inset-top))]",
 				open ? "translate-x-0 opacity-100" : "translate-x-[108%] opacity-0",
 				className,
 			)}
@@ -78,7 +78,7 @@ export function WhiteboardCommentsPanel({
 		>
 			<div
 				className={cn(
-					"pointer-events-auto flex h-[calc(100vh-6rem)] w-[min(92vw,360px)] flex-col overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(8,10,12,0.06),rgba(8,10,12,0.18)_18%,rgba(8,10,12,0.32)_100%)] text-white shadow-[0_24px_80px_-28px_rgba(0,0,0,0.55)] backdrop-blur-md",
+					"pointer-events-auto flex h-[calc(100vh-6rem)] w-[min(92vw,360px)] flex-col overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(8,10,12,0.06),rgba(8,10,12,0.18)_18%,rgba(8,10,12,0.32)_100%)] text-white shadow-[0_24px_80px_-28px_rgba(0,0,0,0.55)] backdrop-blur-md max-lg:h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100%,360px)] max-lg:rounded-2xl",
 					!open && "pointer-events-none",
 				)}
 			>

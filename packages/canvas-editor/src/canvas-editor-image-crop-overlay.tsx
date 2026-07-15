@@ -9,12 +9,14 @@ import {
 } from "@skedra/canvas-core";
 import type { CanvasElement, Viewport } from "@skedra/canvas-core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CanvasEditorBeginAuxiliaryPointerGesture } from "./use-canvas-editor-pointer";
 
 export interface CanvasEditorImageCropOverlayProps {
 	element: CanvasElement;
 	viewport: Viewport;
 	onApply: (crop: ImageCropRect) => void;
 	onCancel: () => void;
+	beginAuxiliaryPointerGesture?: CanvasEditorBeginAuxiliaryPointerGesture;
 }
 
 export function CanvasEditorImageCropOverlay({
@@ -22,6 +24,7 @@ export function CanvasEditorImageCropOverlay({
 	viewport,
 	onApply,
 	onCancel,
+	beginAuxiliaryPointerGesture,
 }: CanvasEditorImageCropOverlayProps) {
 	const initial = getCropBoundsInElementSpace(element);
 	const [crop, setCrop] = useState({
@@ -50,6 +53,7 @@ export function CanvasEditorImageCropOverlay({
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.isComposing) return;
 			if (event.key === "Escape") {
 				event.preventDefault();
 				onCancel();
@@ -64,18 +68,32 @@ export function CanvasEditorImageCropOverlay({
 	}, [crop, onApply, onCancel, toFraction]);
 
 	const onPointerDown = (
-		event: React.PointerEvent,
+		event: React.PointerEvent<SVGElement>,
 		mode: "move" | "resize",
 	) => {
 		event.preventDefault();
 		event.stopPropagation();
+		const startCrop = crop;
+		if (
+			beginAuxiliaryPointerGesture &&
+			!beginAuxiliaryPointerGesture(event, () => {
+				dragRef.current = null;
+				setCrop(startCrop);
+			})
+		) {
+			return;
+		}
 		dragRef.current = {
 			mode,
 			startX: event.clientX,
 			startY: event.clientY,
 			startCrop: crop,
 		};
-		(event.target as Element).setPointerCapture(event.pointerId);
+		try {
+			event.currentTarget.setPointerCapture(event.pointerId);
+		} catch {
+			// The browser may already have cancelled the pointer.
+		}
 	};
 
 	const onPointerMove = (event: React.PointerEvent) => {
@@ -162,6 +180,23 @@ export function CanvasEditorImageCropOverlay({
 				onPointerDown={(event) => onPointerDown(event, "move")}
 				onPointerMove={onPointerMove}
 				onPointerUp={onPointerUp}
+				onPointerCancel={onPointerUp}
+				onLostPointerCapture={onPointerUp}
+			/>
+
+			<rect
+				className="canvas-editor__coarse-pointer-target"
+				x={crop.x + crop.width - handle / 2}
+				y={crop.y + crop.height - handle / 2}
+				width={handle}
+				height={handle}
+				fill="none"
+				stroke="transparent"
+				onPointerDown={(event) => onPointerDown(event, "resize")}
+				onPointerMove={onPointerMove}
+				onPointerUp={onPointerUp}
+				onPointerCancel={onPointerUp}
+				onLostPointerCapture={onPointerUp}
 			/>
 
 			<rect
@@ -177,6 +212,8 @@ export function CanvasEditorImageCropOverlay({
 				onPointerDown={(event) => onPointerDown(event, "resize")}
 				onPointerMove={onPointerMove}
 				onPointerUp={onPointerUp}
+				onPointerCancel={onPointerUp}
+				onLostPointerCapture={onPointerUp}
 			/>
 		</g>
 	);

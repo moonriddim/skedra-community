@@ -41,22 +41,11 @@
 }
 
 .skedra-sdk__toolbar {
-	position: absolute;
-	top: 12px;
-	left: 50%;
-	z-index: 3;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: center;
-	gap: 4px;
-	max-width: calc(100% - 24px);
 	padding: 4px;
 	border: 1px solid var(--skedra-sdk-panel-border);
 	border-radius: 8px;
 	background: color-mix(in srgb, var(--skedra-sdk-panel) 94%, transparent);
 	box-shadow: 0 18px 44px -34px rgba(0, 0, 0, 0.38);
-	transform: translateX(-50%);
 }
 
 .skedra-sdk__tool,
@@ -134,10 +123,6 @@
 }
 
 .skedra-sdk__template-popover {
-	position: absolute;
-	top: calc(100% + 8px);
-	left: 50%;
-	z-index: 4;
 	display: grid;
 	width: 190px;
 	gap: 2px;
@@ -146,7 +131,6 @@
 	border-radius: 8px;
 	background: var(--skedra-sdk-panel);
 	box-shadow: 0 18px 44px -30px rgba(0, 0, 0, 0.42);
-	transform: translateX(-50%);
 }
 
 .skedra-sdk__menu-wide {
@@ -163,10 +147,7 @@
 }
 
 .skedra-sdk__export-menu {
-	left: auto;
-	right: 0;
 	width: 210px;
-	transform: none;
 }
 
 .skedra-sdk__template-item {
@@ -350,8 +331,9 @@
 
 .skedra-sdk__presentation {
 	position: absolute;
+	top: calc(0.75rem + var(--canvas-editor-safe-top));
 	right: 50%;
-	bottom: 18px;
+	bottom: auto;
 	z-index: 4;
 	display: flex;
 	align-items: center;
@@ -373,14 +355,6 @@
 	color: var(--skedra-sdk-text);
 	font: inherit;
 	cursor: pointer;
-}
-
-@media (max-width: 720px) {
-	.skedra-sdk__properties {
-		top: auto;
-		bottom: 12px;
-		max-height: 48%;
-	}
 }
 
 .skedra-sdk__sticky-text {

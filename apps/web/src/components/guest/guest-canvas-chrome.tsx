@@ -85,13 +85,13 @@ export function GuestCanvasChrome({
 	return (
 		<>
 			{/* Hamburger-Menue oben links */}
-			<div className="pointer-events-none absolute left-3 top-3 z-50">
+			<div className="pointer-events-none absolute left-3 top-3 z-50 max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))]">
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
 							variant="ghost"
 							size="icon"
-							className="pointer-events-auto h-9 w-9 rounded-lg border border-border/60 bg-card/80 shadow-sm backdrop-blur-md"
+							className="pointer-events-auto h-9 w-9 rounded-lg border border-border/60 bg-card/80 shadow-sm backdrop-blur-md max-lg:h-11 max-lg:w-11"
 							aria-label={t("guestCanvas.menu")}
 						>
 							<Menu className="h-4 w-4" />
@@ -250,10 +250,10 @@ export function GuestCanvasChrome({
 			</div>
 
 			{/* Teilen / Speichern oben rechts — wie Excalidraw */}
-			<div className="pointer-events-none absolute right-3 top-3 z-50">
+			<div className="pointer-events-none absolute right-3 top-3 z-50 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))]">
 				<Button
 					size="sm"
-					className="pointer-events-auto shadow-md"
+					className="pointer-events-auto shadow-md max-lg:min-h-11"
 					onClick={onSave}
 				>
 					{t("guestCanvas.share")}

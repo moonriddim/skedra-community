@@ -241,9 +241,9 @@ export function LibraryPanel({
 	return (
 		<div
 			className={cn(
-				"absolute top-14 left-4 z-40 flex w-[min(100vw-2rem,320px)] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md",
+				"absolute top-14 left-4 z-40 flex w-[min(100vw-2rem,320px)] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md max-lg:top-[calc(8rem+env(safe-area-inset-top))] max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:max-h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right),320px)]",
 				pinned
-					? "bottom-20"
+					? "bottom-20 max-lg:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
 					: activeTab === "libraries"
 						? "h-[min(72vh,680px)]"
 						: "max-h-[min(72vh,680px)]",
@@ -258,7 +258,7 @@ export function LibraryPanel({
 					type="button"
 					onClick={() => setPinned((v) => !v)}
 					className={cn(
-						"cursor-pointer rounded-md p-1 transition-colors",
+						"cursor-pointer rounded-md p-1 transition-colors max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center",
 						pinned
 							? "bg-primary/15 text-primary"
 							: "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -270,7 +270,7 @@ export function LibraryPanel({
 				<button
 					type="button"
 					onClick={onClose}
-					className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+					className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
 					aria-label={t("common.close")}
 				>
 					<X className="h-4 w-4" />

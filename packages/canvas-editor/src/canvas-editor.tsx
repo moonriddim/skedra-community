@@ -11,7 +11,11 @@ import type { CanvasEditorDocumentAdapter } from "./use-canvas-editor-pointer";
 export type CanvasEditorHostDocumentAdapter = CanvasEditorDocumentAdapter;
 
 export interface CanvasEditorTranslations {
-	translate: (key: string, fallback: string) => string;
+	translate: (
+		key: string,
+		fallback: string,
+		params?: Record<string, string | number>,
+	) => string;
 }
 
 export interface CanvasEditorAssetAdapter {
@@ -49,6 +53,7 @@ export function CanvasEditor({
 	collaboration,
 	rootRef,
 	children,
+	className,
 	...rootProps
 }: CanvasEditorProps) {
 	const services = useMemo<CanvasEditorServices>(
@@ -57,7 +62,12 @@ export function CanvasEditor({
 	);
 	return (
 		<CanvasEditorContext.Provider value={services}>
-			<div ref={rootRef} data-canvas-editor="true" {...rootProps}>
+			<div
+				ref={rootRef}
+				className={["canvas-editor", className].filter(Boolean).join(" ")}
+				data-canvas-editor="true"
+				{...rootProps}
+			>
 				{children}
 			</div>
 		</CanvasEditorContext.Provider>

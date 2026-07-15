@@ -16,6 +16,13 @@ panel, inline text and sticky-note editors, interactive image cropping, and the
 single-/multi-path controller. Community and SDK code may style these pieces
 and connect them to persistence, but may not reimplement their behavior.
 
+Responsive canvas chrome follows the same rule. The editor root establishes a
+named size container, safe-area variables, horizontal toolbar scrolling,
+touch-sized controls, bounded popovers, and bounded properties panels. Hosts
+may override the `--canvas-editor-*` layout variables when product chrome needs
+reserved space, but viewport breakpoints and responsive behavior stay here so
+the Community app and SDK cannot drift apart.
+
 The package is private because it is bundled into the public SDK rather than
 installed by SDK users as a separate runtime dependency. Its source remains MIT
 licensed.

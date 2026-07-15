@@ -53,6 +53,9 @@ import {
 	CanvasEditor,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
+	CanvasEditorSavedViewDraft,
+	CanvasEditorSavedViewOverlay,
+	CanvasEditorSavedViewsBar,
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
 	CanvasEditorSnapOverlay,
@@ -69,10 +72,12 @@ import {
 	toggleCanvasEditorStickyChecklistItem,
 	useCanvasEditorKeyboard,
 	useCanvasEditorPointer,
+	useCanvasEditorSavedViews,
 } from "@skedra/canvas-editor";
 import type {
 	CanvasEditorDocumentAdapter,
 	CanvasEditorElementStyle,
+	CanvasEditorSavedViewPreviewRenderer,
 	CanvasEditorToolId,
 	CanvasEditorToolbarItem,
 } from "@skedra/canvas-editor";
@@ -83,6 +88,7 @@ import type {
 } from "@skedra/canvas-editor";
 import {
 	CanvasElementRenderer,
+	CanvasRenderer,
 	type CanvasRendererConfig,
 	CanvasRendererProvider,
 } from "@skedra/canvas-react";
@@ -133,6 +139,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { flushSync } from "react-dom";
 import type {
 	SkedraAlignment,
 	SkedraCanvasCommandId,
@@ -364,6 +371,7 @@ export const SKEDRA_SDK_TOOL_IDS: readonly SkedraSdkTool[] =
 
 const DEFAULT_STROKE = "#17211d";
 const DEFAULT_FILL = "transparent";
+const EMPTY_SAVED_VIEW_SELECTION = new Set<string>();
 function createId() {
 	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
 		return crypto.randomUUID();
@@ -483,7 +491,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const [snapPointIndicators, setSnapPointIndicators] = useState<
 			SnapPointIndicator[]
 		>([]);
-		const [activeViewId, setActiveViewId] = useState<string | null>(null);
 		const [presentationViewId, setPresentationViewId] = useState<string | null>(
 			null,
 		);
@@ -971,6 +978,69 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			},
 			[onViewsChange, views],
 		);
+		const getSavedViewsContentBounds = useCallback(
+			() => getCombinedBBox(currentElements),
+			[currentElements],
+		);
+		const resetSavedViewsViewport = useCallback(
+			() => setViewport({ x: 0, y: 0, zoom: 1 }),
+			[],
+		);
+		const {
+			orderedViews: savedViewList,
+			activeViewId,
+			setActiveViewId,
+			editingViewId,
+			isCapturingView,
+			viewDraft,
+			createView: createSavedView,
+			updateView,
+			deleteView,
+			selectView: goToView,
+			startEditingView,
+			stopEditingView,
+			renameView,
+			duplicateView,
+			moveView,
+			fitViewport: fitSavedViewsViewport,
+			zoomBy: zoomSavedViewsBy,
+			startCaptureView,
+			cancelCaptureView,
+			beginViewMove,
+			beginViewResize,
+			startViewCapture,
+			handleViewPointerMove,
+			handleViewPointerUp,
+			cancelViewInteraction,
+		} = useCanvasEditorSavedViews({
+			svgRef,
+			views: currentViews,
+			viewport,
+			onViewportChange: setViewport,
+			onViewsChange: commitViews,
+			createId,
+			getContentBounds: getSavedViewsContentBounds,
+			onResetViewport: resetSavedViewsViewport,
+		});
+		const createView = useCallback<SkedraCanvasApi["createView"]>(
+			(view) => {
+				const created = createSavedView(view);
+				if (!created) {
+					throw new Error("Saved views are read-only.");
+				}
+				return created;
+			},
+			[createSavedView],
+		);
+
+		useEffect(() => {
+			if (
+				presentationViewId &&
+				!savedViewList.some((view) => view.id === presentationViewId)
+			) {
+				setPresentationViewId(null);
+			}
+		}, [presentationViewId, savedViewList]);
 
 		const commitLibraries = useCallback(
 			(next: SkedraLibraryFile[]) => {
@@ -1468,64 +1538,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[applySelectedUpdates, currentElements],
 		);
 
-		const createView = useCallback(
-			(
-				view: Omit<SavedCanvasView, "id" | "createdAt" | "updatedAt"> &
-					Partial<Pick<SavedCanvasView, "id" | "createdAt" | "updatedAt">>,
-			) => {
-				const now = Date.now();
-				const next: SavedCanvasView = {
-					...view,
-					id: view.id ?? createId(),
-					createdAt: view.createdAt ?? now,
-					updatedAt: view.updatedAt ?? now,
-				};
-				commitViews([...currentViews, next]);
-				setActiveViewId(next.id);
-				return next;
-			},
-			[commitViews, currentViews],
-		);
-
-		const updateView = useCallback(
-			(id: string, updates: Partial<SavedCanvasView>) => {
-				commitViews(
-					currentViews.map((view) =>
-						view.id === id
-							? { ...view, ...updates, updatedAt: Date.now() }
-							: view,
-					),
-				);
-			},
-			[commitViews, currentViews],
-		);
-
-		const deleteView = useCallback(
-			(id: string) => {
-				commitViews(currentViews.filter((view) => view.id !== id));
-				if (activeViewId === id) setActiveViewId(null);
-				if (presentationViewId === id) setPresentationViewId(null);
-			},
-			[activeViewId, commitViews, currentViews, presentationViewId],
-		);
-
-		const goToView = useCallback(
-			(id: string) => {
-				const view = currentViews.find((candidate) => candidate.id === id);
-				const svg = svgRef.current;
-				if (!view || !svg) return;
-				setViewport(
-					computeViewportForBounds(svg.getBoundingClientRect(), view, 32),
-				);
-				setActiveViewId(id);
-			},
-			[currentViews],
-		);
-
 		const movePresentation = useCallback(
 			(direction: 1 | -1) => {
-				if (currentViews.length === 0) return;
-				const currentIndex = currentViews.findIndex(
+				if (savedViewList.length === 0) return;
+				const currentIndex = savedViewList.findIndex(
 					(view) => view.id === presentationViewId,
 				);
 				const nextIndex =
@@ -1533,23 +1549,23 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						? 0
 						: Math.max(
 								0,
-								Math.min(currentViews.length - 1, currentIndex + direction),
+								Math.min(savedViewList.length - 1, currentIndex + direction),
 							);
-				const next = currentViews[nextIndex];
+				const next = savedViewList[nextIndex];
 				setPresentationViewId(next.id);
 				goToView(next.id);
 			},
-			[currentViews, goToView, presentationViewId],
+			[goToView, presentationViewId, savedViewList],
 		);
 
 		const startPresentation = useCallback(
 			(startViewId?: string) => {
-				const id = startViewId ?? currentViews[0]?.id;
+				const id = startViewId ?? savedViewList[0]?.id;
 				if (!id) return;
 				setPresentationViewId(id);
 				goToView(id);
 			},
-			[currentViews, goToView],
+			[goToView, savedViewList],
 		);
 
 		const exportFile = useCallback(
@@ -1749,7 +1765,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				setFlowchartNodeKind,
 				updateKanbanCard,
 				updateKanbanList,
-				getViews: () => currentViews,
+				getViews: () => savedViewList,
 				createView,
 				updateView,
 				deleteView,
@@ -1772,7 +1788,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				createView,
 				currentElements,
 				currentLibraries,
-				currentViews,
+				savedViewList,
 				cropImage,
 				cutSelection,
 				deleteSelection,
@@ -1882,7 +1898,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			beginHistory: beginHistoryTransaction,
 			finishHistory: finishHistoryTransaction,
 			cancelHistory: () => {
+				const snapshot = historyTransactionRef.current;
 				historyTransactionRef.current = null;
+				if (snapshot) commitCanvasElements(snapshot, false);
 			},
 			finishMove: (moveStart) => {
 				const liveMap = toCanvasElementMap(currentElements);
@@ -2022,9 +2040,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					setSelectedIds(new Set([id]));
 					return;
 				}
-				setPendingText({
-					...placement,
-					textColor: drawingStyle.textColor ?? placement.stroke,
+				flushSync(() => {
+					setPendingText({
+						...placement,
+						textColor: drawingStyle.textColor ?? placement.stroke,
+					});
 				});
 			},
 			onPlacement: ({ action, point }) => {
@@ -2048,6 +2068,63 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return true;
 			},
 		});
+		const onSdkSurfacePointerDown = useCallback(
+			(event: ReactPointerEvent<SVGSVGElement>) => {
+				if (isCapturingView && event.button === 0) {
+					if (
+						!editorPointer.beginAuxiliaryPointerGesture(
+							event,
+							cancelViewInteraction,
+						)
+					) {
+						return;
+					}
+					const rect = event.currentTarget.getBoundingClientRect();
+					if (rect.width <= 0 || rect.height <= 0) {
+						editorPointer.onPointerCancel(event);
+						return;
+					}
+					startViewCapture(
+						(event.clientX - rect.left - viewport.x) / viewport.zoom,
+						(event.clientY - rect.top - viewport.y) / viewport.zoom,
+						event.pointerId,
+					);
+					try {
+						event.currentTarget.setPointerCapture(event.pointerId);
+					} catch {
+						// The browser may already have cancelled the pointer.
+					}
+					return;
+				}
+				editorPointer.onPointerDown(event);
+			},
+			[
+				cancelViewInteraction,
+				editorPointer,
+				isCapturingView,
+				startViewCapture,
+				viewport,
+			],
+		);
+		const onSdkSurfacePointerMove = useCallback(
+			(event: ReactPointerEvent<SVGSVGElement>) => {
+				editorPointer.onPointerMove(event);
+				const rect = event.currentTarget.getBoundingClientRect();
+				handleViewPointerMove(
+					(event.clientX - rect.left - viewport.x) / viewport.zoom,
+					(event.clientY - rect.top - viewport.y) / viewport.zoom,
+					event.pointerId,
+				);
+			},
+			[editorPointer, handleViewPointerMove, viewport],
+		);
+		const onSdkSurfacePointerUp = useCallback(
+			(event: ReactPointerEvent<SVGSVGElement>) => {
+				editorPointer.onPointerUp(event);
+				handleViewPointerUp(event.pointerId);
+			},
+			[editorPointer, handleViewPointerUp],
+		);
 
 		const insertPathPoint = (
 			element: CanvasElement,
@@ -2508,6 +2585,20 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			() => ({ ...rendererConfig, interactive: false }),
 			[rendererConfig],
 		);
+		const renderSavedViewPreview =
+			useCallback<CanvasEditorSavedViewPreviewRenderer>(
+				(scene) => (
+					<CanvasRenderer
+						scene={scene}
+						selectedIds={EMPTY_SAVED_VIEW_SELECTION}
+						config={draftRendererConfig}
+					/>
+				),
+				[draftRendererConfig],
+			);
+		const editingView = editingViewId
+			? (savedViewList.find((view) => view.id === editingViewId) ?? null)
+			: null;
 
 		const pickAndImportDocument = async () => {
 			const file = await pickBrowserFile(
@@ -2599,18 +2690,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				}),
 				"skedra-library.skedralib",
 			);
-		};
-
-		const captureCurrentView = () => {
-			const rect = svgRef.current?.getBoundingClientRect();
-			if (!rect) return;
-			createView({
-				name: `View ${currentViews.length + 1}`,
-				x: -viewport.x / viewport.zoom,
-				y: -viewport.y / viewport.zoom,
-				width: rect.width / viewport.zoom,
-				height: rect.height / viewport.zoom,
-			});
 		};
 
 		const toolbarItems: CanvasEditorToolbarItem[] = [
@@ -2706,46 +2785,6 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					label,
 					onSelect: () => executeCommand(command),
 				})),
-			},
-			{
-				type: "menu",
-				id: "views",
-				label: "Saved views and presentation",
-				icon: <Frame size={17} />,
-				popoverClassName: "skedra-sdk__menu-wide",
-				items: [
-					{
-						id: "save-view",
-						label: "Save current view",
-						onSelect: captureCurrentView,
-					},
-					{
-						id: "start-presentation",
-						label: "Start presentation",
-						disabled: currentViews.length === 0,
-						onSelect: startPresentation,
-					},
-					...currentViews.map((view) => ({
-						id: view.id,
-						label: view.name,
-						onSelect: () => goToView(view.id),
-						secondaryActions: [
-							{
-								id: "rename",
-								label: `Rename ${view.name}`,
-								onSelect: () => {
-									const name = window.prompt("View name", view.name);
-									if (name?.trim()) updateView(view.id, { name: name.trim() });
-								},
-							},
-							{
-								id: "delete",
-								label: `Delete ${view.name}`,
-								onSelect: () => deleteView(view.id),
-							},
-						],
-					})),
-				],
 			},
 			{
 				type: "menu",
@@ -2900,9 +2939,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					activeTool={tool}
 					className="skedra-sdk__surface"
 					data-tool={tool}
-					onPointerDown={editorPointer.onPointerDown}
-					onPointerMove={editorPointer.onPointerMove}
-					onPointerUp={editorPointer.onPointerUp}
+					onPointerDown={onSdkSurfacePointerDown}
+					onPointerMove={onSdkSurfacePointerMove}
+					onPointerUp={onSdkSurfacePointerUp}
 					onPointerCancel={editorPointer.onPointerCancel}
 					onLostPointerCapture={editorPointer.onLostPointerCapture}
 					onDoubleClick={(event) => {
@@ -2950,6 +2989,38 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						points={snapPointIndicators}
 						zoom={viewport.zoom}
 					/>
+					{editingView && !pendingText && !editingSession && (
+						<CanvasEditorSavedViewOverlay
+							view={editingView}
+							zoom={viewport.zoom}
+							onMoveStart={(event) => {
+								if (
+									editorPointer.beginAuxiliaryPointerGesture(
+										event,
+										cancelViewInteraction,
+									)
+								) {
+									beginViewMove(editingView.id, event);
+								}
+							}}
+							onResizeStart={(handle, event) => {
+								if (
+									editorPointer.beginAuxiliaryPointerGesture(
+										event,
+										cancelViewInteraction,
+									)
+								) {
+									beginViewResize(handle, editingView.id, event);
+								}
+							}}
+						/>
+					)}
+					{viewDraft && (
+						<CanvasEditorSavedViewDraft
+							bounds={viewDraft}
+							zoom={viewport.zoom}
+						/>
+					)}
 					<CanvasEditorSelectionOverlay
 						selected={selectedElements}
 						zoom={viewport.zoom}
@@ -2967,7 +3038,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						onResizeStart={editorPointer.beginResize}
 						onResizeKeyDown={resizeWithKeyboard}
 						onPathPointDragStart={editorPointer.beginPathPointDrag}
-						onInsertPathPoint={insertPathPoint}
+						onInsertPathPoint={(element, pointIndex, point, event) =>
+							editorPointer.runPointerUpAction(event, () =>
+								insertPathPoint(element, pointIndex, point),
+							)
+						}
 						pathBackground="var(--skedra-sdk-panel)"
 						pathAccent="var(--skedra-sdk-primary)"
 						pathControlLine="color-mix(in srgb, var(--skedra-sdk-primary) 55%, transparent)"
@@ -2998,6 +3073,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						<CanvasEditorImageCropOverlay
 							element={croppingImage}
 							viewport={viewport}
+							beginAuxiliaryPointerGesture={
+								editorPointer.beginAuxiliaryPointerGesture
+							}
 							onApply={(crop) => {
 								cropImage(croppingImage.id, crop);
 								setCroppingImageId(null);
@@ -3089,6 +3167,38 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						onUpdateKanbanList={updateKanbanList}
 					/>
 				)}
+				{!zenMode && (
+					<CanvasEditorSavedViewsBar
+						canUndo={undoStackRef.current.length > 0}
+						canRedo={redoStackRef.current.length > 0}
+						readOnly={readOnly}
+						presentationMode={presentationViewId != null}
+						presenterMode={presentationViewId != null}
+						onUndo={undo}
+						onRedo={redo}
+						onFitViewport={fitSavedViewsViewport}
+						onZoomBy={zoomSavedViewsBy}
+						zoom={viewport.zoom}
+						views={savedViewList}
+						elements={elementMap}
+						activeViewId={activeViewId}
+						editingViewId={editingViewId}
+						isCapturingView={isCapturingView}
+						onStartCaptureView={startCaptureView}
+						onCancelCaptureView={cancelCaptureView}
+						onSelectView={(id) => {
+							goToView(id);
+							if (presentationViewId) setPresentationViewId(id);
+						}}
+						onStartEditView={startEditingView}
+						onStopEditView={stopEditingView}
+						onDeleteView={deleteView}
+						onDuplicateView={duplicateView}
+						onMoveView={moveView}
+						onRenameView={renameView}
+						renderPreview={renderSavedViewPreview}
+					/>
+				)}
 				{presentationViewId && (
 					<div
 						className="skedra-sdk__presentation"
@@ -3099,7 +3209,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							Previous
 						</button>
 						<span>
-							{currentViews.find((view) => view.id === presentationViewId)
+							{savedViewList.find((view) => view.id === presentationViewId)
 								?.name ?? "Presentation"}
 						</span>
 						<button type="button" onClick={() => movePresentation(1)}>

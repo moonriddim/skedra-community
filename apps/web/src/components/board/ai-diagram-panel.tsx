@@ -150,7 +150,7 @@ export function AiDiagramPanel({
 	return (
 		<div
 			className={cn(
-				"pointer-events-none absolute inset-y-0 left-0 z-50 flex items-start justify-start p-4 pt-20 transition-[transform,opacity] duration-300 ease-out",
+				"pointer-events-none absolute inset-y-0 left-0 z-50 flex items-start justify-start p-4 pt-20 transition-[transform,opacity] duration-300 ease-out max-lg:p-3 max-lg:pt-[calc(8rem+env(safe-area-inset-top))]",
 				open ? "translate-x-0 opacity-100" : "-translate-x-[108%] opacity-0",
 				className,
 			)}
@@ -158,7 +158,7 @@ export function AiDiagramPanel({
 		>
 			<div
 				className={cn(
-					"pointer-events-auto flex h-[min(78vh,620px)] w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-border bg-card/95 shadow-2xl backdrop-blur-md",
+					"pointer-events-auto flex h-[min(78vh,620px)] w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-border bg-card/95 shadow-2xl backdrop-blur-md max-lg:max-h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100%,420px)] max-lg:rounded-2xl",
 					!open && "pointer-events-none",
 				)}
 			>

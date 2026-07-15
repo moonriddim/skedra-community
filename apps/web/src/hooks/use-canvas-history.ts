@@ -10,6 +10,7 @@ import {
 	LOCAL_UNDO_ORIGIN,
 	applyCanvasHistoryEntryToYDoc,
 	drainCanvasHistoryEntries,
+	rollbackCanvasHistoryEntries,
 } from "@/lib/canvas/canvas-undo";
 import {
 	type CanvasHistoryEntry,
@@ -228,6 +229,29 @@ export function useCanvasHistory({
 		pushPendingEntry(true);
 	}, [pushPendingEntry]);
 
+	const cancelCapturing = useCallback(() => {
+		if (debounceRef.current != null) {
+			window.clearTimeout(debounceRef.current);
+			debounceRef.current = null;
+		}
+
+		const entries = pendingEntriesRef.current;
+		pendingEntriesRef.current = [];
+		const doc = getCurrentYDoc();
+		if (!doc || entries.length === 0) {
+			syncUndoRedoState();
+			return;
+		}
+
+		isRestoringRef.current = true;
+		try {
+			rollbackCanvasHistoryEntries(doc, entries);
+		} finally {
+			isRestoringRef.current = false;
+		}
+		syncUndoRedoState();
+	}, [getCurrentYDoc, syncUndoRedoState]);
+
 	const clearHistory = useCallback(() => {
 		if (debounceRef.current != null) {
 			window.clearTimeout(debounceRef.current);
@@ -242,7 +266,15 @@ export function useCanvasHistory({
 		syncUndoRedoState();
 	}, [persistHistory, syncUndoRedoState]);
 
-	return { undo, redo, canUndo, canRedo, stopCapturing, clearHistory };
+	return {
+		undo,
+		redo,
+		canUndo,
+		canRedo,
+		stopCapturing,
+		cancelCapturing,
+		clearHistory,
+	};
 }
 
 function trimEntriesByBudget(

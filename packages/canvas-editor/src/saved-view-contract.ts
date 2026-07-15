@@ -5,11 +5,12 @@ import type {
 	Viewport,
 } from "@skedra/canvas-core";
 
-export const VIEW_PADDING = 96;
-export const MIN_VIEW_SIZE = 48;
+export const CANVAS_EDITOR_VIEW_PADDING = 96;
+export const CANVAS_EDITOR_MIN_VIEW_SIZE = 48;
 
-export type ViewInteractionState = {
+export type CanvasEditorViewInteractionState = {
 	mode: "create" | "move" | "resize";
+	pointerId: number;
 	startCanvasX: number;
 	startCanvasY: number;
 	viewId: string | null;
@@ -17,7 +18,24 @@ export type ViewInteractionState = {
 	handle: HandlePosition | null;
 } | null;
 
-export function normalizeBounds(
+export function isCanvasEditorViewInteractionPointer(
+	interaction: CanvasEditorViewInteractionState,
+	pointerId: number,
+): interaction is NonNullable<CanvasEditorViewInteractionState> {
+	return interaction?.pointerId === pointerId;
+}
+
+export function orderCanvasEditorSavedViews(
+	views: Iterable<SavedCanvasView>,
+): SavedCanvasView[] {
+	return Array.from(views).sort(
+		(a, b) =>
+			(a.order ?? a.createdAt) - (b.order ?? b.createdAt) ||
+			a.createdAt - b.createdAt,
+	);
+}
+
+export function normalizeCanvasEditorViewBounds(
 	startX: number,
 	startY: number,
 	endX: number,
@@ -31,7 +49,7 @@ export function normalizeBounds(
 	};
 }
 
-export function resizeViewBounds(
+export function resizeCanvasEditorViewBounds(
 	bounds: BBox,
 	handle: HandlePosition,
 	dx: number,
@@ -43,16 +61,16 @@ export function resizeViewBounds(
 	let bottom = bounds.y + bounds.height;
 
 	if (handle.includes("w")) {
-		left = Math.min(left + dx, right - MIN_VIEW_SIZE);
+		left = Math.min(left + dx, right - CANVAS_EDITOR_MIN_VIEW_SIZE);
 	}
 	if (handle.includes("e")) {
-		right = Math.max(right + dx, left + MIN_VIEW_SIZE);
+		right = Math.max(right + dx, left + CANVAS_EDITOR_MIN_VIEW_SIZE);
 	}
 	if (handle.includes("n")) {
-		top = Math.min(top + dy, bottom - MIN_VIEW_SIZE);
+		top = Math.min(top + dy, bottom - CANVAS_EDITOR_MIN_VIEW_SIZE);
 	}
 	if (handle.includes("s")) {
-		bottom = Math.max(bottom + dy, top + MIN_VIEW_SIZE);
+		bottom = Math.max(bottom + dy, top + CANVAS_EDITOR_MIN_VIEW_SIZE);
 	}
 
 	return {
@@ -63,14 +81,14 @@ export function resizeViewBounds(
 	};
 }
 
-export function constrainViewBoundsToAspectRatio(
+export function constrainCanvasEditorViewBoundsToAspectRatio(
 	bounds: BBox,
 	aspectRatio: number,
 	handle: HandlePosition = "se",
 ): BBox {
 	if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) return bounds;
-	let width = Math.max(bounds.width, MIN_VIEW_SIZE);
-	let height = Math.max(bounds.height, MIN_VIEW_SIZE);
+	let width = Math.max(bounds.width, CANVAS_EDITOR_MIN_VIEW_SIZE);
+	let height = Math.max(bounds.height, CANVAS_EDITOR_MIN_VIEW_SIZE);
 	if (handle === "n" || handle === "s") {
 		width = height * aspectRatio;
 	} else if (handle === "e" || handle === "w") {
@@ -94,16 +112,16 @@ export function constrainViewBoundsToAspectRatio(
 	return { x, y, width, height };
 }
 
-export function getCapturedViewBounds(
+export function getCanvasEditorCapturedViewBounds(
 	bounds: BBox,
 	presentationPreparationMode: boolean,
 ): BBox {
 	return presentationPreparationMode
-		? constrainViewBoundsToAspectRatio(bounds, 16 / 9)
+		? constrainCanvasEditorViewBoundsToAspectRatio(bounds, 16 / 9)
 		: bounds;
 }
 
-export function getViewResizeAspectRatio(
+export function getCanvasEditorViewResizeAspectRatio(
 	aspectRatio: SavedCanvasView["aspectRatio"],
 	presentationPreparationMode: boolean,
 ): number | null {
@@ -111,10 +129,10 @@ export function getViewResizeAspectRatio(
 	return aspectRatio === "4:3" ? 4 / 3 : 16 / 9;
 }
 
-export function areViewportsEqual(
+export function areCanvasEditorViewportsEqual(
 	left: Viewport | null,
 	right: Viewport | null,
-) {
+): boolean {
 	if (!left && !right) return true;
 	if (!left || !right) return false;
 	return left.x === right.x && left.y === right.y && left.zoom === right.zoom;

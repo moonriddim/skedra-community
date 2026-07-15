@@ -8,6 +8,9 @@ import {
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
 	CanvasEditorPropertiesPanel,
+	CanvasEditorSavedViewDraft,
+	CanvasEditorSavedViewOverlay,
+	CanvasEditorSavedViewsBar,
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
 	CanvasEditorSnapOverlay,
@@ -54,11 +57,13 @@ test("CanvasEditor is the shared host root", () => {
 					updateElements: noop,
 				},
 				collaboration: { enabled: false },
+				className: "test-host",
 			},
 			createElement("span", null, "surface"),
 		),
 	);
 	assert.match(markup, /data-canvas-editor="true"/u);
+	assert.match(markup, /class="canvas-editor test-host"/u);
 	assert.match(markup, />surface</u);
 });
 
@@ -85,6 +90,7 @@ test("properties labels consistently use the translation adapter", () => {
 	);
 	assert.match(markup, /translated:canvas\.properties\.stroke/u);
 	assert.match(markup, /translated:canvas\.properties\.arrange/u);
+	assert.match(markup, /canvas-editor__properties/u);
 	assert.doesNotMatch(markup, />Stroke</u);
 	assert.doesNotMatch(markup, />Lock</u);
 });
@@ -125,6 +131,11 @@ test("toolbar actions, menus and color controls share one renderer", () => {
 	);
 
 	assert.match(markup, /role="toolbar"/u);
+	assert.match(markup, /canvas-editor__toolbar/u);
+	assert.match(markup, /canvas-editor__toolbar-track/u);
+	assert.match(markup, /canvas-editor__toolbar-action/u);
+	assert.match(markup, /canvas-editor__toolbar-menu/u);
+	assert.match(markup, /canvas-editor__toolbar-color/u);
 	assert.match(markup, /aria-label="Shared undo"/u);
 	assert.match(markup, /aria-label="Shared export"/u);
 	assert.match(markup, /aria-label="Shared stroke"/u);
@@ -184,6 +195,10 @@ test("surface transform and selection handles share one renderer", () => {
 	);
 	assert.match(selection, /aria-label="Resize nw"/u);
 	assert.equal((selection.match(/role="button"/gu) ?? []).length, 8);
+	assert.equal(
+		(selection.match(/canvas-editor__coarse-pointer-target/gu) ?? []).length,
+		8,
+	);
 
 	const gesture = renderToStaticMarkup(
 		createElement(CanvasEditorSelectionGestureOverlay, {
@@ -231,10 +246,83 @@ test("transient editor overlays are excluded from every visual export", () => {
 			onCancel: noop,
 		}),
 	);
-	for (const markup of [snap, pathStart, crop]) {
+	const savedView = {
+		id: "view-1",
+		name: "Planning",
+		x: 0,
+		y: 0,
+		width: 400,
+		height: 225,
+		createdAt: 1,
+		updatedAt: 1,
+	};
+	const savedViewOverlay = renderToStaticMarkup(
+		createElement(CanvasEditorSavedViewOverlay, {
+			view: savedView,
+			zoom: 1,
+			onMoveStart: noop,
+			onResizeStart: noop,
+		}),
+	);
+	const savedViewDraft = renderToStaticMarkup(
+		createElement(CanvasEditorSavedViewDraft, {
+			bounds: savedView,
+			zoom: 1,
+		}),
+	);
+	for (const markup of [
+		snap,
+		pathStart,
+		crop,
+		savedViewOverlay,
+		savedViewDraft,
+	]) {
 		assert.match(markup, /data-ui-only="true"/u);
 		assert.match(markup, /data-skedra-ui=/u);
 	}
+});
+
+test("saved views use one shared bottom bar in every host", () => {
+	const view = {
+		id: "view-1",
+		name: "Planning",
+		x: 0,
+		y: 0,
+		width: 400,
+		height: 225,
+		createdAt: 1,
+		updatedAt: 1,
+	};
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorSavedViewsBar, {
+			canUndo: true,
+			canRedo: false,
+			onUndo: noop,
+			onRedo: noop,
+			onFitViewport: noop,
+			onZoomBy: noop,
+			zoom: 1,
+			views: [view],
+			elements: new Map([[element.id, element]]),
+			activeViewId: view.id,
+			editingViewId: null,
+			isCapturingView: false,
+			onStartCaptureView: noop,
+			onCancelCaptureView: noop,
+			onSelectView: noop,
+			onStartEditView: noop,
+			onStopEditView: noop,
+			onDeleteView: noop,
+			onDuplicateView: noop,
+			onMoveView: noop,
+			onRenameView: noop,
+			renderPreview: () => null,
+		}),
+	);
+
+	assert.match(markup, /data-skedra-ui="saved-views-bar"/u);
+	assert.match(markup, />Planning</u);
+	assert.match(markup, /aria-label="Save view"/u);
 });
 
 test("flowchart directions and canvas background remain part of the shared panel", () => {

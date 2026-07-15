@@ -21,7 +21,7 @@ export function GuestToolbarHints({ className }: { className?: string }) {
 		<div
 			data-nosnippet=""
 			className={cn(
-				"pointer-events-none absolute left-1/2 top-[68px] hidden w-full max-w-3xl -translate-x-1/2 px-4 md:block",
+				"pointer-events-none absolute left-1/2 top-[68px] hidden w-full max-w-3xl -translate-x-1/2 px-4 lg:block",
 				className,
 			)}
 		>

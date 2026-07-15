@@ -1,8 +1,7 @@
 import { getHandlePosition } from "@skedra/canvas-core";
 import type { HandlePosition, SavedCanvasView } from "@skedra/canvas-core";
-import type React from "react";
 
-interface SavedViewOverlayProps {
+export interface CanvasEditorSavedViewOverlayProps {
 	view: SavedCanvasView;
 	zoom: number;
 	onMoveStart: (event: React.PointerEvent<SVGRectElement>) => void;
@@ -25,12 +24,12 @@ const CURSOR_MAP: Record<HandlePosition, string> = {
 	se: "nwse-resize",
 };
 
-export function SavedViewOverlay({
+export function CanvasEditorSavedViewOverlay({
 	view,
 	zoom,
 	onMoveStart,
 	onResizeStart,
-}: SavedViewOverlayProps) {
+}: CanvasEditorSavedViewOverlayProps) {
 	const bounds = {
 		x: view.x,
 		y: view.y,
@@ -43,7 +42,7 @@ export function SavedViewOverlay({
 
 	return (
 		<g
-			className="saved-view-overlay"
+			className="canvas-editor__saved-view-overlay"
 			data-ui-only="true"
 			data-skedra-ui="saved-view"
 			pointerEvents="none"
@@ -83,20 +82,31 @@ export function SavedViewOverlay({
 			{HANDLES.map((handle) => {
 				const position = getHandlePosition(bounds, handle);
 				return (
-					<rect
-						key={handle}
-						x={position.x - handleSize / 2}
-						y={position.y - handleSize / 2}
-						width={handleSize}
-						height={handleSize}
-						rx={2 / zoom}
-						fill="white"
-						stroke="rgba(20, 184, 166, 0.95)"
-						strokeWidth={strokeWidth}
-						pointerEvents="all"
-						style={{ cursor: CURSOR_MAP[handle] }}
-						onPointerDown={(event) => onResizeStart(handle, event)}
-					/>
+					<g key={handle}>
+						<rect
+							className="canvas-editor__coarse-pointer-target"
+							x={position.x - handleSize / 2}
+							y={position.y - handleSize / 2}
+							width={handleSize}
+							height={handleSize}
+							fill="none"
+							stroke="transparent"
+							onPointerDown={(event) => onResizeStart(handle, event)}
+						/>
+						<rect
+							x={position.x - handleSize / 2}
+							y={position.y - handleSize / 2}
+							width={handleSize}
+							height={handleSize}
+							rx={2 / zoom}
+							fill="white"
+							stroke="rgba(20, 184, 166, 0.95)"
+							strokeWidth={strokeWidth}
+							pointerEvents="all"
+							style={{ cursor: CURSOR_MAP[handle] }}
+							onPointerDown={(event) => onResizeStart(handle, event)}
+						/>
+					</g>
 				);
 			})}
 		</g>

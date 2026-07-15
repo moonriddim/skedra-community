@@ -76,6 +76,7 @@ export type CanvasEditorToolbarItem =
 
 export interface CanvasEditorToolbarClasses {
 	root?: string;
+	track?: string;
 	action?: string;
 	actionActive?: string;
 	separator?: string;
@@ -96,6 +97,10 @@ export interface CanvasEditorToolbarProps {
 }
 
 const MENU_ITEM_SELECTOR = '[role="menuitem"]:not(:disabled)';
+
+function mergeClassNames(...classNames: Array<string | undefined>) {
+	return classNames.filter(Boolean).join(" ") || undefined;
+}
 
 function getEnabledMenuItems(menu: HTMLDivElement) {
 	return Array.from(
@@ -239,184 +244,243 @@ export function CanvasEditorToolbar({
 		if (close) closeMenu();
 		if (action) void action();
 	};
+	const activeMenu = items.find(
+		(item): item is CanvasEditorToolbarMenu =>
+			item.type === "menu" && item.id === openMenuId,
+	);
 
-	return (
-		<div ref={rootRef} className={classes?.root} role="toolbar">
-			<CanvasEditorToolStrip
-				{...toolStrip}
-				onToolSelect={(tool) => {
-					setOpenMenuId(null);
-					toolStrip.onToolSelect(tool);
-				}}
-			/>
-			{items.map((item) => {
-				if (item.type === "separator") {
-					return (
-						<span
-							key={item.id}
-							aria-hidden="true"
-							className={classes?.separator}
-						/>
-					);
-				}
-				if (item.type === "color") {
-					return (
-						<label
-							key={item.id}
-							className={item.className ?? classes?.color}
-							title={item.label}
-						>
-							<input
-								type="color"
-								value={item.value}
-								aria-label={item.label}
-								disabled={item.disabled}
-								onChange={(event) => item.onChange(event.target.value)}
-							/>
-						</label>
-					);
-				}
-				if (item.type === "action") {
-					const className = [
-						item.className ?? classes?.action,
-						item.active ? classes?.actionActive : undefined,
-					]
-						.filter(Boolean)
-						.join(" ");
-					return (
-						<button
-							key={item.id}
-							type="button"
-							className={className || undefined}
-							title={item.label}
-							aria-label={item.label}
-							data-active={item.active || undefined}
-							disabled={item.disabled}
-							onClick={() => runAndClose(item.onSelect)}
-						>
-							{item.icon}
-						</button>
-					);
-				}
-
-				const open = openMenuId === item.id;
-				const menuId = `${menuIdPrefix}-${item.id}-menu`;
-				const menuButtonClassName = [
-					classes?.action,
-					open || item.active ? classes?.actionActive : undefined,
-				]
-					.filter(Boolean)
-					.join(" ");
+	const renderMenuItems = (menu: CanvasEditorToolbarMenu) =>
+		menu.items.map((menuItem) => {
+			if (menuItem.type === "label") {
 				return (
-					<div key={item.id} className={classes?.menu}>
-						<button
-							ref={(element) => {
-								if (element) menuButtonRefs.current.set(item.id, element);
-								else menuButtonRefs.current.delete(item.id);
-							}}
-							type="button"
-							className={menuButtonClassName || undefined}
-							title={item.label}
-							aria-label={item.label}
-							aria-haspopup="menu"
-							aria-expanded={open}
-							aria-controls={menuId}
-							data-active={open || undefined}
-							disabled={item.disabled}
-							onClick={() => {
-								if (open) closeMenu(false);
-								else openMenu(item);
-							}}
-							onKeyDown={(event) => {
-								if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-									return;
-								}
-								event.preventDefault();
-								openMenu(item, event.key === "ArrowDown" ? "first" : "last");
-							}}
-						>
-							{item.icon}
-						</button>
-						{open && (
-							<div
-								id={menuId}
-								ref={(element) => {
-									if (element) menuRefs.current.set(item.id, element);
-									else menuRefs.current.delete(item.id);
-								}}
-								className={
-									[item.popoverClassName, classes?.popover]
-										.filter(Boolean)
-										.join(" ") || undefined
-								}
-								role="menu"
-								aria-label={item.label}
-								onKeyDown={handleMenuKeyDown}
-							>
-								{item.items.map((menuItem) => {
-									if (menuItem.type === "label") {
-										return (
-											<div key={menuItem.id} className={classes?.menuLabel}>
-												{menuItem.label}
-											</div>
-										);
-									}
-									if (menuItem.type === "separator") {
-										return (
-											<hr
-												key={menuItem.id}
-												className={classes?.menuSeparator}
-											/>
-										);
-									}
-									const mainAction = (
-										<button
-											key={menuItem.id}
-											type="button"
-											className={classes?.menuItem}
-											role="menuitem"
-											tabIndex={-1}
-											disabled={menuItem.disabled}
-											onClick={() =>
-												runAndClose(
-													menuItem.onSelect,
-													menuItem.closeOnSelect !== false,
-												)
-											}
-										>
-											{menuItem.icon}
-											<span>{menuItem.label}</span>
-											{menuItem.trailingIcon}
-										</button>
-									);
-									return menuItem.secondaryActions?.length ? (
-										<div key={menuItem.id} className={classes?.menuRow}>
-											{mainAction}
-											{menuItem.secondaryActions.map((secondary) => (
-												<button
-													key={secondary.id}
-													type="button"
-													className={classes?.secondaryAction}
-													role="menuitem"
-													tabIndex={-1}
-													aria-label={secondary.label}
-													title={secondary.label}
-													disabled={secondary.disabled}
-													onClick={() => runAndClose(secondary.onSelect)}
-												>
-													{secondary.label}
-												</button>
-											))}
-										</div>
-									) : (
-										mainAction
-									);
-								})}
-							</div>
+					<div
+						key={menuItem.id}
+						className={mergeClassNames(
+							"canvas-editor__toolbar-menu-label",
+							classes?.menuLabel,
 						)}
+					>
+						{menuItem.label}
 					</div>
 				);
-			})}
+			}
+			if (menuItem.type === "separator") {
+				return (
+					<hr
+						key={menuItem.id}
+						className={mergeClassNames(
+							"canvas-editor__toolbar-menu-separator",
+							classes?.menuSeparator,
+						)}
+					/>
+				);
+			}
+			const mainAction = (
+				<button
+					key={menuItem.id}
+					type="button"
+					className={mergeClassNames(
+						"canvas-editor__toolbar-menu-item",
+						classes?.menuItem,
+					)}
+					role="menuitem"
+					tabIndex={-1}
+					disabled={menuItem.disabled}
+					onClick={() =>
+						runAndClose(menuItem.onSelect, menuItem.closeOnSelect !== false)
+					}
+				>
+					{menuItem.icon}
+					<span>{menuItem.label}</span>
+					{menuItem.trailingIcon}
+				</button>
+			);
+			return menuItem.secondaryActions?.length ? (
+				<div
+					key={menuItem.id}
+					className={mergeClassNames(
+						"canvas-editor__toolbar-menu-row",
+						classes?.menuRow,
+					)}
+				>
+					{mainAction}
+					{menuItem.secondaryActions.map((secondary) => (
+						<button
+							key={secondary.id}
+							type="button"
+							className={mergeClassNames(
+								"canvas-editor__toolbar-secondary-action",
+								classes?.secondaryAction,
+							)}
+							role="menuitem"
+							tabIndex={-1}
+							aria-label={secondary.label}
+							title={secondary.label}
+							disabled={secondary.disabled}
+							onClick={() => runAndClose(secondary.onSelect)}
+						>
+							{secondary.label}
+						</button>
+					))}
+				</div>
+			) : (
+				mainAction
+			);
+		});
+
+	return (
+		<div
+			ref={rootRef}
+			className={mergeClassNames("canvas-editor__toolbar", classes?.root)}
+			data-menu-open={activeMenu ? "true" : undefined}
+			role="toolbar"
+		>
+			<div
+				className={mergeClassNames(
+					"canvas-editor__toolbar-track",
+					classes?.track,
+				)}
+				onWheel={(event) => {
+					const track = event.currentTarget;
+					if (
+						track.scrollWidth <= track.clientWidth ||
+						Math.abs(event.deltaY) <= Math.abs(event.deltaX)
+					) {
+						return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+					track.scrollLeft += event.deltaY;
+				}}
+			>
+				<CanvasEditorToolStrip
+					{...toolStrip}
+					onToolSelect={(tool) => {
+						setOpenMenuId(null);
+						toolStrip.onToolSelect(tool);
+					}}
+				/>
+				{items.map((item) => {
+					if (item.type === "separator") {
+						return (
+							<span
+								key={item.id}
+								aria-hidden="true"
+								className={mergeClassNames(
+									"canvas-editor__toolbar-separator",
+									classes?.separator,
+								)}
+							/>
+						);
+					}
+					if (item.type === "color") {
+						return (
+							<label
+								key={item.id}
+								className={mergeClassNames(
+									"canvas-editor__toolbar-color",
+									item.className ?? classes?.color,
+								)}
+								title={item.label}
+							>
+								<input
+									type="color"
+									value={item.value}
+									aria-label={item.label}
+									disabled={item.disabled}
+									onChange={(event) => item.onChange(event.target.value)}
+								/>
+							</label>
+						);
+					}
+					if (item.type === "action") {
+						const className = mergeClassNames(
+							"canvas-editor__toolbar-action",
+							item.className ?? classes?.action,
+							item.active ? classes?.actionActive : undefined,
+						);
+						return (
+							<button
+								key={item.id}
+								type="button"
+								className={className}
+								title={item.label}
+								aria-label={item.label}
+								data-active={item.active || undefined}
+								disabled={item.disabled}
+								onClick={() => runAndClose(item.onSelect)}
+							>
+								{item.icon}
+							</button>
+						);
+					}
+
+					const open = openMenuId === item.id;
+					const menuId = `${menuIdPrefix}-${item.id}-menu`;
+					const menuButtonClassName = mergeClassNames(
+						"canvas-editor__toolbar-action",
+						classes?.action,
+						open || item.active ? classes?.actionActive : undefined,
+					);
+					return (
+						<div
+							key={item.id}
+							className={mergeClassNames(
+								"canvas-editor__toolbar-menu",
+								classes?.menu,
+							)}
+						>
+							<button
+								ref={(element) => {
+									if (element) menuButtonRefs.current.set(item.id, element);
+									else menuButtonRefs.current.delete(item.id);
+								}}
+								type="button"
+								className={menuButtonClassName}
+								title={item.label}
+								aria-label={item.label}
+								aria-haspopup="menu"
+								aria-expanded={open}
+								aria-controls={menuId}
+								data-active={open || undefined}
+								disabled={item.disabled}
+								onClick={() => {
+									if (open) closeMenu(false);
+									else openMenu(item);
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+										return;
+									}
+									event.preventDefault();
+									openMenu(item, event.key === "ArrowDown" ? "first" : "last");
+								}}
+							>
+								{item.icon}
+							</button>
+						</div>
+					);
+				})}
+			</div>
+			{activeMenu && (
+				<div
+					id={`${menuIdPrefix}-${activeMenu.id}-menu`}
+					ref={(element) => {
+						if (element) menuRefs.current.set(activeMenu.id, element);
+						else menuRefs.current.delete(activeMenu.id);
+					}}
+					className={mergeClassNames(
+						"canvas-editor__toolbar-popover",
+						activeMenu.popoverClassName,
+						classes?.popover,
+					)}
+					role="menu"
+					aria-label={activeMenu.label}
+					onKeyDown={handleMenuKeyDown}
+				>
+					{renderMenuItems(activeMenu)}
+				</div>
+			)}
 		</div>
 	);
 }

@@ -38,7 +38,7 @@ export function GuestWelcomeSplash({
 			 * Ziel: Mitte des Menu-Buttons (~28px, 28px)
 			 */}
 			<GuestOnboardingAnnotation
-				className="left-[52px] top-[44px] hidden md:flex"
+				className="left-[52px] top-[44px] hidden lg:flex"
 				label={t("guestCanvas.onboarding.menuHint")}
 				labelPosition="below"
 				labelAlign="left"
@@ -52,7 +52,7 @@ export function GuestWelcomeSplash({
 			<GuestToolbarHints />
 
 			{/* Zentrale Willkommens-Karte — unterhalb der Top-Hinweise */}
-			<div className="flex h-full items-center justify-center px-6 pt-28 md:pt-36">
+			<div className="guest-welcome-scroll flex h-full items-center justify-center px-6 pt-[calc(9rem+env(safe-area-inset-top))] lg:pt-36 max-sm:px-4">
 				<div className="pointer-events-auto max-w-md text-center">
 					<div className="inline-flex items-center justify-center gap-3">
 						<img

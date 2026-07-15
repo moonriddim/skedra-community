@@ -82,7 +82,7 @@ export function KanbanPanel({
 	};
 
 	return (
-		<div className="absolute top-14 right-4 z-40 w-64 rounded-xl border border-border bg-card/95 p-3 text-card-foreground shadow-xl backdrop-blur">
+		<div className="absolute top-14 right-4 z-40 w-64 rounded-xl border border-border bg-card/95 p-3 text-card-foreground shadow-xl backdrop-blur max-lg:top-[calc(8rem+env(safe-area-inset-top))] max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:max-h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(16rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:overflow-y-auto">
 			<div className="mb-2 flex items-center justify-between">
 				<h3 className="text-sm font-semibold text-card-foreground">
 					{t("kanbanPanel.title")}
@@ -90,7 +90,7 @@ export function KanbanPanel({
 				<button
 					type="button"
 					onClick={onClose}
-					className="cursor-pointer text-muted-foreground hover:text-foreground"
+					className="cursor-pointer text-muted-foreground hover:text-foreground max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
 				>
 					<X className="h-4 w-4" />
 				</button>
@@ -103,7 +103,7 @@ export function KanbanPanel({
 				<button
 					type="button"
 					onClick={handleAddBoard}
-					className="flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm transition-colors hover:bg-accent"
+					className="flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm transition-colors hover:bg-accent max-lg:min-h-11"
 				>
 					<LayoutList className="h-4 w-4 text-primary" />
 					<div className="text-left">
@@ -117,7 +117,7 @@ export function KanbanPanel({
 				<button
 					type="button"
 					onClick={handleAddList}
-					className="flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm transition-colors hover:bg-accent"
+					className="flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm transition-colors hover:bg-accent max-lg:min-h-11"
 				>
 					<Plus className="h-4 w-4 text-primary" />
 					<div className="text-left">
@@ -137,7 +137,7 @@ export function KanbanPanel({
 					<button
 						type="button"
 						onClick={(event) => handleAddCard(null, event)}
-						className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs transition-colors hover:bg-accent"
+						className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs transition-colors hover:bg-accent max-lg:min-h-11"
 					>
 						<Square
 							className="h-3 w-3"
@@ -150,7 +150,7 @@ export function KanbanPanel({
 							key={priority.value}
 							type="button"
 							onClick={(event) => handleAddCard(priority.value, event)}
-							className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs transition-colors hover:bg-accent"
+							className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs transition-colors hover:bg-accent max-lg:min-h-11"
 						>
 							<Square
 								className="h-3 w-3"

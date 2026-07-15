@@ -16,7 +16,8 @@ import type {
 	CanvasEditorPendingText as PendingText,
 } from "@skedra/canvas-editor";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { CanvasStore, CanvasSync } from "../canvas-tool-types";
 import { buildEditingTextSession } from "./text-editing-builders";
 import { buildTextElementUpdate } from "./text-element-updates";
@@ -60,6 +61,10 @@ export function useCanvasTextEditing({
 
 	const markTextEditJustCommitted = useCallback(() => {
 		suppressTextEditOpenUntilRef.current = performance.now() + 450;
+	}, []);
+
+	const startTextPlacement = useCallback((placement: PendingText) => {
+		flushSync(() => setPendingText(placement));
 	}, []);
 
 	const handleCommitTextEditor = useCallback(() => {
@@ -178,7 +183,7 @@ export function useCanvasTextEditing({
 		handleCloseTextEditor();
 	}, [handleCloseTextEditor, markTextEditJustCommitted]);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const editId = store.editingTextId;
 		if (!editId) return;
 		const el = sync.elements.get(editId);
@@ -214,7 +219,7 @@ export function useCanvasTextEditing({
 		editingArrowTextSide,
 		editingArrowTextOrientation,
 		textEditorOpen,
-		startTextPlacement: setPendingText,
+		startTextPlacement,
 		handleCreateText,
 		handleUpdatePendingText,
 		handleUpdateEditingText,

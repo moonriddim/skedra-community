@@ -71,6 +71,7 @@ export interface CanvasEditorSelectionOverlayProps {
 		element: CanvasElement,
 		pointIndex: number,
 		point: [number, number],
+		event: ReactPointerEvent<SVGGElement>,
 	) => void;
 	pathBackground?: string;
 	pathAccent?: string;
@@ -122,8 +123,8 @@ export function CanvasEditorSelectionOverlay({
 					onPointPointerDown={(pointIndex, event) =>
 						onPathPointDragStart(event, single, pointIndex)
 					}
-					onInsertPoint={(pointIndex, point) =>
-						onInsertPathPoint(single, pointIndex, point)
+					onInsertPoint={(pointIndex, point, event) =>
+						onInsertPathPoint(single, pointIndex, point, event)
 					}
 				/>
 			</g>
@@ -165,29 +166,40 @@ export function CanvasEditorSelectionOverlay({
 							`Resize ${handle}`,
 						) ?? `Resize ${handle}`;
 					return (
-						<rect
-							key={handle}
-							className={classes?.handle}
-							x={position.x - size / 2}
-							y={position.y - size / 2}
-							width={size}
-							height={size}
-							rx={1 / zoom}
-							fill={handleFill}
-							stroke={handleStroke}
-							strokeWidth={strokeWidth}
-							pointerEvents="all"
-							style={{ cursor: CURSORS[handle] }}
-							role="button"
-							aria-label={label}
-							tabIndex={onResizeKeyDown ? 0 : undefined}
-							onPointerDown={(event) => onResizeStart(event, single, handle)}
-							onKeyDown={
-								onResizeKeyDown
-									? (event) => onResizeKeyDown(event, single, handle)
-									: undefined
-							}
-						/>
+						<g key={handle}>
+							<rect
+								className="canvas-editor__coarse-pointer-target"
+								x={position.x - size / 2}
+								y={position.y - size / 2}
+								width={size}
+								height={size}
+								fill="none"
+								stroke="transparent"
+								onPointerDown={(event) => onResizeStart(event, single, handle)}
+							/>
+							<rect
+								className={classes?.handle}
+								x={position.x - size / 2}
+								y={position.y - size / 2}
+								width={size}
+								height={size}
+								rx={1 / zoom}
+								fill={handleFill}
+								stroke={handleStroke}
+								strokeWidth={strokeWidth}
+								pointerEvents="all"
+								style={{ cursor: CURSORS[handle] }}
+								role="button"
+								aria-label={label}
+								tabIndex={onResizeKeyDown ? 0 : undefined}
+								onPointerDown={(event) => onResizeStart(event, single, handle)}
+								onKeyDown={
+									onResizeKeyDown
+										? (event) => onResizeKeyDown(event, single, handle)
+										: undefined
+								}
+							/>
+						</g>
 					);
 				})}
 		</g>

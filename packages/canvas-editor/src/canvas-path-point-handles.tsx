@@ -97,6 +97,14 @@ export function CanvasPathPointHandles({
 					}}
 				>
 					<circle
+						className="canvas-editor__coarse-pointer-target"
+						cx={element.x + midpoint.point[0]}
+						cy={element.y + midpoint.point[1]}
+						r={insertRadius}
+						fill="none"
+						stroke="transparent"
+					/>
+					<circle
 						cx={element.x + midpoint.point[0]}
 						cy={element.y + midpoint.point[1]}
 						r={insertRadius}
@@ -129,18 +137,28 @@ export function CanvasPathPointHandles({
 				const [x, y] = points[index];
 				const isEndpoint = index === 0 || index === points.length - 1;
 				return (
-					<circle
-						key={index}
-						cx={element.x + x}
-						cy={element.y + y}
-						r={radius}
-						fill={isEndpoint ? background : controlLine}
-						stroke={accent}
-						strokeWidth={strokeWidth}
-						pointerEvents="all"
-						style={{ cursor: "move" }}
-						onPointerDown={(event) => onPointPointerDown(index, event)}
-					/>
+					<g key={index}>
+						<circle
+							className="canvas-editor__coarse-pointer-target"
+							cx={element.x + x}
+							cy={element.y + y}
+							r={radius}
+							fill="none"
+							stroke="transparent"
+							onPointerDown={(event) => onPointPointerDown(index, event)}
+						/>
+						<circle
+							cx={element.x + x}
+							cy={element.y + y}
+							r={radius}
+							fill={isEndpoint ? background : controlLine}
+							stroke={accent}
+							strokeWidth={strokeWidth}
+							pointerEvents="all"
+							style={{ cursor: "move" }}
+							onPointerDown={(event) => onPointPointerDown(index, event)}
+						/>
+					</g>
 				);
 			})}
 		</g>

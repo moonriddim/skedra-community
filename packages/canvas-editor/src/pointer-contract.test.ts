@@ -2,12 +2,55 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	CANVAS_EDITOR_TOOL_IDS,
+	createCanvasEditorTouchSession,
 	handleCanvasEditorTemporaryPanKeyDown,
 	resolveCanvasEditorKeyboardAction,
+	resolveCanvasEditorPinchViewport,
 	resolveCanvasEditorPointerDown,
 	resolveCanvasEditorWheelViewport,
 	shouldCancelCanvasEditorLostPointerCapture,
+	shouldDeferCanvasEditorTouchAction,
+	shouldIgnoreCanvasEditorKeyboardEvent,
 } from "./index";
+
+test("the shared touch session owns the complete multi-finger sequence", () => {
+	const session = createCanvasEditorTouchSession();
+
+	assert.deepEqual(session.register(11, { x: 10, y: 20 }), {
+		startedMultiTouch: false,
+		isMultiTouch: false,
+	});
+	assert.equal(session.move(999, { x: 0, y: 0 }), false);
+	assert.equal(session.move(11, { x: 15, y: 25 }), true);
+	assert.deepEqual(session.register(12, { x: 110, y: 20 }), {
+		startedMultiTouch: true,
+		isMultiTouch: true,
+	});
+	assert.equal(session.isMultiTouch(), true);
+	assert.deepEqual(session.entries(), [
+		[11, { x: 15, y: 25 }],
+		[12, { x: 110, y: 20 }],
+	]);
+
+	assert.deepEqual(session.release(11), {
+		wasMultiTouch: true,
+		remainingPointers: 1,
+	});
+	assert.equal(session.isMultiTouch(), true);
+	assert.deepEqual(session.register(13, { x: 210, y: 20 }), {
+		startedMultiTouch: false,
+		isMultiTouch: true,
+	});
+	assert.deepEqual(session.release(12), {
+		wasMultiTouch: true,
+		remainingPointers: 1,
+	});
+	assert.deepEqual(session.release(13), {
+		wasMultiTouch: true,
+		remainingPointers: 0,
+	});
+	assert.equal(session.isMultiTouch(), false);
+});
 
 test("every editor tool resolves a pointer action", () => {
 	for (const tool of CANVAS_EDITOR_TOOL_IDS) {
@@ -62,6 +105,16 @@ test("temporary pan always prevents browser scrolling", () => {
 	assert.equal(temporaryPan, true);
 });
 
+test("IME composition never triggers canvas shortcuts", () => {
+	assert.equal(
+		shouldIgnoreCanvasEditorKeyboardEvent(
+			{ isComposing: true, target: null },
+			{ enabled: true, editingText: false },
+		),
+		true,
+	);
+});
+
 test("plain mouse wheel zooms around the pointer like the original Web canvas", () => {
 	assert.deepEqual(
 		resolveCanvasEditorWheelViewport(
@@ -79,6 +132,68 @@ test("plain mouse wheel zooms around the pointer like the original Web canvas", 
 		),
 		{ x: 8, y: 4, zoom: 0.92 },
 	);
+});
+
+test("two-finger gestures zoom around their midpoint and pan with it", () => {
+	assert.deepEqual(
+		resolveCanvasEditorPinchViewport(
+			{ x: 0, y: 0, zoom: 1 },
+			[
+				{ x: 0, y: 0 },
+				{ x: 200, y: 0 },
+			],
+			[
+				{ x: -50, y: 40 },
+				{ x: 350, y: 40 },
+			],
+		),
+		{ x: -50, y: 40, zoom: 2 },
+	);
+	assert.deepEqual(
+		resolveCanvasEditorPinchViewport(
+			{ x: 20, y: 30, zoom: 1 },
+			[
+				{ x: 0, y: 0 },
+				{ x: 100, y: 0 },
+			],
+			[
+				{ x: 25, y: 50 },
+				{ x: 125, y: 50 },
+			],
+		),
+		{ x: 45, y: 80, zoom: 1 },
+	);
+});
+
+test("two-finger zoom respects the shared canvas zoom limits", () => {
+	assert.deepEqual(
+		resolveCanvasEditorPinchViewport(
+			{ x: 0, y: 0, zoom: 20 },
+			[
+				{ x: 0, y: 0 },
+				{ x: 100, y: 0 },
+			],
+			[
+				{ x: -50, y: 0 },
+				{ x: 150, y: 0 },
+			],
+		),
+		{ x: -25, y: 0, zoom: 30 },
+	);
+});
+
+test("touch defers tap-like mutations until a one-finger pointer-up", () => {
+	for (const action of [
+		"eyedropper",
+		"insert-sticky-note",
+		"insert-kanban",
+		"insert-mindmap",
+	] as const) {
+		assert.equal(shouldDeferCanvasEditorTouchAction(action), true, action);
+	}
+	for (const action of ["draw", "erase", "pan", "select"] as const) {
+		assert.equal(shouldDeferCanvasEditorTouchAction(action), false, action);
+	}
 });
 
 test("read-only mode blocks mutations in every host", () => {

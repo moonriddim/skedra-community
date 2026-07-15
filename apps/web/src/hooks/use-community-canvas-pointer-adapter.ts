@@ -30,6 +30,7 @@ interface UseCommunityCanvasPointerAdapterOptions {
 	duplicateSelection?: () => void;
 	deleteElements?: (ids: string[]) => void;
 	stopUndoCapture?: () => void;
+	cancelUndoCapture?: () => void;
 	startTextPlacement: (placement: CanvasEditorTextPlacement) => void;
 }
 
@@ -44,6 +45,7 @@ export function useCommunityCanvasPointerAdapter({
 	duplicateSelection,
 	deleteElements,
 	stopUndoCapture,
+	cancelUndoCapture,
 	startTextPlacement,
 }: UseCommunityCanvasPointerAdapterOptions) {
 	const storeRef = useCanvasStoreRef();
@@ -117,8 +119,9 @@ export function useCommunityCanvasPointerAdapter({
 		updateElements,
 		deleteElements,
 		duplicateSelection,
+		beginHistory: stopUndoCapture,
 		finishHistory: stopUndoCapture,
-		cancelHistory: stopUndoCapture,
+		cancelHistory: cancelUndoCapture,
 	};
 
 	const shared = useCanvasEditorPointer({
@@ -208,6 +211,14 @@ export function useCommunityCanvasPointerAdapter({
 				clearSnapVisuals,
 				theme: { resolvedTheme },
 			}),
+		shouldDeferTouchPointerDown: () => {
+			const store = storeRef.current;
+			return (
+				store.stickyNotePlacementDraft != null ||
+				store.kanbanCardPlacementDraft != null ||
+				store.shapePlacementDraft != null
+			);
+		},
 		onIdlePointerMove: (point, event) => {
 			const store = storeRef.current;
 			if (store.kanbanCardPlacementDraft) {

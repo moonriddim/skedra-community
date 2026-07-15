@@ -21,7 +21,7 @@ export function BoardAppearanceMenu() {
 				<Button
 					variant="outline"
 					size="icon"
-					className="h-9 w-9 bg-card/90 backdrop-blur-md"
+					className="h-9 w-9 bg-card/90 backdrop-blur-md max-lg:h-11 max-lg:w-11"
 					aria-label={t("profileSettings.preferencesCard.title")}
 				>
 					<Palette className="h-4 w-4" />

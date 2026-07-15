@@ -135,6 +135,11 @@ const sharedInteractionConsumers = [
 	],
 	["packages/react/src/skedra-canvas.tsx", "useCanvasEditorPointer"],
 	[
+		"apps/web/src/components/canvas/skedra-canvas.tsx",
+		"useCanvasEditorSavedViews",
+	],
+	["packages/react/src/skedra-canvas.tsx", "useCanvasEditorSavedViews"],
+	[
 		"apps/web/src/hooks/use-community-canvas-keyboard-adapter.ts",
 		"useCanvasEditorKeyboard",
 	],
@@ -162,6 +167,16 @@ const sharedInteractionConsumers = [
 	],
 	["packages/react/src/skedra-canvas.tsx", "CanvasEditorGridOverlay"],
 	[
+		"apps/web/src/components/canvas/skedra-canvas/skedra-canvas-overlays.tsx",
+		"CanvasEditorSavedViewsBar",
+	],
+	["packages/react/src/skedra-canvas.tsx", "CanvasEditorSavedViewsBar"],
+	[
+		"apps/web/src/components/canvas/canvas-stage.tsx",
+		"CanvasEditorSavedViewOverlay",
+	],
+	["packages/react/src/skedra-canvas.tsx", "CanvasEditorSavedViewOverlay"],
+	[
 		"apps/web/src/components/canvas/properties-panel.tsx",
 		"CanvasEditorPropertiesPanel",
 	],
@@ -176,6 +191,63 @@ for (const [file, contract] of sharedInteractionConsumers) {
 			`${file} must consume the shared @skedra/canvas-editor contract ${contract}.`,
 		);
 	}
+}
+
+const sharedEditorStyles = readRepoFile("packages/canvas-editor/src/style.css");
+for (const contract of [
+	"container: canvas-editor / size",
+	"@container canvas-editor",
+	"--canvas-editor-safe-top",
+	".canvas-editor__toolbar-track",
+	".canvas-editor__toolbar-popover",
+	".canvas-editor__properties",
+	".canvas-editor__saved-views-bar",
+	"@media (any-pointer: coarse)",
+]) {
+	if (!sharedEditorStyles.includes(contract)) {
+		errors.push(`Shared responsive canvas styling must preserve ${contract}.`);
+	}
+}
+
+if (sharedEditorStyles.includes("@media (pointer: coarse)")) {
+	errors.push(
+		"Shared coarse-pointer styling must also activate on hybrid touch devices.",
+	);
+}
+
+for (const [file, forbiddenPatterns] of [
+	[
+		"apps/web/src/components/canvas/canvas-toolbar.tsx",
+		[/canvas-toolbar-scroll/u, /max-lg:/u, /safe-area-inset/u],
+	],
+	[
+		"apps/web/src/components/canvas/properties-panel.tsx",
+		[/skedra-community__properties/u, /\btop:\s*["']/u],
+	],
+]) {
+	const source = readRepoFile(file);
+	if (forbiddenPatterns.some((pattern) => pattern.test(source))) {
+		errors.push(
+			`${file} must theme the shared responsive canvas UI instead of implementing its mobile layout.`,
+		);
+	}
+}
+
+const webAppStyles = readRepoFile("apps/web/src/app.css");
+if (
+	webAppStyles.includes(".canvas-toolbar-scroll") ||
+	webAppStyles.includes(".skedra-community__properties")
+) {
+	errors.push(
+		"apps/web/src/app.css must not duplicate shared toolbar or properties responsiveness.",
+	);
+}
+
+const sdkStyles = readRepoFile("packages/react/src/style.css");
+if (/@media[^{}]*\{[^{}]*\.skedra-sdk__properties/su.test(sdkStyles)) {
+	errors.push(
+		"packages/react/src/style.css must consume shared properties responsiveness instead of defining a viewport-only SDK variant.",
+	);
 }
 
 const sharedPropertiesConsumer = readRepoFile(
@@ -278,6 +350,11 @@ const forbiddenGenericHostFiles = [
 	"apps/web/src/components/canvas/text-editor.tsx",
 	"apps/web/src/components/canvas/selection-handles.tsx",
 	"apps/web/src/components/canvas/grid-overlay.tsx",
+	"apps/web/src/components/canvas/bottom-bar.tsx",
+	"apps/web/src/components/canvas/saved-view-tile.tsx",
+	"apps/web/src/components/canvas/saved-view-overlay.tsx",
+	"apps/web/src/components/canvas/canvas-view-utils.ts",
+	"apps/web/src/components/canvas/hooks/use-canvas-saved-views.ts",
 ];
 
 for (const relative of forbiddenGenericHostFiles) {
@@ -304,6 +381,12 @@ for (const pattern of [
 	}
 }
 
+if (/\bid:\s*["']views["']/u.test(sdkCanvasSource)) {
+	errors.push(
+		"The SDK must render saved views through the shared bottom bar instead of a host-specific toolbar menu.",
+	);
+}
+
 if (
 	!sdkCanvasSource.includes("handleSkedraSdkKeyboardAction(action") ||
 	!sdkCanvasSource.includes("SkedraSdkKeyboardActionHandlers")
@@ -318,7 +401,7 @@ const communityPointerAdapterSource = readRepoFile(
 );
 for (const historyBoundary of [
 	"finishHistory: stopUndoCapture",
-	"cancelHistory: stopUndoCapture",
+	"cancelHistory: cancelUndoCapture",
 ]) {
 	if (!communityPointerAdapterSource.includes(historyBoundary)) {
 		errors.push(
@@ -523,11 +606,35 @@ for (const handler of [
 	"onPointerUp",
 	"onPointerCancel",
 	"onLostPointerCapture",
+	"beginAuxiliaryPointerGesture",
+	"isMultiTouchGesture",
 ]) {
 	if (
 		!new RegExp(`pointerHandlers\\.${handler}\\b`, "u").test(webPointerBridge)
 	) {
 		errors.push(`The Community pointer bridge must delegate ${handler}.`);
+	}
+}
+
+for (const duplicateTouchState of [
+	/\bactiveTouchPointersRef\b/u,
+	/\bmultiTouchGestureRef\b/u,
+]) {
+	if (duplicateTouchState.test(webPointerBridge)) {
+		errors.push(
+			"The Community pointer bridge must consume shared touch state instead of duplicating it.",
+		);
+	}
+}
+
+for (const relative of [
+	"apps/web/src/components/canvas/canvas-stage.tsx",
+	"packages/react/src/skedra-canvas.tsx",
+]) {
+	if (!readRepoFile(relative).includes("beginAuxiliaryPointerGesture")) {
+		errors.push(
+			`Image cropping must use shared touch arbitration in every host: ${relative}.`,
+		);
 	}
 }
 

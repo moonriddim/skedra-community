@@ -3,7 +3,13 @@
  */
 
 import type { Viewport } from "@skedra/canvas-core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import type { CanvasEditorEditingText } from "./canvas-editor-text-overlay";
 import {
 	type CanvasEditorStickyChecklistItem,
@@ -118,7 +124,7 @@ export function CanvasEditorStickyNoteOverlay({
 		return () => onRegisterCommit?.(null);
 	}, [doSave, onRegisterCommit]);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (stickyNoteMode === "note") {
 			noteBodyRef.current?.focus();
 			noteBodyRef.current?.select();
@@ -173,6 +179,10 @@ export function CanvasEditorStickyNoteOverlay({
 		index: number,
 		event: React.KeyboardEvent<HTMLInputElement>,
 	) => {
+		if (event.nativeEvent.isComposing) {
+			event.stopPropagation();
+			return;
+		}
 		if (event.key === "Escape") {
 			event.preventDefault();
 			doSave();
@@ -212,9 +222,14 @@ export function CanvasEditorStickyNoteOverlay({
 			{stickyNoteMode === "note" ? (
 				<textarea
 					ref={noteBodyRef}
+					inputMode="text"
 					defaultValue={editing.text}
 					placeholder={notePlaceholder}
 					onKeyDown={(event) => {
+						if (event.nativeEvent.isComposing) {
+							event.stopPropagation();
+							return;
+						}
 						if (event.key === "Escape") {
 							event.preventDefault();
 							doSave();
@@ -233,9 +248,14 @@ export function CanvasEditorStickyNoteOverlay({
 				<>
 					<input
 						ref={titleRef}
+						inputMode="text"
 						defaultValue={editing.text}
 						placeholder={titlePlaceholder}
 						onKeyDown={(event) => {
+							if (event.nativeEvent.isComposing) {
+								event.stopPropagation();
+								return;
+							}
 							if (event.key === "Escape") {
 								event.preventDefault();
 								doSave();
@@ -286,6 +306,7 @@ export function CanvasEditorStickyNoteOverlay({
 									ref={(node) => {
 										itemRefs.current[index] = node;
 									}}
+									inputMode="text"
 									defaultValue={item.text}
 									placeholder={itemPlaceholder}
 									onKeyDown={(event) => handleItemKeyDown(index, event)}

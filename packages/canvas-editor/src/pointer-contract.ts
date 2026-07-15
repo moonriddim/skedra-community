@@ -32,6 +32,18 @@ export type CanvasEditorPointerGestureAction =
 	| "erase"
 	| "laser";
 
+/** Tap-like tools commit on touch-up so a second finger can start Pinch safely. */
+export function shouldDeferCanvasEditorTouchAction(
+	action: CanvasEditorPointerAction,
+): boolean {
+	return (
+		action === "eyedropper" ||
+		action === "insert-sticky-note" ||
+		action === "insert-kanban" ||
+		action === "insert-mindmap"
+	);
+}
+
 /** Restores the original Web UX: every vertical wheel gesture zooms at the pointer. */
 export function resolveCanvasEditorWheelViewport(
 	viewport: Viewport,
@@ -44,6 +56,119 @@ export function resolveCanvasEditorWheelViewport(
 		pointer,
 		viewport.zoom * (deltaY > 0 ? 0.92 : 1.08),
 	);
+}
+
+export interface CanvasEditorScreenPoint {
+	x: number;
+	y: number;
+}
+
+export interface CanvasEditorTouchRegistration {
+	startedMultiTouch: boolean;
+	isMultiTouch: boolean;
+}
+
+export interface CanvasEditorTouchRelease {
+	wasMultiTouch: boolean;
+	remainingPointers: number;
+}
+
+export interface CanvasEditorTouchSession {
+	register: (
+		pointerId: number,
+		point: CanvasEditorScreenPoint,
+	) => CanvasEditorTouchRegistration;
+	move: (pointerId: number, point: CanvasEditorScreenPoint) => boolean;
+	release: (pointerId: number) => CanvasEditorTouchRelease;
+	clear: () => void;
+	get: (pointerId: number) => CanvasEditorScreenPoint | undefined;
+	has: (pointerId: number) => boolean;
+	isEmpty: () => boolean;
+	isMultiTouch: () => boolean;
+	entries: () => Array<[number, CanvasEditorScreenPoint]>;
+}
+
+/**
+ * Stateful touch arbitration shared by every editor host. Multi-touch remains
+ * active until every finger has lifted, preventing the remaining finger from
+ * accidentally starting a new edit after a pinch.
+ */
+export function createCanvasEditorTouchSession(): CanvasEditorTouchSession {
+	const pointers = new Map<number, CanvasEditorScreenPoint>();
+	let multiTouch = false;
+
+	return {
+		register(pointerId, point) {
+			pointers.set(pointerId, point);
+			const startedMultiTouch = !multiTouch && pointers.size >= 2;
+			if (startedMultiTouch) multiTouch = true;
+			return { startedMultiTouch, isMultiTouch: multiTouch };
+		},
+		move(pointerId, point) {
+			if (!pointers.has(pointerId)) return false;
+			pointers.set(pointerId, point);
+			return true;
+		},
+		release(pointerId) {
+			const wasMultiTouch = multiTouch;
+			pointers.delete(pointerId);
+			if (pointers.size === 0) multiTouch = false;
+			return { wasMultiTouch, remainingPointers: pointers.size };
+		},
+		clear() {
+			pointers.clear();
+			multiTouch = false;
+		},
+		get: (pointerId) => pointers.get(pointerId),
+		has: (pointerId) => pointers.has(pointerId),
+		isEmpty: () => pointers.size === 0,
+		isMultiTouch: () => multiTouch,
+		entries: () => [...pointers.entries()],
+	};
+}
+
+export type CanvasEditorPinchPoints = readonly [
+	CanvasEditorScreenPoint,
+	CanvasEditorScreenPoint,
+];
+
+/**
+ * Resolves a two-finger gesture from its initial points and viewport.
+ * The canvas position below the initial midpoint stays below the moving
+ * midpoint, so zooming and panning can happen in one natural gesture.
+ */
+export function resolveCanvasEditorPinchViewport(
+	viewport: Viewport,
+	start: CanvasEditorPinchPoints,
+	current: CanvasEditorPinchPoints,
+): Viewport {
+	const startCenter = {
+		x: (start[0].x + start[1].x) / 2,
+		y: (start[0].y + start[1].y) / 2,
+	};
+	const currentCenter = {
+		x: (current[0].x + current[1].x) / 2,
+		y: (current[0].y + current[1].y) / 2,
+	};
+	const startDistance = Math.hypot(
+		start[1].x - start[0].x,
+		start[1].y - start[0].y,
+	);
+	const currentDistance = Math.hypot(
+		current[1].x - current[0].x,
+		current[1].y - current[0].y,
+	);
+	const nextZoom =
+		startDistance > 0
+			? viewport.zoom * (currentDistance / startDistance)
+			: viewport.zoom;
+	const zoomed = zoomCanvasViewportAtPoint(viewport, startCenter, nextZoom);
+
+	return {
+		...zoomed,
+		x: zoomed.x + currentCenter.x - startCenter.x,
+		y: zoomed.y + currentCenter.y - startCenter.y,
+	};
 }
 
 /** Normal pointer-up releases capture after the gesture has already been reset. */

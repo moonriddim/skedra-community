@@ -30,7 +30,12 @@ export type {
 	CanvasPathFinishOptions,
 	UseCanvasPathEditorOptions,
 } from "./use-canvas-path-editor";
-export { resolveCanvasEditorWheelViewport } from "./pointer-contract";
+export {
+	createCanvasEditorTouchSession,
+	resolveCanvasEditorPinchViewport,
+	resolveCanvasEditorWheelViewport,
+	shouldDeferCanvasEditorTouchAction,
+} from "./pointer-contract";
 export { CanvasPathStartSnapIndicator } from "./path-start-snap-indicator";
 export type { CanvasPathStartSnapIndicatorProps } from "./path-start-snap-indicator";
 export { CanvasPathPointHandles } from "./canvas-path-point-handles";
@@ -44,8 +49,13 @@ export {
 	shouldCancelCanvasEditorLostPointerCapture,
 } from "./pointer-contract";
 export type {
+	CanvasEditorPinchPoints,
 	CanvasEditorPointerAction,
 	CanvasEditorPointerGestureAction,
+	CanvasEditorScreenPoint,
+	CanvasEditorTouchRegistration,
+	CanvasEditorTouchRelease,
+	CanvasEditorTouchSession,
 	ResolveCanvasEditorPointerDownOptions,
 } from "./pointer-contract";
 export type { BuildCanvasSinglePathElementOptions } from "./single-path";
@@ -127,6 +137,7 @@ export type {
 export { useCanvasEditorPointer } from "./use-canvas-editor-pointer";
 export {
 	handleCanvasEditorTemporaryPanKeyDown,
+	shouldIgnoreCanvasEditorKeyboardEvent,
 	useCanvasEditorKeyboard,
 } from "./use-canvas-editor-keyboard";
 export type {
@@ -135,6 +146,7 @@ export type {
 	CanvasEditorKeyboardState,
 } from "./use-canvas-editor-keyboard";
 export type {
+	CanvasEditorBeginAuxiliaryPointerGesture,
 	CanvasEditorDocumentAdapter,
 	CanvasEditorPointerPlacementContext,
 	CanvasEditorPointerUiAdapter,
@@ -143,6 +155,36 @@ export type {
 	CanvasEditorTextPlacement,
 	UseCanvasEditorPointerOptions,
 } from "./use-canvas-editor-pointer";
+export { CanvasEditorSavedViewsBar } from "./canvas-editor-saved-views-bar";
+export type { CanvasEditorSavedViewsBarProps } from "./canvas-editor-saved-views-bar";
+export { CanvasEditorSavedViewTile } from "./canvas-editor-saved-view-tile";
+export type {
+	CanvasEditorSavedViewPreviewRenderer,
+	CanvasEditorSavedViewTileProps,
+} from "./canvas-editor-saved-view-tile";
+export { CanvasEditorSavedViewOverlay } from "./canvas-editor-saved-view-overlay";
+export type { CanvasEditorSavedViewOverlayProps } from "./canvas-editor-saved-view-overlay";
+export { CanvasEditorSavedViewDraft } from "./canvas-editor-saved-view-draft";
+export type { CanvasEditorSavedViewDraftProps } from "./canvas-editor-saved-view-draft";
+export { useCanvasEditorSavedViews } from "./use-canvas-editor-saved-views";
+export type {
+	CanvasEditorCreateSavedViewInput,
+	CanvasEditorSavedViewsTranslate,
+	UseCanvasEditorSavedViewsOptions,
+} from "./use-canvas-editor-saved-views";
+export {
+	CANVAS_EDITOR_MIN_VIEW_SIZE,
+	CANVAS_EDITOR_VIEW_PADDING,
+	areCanvasEditorViewportsEqual,
+	constrainCanvasEditorViewBoundsToAspectRatio,
+	getCanvasEditorCapturedViewBounds,
+	getCanvasEditorViewResizeAspectRatio,
+	isCanvasEditorViewInteractionPointer,
+	normalizeCanvasEditorViewBounds,
+	orderCanvasEditorSavedViews,
+	resizeCanvasEditorViewBounds,
+} from "./saved-view-contract";
+export type { CanvasEditorViewInteractionState } from "./saved-view-contract";
 export type {
 	CanvasEditorToolStripClasses,
 	CanvasEditorToolStripProps,
