@@ -3,7 +3,11 @@
  */
 
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
-import type { CanvasEditorBeginAuxiliaryPointerGesture } from "@skedra/canvas-editor";
+import {
+	type CanvasEditorBeginAuxiliaryPointerGesture,
+	canvasEditorToolSupportsSnapOverride,
+	resolveCanvasEditorContextSelectionIds,
+} from "@skedra/canvas-editor";
 import { useCallback, useRef } from "react";
 
 interface PointerGestureHandlers {
@@ -36,6 +40,7 @@ interface UseSkedraCanvasPointerBridgeOptions {
 	handleViewPointerUp: (pointerId: number) => boolean;
 	cancelViewInteraction: () => boolean;
 	pointerHandlers: PointerGestureHandlers;
+	elements: Map<string, CanvasElement>;
 	getEventElement: (target: EventTarget | null) => CanvasElement | null;
 	getElementAtPosition: (
 		canvasX: number,
@@ -59,7 +64,6 @@ type CanvasElement = import("@skedra/canvas-core").CanvasElement;
 type KanbanClickTargetKind = "kanban-card" | "kanban-list";
 
 const DOUBLE_CLICK_MAX_MS = 450;
-
 export function useSkedraCanvasPointerBridge({
 	svgRef,
 	store,
@@ -71,6 +75,7 @@ export function useSkedraCanvasPointerBridge({
 	handleViewPointerUp,
 	cancelViewInteraction,
 	pointerHandlers,
+	elements,
 	getEventElement,
 	getElementAtPosition,
 	getKanbanElementAtPosition,
@@ -98,16 +103,49 @@ export function useSkedraCanvasPointerBridge({
 
 	const handleContextMenu = useCallback(
 		(e: React.MouseEvent) => {
-			if (pointerHandlers.onContextMenu(e)) return;
 			if (presentationMode) {
 				e.preventDefault();
 				return;
 			}
 			e.preventDefault();
 			e.stopPropagation();
+			if (
+				e.shiftKey &&
+				canvasEditorToolSupportsSnapOverride(store.activeTool)
+			) {
+				store.setContextMenu(null);
+				store.setSnapMenu({ x: e.clientX, y: e.clientY, kind: "override" });
+				return;
+			}
+			if (pointerHandlers.onContextMenu(e)) return;
+			store.setSnapMenu(null);
+			const rect = svgRef.current?.getBoundingClientRect();
+			if (rect) {
+				const canvasX =
+					(e.clientX - rect.left - store.viewport.x) / store.viewport.zoom;
+				const canvasY =
+					(e.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
+				const target =
+					getEventElement(e.target) ?? getElementAtPosition(canvasX, canvasY);
+				store.setSelectedIds(
+					resolveCanvasEditorContextSelectionIds(
+						target,
+						elements,
+						store.selectedIds,
+					),
+				);
+			}
 			store.setContextMenu({ x: e.clientX, y: e.clientY });
 		},
-		[pointerHandlers, presentationMode, store],
+		[
+			pointerHandlers,
+			presentationMode,
+			store,
+			svgRef,
+			getEventElement,
+			getElementAtPosition,
+			elements,
+		],
 	);
 
 	const handlePointerDown = useCallback(
@@ -146,6 +184,7 @@ export function useSkedraCanvasPointerBridge({
 
 			if (textEditorOpen) return;
 			store.setContextMenu(null);
+			store.setSnapMenu(null);
 			if (e.button === 0 && store.activeTool === "select") {
 				const rect = svgRef.current?.getBoundingClientRect();
 				if (rect) {

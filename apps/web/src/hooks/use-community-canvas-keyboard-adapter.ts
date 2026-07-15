@@ -220,6 +220,8 @@ export function useCommunityCanvasKeyboardAdapter({
 					store.clearSelection();
 					store.setActiveTool("select");
 					store.setContextMenu(null);
+					store.setSnapMenu(null);
+					store.setSnapOverrideMode(null);
 				}
 				return true;
 			}
@@ -244,6 +246,9 @@ export function useCommunityCanvasKeyboardAdapter({
 		sendToBack: ops.sendToBack,
 		flipHorizontal: ops.flipHorizontal,
 		flipVertical: ops.flipVertical,
+		rotateSelection: ops.rotateSelection,
+		copyMirrorSelection: ops.copyMirrorSelection,
+		copyRotateSelection: ops.copyRotateSelection,
 		addLink: ops.addLink,
 		toggleLock: ops.toggleLock,
 		embedInFrame: ops.embedInFrame,

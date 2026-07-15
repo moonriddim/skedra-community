@@ -14,16 +14,21 @@ import {
 	type FlowchartConnectorRoute,
 	type FlowchartNodeKind,
 	type FlowchartNodeMeta,
+	type FrameConstraintAxis,
+	type FrameConstraints,
 	type FrameSizePreset,
 	type KanbanPriority,
 	MAX_ARROW_HEAD_SCALE,
+	MAX_CLOUD_ARC_RADIUS,
 	MAX_ROUGH_FILL_SCALE,
 	MIN_ARROW_HEAD_SCALE,
+	MIN_CLOUD_ARC_RADIUS,
 	MIN_ROUGH_FILL_SCALE,
 	type RoughFillStyle,
 	type StrokeStyle,
 	getCanvasLayoutItemCount,
 	getFrameSizePresetsByCategory,
+	readFrameConstraints,
 } from "@skedra/canvas-core";
 import {
 	AlignCenter,
@@ -123,6 +128,12 @@ export interface CanvasEditorClassicPropertiesView {
 	onStartFramePresetPlacement?: (preset: FrameSizePreset) => void;
 	/** Breite/Hoehe des selektierten Frames direkt setzen. */
 	onSetFrameSize?: (size: { width: number; height: number }) => void;
+	/** Selektierte Kinder einfacher Frames (Constraints-Sektion). */
+	frameChildElements?: CanvasElement[];
+	/** Constraints der selektierten Frame-Kinder setzen. */
+	onSetFrameChildConstraints?: (constraints: Partial<FrameConstraints>) => void;
+	/** Selektierten Frame als Bild exportieren. */
+	onExportFrame?: (format: "png" | "svg") => void;
 	showStroke: boolean;
 	isTextOnly: boolean;
 	hasMindmapBranch: boolean;
@@ -146,13 +157,24 @@ export interface CanvasEditorClassicPropertiesView {
 	cornerRadiusHeight: number;
 	showDimensions: boolean;
 	singleGeometryElement: CanvasElement | null;
-	geometryPresetTool: "rectangle" | "ellipse" | "diamond" | null;
+	geometryPresetTool:
+		| "rectangle"
+		| "ellipse"
+		| "diamond"
+		| "triangle"
+		| "cloud"
+		| null;
 	currentShapeWidth: number;
 	currentShapeHeight: number;
 	ellipseDiameter: number;
+	showPyramidOptions: boolean;
+	currentPyramidSections: number;
+	showCloudArcRadius: boolean;
+	currentCloudArcRadius: number;
 	currentOpacity: number;
 	strokeColors: string[];
 	showPathDrawMode: boolean;
+	isCloudDrawMode: boolean;
 	isPathElement: boolean;
 	isArrowElement: boolean;
 	showPathClosed: boolean;
@@ -609,6 +631,7 @@ export function CanvasEditorClassicPropertiesPanel({
 			<TemplateProperties view={view} t={t} />
 			<FlowchartProperties view={view} t={t} />
 			<FrameProperties view={view} t={t} />
+			<FrameConstraintProperties view={view} t={t} />
 			<AppearanceProperties view={view} t={t} />
 			<ArrowProperties view={view} t={t} />
 			{view.hasTextElement && <TextProperties view={view} t={t} />}
@@ -723,6 +746,107 @@ function FrameNameInput({
 	);
 }
 
+/** Auswahl-Optionen fuer eine Constraint-Achse (Reihenfolge = Anzeige). */
+const FRAME_CONSTRAINT_OPTIONS: ReadonlyArray<{
+	value: FrameConstraintAxis;
+	key: string;
+	fallbackH: string;
+	fallbackV: string;
+}> = [
+	{
+		value: "start",
+		key: "canvas.properties.constraintStart",
+		fallbackH: "Left",
+		fallbackV: "Top",
+	},
+	{
+		value: "end",
+		key: "canvas.properties.constraintEnd",
+		fallbackH: "Right",
+		fallbackV: "Bottom",
+	},
+	{
+		value: "center",
+		key: "canvas.properties.constraintCenter",
+		fallbackH: "Center",
+		fallbackV: "Center",
+	},
+	{
+		value: "stretch",
+		key: "canvas.properties.constraintStretch",
+		fallbackH: "Stretch",
+		fallbackV: "Stretch",
+	},
+	{
+		value: "scale",
+		key: "canvas.properties.constraintScale",
+		fallbackH: "Scale",
+		fallbackV: "Scale",
+	},
+];
+
+/**
+ * Constraints fuer Frame-Kinder: steuert, wie das Element beim Resize des
+ * umgebenden Frames mitwandert. Gemischte Selektionen zeigen den ersten Wert.
+ */
+function FrameConstraintProperties({
+	view,
+	t,
+}: {
+	view: CanvasEditorClassicPropertiesView;
+	t: CanvasEditorPropertiesTranslate;
+}) {
+	const children = view.frameChildElements ?? [];
+	if (children.length === 0 || !view.onSetFrameChildConstraints) return null;
+	const current = readFrameConstraints(children[0]);
+
+	const renderAxis = (
+		axis: "horizontal" | "vertical",
+		activeValue: FrameConstraintAxis,
+	) => (
+		<div className="flex gap-1">
+			{FRAME_CONSTRAINT_OPTIONS.map((option) => (
+				<ChoiceButton
+					key={option.value}
+					active={activeValue === option.value}
+					onClick={() =>
+						view.onSetFrameChildConstraints?.({ [axis]: option.value })
+					}
+					className="text-[9px]"
+					title={
+						axis === "horizontal"
+							? t(`${option.key}H`, option.fallbackH)
+							: t(`${option.key}V`, option.fallbackV)
+					}
+				>
+					{axis === "horizontal"
+						? t(`${option.key}H`, option.fallbackH)
+						: t(`${option.key}V`, option.fallbackV)}
+				</ChoiceButton>
+			))}
+		</div>
+	);
+
+	return (
+		<Section label={t("canvas.properties.frameConstraints", "Constraints")}>
+			<div className="space-y-1.5">
+				<div>
+					<p className="mb-0.5 text-[9px] text-muted-foreground uppercase tracking-wider">
+						{t("canvas.properties.constraintHorizontal", "Horizontal")}
+					</p>
+					{renderAxis("horizontal", current.horizontal)}
+				</div>
+				<div>
+					<p className="mb-0.5 text-[9px] text-muted-foreground uppercase tracking-wider">
+						{t("canvas.properties.constraintVertical", "Vertical")}
+					</p>
+					{renderAxis("vertical", current.vertical)}
+				</div>
+			</div>
+		</Section>
+	);
+}
+
 /**
  * Frame-Optionen: Name, eigene Groesse und Standard-Bildschirmgroessen.
  * Sichtbar bei selektiertem einfachen Frame oder aktivem Frame-Werkzeug.
@@ -766,6 +890,22 @@ function FrameProperties({
 							</span>
 						</button>
 					)}
+				</Section>
+			)}
+			{frame && view.onExportFrame && (
+				<Section label={t("canvas.properties.frameExport", "Export frame")}>
+					<div className="flex gap-1">
+						{(["png", "svg"] as const).map((format) => (
+							<ChoiceButton
+								key={format}
+								active={false}
+								onClick={() => view.onExportFrame?.(format)}
+								className="text-[10px] uppercase"
+							>
+								{format}
+							</ChoiceButton>
+						))}
+					</div>
 				</Section>
 			)}
 			{frame && view.onSetFrameSize && (
@@ -1544,6 +1684,89 @@ function AppearanceProperties({
 						)}
 					</Section>
 				)}
+			{view.showPyramidOptions && (
+				<Section
+					label={t("canvas.properties.pyramidDiagram", "Pyramid diagram")}
+				>
+					<div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+						<span>{t("canvas.properties.pyramidSections", "Sections")}</span>
+						<span className="font-medium text-card-foreground">
+							{view.currentPyramidSections}
+						</span>
+					</div>
+					<input
+						type="range"
+						min={1}
+						max={12}
+						step={1}
+						value={view.currentPyramidSections}
+						onChange={(event) =>
+							view.onSetProperty("pyramidSections", Number(event.target.value))
+						}
+						className="mt-2 w-full h-1 rounded-full appearance-none bg-muted accent-primary cursor-pointer"
+					/>
+					<div className="mt-2 grid grid-cols-6 gap-1">
+						{[1, 2, 3, 4, 5, 6].map((sections) => (
+							<ChoiceButton
+								key={sections}
+								active={view.currentPyramidSections === sections}
+								onClick={() => view.onSetProperty("pyramidSections", sections)}
+							>
+								{sections}
+							</ChoiceButton>
+						))}
+					</div>
+					<p className="mt-2 text-[9px] leading-relaxed text-muted-foreground">
+						{view.currentPyramidSections === 1
+							? t(
+									"canvas.properties.pyramidSingleHint",
+									"A single section renders a regular triangle.",
+								)
+							: t(
+									"canvas.properties.pyramidMultiHint",
+									"Dividers adapt automatically when the pyramid is resized.",
+								)}
+					</p>
+				</Section>
+			)}
+			{view.showCloudArcRadius && (
+				<Section label={t("canvas.properties.cloudArcs", "Cloud arcs")}>
+					<div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+						<span>{t("canvas.properties.cloudArcRadius", "Arc radius")}</span>
+						<span className="font-medium text-card-foreground">
+							{Math.round(view.currentCloudArcRadius)}px
+						</span>
+					</div>
+					<input
+						type="range"
+						min={MIN_CLOUD_ARC_RADIUS}
+						max={MAX_CLOUD_ARC_RADIUS}
+						step={1}
+						value={view.currentCloudArcRadius}
+						onChange={(event) =>
+							view.onSetProperty("cloudArcRadius", Number(event.target.value))
+						}
+						className="mt-2 w-full h-1 rounded-full appearance-none bg-muted accent-primary cursor-pointer"
+					/>
+					<div className="mt-2 grid grid-cols-5 gap-1">
+						{[6, 12, 18, 28, 40].map((radius) => (
+							<ChoiceButton
+								key={radius}
+								active={Math.round(view.currentCloudArcRadius) === radius}
+								onClick={() => view.onSetProperty("cloudArcRadius", radius)}
+							>
+								{radius}
+							</ChoiceButton>
+						))}
+					</div>
+					<p className="mt-2 text-[9px] leading-relaxed text-muted-foreground">
+						{t(
+							"canvas.properties.cloudArcRadiusHint",
+							"Smaller values create more, tighter arcs; larger values create broader arcs.",
+						)}
+					</p>
+				</Section>
+			)}
 			<Section
 				label={t(
 					"canvas.properties.opacity",
@@ -1630,7 +1853,14 @@ function ArrowProperties({
 	return (
 		<>
 			{view.showPathDrawMode && (
-				<Section label={t("canvas.properties.pathDrawMode", "Drawing mode")}>
+				<Section
+					label={t(
+						view.isCloudDrawMode
+							? "canvas.properties.cloudDrawMode"
+							: "canvas.properties.pathDrawMode",
+						"Drawing mode",
+					)}
+				>
 					<div className="flex gap-1">
 						{(["normal", "multi"] as const).map((mode) => (
 							<ChoiceButton
@@ -1639,9 +1869,13 @@ function ArrowProperties({
 								onClick={() => view.onPathDrawModeChange(mode)}
 								className="text-[10px] font-medium"
 							>
-								{mode === "normal"
-									? t("canvas.properties.pathDrawNormal", "Single path")
-									: t("canvas.properties.pathDrawMulti", "Multiline path")}
+								{view.isCloudDrawMode
+									? mode === "normal"
+										? t("canvas.properties.cloudDrawRectangle", "Rectangle")
+										: t("canvas.properties.cloudDrawPoints", "Point by point")
+									: mode === "normal"
+										? t("canvas.properties.pathDrawNormal", "Single path")
+										: t("canvas.properties.pathDrawMulti", "Multiline path")}
 							</ChoiceButton>
 						))}
 					</div>

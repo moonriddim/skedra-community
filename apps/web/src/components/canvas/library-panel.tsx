@@ -241,9 +241,9 @@ export function LibraryPanel({
 	return (
 		<div
 			className={cn(
-				"absolute top-14 left-4 z-40 flex w-[min(100vw-2rem,320px)] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md max-lg:top-[calc(8rem+env(safe-area-inset-top))] max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:max-h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right),320px)]",
+				"absolute top-14 left-4 z-40 flex w-[min(100vw-2rem,320px)] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md max-lg:top-auto max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))] max-lg:left-1/2 max-lg:max-h-[min(48dvh,32rem)] max-lg:w-[min(22rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:-translate-x-1/2",
 				pinned
-					? "bottom-20 max-lg:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
+					? "bottom-20 max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))]"
 					: activeTab === "libraries"
 						? "h-[min(72vh,680px)]"
 						: "max-h-[min(72vh,680px)]",

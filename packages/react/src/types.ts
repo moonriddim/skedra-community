@@ -9,6 +9,8 @@ export type ElementType =
 	| "rectangle"
 	| "ellipse"
 	| "diamond"
+	| "triangle"
+	| "cloud"
 	| "line"
 	| "arrow"
 	| "image"
@@ -65,6 +67,8 @@ export interface CanvasElement {
 	roughness?: number;
 	roughFillStyle?: RoughFillStyle;
 	roughFillScale?: number;
+	cloudArcRadius?: number;
+	pyramidSections?: number;
 	frameId?: string;
 	frameLabel?: string;
 	customData?: Record<string, unknown>;

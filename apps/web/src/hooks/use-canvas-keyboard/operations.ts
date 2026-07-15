@@ -10,34 +10,24 @@ import {
 	getAlignmentUpdates,
 	getDistributionUpdates,
 } from "@skedra/canvas-core";
-import { getCornerRadiusPercent } from "@skedra/canvas-core";
-import type { CanvasElement, StrokeStyle } from "@skedra/canvas-core";
+import type { CanvasElement, CanvasElementFormat } from "@skedra/canvas-core";
 import {
 	buildBringForwardUpdates,
 	buildBringToFrontUpdates,
+	buildCanvasElementFormatUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
 	cloneCanvasSelection,
+	cloneTransformedCanvasSelection,
 	createSelectionFrame,
+	getCanvasElementFormat,
 	getFlipUpdates,
 	getGroupUpdates,
 	getLockUpdates,
+	getRotateUpdates,
 } from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import { useCallback, useRef } from "react";
-
-interface FormatClipboard {
-	stroke: string;
-	fill: string;
-	strokeWidth: number;
-	strokeStyle: StrokeStyle;
-	opacity: number;
-	cornerRadiusPercent?: number;
-	arrowHeadScale?: number;
-	arrowHeadFilled?: boolean;
-	fontSize?: number;
-	fontFamily?: string;
-}
 
 interface UseCanvasKeyboardOperationsOptions {
 	elements: Map<string, CanvasElement>;
@@ -56,7 +46,7 @@ export function useCanvasKeyboardOperations({
 }: UseCanvasKeyboardOperationsOptions) {
 	const storeRef = useCanvasStoreRef();
 	const clipboardRef = useRef<CanvasElement[]>([]);
-	const formatClipboardRef = useRef<FormatClipboard | null>(null);
+	const formatClipboardRef = useRef<CanvasElementFormat | null>(null);
 
 	const getSelected = useCallback(() => {
 		const store = storeRef.current;
@@ -101,22 +91,7 @@ export function useCanvasKeyboardOperations({
 	const copyFormat = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		const el = sel[0];
-		formatClipboardRef.current = {
-			stroke: el.stroke,
-			fill: el.fill,
-			strokeWidth: el.strokeWidth,
-			strokeStyle: el.strokeStyle ?? "solid",
-			opacity: el.opacity,
-			cornerRadiusPercent:
-				el.type === "rectangle" ? getCornerRadiusPercent(el) : undefined,
-			arrowHeadScale:
-				el.type === "arrow" ? (el.arrowHeadScale ?? 1) : undefined,
-			arrowHeadFilled:
-				el.type === "arrow" ? (el.arrowHeadFilled ?? true) : undefined,
-			fontSize: el.fontSize,
-			fontFamily: el.fontFamily,
-		};
+		formatClipboardRef.current = getCanvasElementFormat(sel[0]);
 	}, [getSelected]);
 
 	const pasteFormat = useCallback(() => {
@@ -124,32 +99,7 @@ export function useCanvasKeyboardOperations({
 		if (!fmt) return;
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		const updates = sel.map((el) => ({
-			id: el.id,
-			changes: {
-				stroke: fmt.stroke,
-				fill: fmt.fill,
-				strokeWidth: fmt.strokeWidth,
-				strokeStyle: fmt.strokeStyle,
-				opacity: fmt.opacity,
-				...(el.type === "rectangle" && fmt.cornerRadiusPercent !== undefined
-					? {
-							cornerRadiusPercent: fmt.cornerRadiusPercent,
-							cornerRadius: undefined,
-						}
-					: {}),
-				...(el.type === "arrow" && fmt.arrowHeadScale !== undefined
-					? { arrowHeadScale: fmt.arrowHeadScale }
-					: {}),
-				...(el.type === "arrow" && fmt.arrowHeadFilled !== undefined
-					? { arrowHeadFilled: fmt.arrowHeadFilled }
-					: {}),
-				...(el.fontSize !== undefined && fmt.fontSize !== undefined
-					? { fontSize: fmt.fontSize }
-					: {}),
-			} as Partial<CanvasElement>,
-		}));
-		updateElements(updates);
+		updateElements(buildCanvasElementFormatUpdates(sel, fmt));
 	}, [getSelected, updateElements]);
 
 	const bringForward = useCallback(() => {
@@ -187,14 +137,69 @@ export function useCanvasKeyboardOperations({
 	const flipHorizontal = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		updateElements(getFlipUpdates(sel, "horizontal"));
-	}, [getSelected, updateElements]);
+		const transformOrigin = storeRef.current.transformOrigin ?? undefined;
+		updateElements(getFlipUpdates(sel, "horizontal", transformOrigin));
+		if (transformOrigin) storeRef.current.setTransformOrigin(null);
+	}, [getSelected, storeRef, updateElements]);
 
 	const flipVertical = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
-		updateElements(getFlipUpdates(sel, "vertical"));
-	}, [getSelected, updateElements]);
+		const transformOrigin = storeRef.current.transformOrigin ?? undefined;
+		updateElements(getFlipUpdates(sel, "vertical", transformOrigin));
+		if (transformOrigin) storeRef.current.setTransformOrigin(null);
+	}, [getSelected, storeRef, updateElements]);
+
+	const rotateSelection = useCallback(
+		(angleDelta: number) => {
+			const sel = getSelected();
+			if (sel.length === 0) return;
+			const transformOrigin = storeRef.current.transformOrigin ?? undefined;
+			updateElements(getRotateUpdates(sel, angleDelta, transformOrigin));
+			if (transformOrigin) storeRef.current.setTransformOrigin(null);
+		},
+		[getSelected, storeRef, updateElements],
+	);
+
+	const createTransformedCopy = useCallback(
+		(
+			transform: Parameters<
+				typeof cloneTransformedCanvasSelection
+			>[0]["transform"],
+		) => {
+			const selected = getSelected();
+			if (selected.length === 0) return;
+			const transformOrigin = storeRef.current.transformOrigin ?? undefined;
+			const cloned = cloneTransformedCanvasSelection({
+				elements: selected,
+				existingElements: elements.values(),
+				createId: nanoid,
+				transform,
+				origin: transformOrigin,
+			});
+			for (const element of cloned.elements) createElement(element);
+			storeRef.current.setSelectedIds(
+				new Set(cloned.elements.map((element) => element.id)),
+			);
+			if (transformOrigin) storeRef.current.setTransformOrigin(null);
+		},
+		[createElement, elements, getSelected, storeRef],
+	);
+
+	const copyMirrorSelection = useCallback(
+		(axis: "horizontal" | "vertical") => {
+			createTransformedCopy({ type: "flip", axis });
+		},
+		[createTransformedCopy],
+	);
+
+	const copyRotateSelection = useCallback(
+		(angleDelta: number) => {
+			if (!Number.isFinite(angleDelta)) return;
+			createTransformedCopy({ type: "rotate", angle: angleDelta });
+		},
+		[createTransformedCopy],
+	);
 
 	const toggleLock = useCallback(() => {
 		const sel = getSelected();
@@ -311,6 +316,9 @@ export function useCanvasKeyboardOperations({
 		sendToBack,
 		flipHorizontal,
 		flipVertical,
+		rotateSelection,
+		copyMirrorSelection,
+		copyRotateSelection,
 		toggleLock,
 		addLink,
 		embedInFrame,

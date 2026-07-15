@@ -146,6 +146,40 @@ export function CanvasEditorToolStrip({
 				</Fragment>
 			))}
 
+			{activeTool === "cloud" && pathDrawMode && onPathDrawModeChange && (
+				<>
+					<span
+						aria-hidden="true"
+						className={mergeClassNames(
+							"canvas-editor__toolbar-separator",
+							classes?.divider,
+						)}
+					/>
+					<select
+						className={mergeClassNames(
+							"canvas-editor__toolbar-path-select",
+							classes?.pathSelect,
+						)}
+						value={pathDrawMode}
+						aria-label={t(
+							"canvas.properties.cloudDrawMode",
+							"Cloud drawing mode",
+						)}
+						title={t("canvas.properties.cloudDrawMode", "Cloud drawing mode")}
+						onChange={(event) =>
+							onPathDrawModeChange(event.target.value as CanvasPathDrawMode)
+						}
+					>
+						<option value="normal">
+							{t("canvas.properties.cloudDrawRectangle", "Rectangle")}
+						</option>
+						<option value="multi">
+							{t("canvas.properties.cloudDrawPoints", "Point by point")}
+						</option>
+					</select>
+				</>
+			)}
+
 			{(activeTool === "line" || activeTool === "arrow") &&
 				pathDrawMode &&
 				pathMode &&

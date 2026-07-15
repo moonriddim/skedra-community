@@ -29,6 +29,10 @@
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"
 		},
+		"./editor-panels": {
+			"types": "./dist/editor-panels.d.ts",
+			"import": "./dist/editor-panels.js"
+		},
 		"./io": {
 			"types": "./dist/io.d.ts",
 			"import": "./dist/io.js"

@@ -39,6 +39,8 @@ export interface CanvasClientPoint {
 export interface CanvasCommands {
 	openHelp: () => void;
 	exportVisual: (format: "svg" | "png" | "pdf" | "pptx") => Promise<void>;
+	/** Einzelnen Frame geclippt exportieren (ohne Frame-Rahmen). */
+	exportFrame: (frameId: string, format: "png" | "svg") => Promise<void>;
 	pasteElement: (element: CanvasElement) => void;
 	startTextPlacement: (text: PendingText) => void;
 	openKanbanCard: (id: string) => void;

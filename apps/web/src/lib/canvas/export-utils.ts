@@ -1,9 +1,12 @@
 import { downloadBlob } from "@/lib/download-blob";
+import type { CanvasElement } from "@skedra/canvas-core";
 import {
+	exportSkedraFrame,
 	exportSkedraPdf,
 	exportSkedraPng,
 	exportSkedraPptx,
 	exportSkedraSvg,
+	getSkedraFrameExportFilename,
 } from "@skedra/canvas-io/exporters";
 
 export function exportSVG(
@@ -32,4 +35,28 @@ export async function exportPPTX(
 	filename = "skedra-whiteboard.pptx",
 ) {
 	downloadBlob(await exportSkedraPptx(svgElement), filename);
+}
+
+/** Exportiert einen einzelnen Frame (geclippt, ohne Frame-Rahmen) als SVG. */
+export async function exportFrameSVG(
+	svgElement: SVGSVGElement,
+	frame: CanvasElement,
+	filename?: string,
+) {
+	downloadBlob(
+		await exportSkedraFrame(svgElement, frame, "svg"),
+		filename ?? getSkedraFrameExportFilename(frame, "svg"),
+	);
+}
+
+/** Exportiert einen einzelnen Frame (geclippt, ohne Frame-Rahmen) als PNG. */
+export async function exportFramePNG(
+	svgElement: SVGSVGElement,
+	frame: CanvasElement,
+	filename?: string,
+) {
+	downloadBlob(
+		await exportSkedraFrame(svgElement, frame, "png"),
+		filename ?? getSkedraFrameExportFilename(frame, "png"),
+	);
 }

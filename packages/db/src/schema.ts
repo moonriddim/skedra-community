@@ -210,6 +210,23 @@ export const userE2eeIdentities = pgTable("user_e2ee_identities", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/** AES-256-GCM-verschluesselte Profilbilder: inline oder in S3-kompatiblem Storage. */
+export const userProfileImages = pgTable("user_profile_images", {
+	userId: text("user_id")
+		.primaryKey()
+		.references(() => users.id, { onDelete: "cascade" }),
+	provider: text("provider").notNull(),
+	bucket: text("bucket"),
+	key: text("key").notNull(),
+	publicUrl: text("public_url"),
+	mimeType: text("mime_type").notNull(),
+	sizeBytes: integer("size_bytes").notNull(),
+	inlineData: text("inline_data"),
+	encryptionVersion: integer("encryption_version").notNull().default(0),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ===== Whiteboards (Canvas) =====
 
 export const whiteboards = pgTable(
@@ -893,6 +910,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	sessions: many(sessions),
 	accounts: many(accounts),
 	preferences: one(userPreferences),
+	profileImage: one(userProfileImages),
 	subscription: one(userSubscriptions),
 	complimentaryAccessGrants: many(complimentaryAccessGrants),
 }));
@@ -922,6 +940,16 @@ export const userE2eeIdentitiesRelations = relations(
 	({ one }) => ({
 		user: one(users, {
 			fields: [userE2eeIdentities.userId],
+			references: [users.id],
+		}),
+	}),
+);
+
+export const userProfileImagesRelations = relations(
+	userProfileImages,
+	({ one }) => ({
+		user: one(users, {
+			fields: [userProfileImages.userId],
 			references: [users.id],
 		}),
 	}),

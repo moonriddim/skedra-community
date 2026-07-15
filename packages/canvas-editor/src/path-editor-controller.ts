@@ -29,7 +29,10 @@ export function isCanvasMultiPathTool(
 	tool: string,
 	drawMode: CanvasPathDrawMode,
 ): boolean {
-	return drawMode === "multi" && (tool === "line" || tool === "arrow");
+	return (
+		drawMode === "multi" &&
+		(tool === "line" || tool === "arrow" || tool === "cloud")
+	);
 }
 
 export function shouldFinishCanvasMultiPathOnContextMenu(
@@ -69,7 +72,7 @@ function buildPathElement(
 		tool: draft.tool,
 		start: { x: first[0], y: first[1] },
 		points: points.map(([x, y]) => ({ x, y })),
-		closed,
+		closed: draft.tool === "cloud" ? points.length >= 2 : closed,
 		style,
 	});
 }
@@ -173,7 +176,7 @@ export class CanvasPathEditorController {
 		const draft = this.draft;
 		this.draft = null;
 		const points = dedupeCanvasPathPoints(draft.points);
-		if (points.length < 2) {
+		if (points.length < (draft.tool === "cloud" ? 3 : 2)) {
 			return { kind: "cancelled", preview: null, startSnap: null };
 		}
 		return {
@@ -182,7 +185,9 @@ export class CanvasPathEditorController {
 				draft,
 				points,
 				style,
-				closed && draft.tool === "line" && points.length >= 3,
+				(draft.tool === "cloud" || closed) &&
+					(draft.tool === "cloud" || draft.tool === "line") &&
+					points.length >= 3,
 			),
 			preview: null,
 			startSnap: null,

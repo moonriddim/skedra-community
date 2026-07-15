@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
 	buildBringForwardUpdates,
 	buildBringToFrontUpdates,
+	buildLayerReorderUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
 	createStackIndexAfter,
@@ -34,6 +35,47 @@ function element(id: string, stackIndex?: string): CanvasElement {
 		flipY: false,
 	};
 }
+
+test("layer reorder moves an element directly above or below a target", () => {
+	const elements = normalizeCanvasElementStackIndexes([
+		element("a"),
+		element("b"),
+		element("c"),
+	]);
+
+	/* "a" direkt ueber "c" bewegen → Reihenfolge b, c, a */
+	const aboveUpdates = buildLayerReorderUpdates(elements, "a", "c", "above");
+	assert.equal(aboveUpdates.length, 1);
+	const afterAbove = sortCanvasElements(
+		elements.map((item) =>
+			item.id === "a" ? { ...item, ...aboveUpdates[0].changes } : item,
+		),
+	);
+	assert.deepEqual(
+		afterAbove.map((item) => item.id),
+		["b", "c", "a"],
+	);
+
+	/* "c" direkt unter "a" bewegen → Reihenfolge c, a, b */
+	const belowUpdates = buildLayerReorderUpdates(elements, "c", "a", "below");
+	assert.equal(belowUpdates.length, 1);
+	const afterBelow = sortCanvasElements(
+		elements.map((item) =>
+			item.id === "c" ? { ...item, ...belowUpdates[0].changes } : item,
+		),
+	);
+	assert.deepEqual(
+		afterBelow.map((item) => item.id),
+		["c", "a", "b"],
+	);
+
+	/* Selbst-Referenz und unbekannte Ziele erzeugen keine Updates */
+	assert.deepEqual(buildLayerReorderUpdates(elements, "a", "a", "above"), []);
+	assert.deepEqual(
+		buildLayerReorderUpdates(elements, "a", "missing", "above"),
+		[],
+	);
+});
 
 test("normalizes missing stack indexes into deterministic stack order", () => {
 	const normalized = normalizeCanvasElementStackIndexes([

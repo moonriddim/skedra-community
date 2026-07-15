@@ -7,11 +7,19 @@ import type {
 	SavedCanvasView,
 	StrokeStyle,
 } from "@skedra/canvas-core";
+import {
+	MAX_CLOUD_ARC_RADIUS,
+	MAX_PYRAMID_SECTIONS,
+	MIN_CLOUD_ARC_RADIUS,
+	MIN_PYRAMID_SECTIONS,
+} from "@skedra/canvas-core";
 
 const ELEMENT_TYPES = new Set<ElementType>([
 	"rectangle",
 	"ellipse",
 	"diamond",
+	"triangle",
+	"cloud",
 	"line",
 	"arrow",
 	"image",
@@ -163,6 +171,15 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 		(value.roughFillStyle !== undefined &&
 			!ROUGH_FILL_STYLES.has(value.roughFillStyle as RoughFillStyle)) ||
 		!isOptionalNumber(value.roughFillScale) ||
+		!isOptionalNumber(value.cloudArcRadius) ||
+		(value.cloudArcRadius !== undefined &&
+			(value.cloudArcRadius < MIN_CLOUD_ARC_RADIUS ||
+				value.cloudArcRadius > MAX_CLOUD_ARC_RADIUS)) ||
+		!isOptionalNumber(value.pyramidSections) ||
+		(value.pyramidSections !== undefined &&
+			(!Number.isInteger(value.pyramidSections) ||
+				value.pyramidSections < MIN_PYRAMID_SECTIONS ||
+				value.pyramidSections > MAX_PYRAMID_SECTIONS)) ||
 		!isOptionalString(value.frameId) ||
 		!isOptionalString(value.frameLabel) ||
 		(value.customData !== undefined && !isRecord(value.customData))

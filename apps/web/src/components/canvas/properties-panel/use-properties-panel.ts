@@ -15,8 +15,11 @@ import { useThemeStore } from "@/stores/theme";
 import {
 	type FlowchartConnectorRoute,
 	type FlowchartNodeKind,
+	type FrameConstraints,
 	type FrameSizePreset,
 	buildFlowchartNodeKindChanges,
+	buildFrameConstraintsChange,
+	buildFrameSizeUpdates,
 } from "@skedra/canvas-core";
 import type {
 	ArrowTextOrientation,
@@ -73,10 +76,12 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "arrowHeadStart"
 	| "arrowMode"
 	| "canvasBg"
+	| "cloudArcRadius"
 	| "cornerRadiusPercent"
 	| "fillColor"
 	| "flowchartInsertKind"
 	| "pathDrawMode"
+	| "pyramidSections"
 	| "roughFillScale"
 	| "roughFillStyle"
 	| "roughness"
@@ -92,11 +97,13 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "setArrowHeadStart"
 	| "setArrowMode"
 	| "setCanvasBg"
+	| "setCloudArcRadius"
 	| "setCornerRadiusPercent"
 	| "setEditingTextId"
 	| "setFillColor"
 	| "setFlowchartInsertKind"
 	| "setPathDrawMode"
+	| "setPyramidSections"
 	| "setRoughFillScale"
 	| "setRoughFillStyle"
 	| "setRoughness"
@@ -131,10 +138,12 @@ export function usePropertiesPanel({
 			arrowHeadStart: state.arrowHeadStart,
 			arrowMode: state.arrowMode,
 			canvasBg: state.canvasBg,
+			cloudArcRadius: state.cloudArcRadius,
 			cornerRadiusPercent: state.cornerRadiusPercent,
 			fillColor: state.fillColor,
 			flowchartInsertKind: state.flowchartInsertKind,
 			pathDrawMode: state.pathDrawMode,
+			pyramidSections: state.pyramidSections,
 			roughFillScale: state.roughFillScale,
 			roughFillStyle: state.roughFillStyle,
 			roughness: state.roughness,
@@ -150,11 +159,13 @@ export function usePropertiesPanel({
 			setArrowHeadStart: state.setArrowHeadStart,
 			setArrowMode: state.setArrowMode,
 			setCanvasBg: state.setCanvasBg,
+			setCloudArcRadius: state.setCloudArcRadius,
 			setCornerRadiusPercent: state.setCornerRadiusPercent,
 			setEditingTextId: state.setEditingTextId,
 			setFillColor: state.setFillColor,
 			setFlowchartInsertKind: state.setFlowchartInsertKind,
 			setPathDrawMode: state.setPathDrawMode,
+			setPyramidSections: state.setPyramidSections,
 			setRoughFillScale: state.setRoughFillScale,
 			setRoughFillStyle: state.setRoughFillStyle,
 			setRoughness: state.setRoughness,
@@ -358,16 +369,31 @@ export function usePropertiesPanel({
 		store.setEditingTextId(d.frameElement.id);
 	}, [d.frameElement, store]);
 
-	/* Groesse setzen; die linke obere Ecke bleibt verankert (Figma-Verhalten). */
+	/*
+	 * Groesse setzen; linke obere Ecke bleibt verankert (Figma-Verhalten).
+	 * Kinder wandern gemaess ihrer Constraints mit (buildFrameSizeUpdates).
+	 */
 	const setFrameSize = useCallback(
 		(size: { width: number; height: number }) => {
 			if (!d.frameElement) return;
-			onUpdateElement(d.frameElement.id, {
-				width: Math.max(1, Math.round(size.width)),
-				height: Math.max(1, Math.round(size.height)),
-			});
+			const updates = buildFrameSizeUpdates(elements, d.frameElement.id, size);
+			if (updates.length > 0) onUpdateElements(updates);
 		},
-		[d.frameElement, onUpdateElement],
+		[d.frameElement, elements, onUpdateElements],
+	);
+
+	/* Constraints der selektierten Frame-Kinder setzen. */
+	const setFrameChildConstraints = useCallback(
+		(constraints: Partial<FrameConstraints>) => {
+			if (d.frameChildElements.length === 0) return;
+			onUpdateElements(
+				d.frameChildElements.map((el) => ({
+					id: el.id,
+					changes: buildFrameConstraintsChange(el, constraints),
+				})),
+			);
+		},
+		[d.frameChildElements, onUpdateElements],
 	);
 
 	const applyFramePreset = useCallback(
@@ -465,6 +491,7 @@ export function usePropertiesPanel({
 		setFrameLabel,
 		startFrameRename,
 		setFrameSize,
+		setFrameChildConstraints,
 		applyFramePreset,
 		startFramePresetPlacement,
 		setFlowchartConnectorLabel,

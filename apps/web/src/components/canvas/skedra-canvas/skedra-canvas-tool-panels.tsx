@@ -19,6 +19,16 @@ const LibraryPanel = lazy(() =>
 		default: m.LibraryPanel,
 	})),
 );
+const LayersPanel = lazy(() =>
+	import("@/components/canvas/layers-panel").then((m) => ({
+		default: m.LayersPanel,
+	})),
+);
+const WireframePanel = lazy(() =>
+	import("@/components/canvas/wireframe-panel").then((m) => ({
+		default: m.WireframePanel,
+	})),
+);
 const StickyNoteTool = lazy(() =>
 	import("@/components/whiteboard/sticky-note-tool").then((m) => ({
 		default: m.StickyNoteTool,
@@ -79,6 +89,7 @@ interface SkedraCanvasToolPanelsProps {
 	>["editingArrowTextOrientation"];
 	getViewportCenter: () => { x: number; y: number };
 	addElements: (elements: CanvasElement[]) => void;
+	fitElementsToViewport: (elements: CanvasElement[]) => void;
 	handleUpdatePendingText: ComponentProps<
 		typeof PropertiesPanel
 	>["onUpdatePendingText"];
@@ -110,6 +121,7 @@ interface SkedraCanvasToolPanelsProps {
 		| "addKanbanCard"
 		| "addTemplateSticky"
 		| "addFlowchartStep"
+		| "exportFrame"
 		| "openKanbanCard"
 		| "openKanbanList"
 		| "showKanbanCardPlacementPreview"
@@ -129,6 +141,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	editingArrowTextOrientation,
 	getViewportCenter,
 	addElements,
+	fitElementsToViewport,
 	handleUpdatePendingText,
 	handleUpdateEditingText,
 	setEditingArrowTextSide,
@@ -239,6 +252,16 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					/>
 				</Suspense>
 			)}
+			{showEditorChrome && panelStore.activePanel === "layers" && (
+				<Suspense fallback={null}>
+					<LayersPanel
+						elements={sync.elements}
+						updateElement={sync.updateElement}
+						updateElements={sync.updateElements}
+						onClose={() => panelStore.setActivePanel(null)}
+					/>
+				</Suspense>
+			)}
 			{showEditorChrome && panelStore.activePanel === "library" && (
 				<Suspense fallback={null}>
 					<LibraryPanel
@@ -246,6 +269,20 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 							.map((id) => sync.elements.get(id))
 							.filter((el): el is NonNullable<typeof el> => !!el)}
 						onInsertElements={addElements}
+						getViewportCenter={getViewportCenter}
+						onClose={() => panelStore.setActivePanel(null)}
+					/>
+				</Suspense>
+			)}
+			{showEditorChrome && panelStore.activePanel === "wireframe" && (
+				<Suspense fallback={null}>
+					<WireframePanel
+						elements={sync.elements}
+						selectedElements={Array.from(selectedIds)
+							.map((id) => sync.elements.get(id))
+							.filter((el): el is NonNullable<typeof el> => !!el)}
+						onInsertElements={addElements}
+						onFitElements={fitElementsToViewport}
 						getViewportCenter={getViewportCenter}
 						onClose={() => panelStore.setActivePanel(null)}
 					/>

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
 	frameLabelHitTest,
 	getFrameLabelHitBox,
+	isCanvasFrameLabelEditable,
 	isCanvasTextEditableElement,
 	isPlainCanvasFrame,
 } from "./element-capabilities";
@@ -14,6 +15,8 @@ test("keeps inline text capability centralized for every element type", () => {
 		"rectangle",
 		"ellipse",
 		"diamond",
+		"triangle",
+		"cloud",
 		"frame",
 		"line",
 		"arrow",
@@ -49,6 +52,24 @@ test("plain frames exclude special frame roles", () => {
 	assert.equal(isPlainCanvasFrame(null), false);
 });
 
+test("wireframe screens expose their canonical frame label for editing", () => {
+	assert.equal(isCanvasFrameLabelEditable({ type: "frame" }), true);
+	assert.equal(
+		isCanvasFrameLabelEditable({
+			type: "frame",
+			customData: { skedraType: "wireframe-screen" },
+		}),
+		true,
+	);
+	assert.equal(
+		isCanvasFrameLabelEditable({
+			type: "frame",
+			customData: { skedraType: "template-section" },
+		}),
+		false,
+	);
+});
+
 test("frame label hit box sits above the frame edge", () => {
 	const frame = {
 		type: "frame",
@@ -66,6 +87,17 @@ test("frame label hit box sits above the frame edge", () => {
 
 	/* Punkt knapp ueber der linken oberen Ecke trifft das Label */
 	assert.equal(frameLabelHitTest(frame, 110, 192), true);
+	assert.equal(
+		frameLabelHitTest(
+			{
+				...frame,
+				customData: { skedraType: "wireframe-screen" },
+			} as CanvasElement,
+			110,
+			192,
+		),
+		true,
+	);
 	/* Punkt im Frame-Koerper trifft das Label nicht */
 	assert.equal(frameLabelHitTest(frame, 110, 260), false);
 	/* Kanban-Listen haben kein klickbares Frame-Label */

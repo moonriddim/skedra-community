@@ -8,10 +8,12 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
+		"./browser-images": "./src/browser-images.ts",
 		"./codecs": "./src/codecs.ts",
 		"./exporters": "./src/exporters.ts",
 		"./file": "./src/file.ts",
-		"./file-schema": "./src/file-schema.ts"
+		"./file-schema": "./src/file-schema.ts",
+		"./yjs-document": "./src/yjs-document.ts"
 	},
 	"scripts": {
 		"build": "tsc --declaration --emitDeclarationOnly --outDir dist",
@@ -19,6 +21,7 @@
 	},
 	"dependencies": {
 		"@skedra/canvas-core": "workspace:*",
+		"yjs": "^13.6.29",
 		"zod": "^3.24.0"
 	},
 	"devDependencies": {

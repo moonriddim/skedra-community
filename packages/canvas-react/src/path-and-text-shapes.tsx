@@ -52,6 +52,7 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 
 export function ArrowShape({
 	el,
+	transform,
 	commonProps,
 	dash,
 	isRough,
@@ -59,6 +60,7 @@ export function ArrowShape({
 	isEditingText,
 }: {
 	el: CanvasElement;
+	transform?: string;
 	commonProps: Record<string, unknown>;
 	dash: string | undefined;
 	isRough: boolean;
@@ -106,7 +108,7 @@ export function ArrowShape({
 
 	if (isRough && roughHtml) {
 		return (
-			<g {...commonProps}>
+			<g transform={transform} {...commonProps}>
 				<RoughSvgMarkup html={roughHtml} dash={dash} />
 				{useRoughHeads ? (
 					<>
@@ -151,7 +153,7 @@ export function ArrowShape({
 	}
 
 	return (
-		<g {...commonProps}>
+		<g transform={transform} {...commonProps}>
 			<path
 				d={dPath}
 				fill="none"
@@ -359,7 +361,11 @@ export function RectText({ el }: { el: CanvasElement }) {
 	const stickyPlaceholder = translate("canvas.sticky.notePlaceholder");
 	const isStickyNote = el.customData?.skedraType === "sticky-note";
 	const isCenteredShape =
-		el.type === "rectangle" || el.type === "diamond" || el.type === "ellipse";
+		el.type === "rectangle" ||
+		el.type === "diamond" ||
+		el.type === "ellipse" ||
+		el.type === "triangle" ||
+		el.type === "cloud";
 	const padding = isStickyNote
 		? STICKY_NOTE_TEXT_PADDING
 		: isCenteredShape

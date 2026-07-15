@@ -3,9 +3,12 @@
  */
 
 import {
+	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getImageRenderGeometry,
 	getLinePath,
+	getPyramidDividerSegments,
+	getTrianglePointsAttribute,
 	smoothPath,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
@@ -132,6 +135,74 @@ export const ElementShape = memo(function ElementShape({
 			);
 		}
 
+		case "triangle": {
+			const trianglePoints = getTrianglePointsAttribute(el);
+			const dividers = getPyramidDividerSegments(el, el.pyramidSections);
+			return (
+				<g transform={transform} {...commonProps}>
+					{roughLayers ? (
+						roughLayers.fillHtml ? (
+							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
+						) : (
+							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
+						)
+					) : (
+						<polygon
+							points={trianglePoints}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinejoin="round"
+						/>
+					)}
+					{roughLayers?.detailHtml ? (
+						<RoughSvgMarkup html={roughLayers.detailHtml} dash={dash} />
+					) : (
+						dividers.map((divider, index) => (
+							<line
+								key={`${el.id}-pyramid-divider-${index}`}
+								x1={divider.x1}
+								y1={divider.y1}
+								x2={divider.x2}
+								y2={divider.y2}
+								fill="none"
+								stroke={el.stroke}
+								strokeWidth={el.strokeWidth}
+								strokeDasharray={dash}
+								strokeLinecap="round"
+							/>
+						))
+					)}
+					{!isEditingText && <RectText el={el} />}
+				</g>
+			);
+		}
+
+		case "cloud":
+			return (
+				<g transform={transform} {...commonProps}>
+					{roughLayers ? (
+						roughLayers.fillHtml ? (
+							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
+						) : (
+							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
+						)
+					) : (
+						<path
+							d={getCloudSvgPath(el)}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+					)}
+					{!isEditingText && <RectText el={el} />}
+				</g>
+			);
+
 		case "ellipse":
 			return (
 				<g transform={transform} {...commonProps}>
@@ -227,7 +298,7 @@ export const ElementShape = memo(function ElementShape({
 			const textPathId = `skedra-line-text-${el.id}`;
 			if (roughLayers) {
 				return (
-					<g {...commonProps}>
+					<g transform={transform} {...commonProps}>
 						{roughLayers.fillHtml ? (
 							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />
 						) : (
@@ -241,7 +312,7 @@ export const ElementShape = memo(function ElementShape({
 			}
 			const dLine = getLinePath(el.points, el.arrowMode, el.closed === true);
 			return (
-				<g {...commonProps}>
+				<g transform={transform} {...commonProps}>
 					<path
 						d={dLine}
 						fill={el.closed ? el.fill || "transparent" : "none"}
@@ -264,6 +335,7 @@ export const ElementShape = memo(function ElementShape({
 			return (
 				<ArrowShape
 					el={el}
+					transform={transform}
 					commonProps={commonProps}
 					dash={dash}
 					isRough={roughLineHtml != null}
@@ -277,14 +349,14 @@ export const ElementShape = memo(function ElementShape({
 			if (!el.points || el.points.length < 2) return null;
 			if (roughLineHtml) {
 				return (
-					<g {...commonProps}>
+					<g transform={transform} {...commonProps}>
 						<RoughSvgMarkup html={roughLineHtml} dash={dash} />
 					</g>
 				);
 			}
 			const d = smoothPath(el.points);
 			return (
-				<g {...commonProps}>
+				<g transform={transform} {...commonProps}>
 					<path
 						d={d}
 						fill="none"

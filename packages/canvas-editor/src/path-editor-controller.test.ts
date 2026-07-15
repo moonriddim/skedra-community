@@ -59,8 +59,8 @@ test("arrows remain open and use the same preview/commit state machine", () => {
 	assert.equal(completed.element.arrowHeadEnd, "arrow");
 });
 
-test("context menu completion is limited to active multi-line paths", () => {
-	for (const tool of ["line", "arrow"]) {
+test("context menu completion is limited to active multi-point paths", () => {
+	for (const tool of ["line", "arrow", "cloud"]) {
 		assert.equal(
 			shouldFinishCanvasMultiPathOnContextMenu(tool, "multi", true),
 			true,
@@ -78,6 +78,23 @@ test("context menu completion is limited to active multi-line paths", () => {
 		shouldFinishCanvasMultiPathOnContextMenu("rectangle", "multi", true),
 		false,
 	);
+});
+
+test("point-by-point clouds always finish as closed editable cloud paths", () => {
+	const editor = new CanvasPathEditorController();
+	editor.begin("cloud", [20, 20], style);
+	editor.release(pointer([20, 20]), style);
+	editor.begin("cloud", [20, 20], style);
+	editor.release(pointer([140, 20]), style);
+	editor.begin("cloud", [140, 20], style);
+	editor.release(pointer([110, 100]), style);
+
+	const completed = editor.finish(style);
+	assert.equal(completed.kind, "complete");
+	if (completed.kind !== "complete") return;
+	assert.equal(completed.element.type, "cloud");
+	assert.equal(completed.element.closed, true);
+	assert.equal(completed.element.points?.length, 3);
 });
 
 test("finishing a multi-line discards the uncommitted hover point", () => {

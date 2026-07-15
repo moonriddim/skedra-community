@@ -13,8 +13,26 @@ test("package root exports the canvas component and SDK factories", async () => 
 	);
 	assert.equal(typeof sdk.createSkedraTemplateElements, "function");
 	assert.equal(typeof sdk.createSkedraStickyNoteElement, "function");
+	assert.equal(typeof sdk.createSkedraWireframeComponentElements, "function");
+	assert.equal(typeof sdk.createSkedraWireframePresetElements, "function");
+	assert.equal(typeof sdk.exportSkedraFrame, "function");
+	assert.equal(typeof sdk.getSkedraFrameExportFilename, "function");
+	assert.equal(
+		sdk.getSkedraFrameExportFilename({ frameLabel: "Login Screen" }, "png"),
+		"login-screen.png",
+	);
+	assert.equal(typeof sdk.SkedraLayerPanel, "function");
+	assert.equal(typeof sdk.getSkedraLayerReorderUpdates, "function");
+	assert.equal(typeof sdk.SkedraContextMenu, "function");
+	assert.equal(typeof sdk.SkedraSnapMenu, "function");
+	assert.equal(typeof sdk.SkedraWireframePanel, "function");
+	assert.deepEqual(
+		Object.values(sdk.SKEDRA_WIREFRAME_COMPONENT_CATEGORIES).flat().toSorted(),
+		[...sdk.SKEDRA_WIREFRAME_COMPONENT_IDS].toSorted(),
+	);
 	assert.deepEqual([...sdk.SKEDRA_SDK_TOOL_IDS].sort(), [
 		"arrow",
+		"cloud",
 		"diamond",
 		"ellipse",
 		"eraser",
@@ -31,6 +49,7 @@ test("package root exports the canvas component and SDK factories", async () => 
 		"select",
 		"sticky-note",
 		"text",
+		"triangle",
 	]);
 });
 
@@ -68,6 +87,78 @@ test("factories subpath creates full canvas SDK elements", async () => {
 		factories.SKEDRA_TEMPLATES.map((template) => template.id).sort(),
 		["flowchart", "kanban", "mindmap", "retrospective", "swot", "wireframe"],
 	);
+
+	const wireframeButton = factories.createSkedraWireframeComponentElements({
+		component: "button",
+		x: 0,
+		y: 0,
+	});
+	assert.ok(wireframeButton.length > 0);
+	assert.ok(
+		wireframeButton.every(
+			(element) => element.customData?.wireframeComponent === "button",
+		),
+	);
+	const dashboard = factories.createSkedraWireframePresetElements({
+		preset: "dashboard",
+		x: 0,
+		y: 0,
+	});
+	assert.ok(dashboard.some((element) => element.type === "frame"));
+});
+
+test("shared productivity panels are available from the public SDK", async () => {
+	const React = await import("react");
+	const { renderToStaticMarkup } = await import("react-dom/server");
+	const panels = await import("@skedra/react/editor-panels");
+	const factories = await import("@skedra/react/factories");
+	const frame = factories.createSkedraFrameElement({
+		x: 0,
+		y: 0,
+		label: "Screen",
+	});
+	const elements = new Map([[frame.id, frame]]);
+	const noop = () => undefined;
+
+	const layers = renderToStaticMarkup(
+		React.createElement(panels.SkedraLayerPanel, {
+			elements,
+			selectedIds: new Set([frame.id]),
+			onSelect: noop,
+			onToggleLock: noop,
+			onReorder: noop,
+		}),
+	);
+	const wireframes = renderToStaticMarkup(
+		React.createElement(panels.SkedraWireframePanel, {
+			elements,
+			selectedElements: [],
+			onInsertPreset: noop,
+			onInsertComponent: noop,
+		}),
+	);
+
+	assert.match(layers, /Layers/u);
+	assert.match(wireframes, /Wireframes/u);
+	assert.match(wireframes, /Blank Desktop/u);
+	const otherFrame = factories.createSkedraFrameElement({
+		x: 300,
+		y: 0,
+		label: "Other",
+	});
+	const above = panels.getSkedraLayerReorderUpdates(
+		[frame, otherFrame],
+		otherFrame.id,
+		frame.id,
+		"above",
+	);
+	const below = panels.getSkedraLayerReorderUpdates(
+		[frame, otherFrame],
+		otherFrame.id,
+		frame.id,
+		"below",
+	);
+	assert.equal(above.length + below.length, 1);
 });
 
 test("workspace hook subpath exposes status-only integration contracts", async () => {
@@ -159,6 +250,7 @@ test("canvas chrome renders tools, grid, and command menus on the server", async
 		React.createElement(SkedraCanvas, {
 			showToolbar: true,
 			showGrid: true,
+			canvasBackground: "#f0fdf4",
 			initialTool: "line",
 			initialPathDrawMode: "multi",
 			initialPathMode: "curve",
@@ -174,6 +266,7 @@ test("canvas chrome renders tools, grid, and command menus on the server", async
 	assert.match(markup, /data-skedra-elements="true"/u);
 	assert.match(markup, /data-skedra-ui="grid"/u);
 	assert.match(markup, /data-skedra-ui="snap-overlay"/u);
+	assert.match(markup, /background-color:#f0fdf4/u);
 });
 
 test("visual export bounds ignore UI layers and restore live styles", async () => {
@@ -230,5 +323,8 @@ test("published runtime and declarations are self-contained", () => {
 	const css = readFileSync("dist/style.css", "utf8");
 	assert.doesNotMatch(css, /@skedra\/canvas-editor/u);
 	assert.match(css, /\.canvas-editor__text-overlay/u);
+	assert.match(css, /\.canvas-editor__layers/u);
+	assert.match(css, /\.canvas-editor__snap-menu/u);
+	assert.match(css, /\.canvas-editor__wireframe-panel/u);
 	assert.match(css, /\.skedra-sdk__properties/u);
 });

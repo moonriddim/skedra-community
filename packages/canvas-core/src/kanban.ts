@@ -2,6 +2,85 @@ import { compareCanvasElementStackOrder } from "./ordering";
 import type { CanvasElement } from "./types";
 
 export type KanbanPriority = "low" | "medium" | "high" | "urgent";
+export type KanbanDueKind =
+	| "default"
+	| "due-soon"
+	| "overdue"
+	| "overdue-long"
+	| "complete";
+
+const KANBAN_DUE_SOON_MS = 24 * 60 * 60 * 1000;
+
+/** Parses date-only values in local time, matching the approved Web behavior. */
+export function parseKanbanDateTime(value: string): Date | null {
+	const match = value.match(
+		/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/,
+	);
+	if (match) {
+		const [, year, month, day, hours = "0", minutes = "0"] = match;
+		const date = new Date(
+			Number(year),
+			Number(month) - 1,
+			Number(day),
+			Number(hours),
+			Number(minutes),
+		);
+		return Number.isNaN(date.getTime()) ? null : date;
+	}
+
+	const parsed = new Date(value);
+	return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function resolveKanbanDueKind(
+	dueDate: string | null | undefined,
+	dueComplete: boolean,
+	now = new Date(),
+): KanbanDueKind {
+	if (!dueDate) return "default";
+	if (dueComplete) return "complete";
+	const parsedDate = parseKanbanDateTime(dueDate);
+	if (!parsedDate) return "default";
+	const diffMs = parsedDate.getTime() - now.getTime();
+	if (diffMs < 0) {
+		return Math.abs(diffMs) > KANBAN_DUE_SOON_MS ? "overdue-long" : "overdue";
+	}
+	return diffMs <= KANBAN_DUE_SOON_MS ? "due-soon" : "default";
+}
+
+export function formatKanbanDateTimeValue(
+	value: string,
+	locale: "en" | "de",
+): string {
+	const match = value.match(
+		/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/,
+	);
+	if (match) {
+		const [, year, month, day, hours, minutes] = match;
+		if (hours && minutes) {
+			return locale === "en"
+				? `${month}/${day}/${year}, ${hours}:${minutes}`
+				: `${day}.${month}.${year}, ${hours}:${minutes}`;
+		}
+		return locale === "en"
+			? `${month}/${day}/${year}`
+			: `${day}.${month}.${year}`;
+	}
+
+	try {
+		const parsed = new Date(value);
+		if (Number.isNaN(parsed.getTime())) return value;
+		return parsed.toLocaleString(locale === "en" ? "en-US" : "de-DE", {
+			day: "2-digit",
+			month: "2-digit",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+	} catch {
+		return value;
+	}
+}
 
 export interface KanbanChecklistItem {
 	id: string;

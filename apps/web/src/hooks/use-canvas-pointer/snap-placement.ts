@@ -6,6 +6,9 @@ import { isStickyNote } from "@/lib/canvas/sticky-note-utils";
 import { isKanbanCard } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import {
+	canvasEditorToolSupportsSnapOverride,
+	getCanvasEditorSnapModeOptions,
+	resolveCanvasEditorPlacementPoint,
 	resolveCanvasEditorPointSnap,
 	resolveCanvasEditorRectSnap,
 } from "@skedra/canvas-editor";
@@ -55,8 +58,17 @@ export function usePointerSnapPlacement({
 					excludeIds: new Set(["__preview"]),
 					snap: {
 						enabled: true,
+						includeEndpoints: snapState.snapToEndpoints,
 						includeCenters: snapState.snapToCenters,
 						includeMidpoints: snapState.snapToMidpoints,
+						includeDivisions: snapState.snapToDivisions,
+						divisionCount: snapState.snapDivisionCount,
+						includeNearest: snapState.snapToNearest,
+						includeGeometricCenters: snapState.snapToGeometricCenters,
+						includeQuadrants: snapState.snapToQuadrants,
+						includeIntersections: snapState.snapToIntersections,
+						includeExtensions: snapState.snapToExtensions,
+						includeInsertions: snapState.snapToInsertions,
 						showInactivePoints: snapState.showSnapPoints,
 					},
 				});
@@ -81,47 +93,77 @@ export function usePointerSnapPlacement({
 			screenY: number,
 			options?: {
 				forceAnchor?: boolean;
+				objectSnap?: boolean;
+				excludeIds?: Set<string>;
 			},
 		) => {
 			const store = storeRef.current;
 			const canvas = toCanvas(screenX, screenY);
+			const overrideOptions = getCanvasEditorSnapModeOptions(
+				store.snapOverrideMode,
+			);
 			const gridX = store.snapToGrid(canvas.x);
 			const gridY = store.snapToGrid(canvas.y);
 			const anchorSnapTool =
-				store.activeTool === "line" ||
-				store.activeTool === "arrow" ||
-				store.activeTool === "rectangle" ||
-				store.activeTool === "ellipse" ||
-				store.activeTool === "diamond";
+				canvasEditorToolSupportsSnapOverride(store.activeTool) ||
+				((options?.forceAnchor || options?.objectSnap) &&
+					store.activeTool === "select");
 
 			if (!anchorSnapTool) {
 				clearSnapVisuals();
 				return { canvas, x: gridX, y: gridY, anchor: null };
 			}
 
-			if (!store.snapToObjects) {
+			if (!store.snapToObjects && !options?.forceAnchor && !overrideOptions) {
 				clearSnapVisuals();
 				return { canvas, x: gridX, y: gridY, anchor: null };
 			}
 
 			const snap = resolveCanvasEditorPointSnap({
-				point: { x: gridX, y: gridY },
+				// Object snaps always resolve from the real cursor position. Grid snapping
+				// is only the fallback when no configured object anchor is in range.
+				point: canvas,
 				elements,
-				excludeIds: new Set(["__preview"]),
+				excludeIds: new Set(["__preview", ...(options?.excludeIds ?? [])]),
 				snap: {
 					enabled: true,
-					includeCenters: store.snapToCenters,
-					includeMidpoints: store.snapToMidpoints,
+					includeEndpoints:
+						overrideOptions?.includeEndpoints ?? store.snapToEndpoints,
+					includeCenters:
+						overrideOptions?.includeCenters ?? store.snapToCenters,
+					includeMidpoints:
+						overrideOptions?.includeMidpoints ?? store.snapToMidpoints,
+					includeDivisions:
+						overrideOptions?.includeDivisions ?? store.snapToDivisions,
+					divisionCount: store.snapDivisionCount,
+					includeNearest:
+						overrideOptions?.includeNearest ?? store.snapToNearest,
+					includeGeometricCenters:
+						overrideOptions?.includeGeometricCenters ??
+						store.snapToGeometricCenters,
+					includeQuadrants:
+						overrideOptions?.includeQuadrants ?? store.snapToQuadrants,
+					includeIntersections:
+						overrideOptions?.includeIntersections ?? store.snapToIntersections,
+					includeExtensions:
+						overrideOptions?.includeExtensions ?? store.snapToExtensions,
+					includeInsertions:
+						overrideOptions?.includeInsertions ?? store.snapToInsertions,
 					showInactivePoints: store.showSnapPoints,
+					threshold: 12 / Math.max(store.viewport.zoom, 0.01),
 				},
 				forceAnchor: options?.forceAnchor,
 			});
 			store.setSnapPointIndicators(snap.indicators);
-			store.setSnapGuides(snap.guides);
+			store.setSnapGuides(snap.anchor ? snap.guides : []);
+			const resolvedPoint = resolveCanvasEditorPlacementPoint(snap, {
+				x: gridX,
+				y: gridY,
+			});
 			return {
 				canvas,
-				x: snap.point.x,
-				y: snap.point.y,
+				x: resolvedPoint.x,
+				y: resolvedPoint.y,
 				anchor: snap.anchor,
 			};
 		},
@@ -164,6 +206,8 @@ export function isShapePlacementPreview(
 		!isStickyNote(preview) &&
 		(preview.type === "rectangle" ||
 			preview.type === "ellipse" ||
-			preview.type === "diamond")
+			preview.type === "diamond" ||
+			preview.type === "triangle" ||
+			preview.type === "cloud")
 	);
 }

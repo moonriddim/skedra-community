@@ -28,6 +28,7 @@ import {
 	applyYDocStateBase64,
 	encodeYDocStateBase64,
 	readCanvasMapsFromYDoc,
+	setCanvasBackgroundInYDoc,
 } from "@/lib/canvas/yjs-document-helpers";
 import type {
 	CanvasElement,
@@ -54,6 +55,7 @@ export function useLocalCanvasSync(enabled = true) {
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
+	const [canvasBg, setCanvasBgState] = useState("");
 
 	const schedulePersist = useCallback(() => {
 		const ydoc = ydocRef.current;
@@ -85,11 +87,13 @@ export function useLocalCanvasSync(enabled = true) {
 
 		const yElements = ydoc.getMap<Y.Map<unknown>>("elementsMap");
 		const yViews = ydoc.getMap<Y.Map<unknown>>("viewsMap");
+		const yAppState = ydoc.getMap<unknown>("appStateMap");
 
 		const syncFromYjs = () => {
 			const next = readCanvasMapsFromYDoc(ydoc);
 			setScene(CanvasScene.from(next.elements));
 			setViews(next.views);
+			setCanvasBgState(next.canvasBg);
 		};
 
 		const scheduleSyncFromYjs = () => {
@@ -107,6 +111,7 @@ export function useLocalCanvasSync(enabled = true) {
 
 		yElements.observeDeep(observer);
 		yViews.observeDeep(observer);
+		yAppState.observeDeep(observer);
 		ydoc.on("update", schedulePersist);
 		syncFromYjs();
 		setIsConnected(true);
@@ -121,6 +126,7 @@ export function useLocalCanvasSync(enabled = true) {
 			}
 			yElements.unobserveDeep(observer);
 			yViews.unobserveDeep(observer);
+			yAppState.unobserveDeep(observer);
 			ydoc.destroy();
 			ydocRef.current = null;
 			setIsConnected(false);
@@ -186,6 +192,11 @@ export function useLocalCanvasSync(enabled = true) {
 		yjsDeleteView(ydoc, id);
 	}, []);
 
+	const setCanvasBg = useCallback((value: string) => {
+		const ydoc = ydocRef.current;
+		if (ydoc) setCanvasBackgroundInYDoc(ydoc, value);
+	}, []);
+
 	const getYDoc = useCallback(() => ydocRef.current, []);
 
 	const getStateBase64 = useCallback(() => {
@@ -225,6 +236,7 @@ export function useLocalCanvasSync(enabled = true) {
 		scene,
 		elements,
 		views,
+		canvasBg,
 		connectionError: null,
 		remotePresence: [] as RemoteCanvasPresence[],
 		localPresence: null as LocalCanvasPresence | null,
@@ -236,6 +248,7 @@ export function useLocalCanvasSync(enabled = true) {
 		createView,
 		updateView,
 		deleteView,
+		setCanvasBg,
 		setPresenceSelection: noopPresence as (selection: string[]) => void,
 		setPresenceCursor: noopPresence as (
 			cursor: { x: number; y: number } | null,

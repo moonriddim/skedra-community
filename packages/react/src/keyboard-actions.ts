@@ -6,6 +6,8 @@ type SkedraSdkKeyboardTool =
 	| "rectangle"
 	| "ellipse"
 	| "diamond"
+	| "triangle"
+	| "cloud"
 	| "line"
 	| "arrow"
 	| "text"

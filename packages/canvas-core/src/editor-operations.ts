@@ -1,4 +1,4 @@
-import { isPlainCanvasFrame } from "./element-capabilities";
+import { isCanvasFrameLabelEditable } from "./element-capabilities";
 import { createBaseCanvasElement } from "./element-factory";
 import {
 	FLOWCHART_BRANCH_GAP,
@@ -43,6 +43,10 @@ import {
 	createStackIndexBeforeElement,
 } from "./ordering";
 import type { ArrowTextOrientation, ArrowTextSide } from "./path-rendering";
+import {
+	clampCloudArcRadius,
+	getFreeformRevisionCloudScallopDepth,
+} from "./shape-geometry";
 import {
 	buildTemplateSectionLayoutSyncUpdates,
 	findTemplateSectionAtPoint,
@@ -98,6 +102,8 @@ export type CanvasDrawingTool =
 	| "rectangle"
 	| "ellipse"
 	| "diamond"
+	| "triangle"
+	| "cloud"
 	| "line"
 	| "arrow"
 	| "freehand"
@@ -112,6 +118,8 @@ export interface CanvasDrawingStyle {
 	roughness?: number;
 	roughFillStyle?: CanvasElement["roughFillStyle"];
 	roughFillScale?: number;
+	cloudArcRadius?: number;
+	pyramidSections?: number;
 	arrowMode?: CanvasElement["arrowMode"];
 	arrowHeadStart?: CanvasElement["arrowHeadStart"];
 	arrowHeadEnd?: CanvasElement["arrowHeadEnd"];
@@ -301,7 +309,13 @@ export function isCanvasPathTool(tool: string): boolean {
 }
 
 export function isCanvasCenterShapeTool(tool: string): boolean {
-	return tool === "rectangle" || tool === "ellipse" || tool === "diamond";
+	return (
+		tool === "rectangle" ||
+		tool === "ellipse" ||
+		tool === "diamond" ||
+		tool === "triangle" ||
+		tool === "cloud"
+	);
 }
 
 export function supportsCanvasAnchorSnapTool(tool: string): boolean {
@@ -634,6 +648,43 @@ export function buildCanvasDrawingElement(options: {
 		});
 	}
 
+	if (tool === "cloud" && (options.points?.length ?? 0) >= 2) {
+		const sourcePoints = options.points ?? [];
+		const points = sourcePoints.filter((point, index) => {
+			if (index === 0) return true;
+			const previous = sourcePoints[index - 1];
+			return previous.x !== point.x || previous.y !== point.y;
+		});
+		if (points.length >= 2) {
+			const pointPairs = points.map(
+				(point) => [point.x, point.y] as [number, number],
+			);
+			const cloudArcRadius = clampCloudArcRadius(style.cloudArcRadius);
+			const padding = getFreeformRevisionCloudScallopDepth(
+				pointPairs,
+				cloudArcRadius,
+			);
+			const minX = Math.min(...points.map((point) => point.x)) - padding;
+			const minY = Math.min(...points.map((point) => point.y)) - padding;
+			const maxX = Math.max(...points.map((point) => point.x)) + padding;
+			const maxY = Math.max(...points.map((point) => point.y)) + padding;
+			return createBaseCanvasElement(defaults, {
+				...common,
+				type: "cloud",
+				x: minX,
+				y: minY,
+				width: maxX - minX,
+				height: maxY - minY,
+				fill: style.fill ?? "transparent",
+				cloudArcRadius,
+				points: points.map(
+					(point) => [point.x - minX, point.y - minY] as [number, number],
+				),
+				closed: true,
+			});
+		}
+	}
+
 	const rect = normalizeCanvasRect(start, end);
 	return createBaseCanvasElement(defaults, {
 		...common,
@@ -645,6 +696,9 @@ export function buildCanvasDrawingElement(options: {
 		fill: tool === "frame" ? "transparent" : (style.fill ?? "transparent"),
 		cornerRadiusPercent:
 			tool === "rectangle" ? style.cornerRadiusPercent : undefined,
+		cloudArcRadius:
+			tool === "cloud" ? clampCloudArcRadius(style.cloudArcRadius) : undefined,
+		pyramidSections: tool === "triangle" ? style.pyramidSections : undefined,
 		frameLabel: tool === "frame" ? "Frame" : undefined,
 	});
 }
@@ -927,8 +981,8 @@ export function buildCanvasTextUpdate(options: {
 	const fontFamily =
 		options.fontFamily ?? element.fontFamily ?? DEFAULT_FONT_FAMILY;
 	if (isKanbanList(element)) return { frameLabel: text };
-	/* Einfache Frames: Inline-Editor bearbeitet den Frame-Namen, nicht den Text. */
-	if (isPlainCanvasFrame(element)) return { frameLabel: text };
+	/* Design- und Wireframe-Frames bearbeiten den sichtbaren Frame-Namen. */
+	if (isCanvasFrameLabelEditable(element)) return { frameLabel: text };
 	if (element.type === "arrow" || element.type === "line") {
 		return {
 			text,
@@ -949,7 +1003,9 @@ export function buildCanvasTextUpdate(options: {
 	const isCenteredShape =
 		element.type === "rectangle" ||
 		element.type === "ellipse" ||
-		element.type === "diamond";
+		element.type === "diamond" ||
+		element.type === "triangle" ||
+		element.type === "cloud";
 	if (isCenteredShape || element.type === "frame") {
 		return {
 			text,

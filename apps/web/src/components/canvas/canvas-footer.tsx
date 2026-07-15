@@ -63,7 +63,7 @@ export function CanvasFooter({
 
 	return (
 		<TooltipProvider delayDuration={200}>
-			<div className="pointer-events-none absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:bottom-[calc(4.75rem+env(safe-area-inset-bottom))]">
+			<div className="pointer-events-none absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-lg:bottom-auto max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(4.5rem+env(safe-area-inset-top))] max-lg:z-40">
 				{annotation}
 
 				<div className="pointer-events-auto flex items-center gap-1.5">

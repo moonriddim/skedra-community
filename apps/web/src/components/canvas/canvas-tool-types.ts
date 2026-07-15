@@ -12,6 +12,8 @@ const TOOLS_WITH_PROPERTIES = new Set<ToolType>([
 	"rectangle",
 	"ellipse",
 	"diamond",
+	"triangle",
+	"cloud",
 	"line",
 	"arrow",
 	"text",

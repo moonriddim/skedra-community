@@ -1,3 +1,8 @@
+import {
+	formatKanbanDateTimeValue,
+	parseKanbanDateTime,
+	resolveKanbanDueKind,
+} from "@skedra/canvas-core";
 import { type ReactNode, createContext, useContext, useMemo } from "react";
 
 export interface CanvasRendererDueStatus {
@@ -66,57 +71,67 @@ function defaultTranslate(
 }
 
 function defaultFormatDateTime(value: string): string {
-	const parsed = new Date(value);
-	return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+	return formatKanbanDateTimeValue(value, "en");
 }
 
-function defaultGetDueStatus(
+export function resolveCanvasRendererDueStatus(
 	dueDate: string | null | undefined,
 	dueComplete: boolean,
+	translate: CanvasRendererConfig["translate"] = defaultTranslate,
+	now = new Date(),
 ): CanvasRendererDueStatus {
-	if (dueComplete) {
+	const t = translate ?? defaultTranslate;
+	const kind = resolveKanbanDueKind(dueDate, dueComplete, now);
+	if (kind === "complete") {
 		return {
-			label: "Done",
-			icon: "✓",
+			label: t("kanbanStatus.done"),
+			icon: "✅",
 			textColor: "var(--kanban-due-complete-text)",
 			background: "var(--kanban-due-complete-bg)",
-			kind: "complete",
+			kind,
 		};
 	}
-	const due = dueDate ? new Date(dueDate) : null;
-	const remaining =
-		due && !Number.isNaN(due.getTime()) ? due.getTime() - Date.now() : null;
-	if (remaining != null && remaining < 0) {
-		const longOverdue = Math.abs(remaining) > 24 * 60 * 60 * 1000;
+	if (kind === "overdue" || kind === "overdue-long") {
 		return {
-			label: "Overdue",
-			icon: "!",
-			textColor: longOverdue
-				? "var(--kanban-due-overdue-long-text)"
-				: "var(--kanban-due-overdue-text)",
-			background: longOverdue
-				? "var(--kanban-due-overdue-long-bg)"
-				: "var(--kanban-due-overdue-bg)",
-			kind: longOverdue ? "overdue-long" : "overdue",
+			label: t("kanbanStatus.overdue"),
+			icon: "⏰",
+			textColor:
+				kind === "overdue-long"
+					? "var(--kanban-due-overdue-long-text)"
+					: "var(--kanban-due-overdue-text)",
+			background:
+				kind === "overdue-long"
+					? "var(--kanban-due-overdue-long-bg)"
+					: "var(--kanban-due-overdue-bg)",
+			kind,
 		};
 	}
-	if (remaining != null && remaining <= 24 * 60 * 60 * 1000) {
+	if (kind === "due-soon") {
 		return {
-			label: "Due soon",
-			icon: "!",
+			label: t("kanbanStatus.dueSoon"),
+			icon: "⚠️",
 			textColor: "var(--kanban-due-soon-text)",
 			background: "var(--kanban-due-soon-bg)",
-			kind: "due-soon",
+			kind,
 		};
 	}
+	const hasValidDueDate = dueDate
+		? parseKanbanDateTime(dueDate) != null
+		: false;
 	return {
-		label: "Due",
-		icon: "•",
-		textColor: "var(--kanban-due-default-text)",
-		background: dueDate ? "var(--kanban-due-default-bg)" : "transparent",
+		label: t("kanbanStatus.due"),
+		icon: "📅",
+		textColor: hasValidDueDate
+			? "var(--kanban-due-default-text)"
+			: "var(--kanban-card-muted)",
+		background: hasValidDueDate
+			? "var(--kanban-due-default-bg)"
+			: "transparent",
 		kind: "default",
 	};
 }
+
+const defaultGetDueStatus = resolveCanvasRendererDueStatus;
 
 function defaultGetUserInitials(name: string): string {
 	return name

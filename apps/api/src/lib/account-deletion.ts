@@ -9,6 +9,7 @@ import { eq, or } from "drizzle-orm";
 import { env } from "../env";
 import { deleteAssetObjects } from "./assets";
 import { db } from "./db";
+import { deleteProfileImageObjectForUser } from "./profile-images";
 import { getStripeClient } from "./stripe";
 
 function isMissingStripeResource(error: unknown) {
@@ -92,6 +93,7 @@ export async function prepareCompleteAccountDeletion(user: {
 	email: string;
 }) {
 	await deleteStoredAssetObjects(user.id);
+	await deleteProfileImageObjectForUser(db, user.id);
 	await deleteStripeCustomer(user.id);
 
 	// Invitations are keyed by email rather than user id and therefore are not

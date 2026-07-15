@@ -71,6 +71,8 @@ function getCanvasEditorDefaultsElementType(
 		case "rectangle":
 		case "ellipse":
 		case "diamond":
+		case "triangle":
+		case "cloud":
 		case "line":
 		case "arrow":
 		case "text":

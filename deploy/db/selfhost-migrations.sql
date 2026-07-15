@@ -433,6 +433,27 @@ CREATE TABLE IF NOT EXISTS "user_e2ee_identities" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 
+-- Profilbilder bleiben als kleine URL in users.image. Die AES-256-GCM-
+-- verschluesselten Bytes liegen hier oder im konfigurierten Object Storage.
+CREATE TABLE IF NOT EXISTS "user_profile_images" (
+	"user_id" text PRIMARY KEY NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+	"provider" text NOT NULL,
+	"bucket" text,
+	"key" text NOT NULL,
+	"public_url" text,
+	"mime_type" text NOT NULL,
+	"size_bytes" integer NOT NULL,
+	"inline_data" text,
+	"encryption_version" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+-- Bestehende Profilbilder starten bei Version 0 und werden vom API-Prozess
+-- vor dem Listener-Start auf AES-256-GCM migriert.
+ALTER TABLE "user_profile_images"
+	ADD COLUMN IF NOT EXISTS "encryption_version" integer DEFAULT 0 NOT NULL;
+
 CREATE TABLE IF NOT EXISTS "whiteboard_key_recipients" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"whiteboard_id" uuid NOT NULL REFERENCES "whiteboards"("id") ON DELETE cascade,

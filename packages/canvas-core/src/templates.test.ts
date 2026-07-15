@@ -6,6 +6,7 @@ import {
 	createCanvasTemplateStickyNote,
 	getTemplateSectionMeta,
 } from "./templates";
+import { getWireframeElementMeta } from "./wireframe";
 
 function defaults() {
 	let index = 0;
@@ -59,7 +60,13 @@ test("wireframe template stores responsive screens and components as canvas elem
 	assert.ok(nodes.every((node) => node.frameId && screenIds.has(node.frameId)));
 	assert.ok(nodes.every((node) => node.groupId));
 	assert.ok(
-		nodes.every((node) => node.customData?.wireframeScreenId === node.frameId),
+		nodes.every((node) => !("wireframeScreenId" in (node.customData ?? {}))),
+	);
+	assert.ok(
+		nodes.every(
+			(node) =>
+				getWireframeElementMeta(node)?.wireframeScreenId === node.frameId,
+		),
 	);
 });
 

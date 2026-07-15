@@ -3,6 +3,7 @@ export type { CanvasRendererProps } from "./canvas-renderer";
 export { ElementShape as CanvasElementRenderer } from "./element-shape";
 export {
 	CanvasRendererProvider,
+	resolveCanvasRendererDueStatus,
 	useCanvasRendererConfig,
 } from "./renderer-config";
 export type {

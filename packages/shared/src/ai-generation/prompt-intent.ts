@@ -120,7 +120,7 @@ Antworte NUR mit EINEM JSON-Objekt — waehle genau EIN passendes Top-Level-Feld
 
 8) elements — Freies Diagramm (Formen, Pfeile, Text):
 { "elements": [{ "type": "rectangle", "x": 80, "y": 80, "width": 160, "height": 64, "text": "Schritt" }] }
-- type: rectangle | ellipse | diamond | line | arrow | text
+- type: rectangle | ellipse | diamond | triangle | cloud | line | arrow | text
 - Max 40 Elemente, Start ca. x=80,y=80
 
 WICHTIG:

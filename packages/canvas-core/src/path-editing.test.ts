@@ -55,4 +55,12 @@ test("includes the closing segment midpoint for closed paths", () => {
 		{ segmentIndex: 1, insertIndex: 2, point: [100, 50] },
 		{ segmentIndex: 2, insertIndex: 3, point: [50, 50] },
 	]);
+	assert.equal(
+		getCanvasPathSegmentMidpoints({
+			...line,
+			type: "cloud",
+			closed: true,
+		}).length,
+		3,
+	);
 });

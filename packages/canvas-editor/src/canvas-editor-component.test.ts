@@ -5,18 +5,22 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
 	CanvasEditor,
+	CanvasEditorContextMenu,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
+	CanvasEditorLayerPanel,
 	CanvasEditorPropertiesPanel,
 	CanvasEditorSavedViewDraft,
 	CanvasEditorSavedViewOverlay,
 	CanvasEditorSavedViewsBar,
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
+	CanvasEditorSnapMenu,
 	CanvasEditorSnapOverlay,
 	CanvasEditorStickyNoteOverlay,
 	CanvasEditorSurface,
 	CanvasEditorToolbar,
+	CanvasEditorWireframePanel,
 	CanvasPathStartSnapIndicator,
 	resolveCanvasEditorMenuKeyAction,
 } from "./index";
@@ -93,6 +97,123 @@ test("properties labels consistently use the translation adapter", () => {
 	assert.match(markup, /canvas-editor__properties/u);
 	assert.doesNotMatch(markup, />Stroke</u);
 	assert.doesNotMatch(markup, />Lock</u);
+});
+
+test("productivity panels are shared host-neutral surfaces", () => {
+	const elements = new Map([[element.id, element]]);
+	const translate = (key: string) => `translated:${key}`;
+	const layerMarkup = renderToStaticMarkup(
+		createElement(CanvasEditorLayerPanel, {
+			elements,
+			selectedIds: new Set([element.id]),
+			translate,
+			onSelect: noop,
+			onToggleLock: noop,
+			onReorder: noop,
+		}),
+	);
+	const wireframeMarkup = renderToStaticMarkup(
+		createElement(CanvasEditorWireframePanel, {
+			elements,
+			selectedElements: [],
+			translate,
+			onInsertPreset: noop,
+			onInsertComponent: noop,
+		}),
+	);
+	const snapMenuMarkup = renderToStaticMarkup(
+		createElement(CanvasEditorSnapMenu, {
+			x: 20,
+			y: 20,
+			kind: "override",
+			enabled: true,
+			modes: {
+				endpoint: true,
+				midpoint: false,
+				division: false,
+				center: false,
+				"geometric-center": false,
+				quadrant: false,
+				intersection: false,
+				extension: false,
+				insertion: false,
+				nearest: false,
+			},
+			translate,
+			onClose: noop,
+		}),
+	);
+	const contextMenuMarkup = renderToStaticMarkup(
+		createElement(CanvasEditorContextMenu, {
+			x: 20,
+			y: 20,
+			hasSelection: true,
+			selectionCount: 1,
+			isLocked: false,
+			isInFrame: false,
+			isGrouped: false,
+			canPaste: true,
+			canPasteFormat: true,
+			onCopy: noop,
+			onCut: noop,
+			onPaste: noop,
+			onDuplicate: noop,
+			onDelete: noop,
+			onSelectAll: noop,
+			onToggleLock: noop,
+			onCopyFormat: noop,
+			onPasteFormat: noop,
+			onBringForward: noop,
+			onSendBackward: noop,
+			onBringToFront: noop,
+			onSendToBack: noop,
+			onFlipHorizontal: noop,
+			onFlipVertical: noop,
+			onCopyMirrorHorizontal: noop,
+			onCopyMirrorVertical: noop,
+			onRotate: noop,
+			onCopyRotate: noop,
+			onAddLink: noop,
+			onEmbedInFrame: noop,
+			onRemoveFromFrame: noop,
+			onGroup: noop,
+			onUngroup: noop,
+			snapToObjects: true,
+			onToggleSnap: noop,
+			showSnapPoints: true,
+			onToggleSnapPoints: noop,
+			snapModes: {
+				endpoint: true,
+				midpoint: false,
+				division: false,
+				center: false,
+				"geometric-center": false,
+				quadrant: false,
+				intersection: false,
+				extension: false,
+				insertion: false,
+				nearest: false,
+			},
+			onToggleSnapMode: noop,
+			snapDivisionCount: 2,
+			onSnapDivisionCountChange: noop,
+			gridEnabled: true,
+			onToggleGrid: noop,
+			gridSnapEnabled: true,
+			onToggleGridSnap: noop,
+			gridSize: 20,
+			onGridSizeChange: noop,
+			translate,
+			onClose: noop,
+		}),
+	);
+	assert.match(layerMarkup, /translated:canvas\.layers\.title/u);
+	assert.match(wireframeMarkup, /translated:wireframePanel\.title/u);
+	assert.match(wireframeMarkup, /translated:wireframePanel\.blankScreens/u);
+	assert.match(snapMenuMarkup, /canvas-editor__snap-menu/u);
+	assert.match(snapMenuMarkup, /translated:canvas\.snapMenu\.overrideTitle/u);
+	assert.match(contextMenuMarkup, /canvas-editor__context-menu/u);
+	assert.match(contextMenuMarkup, /translated:canvas\.contextMenu\.copy/u);
 });
 
 test("toolbar actions, menus and color controls share one renderer", () => {
@@ -200,6 +321,32 @@ test("surface transform and selection handles share one renderer", () => {
 		8,
 	);
 
+	for (const directPathType of ["line", "arrow"] as const) {
+		const directPathSelection = renderToStaticMarkup(
+			createElement(CanvasEditorSelectionOverlay, {
+				selected: [
+					{
+						...element,
+						id: directPathType,
+						type: directPathType,
+						points: [
+							[0, 0],
+							[100, 80],
+						],
+					},
+				],
+				zoom: 1,
+				onResizeStart: noop,
+				onRotateStart: noop,
+				onPathPointDragStart: noop,
+				onInsertPathPoint: noop,
+			}),
+		);
+		assert.match(directPathSelection, /data-skedra-ui="path-handles"/u);
+		assert.doesNotMatch(directPathSelection, /<rect/u);
+		assert.doesNotMatch(directPathSelection, /Rotate selection/u);
+	}
+
 	const gesture = renderToStaticMarkup(
 		createElement(CanvasEditorSelectionGestureOverlay, {
 			selectionRect: { x: 1, y: 2, width: 3, height: 4 },
@@ -302,6 +449,8 @@ test("saved views use one shared bottom bar in every host", () => {
 			onFitViewport: noop,
 			onZoomBy: noop,
 			zoom: 1,
+			snapEnabled: true,
+			onToggleSnap: noop,
 			views: [view],
 			elements: new Map([[element.id, element]]),
 			activeViewId: view.id,
@@ -323,6 +472,8 @@ test("saved views use one shared bottom bar in every host", () => {
 	assert.match(markup, /data-skedra-ui="saved-views-bar"/u);
 	assert.match(markup, />Planning</u);
 	assert.match(markup, /aria-label="Save view"/u);
+	assert.match(markup, /aria-label="Toggle object snap"/u);
+	assert.match(markup, /aria-pressed="true"/u);
 });
 
 test("flowchart directions and canvas background remain part of the shared panel", () => {
@@ -411,6 +562,61 @@ test("tool-default geometry stays editable in the shared panel", () => {
 	assert.match(markup, /translated:canvas\.properties\.height/u);
 	assert.match(markup, /translated:canvas\.properties\.diameter/u);
 	assert.match(markup, /translated:canvas\.properties\.placeCircleCentered/u);
+});
+
+test("frame constraints stay available in the shared properties panel", () => {
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorPropertiesPanel, {
+			selected: [{ ...element, frameId: "frame" }],
+			translate: (key) => `translated:${key}`,
+			onSetProperties: noop,
+			onDelete: noop,
+			onGroup: noop,
+			onUngroup: noop,
+			onAlign: noop,
+			onDistribute: noop,
+			onLayer: noop,
+			onFlip: noop,
+			onLock: noop,
+			onCropImage: noop,
+			onAddFlowchartStep: noop,
+			onSetFlowchartNodeKind: noop,
+			onUpdateKanbanCard: noop,
+			onUpdateKanbanList: noop,
+		}),
+	);
+
+	assert.match(markup, /translated:canvas\.properties\.frameConstraints/u);
+	assert.match(markup, /translated:canvas\.properties\.constraintHorizontal/u);
+	assert.match(markup, /translated:canvas\.properties\.constraintVertical/u);
+});
+
+test("frame export actions stay available in the shared properties panel", () => {
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorPropertiesPanel, {
+			selected: [{ ...element, type: "frame", frameLabel: "Screen" }],
+			translate: (key) => `translated:${key}`,
+			onSetProperties: noop,
+			onDelete: noop,
+			onGroup: noop,
+			onUngroup: noop,
+			onAlign: noop,
+			onDistribute: noop,
+			onLayer: noop,
+			onFlip: noop,
+			onLock: noop,
+			onCropImage: noop,
+			onAddFlowchartStep: noop,
+			onSetFlowchartNodeKind: noop,
+			onUpdateKanbanCard: noop,
+			onUpdateKanbanList: noop,
+			onExportFrame: noop,
+		}),
+	);
+
+	assert.match(markup, /translated:canvas\.properties\.frameExport/u);
+	assert.match(markup, /translated:canvas\.properties\.exportFrame\.png/u);
+	assert.match(markup, /translated:canvas\.properties\.exportFrame\.svg/u);
 });
 
 test("sticky checklist renders valid checkbox glyphs", () => {

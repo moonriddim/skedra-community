@@ -1,13 +1,31 @@
-export type ElementType =
-	| "rectangle"
-	| "ellipse"
-	| "diamond"
-	| "line"
-	| "arrow"
-	| "image"
-	| "text"
-	| "freehand"
-	| "frame";
+export const CANVAS_ELEMENT_TYPES = [
+	"rectangle",
+	"ellipse",
+	"diamond",
+	"triangle",
+	"cloud",
+	"line",
+	"arrow",
+	"image",
+	"text",
+	"freehand",
+	"frame",
+] as const;
+
+export type ElementType = (typeof CANVAS_ELEMENT_TYPES)[number];
+
+/** Element types that can be created from a rectangular bounds contract. */
+export const CANVAS_BOUNDS_ELEMENT_TYPES = [
+	"rectangle",
+	"ellipse",
+	"diamond",
+	"triangle",
+	"cloud",
+	"line",
+	"arrow",
+	"text",
+	"frame",
+] as const satisfies readonly ElementType[];
 
 export type ToolType =
 	| "select"
@@ -15,6 +33,8 @@ export type ToolType =
 	| "rectangle"
 	| "ellipse"
 	| "diamond"
+	| "triangle"
+	| "cloud"
 	| "line"
 	| "arrow"
 	| "text"
@@ -89,6 +109,10 @@ export interface CanvasElement {
 	roughness?: number;
 	roughFillStyle?: RoughFillStyle;
 	roughFillScale?: number;
+	/** Radius/depth of the repeating revision-cloud arcs in canvas units. */
+	cloudArcRadius?: number;
+	/** 1 renders a regular triangle; larger values render a divided pyramid. */
+	pyramidSections?: number;
 	frameId?: string;
 	frameLabel?: string;
 	customData?: Record<string, unknown>;

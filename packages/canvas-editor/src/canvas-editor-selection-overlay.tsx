@@ -1,9 +1,10 @@
 import {
 	type CanvasElement,
 	type HandlePosition,
-	getBBox,
+	getCanvasElementCenter,
 	getCombinedBBox,
 	getHandlePosition,
+	getUntransformedBBox,
 	isCanvasPointPathElement,
 } from "@skedra/canvas-core";
 import type {
@@ -51,6 +52,8 @@ export interface CanvasEditorSelectionOverlayProps {
 	handleFill?: string;
 	handleStroke?: string;
 	dashedOutline?: boolean;
+	/** Optional transform pivot selected through object snap. */
+	transformOrigin?: { x: number; y: number } | null;
 	classes?: CanvasEditorSelectionOverlayClasses;
 	onResizeStart: (
 		event: ReactPointerEvent<SVGRectElement>,
@@ -61,6 +64,16 @@ export interface CanvasEditorSelectionOverlayProps {
 		event: ReactKeyboardEvent<SVGRectElement>,
 		element: CanvasElement,
 		handle: HandlePosition,
+	) => void;
+	onRotateStart?: (
+		event: ReactPointerEvent<SVGCircleElement>,
+		elements: readonly CanvasElement[],
+		basePoint: { x: number; y: number },
+	) => void;
+	onRotateKeyDown?: (
+		event: ReactKeyboardEvent<SVGCircleElement>,
+		elements: readonly CanvasElement[],
+		basePoint: { x: number; y: number },
 	) => void;
 	onPathPointDragStart: (
 		event: ReactPointerEvent<SVGCircleElement>,
@@ -78,6 +91,14 @@ export interface CanvasEditorSelectionOverlayProps {
 	pathControlLine?: string;
 }
 
+export function resolveCanvasEditorRotationKeyDelta(
+	event: Pick<ReactKeyboardEvent<SVGCircleElement>, "key" | "shiftKey">,
+): number | null {
+	if (event.key === "ArrowLeft") return event.shiftKey ? -15 : -1;
+	if (event.key === "ArrowRight") return event.shiftKey ? 15 : 1;
+	return null;
+}
+
 /** Shared selected bounds, resize handles and editable path points. */
 export function CanvasEditorSelectionOverlay({
 	selected,
@@ -89,9 +110,12 @@ export function CanvasEditorSelectionOverlay({
 	handleFill = "white",
 	handleStroke = "rgba(99, 102, 241, 0.8)",
 	dashedOutline = true,
+	transformOrigin = null,
 	classes,
 	onResizeStart,
 	onResizeKeyDown,
+	onRotateStart,
+	onRotateKeyDown,
 	onPathPointDragStart,
 	onInsertPathPoint,
 	pathBackground,
@@ -101,40 +125,42 @@ export function CanvasEditorSelectionOverlay({
 	const services = useOptionalCanvasEditorServices();
 	if (selected.length === 0) return null;
 	const single = selected.length === 1 ? selected[0] : null;
-
-	if (
-		!readOnly &&
+	const editingPathPoints = Boolean(
+		!readOnly && single && !single.locked && isCanvasPointPathElement(single),
+	);
+	const usesDirectPathSelection = Boolean(
 		single &&
-		!single.locked &&
-		isCanvasPointPathElement(single)
-	) {
-		return (
-			<g
-				className={classes?.group ?? "selection-handles"}
-				data-ui-only="true"
-				data-skedra-ui="selection"
-			>
-				<CanvasPathPointHandles
-					element={single}
-					zoom={zoom}
-					background={pathBackground}
-					accent={pathAccent}
-					controlLine={pathControlLine}
-					onPointPointerDown={(pointIndex, event) =>
-						onPathPointDragStart(event, single, pointIndex)
-					}
-					onInsertPoint={(pointIndex, point, event) =>
-						onInsertPathPoint(single, pointIndex, point, event)
-					}
-				/>
-			</g>
-		);
-	}
+			(single.type === "line" || single.type === "arrow") &&
+			isCanvasPointPathElement(single),
+	);
 
-	const bbox = single ? getBBox(single) : getCombinedBBox([...selected]);
+	const bbox = single
+		? getUntransformedBBox(single)
+		: getCombinedBBox([...selected]);
 	if (!bbox) return null;
 	const size = handleSize / zoom;
 	const strokeWidth = 1.5 / zoom;
+	const basePoint = single
+		? getCanvasElementCenter(single)
+		: { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
+	const rotationBasePoint = transformOrigin ?? basePoint;
+	const transforms: string[] = [];
+	if (single?.rotation) {
+		transforms.push(`rotate(${single.rotation} ${basePoint.x} ${basePoint.y})`);
+	}
+	if (single?.flipX || single?.flipY) {
+		transforms.push(
+			`translate(${basePoint.x}, ${basePoint.y}) scale(${single.flipX ? -1 : 1}, ${single.flipY ? -1 : 1}) translate(${-basePoint.x}, ${-basePoint.y})`,
+		);
+	}
+	const selectionTransform =
+		transforms.length > 0 ? transforms.join(" ") : undefined;
+	const rotateHandleY = bbox.y - 28 / zoom;
+	const rotateLabel =
+		services?.translations?.translate(
+			"canvas.accessibility.rotateSelection",
+			"Rotate selection (Left/Right Arrow)",
+		) ?? "Rotate selection (Left/Right Arrow)";
 	return (
 		<g
 			className={classes?.group ?? "selection-handles"}
@@ -142,66 +168,130 @@ export function CanvasEditorSelectionOverlay({
 			data-ui-only="true"
 			data-skedra-ui="selection"
 		>
-			<rect
-				className={classes?.outline}
-				x={bbox.x - outlinePadding / zoom}
-				y={bbox.y - outlinePadding / zoom}
-				width={bbox.width + (outlinePadding * 2) / zoom}
-				height={bbox.height + (outlinePadding * 2) / zoom}
-				rx={outlinePadding > 0 ? 3 / zoom : undefined}
-				fill="none"
-				stroke={outlineStroke}
-				strokeWidth={strokeWidth}
-				strokeDasharray={dashedOutline ? `${4 / zoom}` : undefined}
-			/>
+			<g transform={selectionTransform}>
+				{editingPathPoints && single && (
+					<CanvasPathPointHandles
+						element={single}
+						zoom={zoom}
+						background={pathBackground}
+						accent={pathAccent}
+						controlLine={pathControlLine}
+						onPointPointerDown={(pointIndex, event) =>
+							onPathPointDragStart(event, single, pointIndex)
+						}
+						onInsertPoint={(pointIndex, point, event) =>
+							onInsertPathPoint(single, pointIndex, point, event)
+						}
+					/>
+				)}
+				{!usesDirectPathSelection && (
+					<rect
+						className={classes?.outline}
+						x={bbox.x - outlinePadding / zoom}
+						y={bbox.y - outlinePadding / zoom}
+						width={bbox.width + (outlinePadding * 2) / zoom}
+						height={bbox.height + (outlinePadding * 2) / zoom}
+						rx={outlinePadding > 0 ? 3 / zoom : undefined}
+						fill="none"
+						stroke={outlineStroke}
+						strokeWidth={strokeWidth}
+						strokeDasharray={dashedOutline ? `${4 / zoom}` : undefined}
+					/>
+				)}
 
-			{!readOnly &&
-				single &&
-				!single.locked &&
-				HANDLES.map((handle) => {
-					const position = getHandlePosition(bbox, handle);
-					const label =
-						services?.translations?.translate(
-							`canvas.accessibility.resize.${handle}`,
-							`Resize ${handle}`,
-						) ?? `Resize ${handle}`;
-					return (
-						<g key={handle}>
-							<rect
-								className="canvas-editor__coarse-pointer-target"
-								x={position.x - size / 2}
-								y={position.y - size / 2}
-								width={size}
-								height={size}
-								fill="none"
-								stroke="transparent"
-								onPointerDown={(event) => onResizeStart(event, single, handle)}
+				{!readOnly &&
+					onRotateStart &&
+					!usesDirectPathSelection &&
+					!selected.every((item) => item.locked) && (
+						<>
+							<line
+								x1={basePoint.x}
+								y1={bbox.y}
+								x2={basePoint.x}
+								y2={rotateHandleY}
+								stroke={handleStroke}
+								strokeWidth={strokeWidth}
 							/>
-							<rect
-								className={classes?.handle}
-								x={position.x - size / 2}
-								y={position.y - size / 2}
-								width={size}
-								height={size}
-								rx={1 / zoom}
+							<circle
+								cx={basePoint.x}
+								cy={rotateHandleY}
+								r={size * 0.6}
 								fill={handleFill}
 								stroke={handleStroke}
 								strokeWidth={strokeWidth}
 								pointerEvents="all"
-								style={{ cursor: CURSORS[handle] }}
+								style={{ cursor: "grab" }}
 								role="button"
-								aria-label={label}
-								tabIndex={onResizeKeyDown ? 0 : undefined}
-								onPointerDown={(event) => onResizeStart(event, single, handle)}
+								aria-label={rotateLabel}
+								tabIndex={onRotateKeyDown ? 0 : undefined}
+								onPointerDown={(event) => {
+									const target = event.currentTarget;
+									onRotateStart(event, selected, rotationBasePoint);
+									window.setTimeout(() => target.focus(), 0);
+								}}
 								onKeyDown={
-									onResizeKeyDown
-										? (event) => onResizeKeyDown(event, single, handle)
+									onRotateKeyDown
+										? (event) =>
+												onRotateKeyDown(event, selected, rotationBasePoint)
 										: undefined
 								}
 							/>
-						</g>
-					);
-				})}
+						</>
+					)}
+
+				{!readOnly &&
+					single &&
+					!single.locked &&
+					!editingPathPoints &&
+					HANDLES.map((handle) => {
+						const position = getHandlePosition(bbox, handle);
+						const label =
+							services?.translations?.translate(
+								`canvas.accessibility.resize.${handle}`,
+								`Resize ${handle}`,
+							) ?? `Resize ${handle}`;
+						return (
+							<g key={handle}>
+								<rect
+									className="canvas-editor__coarse-pointer-target"
+									x={position.x - size / 2}
+									y={position.y - size / 2}
+									width={size}
+									height={size}
+									fill="none"
+									stroke="transparent"
+									onPointerDown={(event) =>
+										onResizeStart(event, single, handle)
+									}
+								/>
+								<rect
+									className={classes?.handle}
+									x={position.x - size / 2}
+									y={position.y - size / 2}
+									width={size}
+									height={size}
+									rx={1 / zoom}
+									fill={handleFill}
+									stroke={handleStroke}
+									strokeWidth={strokeWidth}
+									pointerEvents="all"
+									style={{ cursor: CURSORS[handle] }}
+									role="button"
+									aria-label={label}
+									tabIndex={onResizeKeyDown ? 0 : undefined}
+									onPointerDown={(event) =>
+										onResizeStart(event, single, handle)
+									}
+									onKeyDown={
+										onResizeKeyDown
+											? (event) => onResizeKeyDown(event, single, handle)
+											: undefined
+									}
+								/>
+							</g>
+						);
+					})}
+			</g>
 		</g>
 	);
 }

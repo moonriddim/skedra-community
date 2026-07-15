@@ -178,7 +178,7 @@ export function SkedraCanvasChrome({
 				onPrevious={onCanvasSearchPrevious}
 			/>
 
-			{!presentationMode && !presenterMode && !zenMode && (
+			{!presentationMode && !presenterMode && !zenMode && !localMode && (
 				<CanvasFooter
 					onOpenHelp={() => onHelpDialogOpenChange(true)}
 					encryptionMode={localMode ? "local" : encryptionMode}

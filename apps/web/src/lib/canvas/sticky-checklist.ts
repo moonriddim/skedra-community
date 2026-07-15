@@ -1,10 +1,10 @@
 export {
-	normalizeCanvasEditorStickyChecklist as normalizeStickyChecklist,
-	prepareCanvasEditorStickyChecklistForEditing as prepareStickyChecklistForEditing,
-	sanitizeCanvasEditorStickyChecklistForStorage as sanitizeStickyChecklistForStorage,
-	toggleCanvasEditorStickyChecklistItem as toggleStickyChecklistItem,
-} from "@skedra/canvas-editor";
+	normalizeStickyChecklist,
+	prepareStickyChecklistForEditing,
+	sanitizeStickyChecklistForStorage,
+	toggleStickyChecklistItem,
+} from "@skedra/canvas-core";
 export type {
-	CanvasEditorStickyChecklistItem as StickyChecklistItem,
-	CanvasEditorStickyNoteMode as StickyNoteMode,
-} from "@skedra/canvas-editor";
+	StickyChecklistItem,
+	StickyNoteMode,
+} from "@skedra/canvas-core";

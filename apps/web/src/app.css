@@ -530,13 +530,16 @@ select {
 	--canvas-editor-properties-left: 0.75rem;
 	--canvas-editor-properties-right: auto;
 	--canvas-editor-properties-top: 3.5rem;
-	--canvas-editor-toolbar-mobile-top: calc(4rem + var(--canvas-editor-safe-top));
-	--canvas-editor-properties-mobile-top: calc(
-		8rem +
-		var(--canvas-editor-safe-top)
+	--canvas-editor-toolbar-mobile-bottom: calc(
+		0.75rem +
+		var(--canvas-editor-safe-bottom)
+	);
+	--canvas-editor-properties-mobile-bottom: calc(
+		8.5rem +
+		var(--canvas-editor-safe-bottom)
 	);
 	--canvas-editor-mobile-bottom-reserved: calc(
-		5rem +
+		9rem +
 		var(--canvas-editor-safe-bottom)
 	);
 }
@@ -552,7 +555,8 @@ select {
 		align-items: safe center;
 		overflow-y: auto;
 		overscroll-behavior-y: contain;
-		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+		padding-top: calc(5rem + env(safe-area-inset-top)) !important;
+		padding-bottom: calc(10rem + env(safe-area-inset-bottom));
 	}
 }
 
@@ -560,8 +564,8 @@ select {
 	.guest-welcome-scroll {
 		align-items: flex-start;
 		overflow-y: auto;
-		padding-top: calc(8rem + env(safe-area-inset-top)) !important;
-		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+		padding-top: calc(4.5rem + env(safe-area-inset-top)) !important;
+		padding-bottom: calc(9rem + env(safe-area-inset-bottom));
 		pointer-events: auto;
 	}
 

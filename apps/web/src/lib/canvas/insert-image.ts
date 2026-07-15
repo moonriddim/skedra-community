@@ -5,14 +5,11 @@
 import {
 	type CanvasElement,
 	createImageCanvasElement,
+	fitImageSize,
 } from "@skedra/canvas-core";
 import type { CanvasThemeState } from "./canvas-defaults";
 import { getCanvasElementFactoryDefaults } from "./canvas-factory-defaults";
-import {
-	type ImageUploadOptions,
-	fitImageSize,
-	pickImageFile,
-} from "./image-utils";
+import { type ImageUploadOptions, pickImageFile } from "./image-utils";
 
 export async function pickAndBuildImageElements(
 	center: {
@@ -32,8 +29,8 @@ export async function pickAndBuildImageElements(
 			x: center.x - fitted.width / 2,
 			y: center.y - fitted.height / 2,
 			src: picked.src,
-			width: fitted.width,
-			height: fitted.height,
+			width: picked.width,
+			height: picked.height,
 			alt: picked.name,
 		},
 	);

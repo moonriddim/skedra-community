@@ -18,7 +18,7 @@ interface UsePropertiesPanelGeometryOptions {
 	singleGeometryElement: CanvasElement | null;
 	geometryPresetTool: Extract<
 		ToolType,
-		"rectangle" | "ellipse" | "diamond"
+		"rectangle" | "ellipse" | "diamond" | "triangle" | "cloud"
 	> | null;
 	onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
 }

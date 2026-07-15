@@ -10,7 +10,10 @@ import {
 	yjsUpdateElements,
 	yjsUpdateView,
 } from "@/lib/canvas/yjs-canvas-mutations";
-import { readCanvasMapsFromYDoc } from "@/lib/canvas/yjs-document-helpers";
+import {
+	readCanvasMapsFromYDoc,
+	setCanvasBackgroundInYDoc,
+} from "@/lib/canvas/yjs-document-helpers";
 import {
 	createE2eeKeyHash,
 	decryptYjsUpdate,
@@ -97,6 +100,7 @@ export function useE2eeCanvasSync(
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
+	const [canvasBg, setCanvasBgState] = useState("");
 	const [isConnected, setIsConnected] = useState(false);
 	const [connectionError, setConnectionError] = useState<string | null>(null);
 	const [updateCursor, setUpdateCursor] = useState<E2eeUpdateCursor | null>(
@@ -199,6 +203,7 @@ export function useE2eeCanvasSync(
 		const next = readCanvasMapsFromYDoc(ydoc);
 		setScene(CanvasScene.from(next.elements));
 		setViews(next.views);
+		setCanvasBgState(next.canvasBg);
 	}, []);
 
 	const scheduleSyncFromYjs = useCallback(() => {
@@ -303,15 +308,18 @@ export function useE2eeCanvasSync(
 		setUpdateCursor(null);
 		setScene(CanvasScene.empty());
 		setViews(new Map());
+		setCanvasBgState("");
 		setIsConnected(false);
 		setConnectionError(null);
 
 		const yElements = ydoc.getMap<Y.Map<unknown>>("elementsMap");
 		const yViews = ydoc.getMap<Y.Map<unknown>>("viewsMap");
+		const yAppState = ydoc.getMap<unknown>("appStateMap");
 
 		const deepObserver = scheduleSyncFromYjs;
 		yElements.observeDeep(deepObserver);
 		yViews.observeDeep(deepObserver);
+		yAppState.observeDeep(deepObserver);
 
 		const updateObserver = (update: Uint8Array, origin: unknown) => {
 			if (
@@ -373,6 +381,7 @@ export function useE2eeCanvasSync(
 			ydoc.off("update", updateObserver);
 			yElements.unobserveDeep(deepObserver);
 			yViews.unobserveDeep(deepObserver);
+			yAppState.unobserveDeep(deepObserver);
 			ydoc.destroy();
 			ydocRef.current = null;
 			decryptionReadyRef.current = false;
@@ -642,6 +651,13 @@ export function useE2eeCanvasSync(
 		},
 		[guardWrite],
 	);
+	const setCanvasBg = useCallback(
+		(value: string) => {
+			const doc = guardWrite();
+			if (doc) setCanvasBackgroundInYDoc(doc, value);
+		},
+		[guardWrite],
+	);
 
 	const loadSkedraFile = useCallback(
 		(file: SkedraFile) => {
@@ -660,6 +676,7 @@ export function useE2eeCanvasSync(
 		scene,
 		elements,
 		views,
+		canvasBg,
 		connectionError,
 		// Realtime-Presence (ersetzt den bisherigen No-op).
 		remotePresence: presenceApi.remotePresence,
@@ -672,6 +689,7 @@ export function useE2eeCanvasSync(
 		createView,
 		updateView,
 		deleteView,
+		setCanvasBg,
 		loadSkedraFile,
 		setPresenceSelection: presenceApi.setPresenceSelection,
 		setPresenceCursor: presenceApi.setPresenceCursor,

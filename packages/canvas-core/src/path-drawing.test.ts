@@ -34,6 +34,43 @@ test("shares screen-space start snapping for closable multi-lines", () => {
 		),
 		null,
 	);
+	assert.deepEqual(
+		getCanvasPathStartSnapState(
+			{ ...draft, tool: "cloud" },
+			{ x: 12, y: 20 },
+			1,
+		),
+		{ point: [10, 20], active: true },
+	);
+});
+
+test("builds padded closed point-by-point revision clouds", () => {
+	const element = buildCanvasDrawingElement({
+		id: "freeform-cloud",
+		tool: "cloud",
+		start: { x: 20, y: 30 },
+		points: [
+			{ x: 20, y: 30 },
+			{ x: 160, y: 30 },
+			{ x: 130, y: 120 },
+			{ x: 40, y: 100 },
+		],
+		closed: true,
+		style: {
+			stroke: "#111111",
+			fill: "transparent",
+			cloudArcRadius: 28,
+		},
+	});
+
+	assert.equal(element.type, "cloud");
+	assert.equal(element.closed, true);
+	assert.equal(element.cloudArcRadius, 28);
+	assert.equal(element.points?.length, 4);
+	assert.equal(element.x, -8);
+	assert.equal(element.y, 2);
+	assert.equal(element.x + element.width, 188);
+	assert.equal(element.y + element.height, 148);
 });
 
 test("uses identical elbow points for committed paths and hover previews", () => {

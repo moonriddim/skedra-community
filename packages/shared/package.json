@@ -16,6 +16,7 @@
 		"./server-crypto": "./src/server-crypto.ts"
 	},
 	"dependencies": {
+		"@skedra/canvas-core": "workspace:*",
 		"@skedra/canvas-io": "workspace:*",
 		"zod": "^3.24.0"
 	},

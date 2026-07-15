@@ -7,8 +7,9 @@ import {
 	FRAME_LABEL_OFFSET_X,
 	STICKY_NOTE_TEXT_PADDING,
 	getArrowTextMetrics,
+	getStickyNoteContent,
+	isCanvasFrameLabelEditable,
 	isMindmapNode,
-	isPlainCanvasFrame,
 	resolveArrowTextOffset,
 	resolveArrowTextRotationDeg,
 } from "@skedra/canvas-core";
@@ -16,7 +17,6 @@ import type { CanvasEditorEditingText } from "./canvas-editor-text-overlay";
 import {
 	type CanvasEditorStickyChecklistItem,
 	type CanvasEditorStickyNoteMode,
-	normalizeCanvasEditorStickyChecklist,
 	prepareCanvasEditorStickyChecklistForEditing,
 } from "./sticky-editor-data";
 
@@ -37,20 +37,6 @@ export interface BuildCanvasEditorEditingSessionOptions {
 	arrowTextPlaceholder?: string;
 }
 
-function readStickyContent(element: CanvasElement) {
-	const checklist = normalizeCanvasEditorStickyChecklist(
-		element.customData?.stickyChecklist,
-	);
-	const storedMode = element.customData?.stickyNoteMode;
-	const mode: CanvasEditorStickyNoteMode =
-		storedMode === "note" || storedMode === "checklist"
-			? storedMode
-			: checklist.some((item) => item.text.trim() || item.completed)
-				? "checklist"
-				: "note";
-	return { mode, text: element.text ?? "", checklist };
-}
-
 export function buildCanvasEditorEditingSession({
 	element,
 	arrowTextSide,
@@ -64,7 +50,9 @@ export function buildCanvasEditorEditingSession({
 	const isCenteredShape =
 		element.type === "rectangle" ||
 		element.type === "ellipse" ||
-		element.type === "diamond";
+		element.type === "diamond" ||
+		element.type === "triangle" ||
+		element.type === "cloud";
 	const isPath = element.type === "arrow" || element.type === "line";
 	const isKanbanCard = element.customData?.skedraType === "kanban-card";
 	const isKanbanList = element.customData?.skedraType === "kanban-list";
@@ -104,11 +92,11 @@ export function buildCanvasEditorEditingSession({
 	}
 
 	/*
-	 * Einfache Frames (kein Kanban, keine Template-Sektion): Der Inline-Editor
+	 * Umbenennbare Frames (Design- und Wireframe-Screens): Der Inline-Editor
 	 * bearbeitet den Frame-Namen und sitzt am Label oberhalb der Frame-Kante,
 	 * nicht ueber der gesamten Frame-Flaeche.
 	 */
-	if (isPlainCanvasFrame(element)) {
+	if (isCanvasFrameLabelEditable(element)) {
 		return {
 			editingText: {
 				id: element.id,
@@ -185,7 +173,7 @@ export function buildCanvasEditorEditingSession({
 	}
 
 	if (isStickyNote) {
-		const content = readStickyContent(element);
+		const content = getStickyNoteContent(element);
 		return {
 			editingText: {
 				id: element.id,

@@ -3,12 +3,18 @@ import {
 	type CanvasDrawingTool,
 	type CanvasElement,
 	type CanvasPathDrawMode,
+	type CanvasPathTool,
 	type CanvasScene,
 	type HandlePosition,
+	type SnapAnchor,
 	type SnapGuide,
 	type SnapPointIndicator,
 	type Viewport,
+	buildFrameDropUpdates,
+	buildFrameResizeChildUpdates,
 	collectCanvasSelectionRectIds,
+	getRotateUpdates,
+	isCanvasCenterShapeTool,
 	isLassoPathLargeEnough,
 	isMultiSelectModifier,
 	resizeCanvasElement,
@@ -42,6 +48,7 @@ import {
 	createCanvasEditorTouchSession,
 	resolveCanvasEditorPinchViewport,
 	resolveCanvasEditorPointerDown,
+	resolveCanvasEditorTentativeDataPoint,
 	resolveCanvasEditorWheelViewport,
 	shouldCancelCanvasEditorLostPointerCapture,
 	shouldDeferCanvasEditorTouchAction,
@@ -53,6 +60,9 @@ import { useCanvasPathEditor } from "./use-canvas-path-editor";
 export interface CanvasEditorResolvedPointerPoint {
 	raw: { x: number; y: number };
 	snapped: { x: number; y: number };
+	/** Exact object anchor under the cursor, used as a transform base point. */
+	snapAnchor?: SnapAnchor | null;
+	/** @deprecated Use snapAnchor. Kept for compatible host adapters. */
 	allowMiddleButtonDraw?: boolean;
 }
 
@@ -151,7 +161,11 @@ export interface UseCanvasEditorPointerOptions {
 	resolvePoint: (
 		clientX: number,
 		clientY: number,
-		options?: { forceAnchor?: boolean },
+		options?: {
+			forceAnchor?: boolean;
+			objectSnap?: boolean;
+			excludeIds?: Set<string>;
+		},
 	) => CanvasEditorResolvedPointerPoint;
 	startTextPlacement: (placement: CanvasEditorTextPlacement) => void;
 	onPlacement?: (context: CanvasEditorPointerPlacementContext) => boolean;
@@ -164,7 +178,16 @@ export interface UseCanvasEditorPointerOptions {
 		point: CanvasEditorResolvedPointerPoint,
 		event: ReactPointerEvent<SVGSVGElement>,
 	) => boolean;
-	onGestureFinished?: () => void;
+	/** Accepts a middle-click snap base point for the next primary data point. */
+	onTentativeSnap?: (
+		point: CanvasEditorResolvedPointerPoint,
+		event: ReactPointerEvent<SVGSVGElement>,
+	) => boolean;
+	/** Lets a host invalidate a tentative point after a non-pointer transform. */
+	isTentativeSnapActive?: () => boolean;
+	/** Fires when the next primary data point consumes the middle-click base point. */
+	onTentativeSnapConsumed?: () => void;
+	onGestureFinished?: (action: CanvasEditorPointerGestureAction) => void;
 }
 
 export type CanvasEditorBeginAuxiliaryPointerGesture = (
@@ -182,6 +205,9 @@ interface PointerState {
 	moveStart: Map<string, { x: number; y: number }>;
 	resizeHandle: HandlePosition | null;
 	resizeStart: CanvasElement | null;
+	rotateElements: CanvasElement[];
+	rotateBasePoint: { x: number; y: number } | null;
+	rotateStartAngle: number;
 	dragPointElementId: string | null;
 	dragPointIndex: number;
 	drawFromCenter: boolean;
@@ -225,6 +251,9 @@ const INITIAL_POINTER_STATE: PointerState = {
 	moveStart: new Map(),
 	resizeHandle: null,
 	resizeStart: null,
+	rotateElements: [],
+	rotateBasePoint: null,
+	rotateStartAngle: 0,
 	dragPointElementId: null,
 	dragPointIndex: -1,
 	drawFromCenter: false,
@@ -247,9 +276,15 @@ export function useCanvasEditorPointer({
 	onBeforePointerDown,
 	shouldDeferTouchPointerDown,
 	onIdlePointerMove,
+	onTentativeSnap,
+	isTentativeSnapActive,
+	onTentativeSnapConsumed,
 	onGestureFinished,
 }: UseCanvasEditorPointerOptions) {
 	const stateRef = useRef<PointerState>({ ...INITIAL_POINTER_STATE });
+	const tentativeSnapRef = useRef<CanvasEditorResolvedPointerPoint | null>(
+		null,
+	);
 	const touchSessionRef = useRef<ReturnType<
 		typeof createCanvasEditorTouchSession
 	> | null>(null);
@@ -313,7 +348,7 @@ export function useCanvasEditorPointer({
 			uiAdapter.setSelectionBox(null);
 			uiAdapter.setLassoPath(null);
 			clearSnapVisuals();
-			onGestureFinished?.();
+			onGestureFinished?.(state.action);
 		},
 		[clearSnapVisuals, finishHistory, onGestureFinished, uiAdapter],
 	);
@@ -510,11 +545,28 @@ export function useCanvasEditorPointer({
 	const onPointerDown = useCallback(
 		(event: ReactPointerEvent<SVGSVGElement>) => {
 			if (registerTouchPointer(event)) return;
+			if (tentativeSnapRef.current && isTentativeSnapActive?.() === false) {
+				tentativeSnapRef.current = null;
+			}
 			const ui = uiAdapter.getState();
 			const middle =
 				event.button === 1
 					? resolvePoint(event.clientX, event.clientY, { forceAnchor: true })
 					: null;
+			if (
+				event.button === 1 &&
+				(middle?.snapAnchor != null || middle?.allowMiddleButtonDraw) &&
+				onTentativeSnap?.(middle, event)
+			) {
+				tentativeSnapRef.current = {
+					...middle,
+					raw: { ...middle.snapped },
+					snapped: { ...middle.snapped },
+				};
+				event.preventDefault();
+				event.stopPropagation();
+				return;
+			}
 			const pointerAction = resolveCanvasEditorPointerDown({
 				tool: ui.activeTool,
 				button: event.button,
@@ -538,8 +590,22 @@ export function useCanvasEditorPointer({
 				return;
 			}
 
-			const point =
-				middle ?? resolvePoint(event.clientX, event.clientY, undefined);
+			const tentativeSnap = tentativeSnapRef.current;
+			const tentativeResult = resolveCanvasEditorTentativeDataPoint({
+				button: event.button,
+				tentative: tentativeSnap,
+				resolveCurrent: () =>
+					middle ?? resolvePoint(event.clientX, event.clientY, undefined),
+			});
+			tentativeSnapRef.current = tentativeResult.nextTentative;
+			if (
+				event.button === 0 &&
+				tentativeSnap &&
+				tentativeResult.nextTentative === null
+			) {
+				onTentativeSnapConsumed?.();
+			}
+			const point = tentativeResult.point;
 			if (
 				event.pointerType === "touch" &&
 				event.button === 0 &&
@@ -651,7 +717,7 @@ export function useCanvasEditorPointer({
 			}
 
 			if (pointerAction === "path") {
-				beginPath(ui.activeTool as "line" | "arrow", [
+				beginPath(ui.activeTool as CanvasPathTool, [
 					point.snapped.x,
 					point.snapped.y,
 				]);
@@ -690,8 +756,11 @@ export function useCanvasEditorPointer({
 			beginHistory,
 			documentAdapter,
 			eraseAtPoint,
+			isTentativeSnapActive,
 			onBeforePointerDown,
 			onPlacement,
+			onTentativeSnap,
+			onTentativeSnapConsumed,
 			registerTouchPointer,
 			resolvePoint,
 			setDrawingPreview,
@@ -736,7 +805,16 @@ export function useCanvasEditorPointer({
 			}
 			const ui = uiAdapter.getState();
 			const state = stateRef.current;
-			const point = resolvePoint(event.clientX, event.clientY);
+			const point =
+				state.action === "none" && tentativeSnapRef.current
+					? tentativeSnapRef.current
+					: resolvePoint(
+							event.clientX,
+							event.clientY,
+							state.action === "move"
+								? { objectSnap: ui.snapToObjects, excludeIds: ui.selectedIds }
+								: undefined,
+						);
 			if (
 				isCanvasMultiPathTool(ui.activeTool, ui.pathDrawMode) &&
 				pathEditorRef.current.isActive()
@@ -800,6 +878,7 @@ export function useCanvasEditorPointer({
 					start: { x: state.startCanvasX, y: state.startCanvasY },
 					current: point.snapped,
 					snapToObjects: ui.snapToObjects,
+					anchorSnapped: point.snapAnchor != null,
 				});
 				documentAdapter.updateElements(result.updates);
 				uiAdapter.setSnapVisuals?.(result.guides);
@@ -828,6 +907,22 @@ export function useCanvasEditorPointer({
 					);
 				}
 				uiAdapter.setSnapVisuals?.(result.guides);
+				return;
+			}
+			if (
+				state.action === "rotate" &&
+				state.rotateElements.length > 0 &&
+				state.rotateBasePoint
+			) {
+				const base = state.rotateBasePoint;
+				const currentAngle =
+					(Math.atan2(point.raw.y - base.y, point.raw.x - base.x) * 180) /
+					Math.PI;
+				let angleDelta = currentAngle - state.rotateStartAngle;
+				if (event.shiftKey) angleDelta = Math.round(angleDelta / 15) * 15;
+				documentAdapter.updateElements(
+					getRotateUpdates(state.rotateElements, angleDelta, base),
+				);
 				return;
 			}
 			if (
@@ -878,12 +973,7 @@ export function useCanvasEditorPointer({
 			}
 			let dx = point.snapped.x - state.startCanvasX;
 			let dy = point.snapped.y - state.startCanvasY;
-			if (
-				event.shiftKey &&
-				(ui.activeTool === "rectangle" ||
-					ui.activeTool === "ellipse" ||
-					ui.activeTool === "diamond")
-			) {
+			if (event.shiftKey && isCanvasCenterShapeTool(ui.activeTool)) {
 				const size = Math.max(Math.abs(dx), Math.abs(dy));
 				dx = Math.sign(dx || 1) * size;
 				dy = Math.sign(dy || 1) * size;
@@ -1072,12 +1162,7 @@ export function useCanvasEditorPointer({
 						uiAdapter.setSelectedIds(new Set([id]));
 					} else {
 						const size = uiAdapter.getDefaultElementSize?.(ui.activeTool);
-						if (
-							size &&
-							(ui.activeTool === "rectangle" ||
-								ui.activeTool === "ellipse" ||
-								ui.activeTool === "diamond")
-						) {
+						if (size && isCanvasCenterShapeTool(ui.activeTool)) {
 							const id = documentAdapter.createId();
 							documentAdapter.createElement({
 								...candidate,
@@ -1095,12 +1180,47 @@ export function useCanvasEditorPointer({
 				if (!ui.toolLocked) uiAdapter.setActiveTool("select");
 			}
 			if (state.action === "move" && state.moveStart.size > 0) {
+				/* Frame-Adoption: abgelegte Elemente dem Frame darunter zuordnen. */
+				const frameDropUpdates = buildFrameDropUpdates(
+					documentAdapter.getElements(),
+					state.moveStart.keys(),
+				);
+				if (frameDropUpdates.length > 0) {
+					documentAdapter.updateElements(frameDropUpdates);
+				}
 				documentAdapter.finishMove?.(state.moveStart);
+			}
+			if (state.action === "resize" && state.resizeStart) {
+				/* Frame-Resize: Kinder gemaess Constraints nachfuehren. */
+				const start = state.resizeStart;
+				const resized = documentAdapter.getElements().get(start.id);
+				if (resized && resized.type === "frame") {
+					const childUpdates = buildFrameResizeChildUpdates(
+						documentAdapter.getElements(),
+						resized.id,
+						{
+							x: start.x,
+							y: start.y,
+							width: start.width,
+							height: start.height,
+						},
+						{
+							x: resized.x,
+							y: resized.y,
+							width: resized.width,
+							height: resized.height,
+						},
+					);
+					if (childUpdates.length > 0) {
+						documentAdapter.updateElements(childUpdates);
+					}
+				}
 			}
 			finishGesture(
 				state.action === "move" ||
 					(state.action === "draw" && ui.activeTool !== "text") ||
 					state.action === "resize" ||
+					state.action === "rotate" ||
 					state.action === "drag-point" ||
 					state.action === "erase",
 			);
@@ -1259,6 +1379,35 @@ export function useCanvasEditorPointer({
 		[beginHistory, registerTouchPointer, resolvePoint, svgRef, uiAdapter],
 	);
 
+	const beginRotate = useCallback(
+		(
+			event: ReactPointerEvent<SVGElement>,
+			elements: readonly CanvasElement[],
+			basePoint: { x: number; y: number },
+		) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (registerTouchPointer(event)) return;
+			if (uiAdapter.getState().readOnly) return;
+			const rotatable = elements.filter((element) => !element.locked);
+			if (rotatable.length === 0) return;
+			const point = resolvePoint(event.clientX, event.clientY);
+			beginHistory();
+			stateRef.current = {
+				...INITIAL_POINTER_STATE,
+				action: "rotate",
+				rotateElements: rotatable.map((element) => ({ ...element })),
+				rotateBasePoint: basePoint,
+				rotateStartAngle:
+					(Math.atan2(point.raw.y - basePoint.y, point.raw.x - basePoint.x) *
+						180) /
+					Math.PI,
+			};
+			svgRef.current?.setPointerCapture(event.pointerId);
+		},
+		[beginHistory, registerTouchPointer, resolvePoint, svgRef, uiAdapter],
+	);
+
 	return {
 		onPointerDown,
 		onPointerMove,
@@ -1269,6 +1418,7 @@ export function useCanvasEditorPointer({
 		onDoubleClick,
 		onContextMenu,
 		beginResize,
+		beginRotate,
 		beginPathPointDrag,
 		beginAuxiliaryPointerGesture,
 		runPointerUpAction,

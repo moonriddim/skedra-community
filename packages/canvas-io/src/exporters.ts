@@ -4,6 +4,49 @@ export interface SkedraVisualExportOptions {
 	padding?: number;
 	background?: string;
 	scale?: number;
+	/**
+	 * Expliziter Ausschnitt in Canvas-Koordinaten (z. B. ein Frame-Rechteck).
+	 * Ohne bounds wird der Inhalt automatisch vermessen.
+	 */
+	bounds?: { x: number; y: number; width: number; height: number };
+	/** Element-IDs, die im Export ausgeblendet werden (z. B. der Frame-Rahmen). */
+	excludeElementIds?: readonly string[];
+}
+
+export function getSkedraFrameExportFilename(
+	frame: { frameLabel?: string },
+	format: SkedraVisualExportFormat,
+): string {
+	const base = (frame.frameLabel || "frame")
+		.trim()
+		.replace(/[^\p{L}\p{N}_ -]/gu, "")
+		.replace(/\s+/g, "-")
+		.toLocaleLowerCase();
+	return `${base || "frame"}.${format}`;
+}
+
+/**
+ * Exportiert einen Frame-Ausschnitt: identisch zu exportSkedraVisual, aber
+ * auf das Frame-Rechteck geclippt (padding 0, sofern nicht angegeben) und
+ * ohne den gestrichelten Frame-Rahmen selbst.
+ */
+export async function exportSkedraFrame(
+	svgElement: SVGSVGElement,
+	frame: { id: string; x: number; y: number; width: number; height: number },
+	format: SkedraVisualExportFormat,
+	options: SkedraVisualExportOptions = {},
+): Promise<Blob> {
+	return exportSkedraVisual(svgElement, format, {
+		padding: 0,
+		...options,
+		bounds: {
+			x: frame.x,
+			y: frame.y,
+			width: frame.width,
+			height: frame.height,
+		},
+		excludeElementIds: [frame.id, ...(options.excludeElementIds ?? [])],
+	});
 }
 
 interface RasterizedCanvas {
@@ -94,7 +137,10 @@ function prepareSvg(
 	const sourceLayer = svgElement.querySelector<SVGGElement>(
 		"[data-skedra-elements]",
 	);
-	const bbox = sourceLayer ? measureSkedraExportBounds(sourceLayer) : undefined;
+	/* Explizite bounds (z. B. Frame-Export) haben Vorrang vor der Messung. */
+	const bbox =
+		options.bounds ??
+		(sourceLayer ? measureSkedraExportBounds(sourceLayer) : undefined);
 	const padding = options.padding ?? 40;
 	const x = bbox && bbox.width > 0 ? bbox.x - padding : 0;
 	const y = bbox && bbox.height > 0 ? bbox.y - padding : 0;
@@ -114,6 +160,14 @@ function prepareSvg(
 	clone.setAttribute("height", String(height));
 	for (const element of clone.querySelectorAll(EXPORT_UI_SELECTOR)) {
 		element.remove();
+	}
+	/* Explizit ausgeschlossene Elemente (z. B. der exportierte Frame selbst). */
+	for (const id of options.excludeElementIds ?? []) {
+		for (const element of clone.querySelectorAll(
+			`[data-element-id="${CSS.escape(id)}"]`,
+		)) {
+			element.remove();
+		}
 	}
 	const layer = clone.querySelector<SVGGElement>("[data-skedra-elements]");
 	layer?.removeAttribute("transform");

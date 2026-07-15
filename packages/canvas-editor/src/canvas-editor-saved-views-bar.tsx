@@ -1,6 +1,7 @@
 import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import {
 	BookmarkPlus,
+	Magnet,
 	PanelsTopLeft,
 	Redo2,
 	StickyNote,
@@ -28,6 +29,8 @@ export interface CanvasEditorSavedViewsBarProps {
 	onFitViewport: () => void;
 	onZoomBy: (factor: number) => void;
 	zoom: number;
+	snapEnabled?: boolean;
+	onToggleSnap?: () => void;
 	views: SavedCanvasView[];
 	elements: ReadonlyMap<string, CanvasElement>;
 	activeViewId: string | null;
@@ -53,6 +56,7 @@ const FALLBACKS = {
 	resetZoom: "Fit canvas",
 	undo: "Undo",
 	redo: "Redo",
+	objectSnap: "Toggle object snap",
 	views: "Views",
 	slides: "Slides",
 	saveView: "Save view",
@@ -89,6 +93,8 @@ export function CanvasEditorSavedViewsBar({
 	onFitViewport,
 	onZoomBy,
 	zoom,
+	snapEnabled,
+	onToggleSnap,
 	views,
 	elements,
 	activeViewId,
@@ -221,6 +227,15 @@ export function CanvasEditorSavedViewsBar({
 				>
 					<ZoomIn size={16} />
 				</BarButton>
+				{onToggleSnap && snapEnabled !== undefined && (
+					<BarButton
+						label={t("canvas.bottomBar.objectSnap", FALLBACKS.objectSnap)}
+						onClick={onToggleSnap}
+						pressed={snapEnabled}
+					>
+						<Magnet size={16} />
+					</BarButton>
+				)}
 
 				<span className="canvas-editor__saved-views-divider" />
 
@@ -401,11 +416,13 @@ function BarButton({
 	label,
 	onClick,
 	disabled,
+	pressed,
 }: {
 	children: ReactNode;
 	label: string;
 	onClick?: () => void;
 	disabled?: boolean;
+	pressed?: boolean;
 }) {
 	return (
 		<button
@@ -413,8 +430,10 @@ function BarButton({
 			onClick={onClick}
 			disabled={disabled}
 			className="canvas-editor__saved-views-button"
+			data-active={pressed || undefined}
 			title={label}
 			aria-label={label}
+			aria-pressed={pressed}
 		>
 			{children}
 		</button>

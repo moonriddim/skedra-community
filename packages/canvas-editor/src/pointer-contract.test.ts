@@ -7,11 +7,35 @@ import {
 	resolveCanvasEditorKeyboardAction,
 	resolveCanvasEditorPinchViewport,
 	resolveCanvasEditorPointerDown,
+	resolveCanvasEditorTentativeDataPoint,
 	resolveCanvasEditorWheelViewport,
 	shouldCancelCanvasEditorLostPointerCapture,
 	shouldDeferCanvasEditorTouchAction,
 	shouldIgnoreCanvasEditorKeyboardEvent,
 } from "./index";
+
+test("a middle-button snap is consumed by exactly the next primary data point", () => {
+	const tentative = { x: 40, y: 20, kind: "midpoint" };
+	let currentResolutions = 0;
+	const consumed = resolveCanvasEditorTentativeDataPoint({
+		button: 0,
+		tentative,
+		resolveCurrent: () => {
+			currentResolutions += 1;
+			return { x: 90, y: 70, kind: "cursor" };
+		},
+	});
+
+	assert.deepEqual(consumed, { point: tentative, nextTentative: null });
+	assert.equal(currentResolutions, 0);
+
+	const following = resolveCanvasEditorTentativeDataPoint({
+		button: 0,
+		tentative: consumed.nextTentative,
+		resolveCurrent: () => ({ x: 90, y: 70, kind: "cursor" }),
+	});
+	assert.deepEqual(following.point, { x: 90, y: 70, kind: "cursor" });
+});
 
 test("the shared touch session owns the complete multi-finger sequence", () => {
 	const session = createCanvasEditorTouchSession();
@@ -72,12 +96,45 @@ test("multi paths, lasso modifier and browser pan follow one contract", () => {
 		"path",
 	);
 	assert.equal(
+		resolveCanvasEditorPointerDown({
+			tool: "cloud",
+			button: 0,
+			pathDrawMode: "multi",
+		}),
+		"path",
+	);
+	assert.equal(
 		resolveCanvasEditorPointerDown({ tool: "select", button: 0, altKey: true }),
 		"lasso",
 	);
 	assert.equal(
 		resolveCanvasEditorPointerDown({ tool: "rectangle", button: 1 }),
 		"pan",
+	);
+	assert.equal(
+		resolveCanvasEditorPointerDown({
+			tool: "select",
+			button: 1,
+			allowMiddleButtonDraw: true,
+		}),
+		"pan",
+	);
+	assert.equal(
+		resolveCanvasEditorPointerDown({
+			tool: "rectangle",
+			button: 1,
+			allowMiddleButtonDraw: true,
+		}),
+		"draw",
+	);
+	assert.equal(
+		resolveCanvasEditorPointerDown({
+			tool: "line",
+			button: 1,
+			pathDrawMode: "multi",
+			allowMiddleButtonDraw: true,
+		}),
+		"path",
 	);
 });
 
@@ -252,6 +309,17 @@ test("shared keyboard contract owns editor commands and tool shortcuts", () => {
 });
 
 test("keyboard resolver owns viewport, flowchart, and formatting gestures", () => {
+	assert.deepEqual(
+		resolveCanvasEditorKeyboardAction({
+			key: "F3",
+			code: "F3",
+			ctrlKey: false,
+			metaKey: false,
+			shiftKey: false,
+			altKey: false,
+		}),
+		{ type: "toggle-object-snap" },
+	);
 	assert.deepEqual(
 		resolveCanvasEditorKeyboardAction({
 			key: "ArrowRight",

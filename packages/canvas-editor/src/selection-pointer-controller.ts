@@ -46,6 +46,47 @@ export type CanvasEditorSelectPointerDownResult =
 	  }
 	| { handled: false };
 
+/**
+ * Expands a context-click target to the canonical selection a host should
+ * mutate: its group, or its complete frame relationship.
+ */
+export function getCanvasEditorContextSelectionIds(
+	target: CanvasElement,
+	elements: ReadonlyMap<string, CanvasElement>,
+) {
+	const ids = new Set([target.id]);
+	if (target.groupId) {
+		for (const [id, element] of elements) {
+			if (element.groupId === target.groupId) ids.add(id);
+		}
+		return ids;
+	}
+	if (target.type === "frame") {
+		for (const [id, element] of elements) {
+			if (element.frameId === target.id) ids.add(id);
+		}
+		return ids;
+	}
+	if (target.frameId) {
+		ids.add(target.frameId);
+		for (const [id, element] of elements) {
+			if (element.frameId === target.frameId) ids.add(id);
+		}
+	}
+	return ids;
+}
+
+/** Keeps an existing context selection, expands a new target, or clears it. */
+export function resolveCanvasEditorContextSelectionIds(
+	target: CanvasElement | null,
+	elements: ReadonlyMap<string, CanvasElement>,
+	selectedIds: ReadonlySet<string>,
+) {
+	if (!target) return new Set<string>();
+	if (selectedIds.has(target.id)) return new Set(selectedIds);
+	return getCanvasEditorContextSelectionIds(target, elements);
+}
+
 export function resolveCanvasEditorSelectPointerDown(
 	ctx: CanvasEditorSelectPointerDownContext,
 ): CanvasEditorSelectPointerDownResult {

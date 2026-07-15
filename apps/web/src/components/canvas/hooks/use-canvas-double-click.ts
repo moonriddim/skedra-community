@@ -8,7 +8,7 @@ import {
 	frameLabelHitTest,
 	getArrowTextSideFromPoint,
 	hitTest,
-	isPlainCanvasFrame,
+	isCanvasFrameLabelEditable,
 	pathTextLabelHitTest,
 } from "@skedra/canvas-core";
 import { getBBox } from "@skedra/canvas-core";
@@ -145,11 +145,11 @@ function getFrameLabelAtPosition(
 		if (el.locked) continue;
 		if (frameLabelHitTest(el, canvasX, canvasY)) return el;
 		/*
-		 * Liegt ein anderes Element (kein einfacher Frame) an diesem Punkt weiter
-		 * oben, gewinnt dieses Element; Frame-Koerper blockieren Labels nicht.
+		 * Liegt ein anderes Element (kein umbenennbarer Frame) an diesem Punkt
+		 * weiter oben, gewinnt dieses Element; Frame-Koerper blockieren Labels nicht.
 		 */
 		if (
-			!isPlainCanvasFrame(el) &&
+			!isCanvasFrameLabelEditable(el) &&
 			hitTest(el, canvasX, canvasY, { pathTextLabelHitTest })
 		) {
 			return null;
@@ -352,7 +352,7 @@ export function useCanvasDoubleClick({
 				 * Doppelklick in den Frame-Koerper oeffnet keinen Text-Editor mehr:
 				 * Umbenennen laeuft ueber das Label, Inhalte ueber die Elemente im Frame.
 				 */
-				if (isPlainCanvasFrame(el)) continue;
+				if (isCanvasFrameLabelEditable(el)) continue;
 				if (!hitTest(el, canvasX, canvasY, { pathTextLabelHitTest })) continue;
 				if (
 					openKanbanFromElement(el, setKanbanDetailId, setKanbanListDetailId)

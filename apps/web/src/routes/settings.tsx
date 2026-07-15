@@ -1,5 +1,6 @@
 import { BillingSettings } from "@/components/settings/billing-settings";
 import { ProfileAccountSecurity } from "@/components/settings/profile-account-security";
+import { ProfileImageEditor } from "@/components/settings/profile-image-editor";
 import { SystemCallSettings } from "@/components/settings/system-call-settings";
 import { SystemObjectStorageSettings } from "@/components/settings/system-object-storage-settings";
 import { SystemSmtpSettings } from "@/components/settings/system-smtp-settings";
@@ -76,7 +77,7 @@ const SCOPE_LABELS: Record<SkedraApiKeyScope, string> = {
 export function ApiKeysSettingsPage() {
 	const { t } = useI18n();
 	const utils = trpc.useUtils();
-	const { data: session } = authClient.useSession();
+	const { data: session, refetch: refetchSession } = authClient.useSession();
 	const { data: keys, isLoading: keysLoading } = trpc.apiKey.list.useQuery();
 	const { data: aiSettings, isLoading: aiLoading } =
 		trpc.ai.getSettings.useQuery();
@@ -469,6 +470,22 @@ export function ApiKeysSettingsPage() {
 								<h3 className="text-base font-semibold text-foreground mb-4">
 									Kontoinformationen
 								</h3>
+								<div className="mb-5 border-b border-border pb-5">
+									<ProfileImageEditor
+										user={session?.user}
+										onChanged={async () => {
+											await refetchSession();
+											await Promise.all([
+												utils.whiteboard.listCommentThreads.invalidate(),
+												utils.whiteboard.listActivity.invalidate(),
+												utils.whiteboard.listBoardActivity.invalidate(),
+												utils.whiteboard.getAssignmentOptions.invalidate(),
+												utils.whiteboard.listMembers.invalidate(),
+												utils.team.get.invalidate(),
+											]);
+										}}
+									/>
+								</div>
 								<div className="grid gap-4 sm:grid-cols-2">
 									<div>
 										<label

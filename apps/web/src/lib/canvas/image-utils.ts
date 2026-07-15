@@ -3,6 +3,10 @@
  */
 
 import { encryptImageAsset } from "@skedra/canvas-core";
+import {
+	canvasBlobToDataUrl,
+	loadCanvasImageBlobDimensions,
+} from "@skedra/canvas-io/browser-images";
 import { getApiUrl } from "../api-url";
 import {
 	buildEncryptedAssetReference,
@@ -26,20 +30,6 @@ export interface ImageUploadOptions {
 	e2eeKey?: string | null;
 	encryptionMode?: "server" | "e2ee";
 	collabShareToken?: string;
-}
-
-export function fitImageSize(
-	width: number,
-	height: number,
-	maxWidth: number,
-	maxHeight: number,
-): { width: number; height: number } {
-	if (width <= 0 || height <= 0) return { width: maxWidth, height: maxHeight };
-	const scale = Math.min(maxWidth / width, maxHeight / height, 1);
-	return {
-		width: Math.round(width * scale),
-		height: Math.round(height * scale),
-	};
 }
 
 export async function pickImageFile(
@@ -138,7 +128,7 @@ async function readImageFile(
 	) {
 		throw new Error("IMAGE_TOO_LARGE");
 	}
-	const dimensions = await loadImageFileDimensions(file);
+	const dimensions = await loadCanvasImageBlobDimensions(file);
 	const uploaded = await uploadEncryptedImageAsset(file, uploadOptions);
 	if (uploaded) {
 		return {
@@ -151,7 +141,7 @@ async function readImageFile(
 			storage: "object",
 		};
 	}
-	const src = await fileToDataUrl(file);
+	const src = await canvasBlobToDataUrl(file);
 	return {
 		src,
 		width: dimensions.width,
@@ -208,32 +198,4 @@ async function uploadEncryptedImageAsset(
 		assetId: uploaded.id,
 		src,
 	};
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onerror = () => reject(reader.error);
-		reader.onload = () => resolve(String(reader.result ?? ""));
-		reader.readAsDataURL(file);
-	});
-}
-
-function loadImageDimensions(
-	src: string,
-): Promise<{ width: number; height: number }> {
-	return new Promise((resolve, reject) => {
-		const image = new Image();
-		image.onload = () =>
-			resolve({ width: image.naturalWidth, height: image.naturalHeight });
-		image.onerror = reject;
-		image.src = src;
-	});
-}
-
-function loadImageFileDimensions(
-	file: File,
-): Promise<{ width: number; height: number }> {
-	const url = URL.createObjectURL(file);
-	return loadImageDimensions(url).finally(() => URL.revokeObjectURL(url));
 }

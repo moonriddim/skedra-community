@@ -35,7 +35,11 @@ function buildPendingTextElement(pendingText: PendingText): CanvasElement {
 }
 
 export const isGenericGeometry = (el: CanvasElement) =>
-	(el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") &&
+	(el.type === "rectangle" ||
+		el.type === "ellipse" ||
+		el.type === "diamond" ||
+		el.type === "triangle" ||
+		el.type === "cloud") &&
 	el.customData?.skedraType !== "sticky-note";
 
 export function resolveInspectedElements(options: {

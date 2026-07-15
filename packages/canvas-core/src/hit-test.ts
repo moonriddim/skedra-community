@@ -1,5 +1,9 @@
-import { getBBox } from "./geometry-bbox";
+import {
+	getUntransformedBBox,
+	inverseTransformCanvasElementPoint,
+} from "./geometry-bbox";
 import { pathTextLabelHitTest as defaultPathTextLabelHitTest } from "./path-rendering";
+import { getFreeformRevisionCloudScallopDepth } from "./shape-geometry";
 import type { CanvasElement } from "./types";
 
 const CURVE_HIT_SEGMENTS = 24;
@@ -29,16 +33,19 @@ export function hitTest(
 	const t = options.tolerance ?? 4;
 	const pathTextLabelHitTest =
 		options.pathTextLabelHitTest ?? defaultPathTextLabelHitTest;
-	const bbox = getBBox(el);
+	const localPoint = inverseTransformCanvasElementPoint(el, { x: px, y: py });
+	const hitX = localPoint.x;
+	const hitY = localPoint.y;
+	const bbox = getUntransformedBBox(el);
 
 	switch (el.type) {
 		case "rectangle":
 		case "text":
 			return (
-				px >= bbox.x - t &&
-				px <= bbox.x + bbox.width + t &&
-				py >= bbox.y - t &&
-				py <= bbox.y + bbox.height + t
+				hitX >= bbox.x - t &&
+				hitX <= bbox.x + bbox.width + t &&
+				hitY >= bbox.y - t &&
+				hitY <= bbox.y + bbox.height + t
 			);
 
 		case "diamond": {
@@ -46,7 +53,40 @@ export function hitTest(
 			const dcy = bbox.y + bbox.height / 2;
 			const drx = bbox.width / 2 + t;
 			const dry = bbox.height / 2 + t;
-			return Math.abs(px - dcx) / drx + Math.abs(py - dcy) / dry <= 1;
+			return Math.abs(hitX - dcx) / drx + Math.abs(hitY - dcy) / dry <= 1;
+		}
+
+		case "triangle":
+			return pointInPolygon(hitX, hitY, [
+				[bbox.x + bbox.width / 2, bbox.y - t],
+				[bbox.x + bbox.width + t, bbox.y + bbox.height + t],
+				[bbox.x - t, bbox.y + bbox.height + t],
+			]);
+
+		case "cloud": {
+			if (!el.points || el.points.length < 3) {
+				return (
+					hitX >= bbox.x - t &&
+					hitX <= bbox.x + bbox.width + t &&
+					hitY >= bbox.y - t &&
+					hitY <= bbox.y + bbox.height + t
+				);
+			}
+			const localX = hitX - el.x;
+			const localY = hitY - el.y;
+			if (pointInPolygon(localX, localY, el.points)) return true;
+			const tolerance =
+				t +
+				el.strokeWidth +
+				getFreeformRevisionCloudScallopDepth(el.points, el.cloudArcRadius);
+			for (let index = 0; index < el.points.length; index++) {
+				const [x1, y1] = el.points[index];
+				const [x2, y2] = el.points[(index + 1) % el.points.length];
+				if (pointToLineDistance(localX, localY, x1, y1, x2, y2) <= tolerance) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		case "ellipse": {
@@ -54,16 +94,16 @@ export function hitTest(
 			const cy = bbox.y + bbox.height / 2;
 			const rx = bbox.width / 2 + t;
 			const ry = bbox.height / 2 + t;
-			const dx = (px - cx) / rx;
-			const dy = (py - cy) / ry;
+			const dx = (hitX - cx) / rx;
+			const dy = (hitY - cy) / ry;
 			return dx * dx + dy * dy <= 1;
 		}
 
 		case "line": {
-			if (pathTextLabelHitTest?.(el, px, py, t + 6)) return true;
+			if (pathTextLabelHitTest?.(el, hitX, hitY, t + 6)) return true;
 			if (!el.points || el.points.length < 2) return false;
-			const localX = px - el.x;
-			const localY = py - el.y;
+			const localX = hitX - el.x;
+			const localY = hitY - el.y;
 			if (
 				el.closed === true &&
 				el.points.length >= 3 &&
@@ -105,7 +145,10 @@ export function hitTest(
 
 		case "arrow":
 		case "freehand": {
-			if (el.type === "arrow" && pathTextLabelHitTest?.(el, px, py, t + 6)) {
+			if (
+				el.type === "arrow" &&
+				pathTextLabelHitTest?.(el, hitX, hitY, t + 6)
+			) {
 				return true;
 			}
 			if (!el.points || el.points.length < 2) return false;
@@ -115,8 +158,8 @@ export function hitTest(
 				el.points.length >= 3
 			) {
 				return pointNearArrowCurve(
-					px - el.x,
-					py - el.y,
+					hitX - el.x,
+					hitY - el.y,
 					el.points,
 					t + el.strokeWidth + 4,
 					(el.roughness ?? 0) > 0,
@@ -126,7 +169,7 @@ export function hitTest(
 				const [x1, y1] = el.points[i];
 				const [x2, y2] = el.points[i + 1];
 				if (
-					pointToLineDistance(px - el.x, py - el.y, x1, y1, x2, y2) <=
+					pointToLineDistance(hitX - el.x, hitY - el.y, x1, y1, x2, y2) <=
 					t + el.strokeWidth + 4
 				) {
 					return true;
@@ -137,10 +180,10 @@ export function hitTest(
 
 		default:
 			return (
-				px >= bbox.x - t &&
-				px <= bbox.x + bbox.width + t &&
-				py >= bbox.y - t &&
-				py <= bbox.y + bbox.height + t
+				hitX >= bbox.x - t &&
+				hitX <= bbox.x + bbox.width + t &&
+				hitY >= bbox.y - t &&
+				hitY <= bbox.y + bbox.height + t
 			);
 	}
 }

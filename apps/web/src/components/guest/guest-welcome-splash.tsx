@@ -52,17 +52,17 @@ export function GuestWelcomeSplash({
 			<GuestToolbarHints />
 
 			{/* Zentrale Willkommens-Karte — unterhalb der Top-Hinweise */}
-			<div className="guest-welcome-scroll flex h-full items-center justify-center px-6 pt-[calc(9rem+env(safe-area-inset-top))] lg:pt-36 max-sm:px-4">
+			<div className="guest-welcome-scroll flex h-full items-center justify-center px-6 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(10rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pt-36 max-sm:px-4">
 				<div className="pointer-events-auto max-w-md text-center">
-					<div className="inline-flex items-center justify-center gap-3">
+					<div className="inline-flex max-w-full items-center justify-center gap-2.5">
 						<img
 							src="/logo-mark-transparent-dark.png"
 							alt=""
 							aria-hidden="true"
 							decoding="async"
-							className="h-16 w-16 object-contain drop-shadow-[0_0_18px_rgba(13,188,174,0.25)]"
+							className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(13,188,174,0.25)] sm:h-16 sm:w-16"
 						/>
-						<h1 className="font-comic-note text-5xl font-bold tracking-wide text-primary">
+						<h1 className="font-comic-note text-3xl font-bold leading-tight tracking-wide text-primary sm:text-5xl">
 							Skedra Online Whiteboard
 						</h1>
 					</div>

@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
 		lib: {
 			entry: {
 				commands: "src/commands.ts",
+				"editor-panels": "src/editor-panels.tsx",
 				exporters: "src/exporters.ts",
 				index: "src/index.ts",
 				factories: "src/factories.ts",

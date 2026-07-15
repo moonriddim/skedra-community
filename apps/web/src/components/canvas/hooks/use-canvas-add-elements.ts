@@ -10,18 +10,22 @@ import { useCallback } from "react";
 interface UseCanvasAddElementsOptions {
 	createElement: (el: CanvasElement) => void;
 	setKanbanDetailId: (id: string | null) => void;
+	stopUndoCapture?: () => void;
 }
 
 export function useCanvasAddElements({
 	createElement,
 	setKanbanDetailId,
+	stopUndoCapture,
 }: UseCanvasAddElementsOptions) {
 	const storeRef = useCanvasStoreRef();
 
 	return useCallback(
 		(newElements: CanvasElement[]) => {
 			const store = storeRef.current;
+			stopUndoCapture?.();
 			for (const el of newElements) createElement(el);
+			stopUndoCapture?.();
 
 			if (newElements.length === 1) {
 				const [singleElement] = newElements;
@@ -46,6 +50,6 @@ export function useCanvasAddElements({
 				}
 			}
 		},
-		[createElement, setKanbanDetailId, storeRef],
+		[createElement, setKanbanDetailId, stopUndoCapture, storeRef],
 	);
 }

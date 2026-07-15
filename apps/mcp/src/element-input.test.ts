@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMcpCanvasElement } from "./element-input.js";
+import { createMcpCanvasElement, elementInputSchema } from "./element-input.js";
 
 const defaults = { createId: () => "mcp-path", stroke: "#111111" };
 
@@ -33,4 +33,20 @@ test("does not add path points to bounded MCP shapes", () => {
 	});
 
 	assert.equal(element.points, undefined);
+});
+
+test("shares divided-pyramid validation and mapping with REST and Web", () => {
+	const input = elementInputSchema.parse({
+		type: "triangle",
+		x: 0,
+		y: 0,
+		width: 120,
+		height: 100,
+		pyramidSections: 4,
+	});
+	assert.equal(createMcpCanvasElement(defaults, input).pyramidSections, 4);
+	assert.equal(
+		elementInputSchema.safeParse({ ...input, pyramidSections: 13 }).success,
+		false,
+	);
 });

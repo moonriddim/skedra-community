@@ -4,6 +4,7 @@ import { useId } from "react";
 export interface CanvasEditorGridOverlayProps {
 	enabled: boolean;
 	zoom: number;
+	gridSize?: number;
 	patternId?: string;
 	color?: string;
 	opacity?: number;
@@ -14,6 +15,7 @@ export interface CanvasEditorGridOverlayProps {
 export function CanvasEditorGridOverlay({
 	enabled,
 	zoom,
+	gridSize = GRID_SIZE,
 	patternId,
 	color = "var(--foreground, currentColor)",
 	opacity = 0.15,
@@ -28,8 +30,8 @@ export function CanvasEditorGridOverlay({
 			<defs>
 				<pattern
 					id={id}
-					width={GRID_SIZE}
-					height={GRID_SIZE}
+					width={gridSize}
+					height={gridSize}
 					patternUnits="userSpaceOnUse"
 				>
 					<circle

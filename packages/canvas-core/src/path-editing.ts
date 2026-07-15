@@ -4,7 +4,9 @@ export function isCanvasPointPathElement(
 	element: CanvasElement,
 ): element is CanvasElement & { points: [number, number][] } {
 	return (
-		(element.type === "line" || element.type === "arrow") &&
+		(element.type === "line" ||
+			element.type === "arrow" ||
+			element.type === "cloud") &&
 		(element.points?.length ?? 0) >= 2
 	);
 }

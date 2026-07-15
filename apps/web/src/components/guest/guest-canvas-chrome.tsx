@@ -97,7 +97,10 @@ export function GuestCanvasChrome({
 							<Menu className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-64">
+					<DropdownMenuContent
+						align="start"
+						className="w-64 max-lg:max-h-[calc(100dvh-5.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(20rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:overflow-y-auto max-lg:overscroll-contain"
+					>
 						<DropdownMenuItem onClick={onSave}>
 							<Save className="mr-2 h-4 w-4" />
 							{t("guestCanvas.saveToCloud")}

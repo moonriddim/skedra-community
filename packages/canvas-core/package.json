@@ -19,6 +19,7 @@
 		"./excalidraw-import": "./src/excalidraw-import.ts",
 		"./flowchart": "./src/flowchart.ts",
 		"./flowchart-navigation": "./src/flowchart-navigation.ts",
+		"./frame-membership": "./src/frame-membership.ts",
 		"./types": "./src/types.ts",
 		"./geometry": "./src/geometry.ts",
 		"./geometry-bbox": "./src/geometry-bbox.ts",
@@ -36,8 +37,11 @@
 		"./search": "./src/search.ts",
 		"./selection": "./src/selection.ts",
 		"./selection-operations": "./src/selection-operations.ts",
+		"./shape-geometry": "./src/shape-geometry.ts",
 		"./snap": "./src/snap.ts",
-		"./viewport": "./src/viewport.ts"
+		"./viewport": "./src/viewport.ts",
+		"./wireframe": "./src/wireframe.ts",
+		"./wireframe-presets": "./src/wireframe-presets.ts"
 	},
 	"scripts": {
 		"build": "tsc --declaration --emitDeclarationOnly --outDir dist",

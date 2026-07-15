@@ -7,6 +7,7 @@ import type { TemplateSectionMeta } from "@/lib/canvas/template-tool-utils";
 import {
 	FLOWCHART_NO_COLOR,
 	FLOWCHART_YES_COLOR,
+	buildCloudArcRadiusChanges,
 	buildMindmapBranchColorUpdates,
 	getFlowchartConnectorMeta,
 } from "@skedra/canvas-core";
@@ -28,9 +29,11 @@ interface StoreDrawingDefaults {
 	setStrokeWidth: (width: number) => void;
 	setStrokeStyle: (style: StrokeStyle) => void;
 	setCornerRadiusPercent: (percent: number) => void;
+	setCloudArcRadius: (radius: number) => void;
 	setRoughness: (value: number) => void;
 	setRoughFillStyle: (style: RoughFillStyle) => void;
 	setRoughFillScale: (scale: number) => void;
+	setPyramidSections: (sections: number) => void;
 	setArrowMode: (mode: ArrowMode) => void;
 	setArrowHeadStart: (head: ArrowHead) => void;
 	setArrowHeadEnd: (head: ArrowHead) => void;
@@ -98,10 +101,12 @@ function syncStoreDrawingDefault(
 	else if (key === "strokeStyle") store.setStrokeStyle(value as StrokeStyle);
 	else if (key === "cornerRadiusPercent")
 		store.setCornerRadiusPercent(value as number);
+	else if (key === "cloudArcRadius") store.setCloudArcRadius(value as number);
 	else if (key === "roughness") store.setRoughness(value as number);
 	else if (key === "roughFillStyle")
 		store.setRoughFillStyle(value as RoughFillStyle);
 	else if (key === "roughFillScale") store.setRoughFillScale(value as number);
+	else if (key === "pyramidSections") store.setPyramidSections(value as number);
 	else if (key === "arrowMode") store.setArrowMode(value as ArrowMode);
 	else if (key === "arrowHeadStart")
 		store.setArrowHeadStart(value as ArrowHead);
@@ -156,6 +161,14 @@ export function applyPropertiesPanelPropertyChange({
 						cornerRadiusPercent: percent,
 						cornerRadius: undefined,
 					} as Partial<CanvasElement>,
+				}));
+			if (updates.length > 0) onUpdateElements(updates);
+		} else if (key === "cloudArcRadius") {
+			const updates = selected
+				.filter((el) => el.type === "cloud")
+				.map((el) => ({
+					id: el.id,
+					changes: buildCloudArcRadiusChanges(el, value as number),
 				}));
 			if (updates.length > 0) onUpdateElements(updates);
 		} else {

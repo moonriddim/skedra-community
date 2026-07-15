@@ -1,4 +1,9 @@
 import {
+	WIREFRAME_BLANK_PRESET_IDS,
+	WIREFRAME_COMPONENT_CATEGORIES,
+	WIREFRAME_COMPONENT_IDS,
+	WIREFRAME_PRESET_IDS,
+	WIREFRAME_STARTER_PRESET_IDS,
 	createBaseCanvasElement,
 	createCanvasTemplateElements,
 	createCanvasTemplateSectionFrame,
@@ -6,6 +11,9 @@ import {
 	createKanbanCardElement,
 	createStackIndexAfter,
 	createStickyNoteElement,
+	createWireframeComponentElements,
+	createWireframePresetElements,
+	createWireframeScreenElements,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "./types.js";
 
@@ -18,6 +26,44 @@ export type SkedraSdkTemplateId =
 	| "wireframe";
 
 export type SkedraSdkResolvedTheme = "light" | "dark";
+export type SkedraWireframeViewport = "desktop" | "tablet" | "mobile";
+export type SkedraWireframeChrome = "browser" | "mobile" | "none";
+export type SkedraWireframeComponentId =
+	| "navbar"
+	| "topbar"
+	| "sidebar"
+	| "hero"
+	| "text-block"
+	| "button"
+	| "input"
+	| "textarea"
+	| "search"
+	| "checkbox"
+	| "radio"
+	| "toggle"
+	| "select"
+	| "tabs"
+	| "breadcrumb"
+	| "card"
+	| "image"
+	| "avatar"
+	| "list"
+	| "table"
+	| "modal"
+	| "pagination"
+	| "bottom-nav"
+	| "divider"
+	| "skeleton";
+export type SkedraWireframePresetId =
+	| "responsive-landing"
+	| "blank-desktop"
+	| "blank-tablet"
+	| "blank-mobile"
+	| "dashboard"
+	| "mobile-app"
+	| "login"
+	| "ecommerce"
+	| "settings";
 
 export interface SkedraSdkThemeState {
 	resolvedTheme: SkedraSdkResolvedTheme;
@@ -117,6 +163,27 @@ export interface CreateSkedraTemplateElementsOptions
 	extends SkedraFactoryOptions {
 	x: number;
 	y: number;
+}
+
+export interface CreateSkedraWireframeComponentOptions
+	extends CreateSkedraTemplateElementsOptions {
+	component: SkedraWireframeComponentId;
+	viewport?: SkedraWireframeViewport;
+	frameId?: string;
+}
+
+export interface CreateSkedraWireframeScreenOptions
+	extends CreateSkedraTemplateElementsOptions {
+	viewport: SkedraWireframeViewport;
+	width?: number;
+	height?: number;
+	label?: string;
+	chrome?: SkedraWireframeChrome;
+}
+
+export interface CreateSkedraWireframePresetOptions
+	extends CreateSkedraTemplateElementsOptions {
+	preset: SkedraWireframePresetId;
 }
 
 const TOOL_FONT_FAMILY =
@@ -294,6 +361,51 @@ export function createSkedraTemplateElements(
 		fontFamily: TOOL_FONT_FAMILY,
 		flowchartStroke: options.stroke,
 		mindmapAppearance: getSkedraMindmapAppearance(options),
+	});
+}
+
+export const SKEDRA_WIREFRAME_COMPONENT_IDS: readonly SkedraWireframeComponentId[] =
+	WIREFRAME_COMPONENT_IDS;
+export const SKEDRA_WIREFRAME_COMPONENT_CATEGORIES: Readonly<
+	Record<
+		"layout" | "content" | "forms" | "data",
+		readonly SkedraWireframeComponentId[]
+	>
+> = WIREFRAME_COMPONENT_CATEGORIES;
+export const SKEDRA_WIREFRAME_PRESET_IDS: readonly SkedraWireframePresetId[] =
+	WIREFRAME_PRESET_IDS;
+export const SKEDRA_WIREFRAME_BLANK_PRESET_IDS: readonly SkedraWireframePresetId[] =
+	WIREFRAME_BLANK_PRESET_IDS;
+export const SKEDRA_WIREFRAME_STARTER_PRESET_IDS: readonly SkedraWireframePresetId[] =
+	WIREFRAME_STARTER_PRESET_IDS;
+
+export function createSkedraWireframeComponentElements(
+	options: CreateSkedraWireframeComponentOptions,
+): CanvasElement[] {
+	return createWireframeComponentElements({
+		...options,
+		defaults: getSkedraElementFactoryDefaults(options),
+		fontFamily: TOOL_FONT_FAMILY,
+	});
+}
+
+export function createSkedraWireframeScreenElements(
+	options: CreateSkedraWireframeScreenOptions,
+): CanvasElement[] {
+	return createWireframeScreenElements({
+		...options,
+		defaults: getSkedraElementFactoryDefaults(options),
+		fontFamily: TOOL_FONT_FAMILY,
+	});
+}
+
+export function createSkedraWireframePresetElements(
+	options: CreateSkedraWireframePresetOptions,
+): CanvasElement[] {
+	return createWireframePresetElements({
+		...options,
+		defaults: getSkedraElementFactoryDefaults(options),
+		fontFamily: TOOL_FONT_FAMILY,
 	});
 }
 

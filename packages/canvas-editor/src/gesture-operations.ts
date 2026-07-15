@@ -13,6 +13,8 @@ export interface CanvasEditorMoveGestureOptions {
 	start: { x: number; y: number };
 	current: { x: number; y: number };
 	snapToObjects: boolean;
+	/** The grabbed snap base point already resolved to an exact target anchor. */
+	anchorSnapped?: boolean;
 }
 
 export function resolveCanvasEditorMoveGesture({
@@ -22,6 +24,7 @@ export function resolveCanvasEditorMoveGesture({
 	start,
 	current,
 	snapToObjects,
+	anchorSnapped = false,
 }: CanvasEditorMoveGestureOptions): {
 	updates: Array<{ id: string; changes: Partial<CanvasElement> }>;
 	guides: SnapGuide[];
@@ -30,7 +33,7 @@ export function resolveCanvasEditorMoveGesture({
 	let dy = current.y - start.y;
 	let guides: SnapGuide[] = [];
 
-	if (snapToObjects) {
+	if (snapToObjects && !anchorSnapped) {
 		let minX = Number.POSITIVE_INFINITY;
 		let minY = Number.POSITIVE_INFINITY;
 		let maxX = Number.NEGATIVE_INFINITY;

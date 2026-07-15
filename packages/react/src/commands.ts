@@ -66,6 +66,45 @@ export type SkedraLayerCommand =
 	| "bring-to-front"
 	| "send-to-back";
 
+export type SkedraObjectSnapMode =
+	| "endpoint"
+	| "midpoint"
+	| "division"
+	| "center"
+	| "geometric-center"
+	| "quadrant"
+	| "intersection"
+	| "extension"
+	| "insertion"
+	| "nearest";
+
+export interface SkedraObjectSnapSettings {
+	enabled: boolean;
+	endpoints: boolean;
+	midpoints: boolean;
+	divisions: boolean;
+	/** Evenly spaced interior division points per straight side (2-8). */
+	divisionCount: number;
+	centers: boolean;
+	nearest: boolean;
+	geometricCenters: boolean;
+	quadrants: boolean;
+	intersections: boolean;
+	extensions: boolean;
+	insertions: boolean;
+	showPoints: boolean;
+}
+
+export interface SkedraGridSettings {
+	visible: boolean;
+	snap: boolean;
+	size: number;
+}
+
+export type SkedraSelectionTransform =
+	| { type: "flip"; axis: "horizontal" | "vertical" }
+	| { type: "rotate"; angle: number };
+
 export interface SkedraFlowchartStepOptions {
 	branch?: "next" | "yes" | "no";
 	route?: "up" | "right" | "down" | "left" | "left-up";
@@ -127,12 +166,24 @@ export interface SkedraCanvasExtendedApi {
 	distribute: (axis: SkedraDistribution) => void;
 	layer: (command: SkedraLayerCommand) => void;
 	flip: (axis: "horizontal" | "vertical") => void;
+	rotateSelection: (angle: number) => void;
+	cloneTransformedSelection: (
+		transform: SkedraSelectionTransform,
+	) => CanvasElement[];
+	setTransformOrigin: (origin: { x: number; y: number } | null) => void;
+	getTransformOrigin: () => { x: number; y: number } | null;
 	setLocked: (locked?: boolean) => void;
 	setProperties: (properties: Partial<CanvasElement>) => void;
+	setCanvasBackground: (background: string) => void;
+	getCanvasBackground: () => string;
 	setGrid: (enabled: boolean) => void;
 	getGrid: () => boolean;
+	setGridSettings: (settings: Partial<SkedraGridSettings>) => void;
+	getGridSettings: () => SkedraGridSettings;
 	setObjectSnap: (enabled: boolean) => void;
 	getObjectSnap: () => boolean;
+	setObjectSnapSettings: (settings: Partial<SkedraObjectSnapSettings>) => void;
+	getObjectSnapSettings: () => SkedraObjectSnapSettings;
 	getViewport: () => Viewport;
 	setViewport: (viewport: Viewport) => void;
 	insertImage: (
@@ -175,6 +226,10 @@ export interface SkedraCanvasExtendedApi {
 	previousView: () => void;
 	stopPresentation: () => void;
 	exportFile: () => SkedraFile;
+	exportFrame: (
+		frameId: string,
+		format: "svg" | "png" | "pdf" | "pptx",
+	) => Promise<Blob | null>;
 	importFile: (file: SkedraFile) => void;
 	executeCommand: (command: SkedraCanvasCommandId) => void;
 	insertTemplate: (

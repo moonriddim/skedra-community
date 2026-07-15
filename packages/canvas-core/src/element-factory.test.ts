@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
 	type CanvasElementFactoryDefaults,
+	createCanvasElementFromBoundsInput,
 	createImageCanvasElement,
 	createKanbanListElements,
 	createStickyNoteElement,
@@ -40,6 +41,10 @@ test("fits images without upscaling", () => {
 		width: 120,
 		height: 80,
 	});
+	assert.deepEqual(fitImageSize(0, 0, 480, 360), {
+		width: 480,
+		height: 360,
+	});
 
 	const image = createImageCanvasElement(defaults, {
 		x: 0,
@@ -51,6 +56,31 @@ test("fits images without upscaling", () => {
 	});
 	assert.equal(image.width, 480);
 	assert.equal(image.customData?.naturalWidth, 960);
+});
+
+test("creates API and MCP bounds elements through one canonical mapper", () => {
+	const pyramid = createCanvasElementFromBoundsInput(defaults, {
+		id: "pyramid",
+		type: "triangle",
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 120,
+		pyramidSections: 4,
+	});
+	assert.equal(pyramid.id, "pyramid");
+	assert.equal(pyramid.pyramidSections, 4);
+	assert.equal(pyramid.stroke, "#111111");
+
+	const arrow = createCanvasElementFromBoundsInput(
+		defaults,
+		{ type: "arrow", x: 0, y: 0, width: 80, height: 40 },
+		{ createPathPointsFromBounds: true },
+	);
+	assert.deepEqual(arrow.points, [
+		[0, 0],
+		[80, 40],
+	]);
 });
 
 test("creates kanban lists and cards without numeric layer ordering", () => {

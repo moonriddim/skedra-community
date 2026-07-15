@@ -21,6 +21,11 @@ export interface SkedraPropertiesPanelProps {
 	style?: CSSProperties;
 	ariaLabel?: string;
 	translate?: (key: string, fallback: string) => string;
+	canvasBackground?: {
+		value: string;
+		options: readonly string[];
+		onChange: (value: string) => void;
+	};
 	pathDrawMode?: "normal" | "multi";
 	onPathDrawModeChange?: (mode: "normal" | "multi") => void;
 	onSetProperties: (properties: Partial<CanvasElement>) => void;
@@ -62,6 +67,7 @@ export interface SkedraPropertiesPanelProps {
 	onAddKanbanCard?: (listId: string) => void;
 	onAddTemplateSticky?: (sectionId: string) => void;
 	onCopy?: () => void;
+	onExportFrame?: (format: "png" | "svg") => void;
 }
 
 export function SkedraPropertiesPanel(props: SkedraPropertiesPanelProps) {

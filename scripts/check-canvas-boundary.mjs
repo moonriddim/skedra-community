@@ -14,6 +14,7 @@ const legacyWebRendererDir = path.join(
 );
 const scanRoots = [
 	path.join(repoRoot, "apps", "api", "src"),
+	path.join(repoRoot, "apps", "mcp", "src"),
 	path.join(repoRoot, "apps", "web", "src"),
 	path.join(repoRoot, "packages", "canvas-core", "src"),
 	path.join(repoRoot, "packages", "canvas-editor", "src"),
@@ -181,6 +182,18 @@ const sharedInteractionConsumers = [
 		"CanvasEditorPropertiesPanel",
 	],
 	["packages/react/src/properties-panel.tsx", "CanvasEditorPropertiesPanel"],
+	["apps/web/src/components/canvas/layers-panel.tsx", "CanvasEditorLayerPanel"],
+	["packages/react/src/editor-panels.tsx", "CanvasEditorLayerPanel"],
+	[
+		"apps/web/src/components/canvas/wireframe-panel.tsx",
+		"CanvasEditorWireframePanel",
+	],
+	["packages/react/src/editor-panels.tsx", "CanvasEditorWireframePanel"],
+	[
+		"apps/web/src/components/canvas/context-menu.tsx",
+		"CanvasEditorContextMenu",
+	],
+	["packages/react/src/skedra-canvas.tsx", "CanvasEditorContextMenu"],
 ];
 
 // Hosts may wire storage/product services into the shared runtime, but the
@@ -193,6 +206,115 @@ for (const [file, contract] of sharedInteractionConsumers) {
 	}
 }
 
+const webToolbarSource = readRepoFile(
+	"apps/web/src/components/canvas/canvas-toolbar.tsx",
+);
+if (
+	!webToolbarSource.includes("responsive={{") ||
+	webToolbarSource.includes("useMobileCanvasToolbar") ||
+	webToolbarSource.includes("MOBILE_PRIMARY_TOOLS") ||
+	webToolbarSource.includes("matchMedia(")
+) {
+	errors.push(
+		"Compact toolbar behavior must be implemented once by CanvasEditorToolbar.",
+	);
+}
+
+const sdkToolbarSource = readRepoFile("packages/react/src/skedra-canvas.tsx");
+if (!sdkToolbarSource.includes("responsive={{")) {
+	errors.push("The bundled SDK must consume the shared compact toolbar mode.");
+}
+
+const webContextMenuSource = readRepoFile(
+	"apps/web/src/components/canvas/context-menu.tsx",
+);
+if (
+	/<(?:button|input|form)\b/u.test(webContextMenuSource) ||
+	webContextMenuSource.includes("createPortal") ||
+	webContextMenuSource.includes("CanvasEditorSnapMenu")
+) {
+	errors.push(
+		"The Community context menu must remain a thin adapter over CanvasEditorContextMenu.",
+	);
+}
+
+const sdkPanelsSource = readRepoFile("packages/react/src/editor-panels.tsx");
+if (!sdkPanelsSource.includes("SkedraContextMenu")) {
+	errors.push("@skedra/react must publicly expose the shared context menu.");
+}
+
+for (const file of [
+	"apps/web/src/hooks/use-canvas-keyboard/operations.ts",
+	"packages/react/src/skedra-canvas.tsx",
+]) {
+	const source = readRepoFile(file);
+	for (const contract of [
+		"getCanvasElementFormat",
+		"buildCanvasElementFormatUpdates",
+	]) {
+		if (!source.includes(contract)) {
+			errors.push(
+				`${file} must consume shared format clipboard logic: ${contract}.`,
+			);
+		}
+	}
+	if (
+		/\b(?:interface\s+FormatClipboard|type\s+SdkFormatClipboard)\b/u.test(
+			source,
+		)
+	) {
+		errors.push(
+			`Format clipboard implementations must stay in canvas-core: ${file}`,
+		);
+	}
+}
+
+for (const file of [
+	"apps/web/src/components/canvas/skedra-canvas.tsx",
+	"packages/react/src/skedra-canvas.tsx",
+]) {
+	const source = readRepoFile(file);
+	if (!source.includes("resolveCanvasEditorRotationKeyDelta")) {
+		errors.push(
+			`${file} must consume shared editor behavior: resolveCanvasEditorRotationKeyDelta.`,
+		);
+	}
+}
+
+for (const file of [
+	"apps/web/src/components/canvas/canvas-stage.tsx",
+	"packages/react/src/skedra-canvas.tsx",
+]) {
+	if (!readRepoFile(file).includes("getCanvasSelectionSnapPointIndicators")) {
+		errors.push(
+			`${file} must consume shared snap-point presentation: getCanvasSelectionSnapPointIndicators.`,
+		);
+	}
+}
+
+const webLayerPanelSource = readRepoFile(
+	"apps/web/src/components/canvas/layers-panel.tsx",
+);
+if (/max-lg:|safe-area-inset|\bbottom-\[/u.test(webLayerPanelSource)) {
+	errors.push(
+		"Layer panel responsiveness must stay in packages/canvas-editor/src/style.css.",
+	);
+}
+
+const webPreviewSource = readRepoFile("apps/web/src/lib/canvas/preview.ts");
+const boardPreviewSource = readRepoFile(
+	"apps/web/src/components/board/board-card-preview.tsx",
+);
+if (
+	webPreviewSource.includes("getCombinedBBox") ||
+	/\bfunction\s+get\w*PreviewBounds\b/u.test(webPreviewSource) ||
+	!boardPreviewSource.includes("getCanvasPreviewBounds")
+) {
+	errors.push(
+		"Preview geometry must stay in canvas-core; Web may only adapt Yjs and encryption state.",
+	);
+}
+
 const sharedEditorStyles = readRepoFile("packages/canvas-editor/src/style.css");
 for (const contract of [
 	"container: canvas-editor / size",
@@ -202,6 +324,7 @@ for (const contract of [
 	".canvas-editor__toolbar-popover",
 	".canvas-editor__properties",
 	".canvas-editor__saved-views-bar",
+	".canvas-editor__snap-menu",
 	"@media (any-pointer: coarse)",
 ]) {
 	if (!sharedEditorStyles.includes(contract)) {
@@ -266,6 +389,16 @@ for (const contract of [
 	if (!new RegExp(`\\b${contract}\\b`, "u").test(sharedPropertiesConsumer)) {
 		errors.push(`The Community properties adapter must preserve ${contract}.`);
 	}
+}
+
+if (
+	!readRepoFile(
+		"apps/web/src/components/canvas/properties-panel/use-properties-panel.ts",
+	).includes("buildFrameSizeUpdates")
+) {
+	errors.push(
+		"The Community properties adapter must resize frame children through canvas-core.",
+	);
 }
 
 for (const relative of [
@@ -366,6 +499,159 @@ for (const relative of forbiddenGenericHostFiles) {
 }
 
 const sdkCanvasSource = readRepoFile("packages/react/src/skedra-canvas.tsx");
+if (!sdkCanvasSource.includes("buildFrameResizeChildUpdates")) {
+	errors.push(
+		"The SDK properties adapter must resize frame children through canvas-core.",
+	);
+}
+for (const [contract, message] of [
+	[
+		"onRotateStart={editorPointer.beginRotate}",
+		"wire the shared rotation gesture",
+	],
+	["onRotateKeyDown={rotateWithKeyboard}", "wire accessible rotation"],
+	["snapCanvasPointToGrid", "consume shared configurable grid snapping"],
+	["setObjectSnapSettings", "expose object-snap settings publicly"],
+	["exportSdkFrame", "expose shared frame export"],
+	["canvasBackground={{", "expose shared canvas-background controls"],
+	["setCanvasBackground", "expose canvas-background state publicly"],
+]) {
+	if (!sdkCanvasSource.includes(contract)) {
+		errors.push(`The SDK must ${message}: ${contract}.`);
+	}
+}
+
+const sdkExporterSource = readRepoFile("packages/react/src/exporters.ts");
+for (const contract of ["exportSharedFrame", "getSharedFrameExportFilename"]) {
+	if (!sdkExporterSource.includes(contract)) {
+		errors.push(
+			`@skedra/react/exporters must publish the shared frame export contract: ${contract}.`,
+		);
+	}
+}
+
+const webSnapPlacementSource = readRepoFile(
+	"apps/web/src/hooks/use-canvas-pointer/snap-placement.ts",
+);
+if (
+	!webSnapPlacementSource.includes("getCanvasEditorSnapModeOptions") ||
+	!webSnapPlacementSource.includes("canvasEditorToolSupportsSnapOverride")
+) {
+	errors.push(
+		"The Community snap adapter must consume the shared snap-mode mapping and tool policy.",
+	);
+}
+
+const mcpElementInputSource = readRepoFile("apps/mcp/src/element-input.ts");
+if (
+	!mcpElementInputSource.includes("canvasBoundsElementInputSchema") ||
+	!mcpElementInputSource.includes("createCanvasElementFromBoundsInput") ||
+	mcpElementInputSource.includes("z.object(")
+) {
+	errors.push(
+		"MCP canvas inputs must consume the canonical shared schema and core element mapper.",
+	);
+}
+
+for (const relative of [
+	"apps/web/src/components/canvas/canvas-cad-status-bar.tsx",
+	"packages/canvas-editor/src/canvas-editor-cad-status-bar.tsx",
+]) {
+	if (fs.existsSync(path.join(repoRoot, relative))) {
+		errors.push(`Removed CAD status UI must not be restored: ${relative}.`);
+	}
+}
+for (const relative of [
+	"packages/canvas-editor/src/index.ts",
+	"packages/react/src/editor-panels.tsx",
+	"packages/react/src/index.ts",
+	"packages/react/src/skedra-canvas.tsx",
+]) {
+	if (/\b(?:CanvasEditor|Skedra)CadStatusBar\b/u.test(readRepoFile(relative))) {
+		errors.push(
+			`Removed CAD status UI must not be exported or mounted: ${relative}.`,
+		);
+	}
+}
+
+const webYjsDocumentSource = readRepoFile(
+	"apps/web/src/lib/canvas/yjs-document-helpers.ts",
+);
+const mcpE2eeSource = readRepoFile("apps/mcp/src/canvas-e2ee.ts");
+if (
+	!webYjsDocumentSource.includes("@skedra/canvas-io/yjs-document") ||
+	!mcpE2eeSource.includes("@skedra/canvas-io/yjs-document")
+) {
+	errors.push("Web and MCP must consume the shared Yjs document codec.");
+}
+
+const webImageSource = readRepoFile("apps/web/src/lib/canvas/image-utils.ts");
+const sdkIoSource = readRepoFile("packages/react/src/io.ts");
+if (
+	!webImageSource.includes("@skedra/canvas-io/browser-images") ||
+	!sdkIoSource.includes("@skedra/canvas-io/browser-images") ||
+	/\bfunction\s+(?:fileToDataUrl|loadImageDimensions|fitImageSize)\b/u.test(
+		webImageSource,
+	) ||
+	/\bfunction\s+(?:blobToDataUrl|loadImageDimensions)\b/u.test(sdkIoSource)
+) {
+	errors.push("Web and SDK image helpers must consume shared Core/IO logic.");
+}
+
+const webStickySource = readRepoFile(
+	"apps/web/src/lib/canvas/sticky-display.ts",
+);
+const editorPropertiesSource = readRepoFile(
+	"packages/canvas-editor/src/canvas-editor-properties-panel.tsx",
+);
+if (
+	!webStickySource.includes("buildStickyNoteModeChange") ||
+	!editorPropertiesSource.includes("buildStickyNoteModeChange")
+) {
+	errors.push("Every host must use the approved shared sticky-note migration.");
+}
+
+const rendererConfigSource = readRepoFile(
+	"packages/canvas-react/src/renderer-config.tsx",
+);
+const webKanbanDueSource = readRepoFile(
+	"apps/web/src/lib/canvas/kanban-due-status.ts",
+);
+if (
+	!rendererConfigSource.includes("resolveKanbanDueKind") ||
+	!webKanbanDueSource.includes("resolveCanvasRendererDueStatus")
+) {
+	errors.push("Web and SDK renderers must share Kanban due-date behavior.");
+}
+
+const webTemplateSharedSource = readRepoFile(
+	"apps/web/src/lib/templates/shared.ts",
+);
+if (
+	webTemplateSharedSource.includes("createTemplateBuilder") ||
+	webTemplateSharedSource.includes("addModule")
+) {
+	errors.push("Template construction must stay in canvas-core, not Web.");
+}
+
+const sdkEditorPanelsSource = readRepoFile(
+	"packages/react/src/editor-panels.tsx",
+);
+if (
+	!sdkEditorPanelsSource.includes("getSkedraLayerReorderUpdates") ||
+	!sdkEditorPanelsSource.includes("buildLayerReorderUpdates")
+) {
+	errors.push("The SDK must expose the shared layer-reorder planner.");
+}
+
+const webPointerBridgeSource = readRepoFile(
+	"apps/web/src/components/canvas/hooks/use-skedra-canvas-pointer-bridge.ts",
+);
+if (!webPointerBridgeSource.includes("canvasEditorToolSupportsSnapOverride")) {
+	errors.push(
+		"The Community pointer bridge must consume the shared snap-override tool policy.",
+	);
+}
 for (const pattern of [
 	/\bconst\s+handlePointer(?:Down|Move|Up|Cancel)\b/u,
 	/window\.addEventListener\(\s*["']key(?:down|up)["']/u,
@@ -518,6 +804,17 @@ for (const relative of [
 }
 
 for (const relative of [
+	"apps/web/src/components/canvas/layers-panel.tsx",
+	"apps/web/src/components/canvas/wireframe-panel.tsx",
+]) {
+	if (/<(?:aside|button|input)\b/u.test(readRepoFile(relative))) {
+		errors.push(
+			`Generic productivity panel markup must live in packages/canvas-editor: ${relative}`,
+		);
+	}
+}
+
+for (const relative of [
 	"apps/web/src/components/canvas/canvas-stage.tsx",
 	"packages/react/src/skedra-canvas.tsx",
 ]) {
@@ -659,6 +956,16 @@ const centralizedEditorPatterns = [
 	/\bfunction\s+buildTemplateSectionLayout\b/u,
 ];
 
+const centralizedSelectionPatterns = [
+	/\bfunction\s+cloneTransformedCanvasSelection\b/u,
+];
+const centralizedWireframePatterns = [
+	/\bfunction\s+resolveWireframeInsertionTarget\b/u,
+];
+const centralizedEditorSelectionPatterns = [
+	/\bfunction\s+getCanvasEditorContextSelectionIds\b/u,
+];
+
 for (const file of listFiles(webCanvasDir)) {
 	if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
 	const relative = toPosix(path.relative(webCanvasDir, file));
@@ -704,6 +1011,31 @@ for (const root of scanRoots) {
 		) {
 			errors.push(
 				`Stack ordering implementation must stay centralized in packages/canvas-core/src/ordering.ts: ${relative}`,
+			);
+		}
+		if (
+			relative !== "packages/canvas-core/src/selection-operations.ts" &&
+			centralizedSelectionPatterns.some((pattern) => pattern.test(source))
+		) {
+			errors.push(
+				`Selection transforms must stay centralized in canvas-core: ${relative}`,
+			);
+		}
+		if (
+			relative !== "packages/canvas-core/src/wireframe.ts" &&
+			centralizedWireframePatterns.some((pattern) => pattern.test(source))
+		) {
+			errors.push(
+				`Wireframe targeting must stay centralized in canvas-core: ${relative}`,
+			);
+		}
+		if (
+			relative !==
+				"packages/canvas-editor/src/selection-pointer-controller.ts" &&
+			centralizedEditorSelectionPatterns.some((pattern) => pattern.test(source))
+		) {
+			errors.push(
+				`Context selection behavior must stay centralized in canvas-editor: ${relative}`,
 			);
 		}
 	}

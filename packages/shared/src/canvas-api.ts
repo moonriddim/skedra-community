@@ -1,17 +1,11 @@
+import {
+	CANVAS_BOUNDS_ELEMENT_TYPES,
+	CANVAS_ELEMENT_TYPES,
+} from "@skedra/canvas-core";
 import { z } from "zod";
 
 /** Erlaubte Element-Typen fuer die Public API. */
-export const canvasElementTypeSchema = z.enum([
-	"rectangle",
-	"ellipse",
-	"diamond",
-	"line",
-	"arrow",
-	"image",
-	"text",
-	"freehand",
-	"frame",
-]);
+export const canvasElementTypeSchema = z.enum(CANVAS_ELEMENT_TYPES);
 
 /** Einzelnes Element zum Hinzufuegen via REST/MCP. */
 export const addCanvasElementSchema = z
@@ -36,6 +30,8 @@ export const addCanvasElementSchema = z
 		frameLabel: z.string().optional(),
 		cornerRadius: z.number().optional(),
 		cornerRadiusPercent: z.number().min(0).max(100).optional(),
+		cloudArcRadius: z.number().min(4).max(48).optional(),
+		pyramidSections: z.number().int().min(1).max(12).optional(),
 		closed: z.boolean().optional(),
 		arrowHeadScale: z.number().min(0.25).max(4).optional(),
 		arrowHeadFilled: z.boolean().optional(),
@@ -47,6 +43,26 @@ export const addCanvasElementSchema = z
 export const addCanvasElementsSchema = z.object({
 	elements: z.array(addCanvasElementSchema).min(1).max(100),
 });
+
+/** Canonical bounds-only input used by transports such as the MCP. */
+export const canvasBoundsElementInputSchema = addCanvasElementSchema
+	.pick({
+		type: true,
+		x: true,
+		y: true,
+		width: true,
+		height: true,
+		text: true,
+		fill: true,
+		stroke: true,
+		cloudArcRadius: true,
+		pyramidSections: true,
+	})
+	.extend({ type: z.enum(CANVAS_BOUNDS_ELEMENT_TYPES) });
+
+export type CanvasBoundsElementInput = z.infer<
+	typeof canvasBoundsElementInputSchema
+>;
 
 /** Partielles Update eines bestehenden Elements via REST. */
 export const updateCanvasElementSchema = z
@@ -64,6 +80,8 @@ export const updateCanvasElementSchema = z
 		fontSize: z.number().optional(),
 		closed: z.boolean().optional(),
 		arrowHeadFilled: z.boolean().optional(),
+		cloudArcRadius: z.number().min(4).max(48).optional(),
+		pyramidSections: z.number().int().min(1).max(12).optional(),
 		stackIndex: z.string().min(1).optional(),
 		customData: z.record(z.unknown()).optional(),
 	})

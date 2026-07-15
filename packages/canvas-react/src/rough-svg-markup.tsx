@@ -1,4 +1,9 @@
-import { getEffectiveCornerRadius, getLinePath } from "@skedra/canvas-core";
+import {
+	getCloudSvgPath,
+	getEffectiveCornerRadius,
+	getLinePath,
+	getTrianglePointsAttribute,
+} from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { RoughShapeLayers } from "./render-helpers";
 
@@ -49,6 +54,10 @@ function GeometryClipShape({ el }: { el: CanvasElement }) {
 				/>
 			);
 		}
+		case "triangle":
+			return <polygon points={getTrianglePointsAttribute(el)} />;
+		case "cloud":
+			return <path d={getCloudSvgPath(el)} />;
 		default:
 			return null;
 	}
@@ -115,6 +124,23 @@ function GeometryExactStroke({
 				/>
 			);
 		}
+		case "triangle":
+			return (
+				<polygon
+					points={getTrianglePointsAttribute(el)}
+					strokeLinejoin="round"
+					{...strokeProps}
+				/>
+			);
+		case "cloud":
+			return (
+				<path
+					d={getCloudSvgPath(el)}
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					{...strokeProps}
+				/>
+			);
 		default:
 			return null;
 	}

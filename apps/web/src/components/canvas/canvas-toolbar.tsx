@@ -10,18 +10,19 @@ import { createFlowchartTemplate } from "@/lib/templates/flowchart";
 import { createMindmapTemplate } from "@/lib/templates/mindmap";
 import { createRetrospectiveTemplate } from "@/lib/templates/retrospective";
 import { createSwotTemplate } from "@/lib/templates/swot";
-import { createWireframeTemplate } from "@/lib/templates/wireframe";
 import { useThemeStore } from "@/stores/theme";
 import type { CanvasElement } from "@skedra/canvas-core";
 import {
 	type CanvasEditorToolId,
 	CanvasEditorToolbar,
 	type CanvasEditorToolbarItem,
+	type CanvasEditorToolbarMenuItem,
 } from "@skedra/canvas-editor";
 import {
 	ArrowUpRight,
 	BookOpen,
 	Circle,
+	Cloud,
 	Diamond,
 	Download,
 	Eraser,
@@ -34,6 +35,7 @@ import {
 	ImagePlus,
 	Kanban,
 	Lasso,
+	Layers,
 	LayoutTemplate,
 	Lock,
 	Minus,
@@ -43,9 +45,11 @@ import {
 	Pencil,
 	Pipette,
 	Save,
+	Shapes,
 	Square,
 	StickyNote,
 	Table2,
+	Triangle,
 	Type,
 	Unlock,
 	Zap,
@@ -70,6 +74,8 @@ const TOOL_ICONS: Record<CanvasEditorToolId, React.ReactNode> = {
 	rectangle: <Square className="h-3.5 w-3.5" />,
 	diamond: <Diamond className="h-3.5 w-3.5" />,
 	ellipse: <Circle className="h-3.5 w-3.5" />,
+	triangle: <Triangle className="h-3.5 w-3.5" />,
+	cloud: <Cloud className="h-3.5 w-3.5" />,
 	arrow: <ArrowUpRight className="h-3.5 w-3.5" />,
 	line: <Minus className="h-3.5 w-3.5" />,
 	freehand: <Pencil className="h-3.5 w-3.5" />,
@@ -106,27 +112,164 @@ export function CanvasToolbar({
 	);
 	const { t } = useI18n();
 	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
-
 	const insertAtCenter = (
 		factory: (x: number, y: number) => CanvasElement[],
 	) => {
 		const center = getViewportCenter();
 		addElements(factory(center.x, center.y));
 	};
+	const activateTool = (tool: CanvasEditorToolId) => {
+		if (tool === "eyedropper") store.activateEyedropper("stroke");
+		else if (tool === "sticky-note") store.setActivePanel("sticky");
+		else if (tool === "kanban") store.setActivePanel("kanban");
+		else if (tool === "mindmap") {
+			const center = getViewportCenter();
+			addElements(createMindmapTemplate(center.x, center.y, { resolvedTheme }));
+		} else store.setActiveTool(tool);
+	};
+	const insertImage = async () => {
+		const elements = await pickAndBuildImageElements(
+			getViewportCenter(),
+			{ resolvedTheme },
+			imageUploadOptions,
+		);
+		if (elements.length > 0) addElements(elements);
+	};
+	const insertMenuItems: CanvasEditorToolbarMenuItem[] = [
+		{
+			type: "label",
+			id: "panels-label",
+			label: t("canvas.toolbar.insertMenuPanels"),
+		},
+		{
+			id: "sticky-note",
+			label: t("canvas.toolbar.stickyNote"),
+			icon: <StickyNote className="h-4 w-4" />,
+			onSelect: () => store.setActivePanel("sticky"),
+		},
+		{
+			id: "kanban",
+			label: t("canvas.toolbar.kanban"),
+			icon: <Kanban className="h-4 w-4" />,
+			onSelect: () => store.setActivePanel("kanban"),
+		},
+		{
+			type: "separator",
+			id: "panels-separator",
+			label: "",
+		},
+		{
+			type: "label",
+			id: "templates-label",
+			label: t("canvas.toolbar.insertMenuTemplates"),
+		},
+		{
+			id: "mindmap",
+			label: t("canvas.toolbar.insertMindmap"),
+			icon: <GitBranch className="h-4 w-4" />,
+			onSelect: () => {
+				const center = getViewportCenter();
+				addElements(
+					createMindmapTemplate(center.x, center.y, { resolvedTheme }),
+				);
+			},
+		},
+		{
+			id: "flowchart",
+			label: t("canvas.toolbar.insertFlowchart"),
+			icon: <GitBranch className="h-4 w-4 rotate-90" />,
+			onSelect: () => {
+				const center = getViewportCenter();
+				addElements(
+					createFlowchartTemplate(center.x, center.y, {
+						stroke: store.strokeColor,
+						theme: { resolvedTheme },
+					}),
+				);
+			},
+		},
+		{
+			id: "wireframe",
+			label: t("canvas.toolbar.insertWireframe"),
+			icon: <PanelsTopLeft className="h-4 w-4" />,
+			onSelect: () => store.setActivePanel("wireframe"),
+		},
+		{
+			id: "retrospective",
+			label: t("canvas.toolbar.insertRetrospective"),
+			icon: <History className="h-4 w-4" />,
+			onSelect: () => insertAtCenter(createRetrospectiveTemplate),
+		},
+		{
+			id: "swot",
+			label: t("canvas.toolbar.insertSwot"),
+			icon: <Table2 className="h-4 w-4" />,
+			onSelect: () => insertAtCenter(createSwotTemplate),
+		},
+	];
+	const exportMenuItems: CanvasEditorToolbarMenuItem[] = [
+		...(onImportSkedra
+			? [
+					{
+						id: "open-skedra",
+						label: t("canvas.toolbar.openSkedra"),
+						icon: <FolderOpen className="h-4 w-4" />,
+						onSelect: onImportSkedra,
+					},
+				]
+			: []),
+		...(onExportSkedra
+			? [
+					{
+						id: "save-skedra",
+						label: t("canvas.toolbar.saveSkedra"),
+						icon: <Save className="h-4 w-4" />,
+						onSelect: onExportSkedra,
+					},
+				]
+			: []),
+		...(onExportEncryptedSkedra
+			? [
+					{
+						id: "save-encrypted-skedra",
+						label: t("canvas.toolbar.saveEncryptedSkedra"),
+						icon: <Lock className="h-4 w-4" />,
+						onSelect: onExportEncryptedSkedra,
+					},
+				]
+			: []),
+		{
+			id: "export-svg",
+			label: t("canvas.toolbar.exportSvg"),
+			icon: <Download className="h-4 w-4" />,
+			onSelect: () => onExportVisual("svg"),
+		},
+		{
+			id: "export-png",
+			label: t("canvas.toolbar.exportPng"),
+			icon: <ImageIcon className="h-4 w-4" />,
+			onSelect: () => onExportVisual("png"),
+		},
+		{
+			id: "export-pdf",
+			label: t("canvas.toolbar.exportPdf"),
+			icon: <Download className="h-4 w-4" />,
+			onSelect: () => onExportVisual("pdf"),
+		},
+		{
+			id: "export-pptx",
+			label: t("canvas.toolbar.exportPptx"),
+			icon: <MonitorPlay className="h-4 w-4" />,
+			onSelect: () => onExportVisual("pptx"),
+		},
+	];
 	const items: CanvasEditorToolbarItem[] = [
 		{
 			type: "action",
 			id: "insert-image",
 			label: `${t("canvas.toolbar.insertImage")} (9)`,
 			icon: <ImagePlus className="h-3.5 w-3.5" />,
-			onSelect: async () => {
-				const elements = await pickAndBuildImageElements(
-					getViewportCenter(),
-					{ resolvedTheme },
-					imageUploadOptions,
-				);
-				if (elements.length > 0) addElements(elements);
-			},
+			onSelect: insertImage,
 		},
 		{
 			type: "action",
@@ -135,6 +278,15 @@ export function CanvasToolbar({
 			icon: <BookOpen className="h-3.5 w-3.5" />,
 			active: store.activePanel === "library",
 			onSelect: () => store.setActivePanel("library"),
+		},
+		{
+			type: "action",
+			id: "layers",
+			label: t("canvas.toolbar.layers"),
+			icon: <Layers className="h-3.5 w-3.5" />,
+			active: store.activePanel === "layers",
+			onSelect: () =>
+				store.setActivePanel(store.activePanel === "layers" ? null : "layers"),
 		},
 		{ type: "separator", id: "insert-separator" },
 		{
@@ -145,144 +297,18 @@ export function CanvasToolbar({
 			active:
 				store.activePanel === "sticky" ||
 				store.activePanel === "kanban" ||
-				store.activePanel === "library",
-			items: [
-				{
-					type: "label",
-					id: "panels-label",
-					label: t("canvas.toolbar.insertMenuPanels"),
-				},
-				{
-					id: "sticky-note",
-					label: t("canvas.toolbar.stickyNote"),
-					icon: <StickyNote className="h-4 w-4" />,
-					onSelect: () => store.setActivePanel("sticky"),
-				},
-				{
-					id: "kanban",
-					label: t("canvas.toolbar.kanban"),
-					icon: <Kanban className="h-4 w-4" />,
-					onSelect: () => store.setActivePanel("kanban"),
-				},
-				{
-					type: "separator",
-					id: "panels-separator",
-					label: "",
-				},
-				{
-					type: "label",
-					id: "templates-label",
-					label: t("canvas.toolbar.insertMenuTemplates"),
-				},
-				{
-					id: "mindmap",
-					label: t("canvas.toolbar.insertMindmap"),
-					icon: <GitBranch className="h-4 w-4" />,
-					onSelect: () => {
-						const center = getViewportCenter();
-						addElements(
-							createMindmapTemplate(center.x, center.y, { resolvedTheme }),
-						);
-					},
-				},
-				{
-					id: "flowchart",
-					label: t("canvas.toolbar.insertFlowchart"),
-					icon: <GitBranch className="h-4 w-4 rotate-90" />,
-					onSelect: () => {
-						const center = getViewportCenter();
-						addElements(
-							createFlowchartTemplate(center.x, center.y, {
-								stroke: store.strokeColor,
-								theme: { resolvedTheme },
-							}),
-						);
-					},
-				},
-				{
-					id: "wireframe",
-					label: t("canvas.toolbar.insertWireframe"),
-					icon: <PanelsTopLeft className="h-4 w-4" />,
-					onSelect: () => insertAtCenter(createWireframeTemplate),
-				},
-				{
-					id: "retrospective",
-					label: t("canvas.toolbar.insertRetrospective"),
-					icon: <History className="h-4 w-4" />,
-					onSelect: () => insertAtCenter(createRetrospectiveTemplate),
-				},
-				{
-					id: "swot",
-					label: t("canvas.toolbar.insertSwot"),
-					icon: <Table2 className="h-4 w-4" />,
-					onSelect: () => insertAtCenter(createSwotTemplate),
-				},
-			],
+				store.activePanel === "library" ||
+				store.activePanel === "wireframe",
+			items: insertMenuItems,
 		},
 		{
 			type: "menu",
 			id: "export-menu",
 			label: t("canvas.toolbar.exportMenu"),
 			icon: <Download className="h-3.5 w-3.5" />,
-			items: [
-				...(onImportSkedra
-					? [
-							{
-								id: "open-skedra",
-								label: t("canvas.toolbar.openSkedra"),
-								icon: <FolderOpen className="h-4 w-4" />,
-								onSelect: onImportSkedra,
-							},
-						]
-					: []),
-				...(onExportSkedra
-					? [
-							{
-								id: "save-skedra",
-								label: t("canvas.toolbar.saveSkedra"),
-								icon: <Save className="h-4 w-4" />,
-								onSelect: onExportSkedra,
-							},
-						]
-					: []),
-				...(onExportEncryptedSkedra
-					? [
-							{
-								id: "save-encrypted-skedra",
-								label: t("canvas.toolbar.saveEncryptedSkedra"),
-								icon: <Lock className="h-4 w-4" />,
-								onSelect: onExportEncryptedSkedra,
-							},
-						]
-					: []),
-				{
-					id: "export-svg",
-					label: t("canvas.toolbar.exportSvg"),
-					icon: <Download className="h-4 w-4" />,
-					onSelect: () => onExportVisual("svg"),
-				},
-				{
-					id: "export-png",
-					label: t("canvas.toolbar.exportPng"),
-					icon: <ImageIcon className="h-4 w-4" />,
-					onSelect: () => onExportVisual("png"),
-				},
-				{
-					id: "export-pdf",
-					label: t("canvas.toolbar.exportPdf"),
-					icon: <Download className="h-4 w-4" />,
-					onSelect: () => onExportVisual("pdf"),
-				},
-				{
-					id: "export-pptx",
-					label: t("canvas.toolbar.exportPptx"),
-					icon: <MonitorPlay className="h-4 w-4" />,
-					onSelect: () => onExportVisual("pptx"),
-				},
-			],
+			items: exportMenuItems,
 		},
 	];
-
 	return (
 		<CanvasEditorToolbar
 			toolStrip={{
@@ -292,17 +318,7 @@ export function CanvasToolbar({
 						: store.activePanel === "kanban"
 							? "kanban"
 							: store.activeTool,
-				onToolSelect: (tool) => {
-					if (tool === "eyedropper") store.activateEyedropper("stroke");
-					else if (tool === "sticky-note") store.setActivePanel("sticky");
-					else if (tool === "kanban") store.setActivePanel("kanban");
-					else if (tool === "mindmap") {
-						const center = getViewportCenter();
-						addElements(
-							createMindmapTemplate(center.x, center.y, { resolvedTheme }),
-						);
-					} else store.setActiveTool(tool);
-				},
+				onToolSelect: activateTool,
 				renderIcon: (tool) => TOOL_ICONS[tool],
 				includeTool: (definition) => definition.group !== "structured",
 				toolLocked: store.toolLocked,
@@ -326,6 +342,11 @@ export function CanvasToolbar({
 				},
 			}}
 			items={items}
+			responsive={{
+				moreLabel: t("canvas.toolbar.moreTools"),
+				moreIcon: <Shapes className="h-4 w-4" />,
+				popoverClassName: "canvas-editor__toolbar-popover--mobile-more",
+			}}
 			classes={{
 				root: "rounded-xl border border-border bg-card/90 px-1.5 py-1 shadow-xl backdrop-blur-md",
 				action:

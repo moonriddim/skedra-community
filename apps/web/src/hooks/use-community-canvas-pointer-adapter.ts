@@ -98,11 +98,20 @@ export function useCommunityCanvasPointerAdapter({
 	});
 
 	const resolvePoint = useCallback(
-		(clientX: number, clientY: number, options?: { forceAnchor?: boolean }) => {
+		(
+			clientX: number,
+			clientY: number,
+			options?: {
+				forceAnchor?: boolean;
+				objectSnap?: boolean;
+				excludeIds?: Set<string>;
+			},
+		) => {
 			const placement = resolvePathPlacement(clientX, clientY, options);
 			return {
 				raw: placement.canvas,
 				snapped: { x: placement.x, y: placement.y },
+				snapAnchor: placement.anchor,
 				allowMiddleButtonDraw: placement.anchor != null,
 			};
 		},
@@ -156,6 +165,8 @@ export function useCommunityCanvasPointerAdapter({
 					roughness: store.roughness,
 					roughFillStyle: store.roughFillStyle,
 					roughFillScale: store.roughFillScale,
+					cloudArcRadius: store.cloudArcRadius,
+					pyramidSections: store.pyramidSections,
 					arrowMode: store.arrowMode,
 					arrowHeadStart: store.arrowHeadStart,
 					arrowHeadEnd: store.arrowHeadEnd,
@@ -195,8 +206,11 @@ export function useCommunityCanvasPointerAdapter({
 		},
 		resolvePoint,
 		startTextPlacement,
-		onBeforePointerDown: (point, event) =>
-			handlePlacementPointerDown({
+		onBeforePointerDown: (point, event) => {
+			const store = storeRef.current;
+			const consumeOverride =
+				event.button === 0 && store.snapOverrideMode != null;
+			const handled = handlePlacementPointerDown({
 				elements,
 				scene,
 				snappedX: point.snapped.x,
@@ -210,7 +224,10 @@ export function useCommunityCanvasPointerAdapter({
 				setDrawingPreview: setPlacementPreview,
 				clearSnapVisuals,
 				theme: { resolvedTheme },
-			}),
+			});
+			if (consumeOverride) store.setSnapOverrideMode(null);
+			return handled;
+		},
 		shouldDeferTouchPointerDown: () => {
 			const store = storeRef.current;
 			return (
@@ -241,6 +258,18 @@ export function useCommunityCanvasPointerAdapter({
 				return true;
 			}
 			return false;
+		},
+		onTentativeSnap: (point) => {
+			if (!point.snapAnchor) return false;
+			storeRef.current.setTransformOrigin({ ...point.snapped });
+			return true;
+		},
+		isTentativeSnapActive: () => storeRef.current.transformOrigin != null,
+		onTentativeSnapConsumed: () => {
+			storeRef.current.setTransformOrigin(null);
+		},
+		onGestureFinished: (action) => {
+			if (action === "rotate") storeRef.current.setTransformOrigin(null);
 		},
 	});
 

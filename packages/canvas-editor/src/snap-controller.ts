@@ -1,5 +1,6 @@
 import {
 	type CanvasElement,
+	type CanvasObjectSnapMode,
 	type SnapAnchor,
 	type SnapGuide,
 	type SnapPointIndicator,
@@ -7,12 +8,75 @@ import {
 	findClosestSnapAnchor,
 	getVisibleSnapPointIndicators,
 } from "@skedra/canvas-core";
+import type { CanvasEditorToolId } from "./editor-contract";
+
+export const CANVAS_EDITOR_OBJECT_SNAP_MODES = [
+	"endpoint",
+	"midpoint",
+	"division",
+	"center",
+	"geometric-center",
+	"quadrant",
+	"intersection",
+	"extension",
+	"insertion",
+	"nearest",
+] as const satisfies readonly CanvasObjectSnapMode[];
+
+export const CANVAS_EDITOR_SNAP_OVERRIDE_TOOL_IDS = [
+	"line",
+	"arrow",
+	"rectangle",
+	"ellipse",
+	"diamond",
+	"triangle",
+	"cloud",
+	"freehand",
+] as const satisfies readonly CanvasEditorToolId[];
+
+const SNAP_OVERRIDE_TOOLS = new Set<CanvasEditorToolId>(
+	CANVAS_EDITOR_SNAP_OVERRIDE_TOOL_IDS,
+);
+
+export function canvasEditorToolSupportsSnapOverride(
+	tool: CanvasEditorToolId,
+): boolean {
+	return SNAP_OVERRIDE_TOOLS.has(tool);
+}
+
+export function getCanvasEditorSnapModeOptions(
+	mode: CanvasObjectSnapMode | null,
+): Omit<CanvasEditorSnapOptions, "enabled"> | null {
+	if (!mode) return null;
+	return {
+		includeEndpoints: mode === "endpoint",
+		includeMidpoints: mode === "midpoint",
+		includeDivisions: mode === "division",
+		includeCenters: mode === "center",
+		includeGeometricCenters: mode === "geometric-center",
+		includeQuadrants: mode === "quadrant",
+		includeIntersections: mode === "intersection",
+		includeExtensions: mode === "extension",
+		includeInsertions: mode === "insertion",
+		includeNearest: mode === "nearest",
+	};
+}
 
 export interface CanvasEditorSnapOptions {
 	enabled: boolean;
+	includeEndpoints?: boolean;
 	includeCenters?: boolean;
 	includeMidpoints?: boolean;
+	includeDivisions?: boolean;
+	divisionCount?: number;
+	includeNearest?: boolean;
+	includeGeometricCenters?: boolean;
+	includeQuadrants?: boolean;
+	includeIntersections?: boolean;
+	includeExtensions?: boolean;
+	includeInsertions?: boolean;
 	showInactivePoints?: boolean;
+	threshold?: number;
 }
 
 export interface CanvasEditorPointSnapResult {
@@ -20,6 +84,14 @@ export interface CanvasEditorPointSnapResult {
 	anchor: SnapAnchor | null;
 	guides: SnapGuide[];
 	indicators: SnapPointIndicator[];
+}
+
+/** Object anchors take precedence; grid coordinates are only the fallback. */
+export function resolveCanvasEditorPlacementPoint(
+	result: Pick<CanvasEditorPointSnapResult, "point" | "anchor">,
+	fallback: { x: number; y: number },
+): { x: number; y: number } {
+	return result.anchor ? result.point : fallback;
 }
 
 export function resolveCanvasEditorPointSnap(options: {
@@ -35,15 +107,24 @@ export function resolveCanvasEditorPointSnap(options: {
 		return { point, anchor: null, guides: [], indicators: [] };
 	}
 	const pointOptions = {
+		includeEndpoints: snap.includeEndpoints ?? true,
 		includeCenters: snap.includeCenters ?? true,
 		includeMidpoints: snap.includeMidpoints ?? true,
+		includeDivisions: snap.includeDivisions ?? false,
+		divisionCount: snap.divisionCount,
+		includeNearest: snap.includeNearest ?? false,
+		includeGeometricCenters: snap.includeGeometricCenters ?? true,
+		includeQuadrants: snap.includeQuadrants ?? true,
+		includeIntersections: snap.includeIntersections ?? true,
+		includeExtensions: snap.includeExtensions ?? false,
+		includeInsertions: snap.includeInsertions ?? false,
 	};
 	const anchor = findClosestSnapAnchor(
 		point,
 		elements,
 		excludeIds,
 		pointOptions,
-		options.forceAnchor ? 18 : undefined,
+		options.forceAnchor ? (snap.threshold ?? 12) * 1.5 : snap.threshold,
 	);
 	const indicators = getVisibleSnapPointIndicators(
 		point,
@@ -104,8 +185,17 @@ export function resolveCanvasEditorRectSnap(options: {
 		y: snappedRect.y + snappedRect.height / 2,
 	};
 	const pointOptions = {
+		includeEndpoints: snap.includeEndpoints ?? true,
 		includeCenters: snap.includeCenters ?? true,
 		includeMidpoints: snap.includeMidpoints ?? true,
+		includeDivisions: snap.includeDivisions ?? false,
+		divisionCount: snap.divisionCount,
+		includeNearest: snap.includeNearest ?? false,
+		includeGeometricCenters: snap.includeGeometricCenters ?? true,
+		includeQuadrants: snap.includeQuadrants ?? true,
+		includeIntersections: snap.includeIntersections ?? true,
+		includeExtensions: snap.includeExtensions ?? false,
+		includeInsertions: snap.includeInsertions ?? false,
 	};
 	const anchor = findClosestSnapAnchor(
 		point,

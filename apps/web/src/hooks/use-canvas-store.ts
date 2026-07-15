@@ -18,6 +18,7 @@ import {
 import type {
 	ArrowHead,
 	ArrowMode,
+	CanvasObjectSnapMode,
 	FlowchartNodeKind,
 	KanbanPriority,
 	LaserTrail,
@@ -30,10 +31,19 @@ import type {
 import {
 	DEFAULT_ARROW_HEAD_FILLED,
 	DEFAULT_ARROW_HEAD_SCALE,
+	DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
+	DEFAULT_CLOUD_ARC_RADIUS,
+	DEFAULT_PYRAMID_SECTIONS,
 	DEFAULT_ROUGH_FILL_SCALE,
 	MAX_ARROW_HEAD_SCALE,
+	MAX_PYRAMID_SECTIONS,
 	MIN_ARROW_HEAD_SCALE,
+	MIN_PYRAMID_SECTIONS,
 	clampCanvasZoom,
+	clampCloudArcRadius,
+	normalizeCanvasGridSize,
+	normalizeCanvasSnapDivisionCount,
+	snapCanvasCoordinateToGrid,
 	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
 import type { SnapGuide, SnapPointIndicator } from "@skedra/canvas-core";
@@ -47,7 +57,7 @@ import { useEffect, useRef } from "react";
 import { create } from "zustand";
 
 interface ShapePlacementDraft {
-	type: "rectangle" | "ellipse" | "diamond" | "frame";
+	type: "rectangle" | "ellipse" | "diamond" | "triangle" | "cloud" | "frame";
 	width: number;
 	height: number;
 	/** Frame-Label beim Platzieren (z. B. Preset-Name wie "iPhone 15 Pro"). */
@@ -92,6 +102,10 @@ export interface CanvasStoreState {
 	/* Grid */
 	gridEnabled: boolean;
 	toggleGrid: () => void;
+	gridSnapEnabled: boolean;
+	toggleGridSnap: () => void;
+	gridSize: number;
+	setGridSize: (size: number) => void;
 	snapToGrid: (value: number) => number;
 
 	/* Zeichenoptionen */
@@ -103,6 +117,8 @@ export interface CanvasStoreState {
 	roughness: number;
 	roughFillStyle: RoughFillStyle;
 	roughFillScale: number;
+	cloudArcRadius: number;
+	pyramidSections: number;
 	arrowMode: ArrowMode;
 	arrowHeadStart: ArrowHead;
 	arrowHeadEnd: ArrowHead;
@@ -116,6 +132,8 @@ export interface CanvasStoreState {
 	setRoughness: (r: number) => void;
 	setRoughFillStyle: (style: RoughFillStyle) => void;
 	setRoughFillScale: (scale: number) => void;
+	setCloudArcRadius: (radius: number) => void;
+	setPyramidSections: (sections: number) => void;
 	setArrowMode: (m: ArrowMode) => void;
 	setArrowHeadStart: (h: ArrowHead) => void;
 	setArrowHeadEnd: (h: ArrowHead) => void;
@@ -146,9 +164,11 @@ export interface CanvasStoreState {
 	lassoPath: [number, number][] | null;
 	setLassoPath: (path: [number, number][] | null) => void;
 
-	/* Feature-Panel (Sticky Notes, Kanban) */
-	activePanel: "sticky" | "kanban" | "library" | null;
-	setActivePanel: (panel: "sticky" | "kanban" | "library" | null) => void;
+	/* Feature-Panel (Sticky Notes, Kanban, Ebenen) */
+	activePanel: "sticky" | "kanban" | "library" | "wireframe" | "layers" | null;
+	setActivePanel: (
+		panel: "sticky" | "kanban" | "library" | "wireframe" | "layers" | null,
+	) => void;
 
 	/* Text-Editing */
 	editingTextId: string | null;
@@ -161,12 +181,38 @@ export interface CanvasStoreState {
 	/* Snap-to-Objects */
 	snapToObjects: boolean;
 	toggleSnapToObjects: () => void;
+	snapToEndpoints: boolean;
+	toggleSnapToEndpoints: () => void;
 	showSnapPoints: boolean;
 	toggleShowSnapPoints: () => void;
 	snapToCenters: boolean;
 	toggleSnapToCenters: () => void;
 	snapToMidpoints: boolean;
 	toggleSnapToMidpoints: () => void;
+	snapToDivisions: boolean;
+	toggleSnapToDivisions: () => void;
+	snapDivisionCount: number;
+	setSnapDivisionCount: (count: number) => void;
+	snapToNearest: boolean;
+	toggleSnapToNearest: () => void;
+	snapToGeometricCenters: boolean;
+	toggleSnapToGeometricCenters: () => void;
+	snapToQuadrants: boolean;
+	toggleSnapToQuadrants: () => void;
+	snapToIntersections: boolean;
+	toggleSnapToIntersections: () => void;
+	snapToExtensions: boolean;
+	toggleSnapToExtensions: () => void;
+	snapToInsertions: boolean;
+	toggleSnapToInsertions: () => void;
+	snapMenu: { x: number; y: number; kind: "running" | "override" } | null;
+	setSnapMenu: (
+		menu: { x: number; y: number; kind: "running" | "override" } | null,
+	) => void;
+	snapOverrideMode: CanvasObjectSnapMode | null;
+	setSnapOverrideMode: (mode: CanvasObjectSnapMode | null) => void;
+	transformOrigin: { x: number; y: number } | null;
+	setTransformOrigin: (origin: { x: number; y: number } | null) => void;
 	snapGuides: SnapGuide[];
 	setSnapGuides: (guides: SnapGuide[]) => void;
 	snapPointIndicators: SnapPointIndicator[];
@@ -286,9 +332,14 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
 	gridEnabled: false,
 	toggleGrid: () => set((s) => ({ gridEnabled: !s.gridEnabled })),
+	gridSnapEnabled: false,
+	toggleGridSnap: () => set((s) => ({ gridSnapEnabled: !s.gridSnapEnabled })),
+	gridSize: GRID_SIZE,
+	setGridSize: (size) => set({ gridSize: normalizeCanvasGridSize(size) }),
 	snapToGrid: (value) => {
-		if (!get().gridEnabled) return value;
-		return Math.round(value / GRID_SIZE) * GRID_SIZE;
+		const state = get();
+		if (!state.gridSnapEnabled) return value;
+		return snapCanvasCoordinateToGrid(value, state.gridSize);
 	},
 
 	fillColor: DEFAULT_FILL,
@@ -299,6 +350,8 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	roughness: 1,
 	roughFillStyle: DEFAULT_ROUGH_FILL_STYLE,
 	roughFillScale: DEFAULT_ROUGH_FILL_SCALE,
+	cloudArcRadius: DEFAULT_CLOUD_ARC_RADIUS,
+	pyramidSections: DEFAULT_PYRAMID_SECTIONS,
 	arrowMode: "straight" as ArrowMode,
 	arrowHeadStart: "none" as ArrowHead,
 	arrowHeadEnd: "arrow" as ArrowHead,
@@ -313,6 +366,15 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	setRoughness: (r) => set({ roughness: r }),
 	setRoughFillStyle: (style) => set({ roughFillStyle: style }),
 	setRoughFillScale: (scale) => set({ roughFillScale: scale }),
+	setCloudArcRadius: (radius) =>
+		set({ cloudArcRadius: clampCloudArcRadius(radius) }),
+	setPyramidSections: (sections) =>
+		set({
+			pyramidSections: Math.min(
+				MAX_PYRAMID_SECTIONS,
+				Math.max(MIN_PYRAMID_SECTIONS, Math.round(sections)),
+			),
+		}),
 	setArrowMode: (m) => set({ arrowMode: m }),
 	setArrowHeadStart: (h) => set({ arrowHeadStart: h }),
 	setArrowHeadEnd: (h) => set({ arrowHeadEnd: h }),
@@ -376,6 +438,9 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
 	snapToObjects: true,
 	toggleSnapToObjects: () => set((s) => ({ snapToObjects: !s.snapToObjects })),
+	snapToEndpoints: true,
+	toggleSnapToEndpoints: () =>
+		set((s) => ({ snapToEndpoints: !s.snapToEndpoints })),
 	showSnapPoints: true,
 	toggleShowSnapPoints: () =>
 		set((s) => ({ showSnapPoints: !s.showSnapPoints })),
@@ -384,6 +449,35 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	snapToMidpoints: true,
 	toggleSnapToMidpoints: () =>
 		set((s) => ({ snapToMidpoints: !s.snapToMidpoints })),
+	snapToDivisions: false,
+	toggleSnapToDivisions: () =>
+		set((s) => ({ snapToDivisions: !s.snapToDivisions })),
+	snapDivisionCount: DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
+	setSnapDivisionCount: (count) =>
+		set({ snapDivisionCount: normalizeCanvasSnapDivisionCount(count) }),
+	snapToNearest: false,
+	toggleSnapToNearest: () => set((s) => ({ snapToNearest: !s.snapToNearest })),
+	snapToGeometricCenters: true,
+	toggleSnapToGeometricCenters: () =>
+		set((s) => ({ snapToGeometricCenters: !s.snapToGeometricCenters })),
+	snapToQuadrants: true,
+	toggleSnapToQuadrants: () =>
+		set((s) => ({ snapToQuadrants: !s.snapToQuadrants })),
+	snapToIntersections: true,
+	toggleSnapToIntersections: () =>
+		set((s) => ({ snapToIntersections: !s.snapToIntersections })),
+	snapToExtensions: true,
+	toggleSnapToExtensions: () =>
+		set((s) => ({ snapToExtensions: !s.snapToExtensions })),
+	snapToInsertions: false,
+	toggleSnapToInsertions: () =>
+		set((s) => ({ snapToInsertions: !s.snapToInsertions })),
+	snapMenu: null,
+	setSnapMenu: (menu) => set({ snapMenu: menu }),
+	snapOverrideMode: null,
+	setSnapOverrideMode: (mode) => set({ snapOverrideMode: mode }),
+	transformOrigin: null,
+	setTransformOrigin: (origin) => set({ transformOrigin: origin }),
 	snapGuides: [],
 	setSnapGuides: (guides) => set({ snapGuides: guides }),
 	snapPointIndicators: [],

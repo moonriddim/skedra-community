@@ -1,7 +1,14 @@
 import {
 	type CanvasElement,
 	type CanvasPathDrawMode,
+	DEFAULT_CLOUD_ARC_RADIUS,
+	type FrameConstraintAxis,
+	MAX_CLOUD_ARC_RADIUS,
+	MIN_CLOUD_ARC_RADIUS,
+	buildFrameConstraintsChange,
+	buildStickyNoteModeChange,
 	getCanvasLayoutItemCount,
+	readFrameConstraints,
 } from "@skedra/canvas-core";
 import type { CSSProperties } from "react";
 import { useOptionalCanvasEditorServices } from "./canvas-editor";
@@ -129,6 +136,7 @@ export interface CanvasEditorPropertiesPanelProps {
 	onAddKanbanCard?: (listId: string) => void;
 	onAddTemplateSticky?: (sectionId: string) => void;
 	onCopy?: () => void;
+	onExportFrame?: (format: "png" | "svg") => void;
 }
 
 export function CanvasEditorPropertiesPanel({
@@ -173,6 +181,7 @@ export function CanvasEditorPropertiesPanel({
 	onAddKanbanCard,
 	onAddTemplateSticky,
 	onCopy,
+	onExportFrame,
 }: CanvasEditorPropertiesPanelProps) {
 	const services = useOptionalCanvasEditorServices();
 	if (selected.length === 0) return null;
@@ -200,6 +209,10 @@ export function CanvasEditorPropertiesPanel({
 		);
 	}
 	const custom = element.customData ?? {};
+	const frameConstraints =
+		selected.length === 1 && element.frameId
+			? readFrameConstraints(element)
+			: null;
 	const layoutItemCount = getCanvasLayoutItemCount(selected);
 	const isFlowchart = custom.skedraType === "flowchart-node";
 	const isFlowchartConnector = custom.skedraType === "flowchart-connector";
@@ -354,6 +367,51 @@ export function CanvasEditorPropertiesPanel({
 						/>
 					</label>
 				)}
+				{element.type === "triangle" && (
+					<label className="skedra-sdk__property-stack">
+						<span>
+							{t("canvas.properties.pyramidSections", "Pyramid sections")}
+						</span>
+						<input
+							type="range"
+							min={1}
+							max={12}
+							step={1}
+							disabled={disabled}
+							value={numberValue(element.pyramidSections, 1)}
+							onChange={(event) =>
+								onSetProperties({
+									pyramidSections: Number(event.target.value),
+								})
+							}
+						/>
+						<small>{numberValue(element.pyramidSections, 1)}</small>
+					</label>
+				)}
+				{element.type === "cloud" && (
+					<label className="skedra-sdk__property-stack">
+						<span>{t("canvas.properties.cloudArcRadius", "Arc radius")}</span>
+						<input
+							type="range"
+							min={MIN_CLOUD_ARC_RADIUS}
+							max={MAX_CLOUD_ARC_RADIUS}
+							step={1}
+							disabled={disabled}
+							value={numberValue(
+								element.cloudArcRadius,
+								DEFAULT_CLOUD_ARC_RADIUS,
+							)}
+							onChange={(event) =>
+								onSetProperties({
+									cloudArcRadius: Number(event.target.value),
+								})
+							}
+						/>
+						<small>
+							{numberValue(element.cloudArcRadius, DEFAULT_CLOUD_ARC_RADIUS)}px
+						</small>
+					</label>
+				)}
 				{defaultsMode && onPlaceDefaultElement && (
 					<button
 						type="button"
@@ -372,6 +430,69 @@ export function CanvasEditorPropertiesPanel({
 					</button>
 				)}
 			</section>
+
+			{!defaultsMode && element.type === "frame" && onExportFrame && (
+				<section>
+					<h3>{t("canvas.properties.frameExport", "Export frame")}</h3>
+					<div className="skedra-sdk__property-actions">
+						{(["png", "svg"] as const).map((format) => (
+							<button
+								key={format}
+								type="button"
+								disabled={disabled}
+								onClick={() => onExportFrame(format)}
+							>
+								{t(
+									`canvas.properties.exportFrame.${format}`,
+									`Export ${format.toUpperCase()}`,
+								)}
+							</button>
+						))}
+					</div>
+				</section>
+			)}
+
+			{frameConstraints && (
+				<section>
+					<h3>{t("canvas.properties.frameConstraints", "Constraints")}</h3>
+					<div className="skedra-sdk__property-grid">
+						{(["horizontal", "vertical"] as const).map((axis) => (
+							<label key={axis}>
+								<span>
+									{axis === "horizontal"
+										? t("canvas.properties.constraintHorizontal", "Horizontal")
+										: t("canvas.properties.constraintVertical", "Vertical")}
+								</span>
+								<select
+									disabled={disabled}
+									value={frameConstraints[axis]}
+									onChange={(event) =>
+										onSetProperties(
+											buildFrameConstraintsChange(element, {
+												[axis]: event.target.value as FrameConstraintAxis,
+											}),
+										)
+									}
+								>
+									{(
+										[
+											["start", "Start"],
+											["end", "End"],
+											["center", "Center"],
+											["stretch", "Stretch"],
+											["scale", "Scale"],
+										] as const
+									).map(([value, fallback]) => (
+										<option key={value} value={value}>
+											{t(`canvas.properties.constraint.${value}`, fallback)}
+										</option>
+									))}
+								</select>
+							</label>
+						))}
+					</div>
+				</section>
+			)}
 
 			<section>
 				<h3>{t("canvas.properties.appearance", "Appearance")}</h3>
@@ -672,6 +793,29 @@ export function CanvasEditorPropertiesPanel({
 				</section>
 			)}
 
+			{element.type === "cloud" && pathDrawMode && onPathDrawModeChange && (
+				<section>
+					<h3>{t("canvas.properties.cloudDrawMode", "Cloud drawing mode")}</h3>
+					<label>
+						<span>{t("canvas.properties.cloudDrawMode", "Drawing mode")}</span>
+						<select
+							disabled={disabled}
+							value={pathDrawMode}
+							onChange={(event) =>
+								onPathDrawModeChange(event.target.value as CanvasPathDrawMode)
+							}
+						>
+							<option value="normal">
+								{t("canvas.properties.cloudDrawRectangle", "Rectangle")}
+							</option>
+							<option value="multi">
+								{t("canvas.properties.cloudDrawPoints", "Point by point")}
+							</option>
+						</select>
+					</label>
+				</section>
+			)}
+
 			{(element.type === "arrow" || element.type === "line") && (
 				<section>
 					<h3>{t("canvas.properties.pathAndArrow", "Path and arrow")}</h3>
@@ -877,16 +1021,12 @@ export function CanvasEditorPropertiesPanel({
 							disabled={disabled}
 							value={String(custom.stickyNoteMode ?? "note")}
 							onChange={(event) =>
-								onSetProperties({
-									customData: {
-										...custom,
-										stickyNoteMode: event.target.value,
-										stickyChecklist:
-											event.target.value === "checklist"
-												? (custom.stickyChecklist ?? [])
-												: [],
-									},
-								})
+								onSetProperties(
+									buildStickyNoteModeChange(
+										element,
+										event.target.value === "checklist" ? "checklist" : "note",
+									),
+								)
 							}
 						>
 							<option value="note">

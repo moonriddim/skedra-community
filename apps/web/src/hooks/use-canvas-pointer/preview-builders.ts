@@ -147,6 +147,7 @@ function getDrawingStyle(store: CanvasStoreState) {
 		roughness: store.roughness,
 		roughFillStyle: store.roughFillStyle,
 		roughFillScale: store.roughFillScale,
+		pyramidSections: store.pyramidSections,
 		arrowMode: store.arrowMode,
 		arrowHeadStart: store.arrowHeadStart,
 		arrowHeadEnd: store.arrowHeadEnd,

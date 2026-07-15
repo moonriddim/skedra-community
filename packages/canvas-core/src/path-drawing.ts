@@ -1,6 +1,6 @@
 import type { CanvasElement } from "./types";
 
-export type CanvasPathTool = "line" | "arrow";
+export type CanvasPathTool = "line" | "arrow" | "cloud";
 export type CanvasPathDrawMode = "normal" | "multi";
 export type CanvasPathPoint = [number, number];
 
@@ -27,7 +27,12 @@ export function getCanvasPathStartSnapState(
 	pointer: { x: number; y: number },
 	zoom: number,
 ): CanvasPathStartSnapState | null {
-	if (draft?.tool !== "line" || draft.points.length < 3) return null;
+	if (
+		(draft?.tool !== "line" && draft?.tool !== "cloud") ||
+		draft.points.length < 3
+	) {
+		return null;
+	}
 	const first = draft.points[0];
 	const screenDistance =
 		Math.hypot(pointer.x - first[0], pointer.y - first[1]) *

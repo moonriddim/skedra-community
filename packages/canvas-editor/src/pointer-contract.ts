@@ -28,6 +28,7 @@ export type CanvasEditorPointerGestureAction =
 	| "move"
 	| "pan"
 	| "resize"
+	| "rotate"
 	| "drag-point"
 	| "erase"
 	| "laser";
@@ -193,6 +194,8 @@ const CANVAS_EDITOR_POINTER_BEHAVIORS: Record<
 	rectangle: { action: "draw", availableReadOnly: false },
 	diamond: { action: "draw", availableReadOnly: false },
 	ellipse: { action: "draw", availableReadOnly: false },
+	triangle: { action: "draw", availableReadOnly: false },
+	cloud: { action: "draw", availableReadOnly: false },
 	arrow: { action: "draw", availableReadOnly: false },
 	line: { action: "draw", availableReadOnly: false },
 	freehand: { action: "draw", availableReadOnly: false },
@@ -219,8 +222,23 @@ export interface ResolveCanvasEditorPointerDownOptions {
 	spacePressed?: boolean;
 	readOnly?: boolean;
 	pathDrawMode?: CanvasPathDrawMode;
-	/** Web supports a middle-click anchor placement for eligible drawing tools. */
+	/** Host supports a middle-button snap for eligible drawing tools. */
 	allowMiddleButtonDraw?: boolean;
+}
+
+/** Uses a tentative middle-button snap for exactly one primary data point. */
+export function resolveCanvasEditorTentativeDataPoint<T>(options: {
+	button: number;
+	tentative: T | null;
+	resolveCurrent: () => T;
+}): { point: T; nextTentative: T | null } {
+	if (options.button === 0 && options.tentative) {
+		return { point: options.tentative, nextTentative: null };
+	}
+	return {
+		point: options.resolveCurrent(),
+		nextTentative: options.tentative,
+	};
 }
 
 /**
@@ -236,16 +254,18 @@ export function resolveCanvasEditorPointerDown({
 	pathDrawMode = "normal",
 	allowMiddleButtonDraw = false,
 }: ResolveCanvasEditorPointerDownOptions): CanvasEditorPointerAction {
-	if (button === 1 && !allowMiddleButtonDraw) return "pan";
-	if (button !== 0 && !(button === 1 && allowMiddleButtonDraw)) return "ignore";
+	const behavior = CANVAS_EDITOR_POINTER_BEHAVIORS[tool];
+	const middleButtonDraw =
+		button === 1 && allowMiddleButtonDraw && behavior.action === "draw";
+	if (button === 1 && !middleButtonDraw) return "pan";
+	if (button !== 0 && !middleButtonDraw) return "ignore";
 	if (spacePressed) return "pan";
 
-	const behavior = CANVAS_EDITOR_POINTER_BEHAVIORS[tool];
 	if (readOnly && !behavior.availableReadOnly) return "ignore";
 	if (behavior.action === "select" && altKey) return "lasso";
 	if (
 		behavior.action === "draw" &&
-		(tool === "line" || tool === "arrow") &&
+		(tool === "line" || tool === "arrow" || tool === "cloud") &&
 		pathDrawMode === "multi"
 	) {
 		return "path";

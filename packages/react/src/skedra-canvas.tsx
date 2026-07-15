@@ -1,5 +1,7 @@
 import {
 	CanvasScene,
+	DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
+	DEFAULT_CLOUD_ARC_RADIUS,
 	GRID_SIZE,
 	type HandlePosition,
 	type SnapGuide,
@@ -8,10 +10,13 @@ import {
 	applyCanvasMutationPlan,
 	buildBringForwardUpdates,
 	buildBringToFrontUpdates,
+	buildCanvasElementFormatUpdates,
 	buildCanvasPathInsertPointChanges,
 	buildCanvasTextElement,
 	buildCanvasTextUpdate,
+	buildCloudArcRadiusChanges,
 	buildFlowchartNodeKindChanges,
+	buildFrameResizeChildUpdates,
 	buildKanbanDropUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
@@ -19,38 +24,49 @@ import {
 	buildTemplateSectionLayoutSyncUpdates,
 	clientPointToCanvas,
 	cloneCanvasSelection,
+	cloneTransformedCanvasSelection,
 	computeViewportForBounds,
 	createCanvasTemplateStickyNote,
+	createSelectionFrame,
 	createStackIndexAfter,
 	getAlignmentUpdates,
+	getCanvasElementFormat,
 	getCanvasKeyboardResizeChanges,
+	getCanvasSelectionSnapPointIndicators,
 	getCanvasViewportCenter,
 	getCombinedBBox,
-	getCornerRadiusPercent,
 	getDistributionUpdates,
 	getFlipUpdates,
 	getFlowchartRouteForDirection,
 	getGroupUpdates,
 	getLockUpdates,
+	getRotateUpdates,
 	isCanvasTextEditableElement,
 	isFlowchartNode,
 	isKanbanCard,
 	isKanbanList,
 	isMindmapNode,
 	navigateFlowchartInDirection,
+	normalizeCanvasGridSize,
 	normalizeCanvasRect,
+	normalizeCanvasSnapDivisionCount,
 	planCanvasDeletion,
 	planFlowchartStepMutation,
 	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
+	snapCanvasPointToGrid,
 	toCanvasElementMap,
 	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
-import type { CanvasPathDrawMode as CoreCanvasPathDrawMode } from "@skedra/canvas-core";
+import type {
+	CanvasElementFormat,
+	CanvasPathDrawMode as CoreCanvasPathDrawMode,
+} from "@skedra/canvas-core";
 import {
 	CANVAS_EDITOR_TOOL_IDS,
 	CanvasEditor,
+	CanvasEditorContextMenu,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
 	CanvasEditorSavedViewDraft,
@@ -66,9 +82,14 @@ import {
 	CanvasPathStartSnapIndicator,
 	buildCanvasEditorDefaultsElement,
 	buildCanvasEditorEditingSession,
+	canvasEditorToolSupportsSnapOverride,
+	getCanvasEditorSnapModeOptions,
 	isCanvasEditorToolAvailableReadOnly,
 	normalizeCanvasEditorStickyChecklist,
+	resolveCanvasEditorContextSelectionIds,
+	resolveCanvasEditorPlacementPoint,
 	resolveCanvasEditorPointSnap,
+	resolveCanvasEditorRotationKeyDelta,
 	toggleCanvasEditorStickyChecklistItem,
 	useCanvasEditorKeyboard,
 	useCanvasEditorPointer,
@@ -95,6 +116,7 @@ import {
 import {
 	ArrowRight,
 	Circle,
+	Cloud,
 	Copy,
 	Diamond,
 	Download,
@@ -120,6 +142,7 @@ import {
 	StickyNote,
 	TextCursorInput,
 	Trash2,
+	Triangle,
 	Undo2,
 	Unlock,
 	Zap,
@@ -146,10 +169,18 @@ import type {
 	SkedraCanvasExtendedApi,
 	SkedraDistribution,
 	SkedraFlowchartStepOptions,
+	SkedraGridSettings,
 	SkedraKanbanCardDetails,
 	SkedraLayerCommand,
+	SkedraObjectSnapMode,
+	SkedraObjectSnapSettings,
+	SkedraSelectionTransform,
 } from "./commands.js";
-import { exportSkedraVisual } from "./exporters.js";
+import {
+	exportSkedraFrame as exportSdkFrame,
+	exportSkedraVisual,
+	getSkedraFrameExportFilename,
+} from "./exporters.js";
 import {
 	SKEDRA_TEMPLATES,
 	type SkedraSdkTemplateId,
@@ -205,6 +236,8 @@ export type SkedraSdkTool =
 	| "rectangle"
 	| "diamond"
 	| "ellipse"
+	| "triangle"
+	| "cloud"
 	| "arrow"
 	| "line"
 	| "freehand"
@@ -291,8 +324,17 @@ export interface SkedraCanvasProps {
 	readOnly?: boolean;
 	showToolbar?: boolean;
 	showProperties?: boolean;
+	canvasBackground?: string;
+	defaultCanvasBackground?: string;
+	canvasBackgroundOptions?: readonly string[];
+	onCanvasBackgroundChange?: (background: string) => void;
 	showGrid?: boolean;
 	onGridChange?: (enabled: boolean) => void;
+	initialGridSnap?: boolean;
+	initialGridSize?: number;
+	initialObjectSnapSettings?: Partial<SkedraObjectSnapSettings>;
+	onGridSettingsChange?: (settings: SkedraGridSettings) => void;
+	onObjectSnapSettingsChange?: (settings: SkedraObjectSnapSettings) => void;
 	views?: SavedCanvasView[];
 	defaultViews?: SavedCanvasView[];
 	onViewsChange?: (views: SavedCanvasView[]) => void;
@@ -328,19 +370,6 @@ interface Point {
 	y: number;
 }
 
-type SdkFormatClipboard = Pick<
-	CanvasElement,
-	| "stroke"
-	| "fill"
-	| "strokeWidth"
-	| "strokeStyle"
-	| "opacity"
-	| "fontSize"
-	| "fontFamily"
-	| "arrowHeadScale"
-	| "arrowHeadFilled"
-> & { cornerRadiusPercent?: number };
-
 interface SdkToolDefinition {
 	id: SkedraSdkTool;
 	label: string;
@@ -354,6 +383,8 @@ const SDK_TOOL_ICONS: Record<CanvasEditorToolId, SdkToolDefinition["icon"]> = {
 	rectangle: Square,
 	ellipse: Circle,
 	diamond: Diamond,
+	triangle: Triangle,
+	cloud: Cloud,
 	line: Minus,
 	arrow: ArrowRight,
 	freehand: PenLine,
@@ -372,6 +403,45 @@ export const SKEDRA_SDK_TOOL_IDS: readonly SkedraSdkTool[] =
 
 const DEFAULT_STROKE = "#17211d";
 const DEFAULT_FILL = "transparent";
+const DEFAULT_CANVAS_BACKGROUND_OPTIONS = [
+	"",
+	"#fffef9",
+	"#f8fafc",
+	"#f0fdf4",
+	"#eff6ff",
+	"#fdf4ff",
+	"#18181b",
+] as const;
+const DEFAULT_OBJECT_SNAP_SETTINGS: SkedraObjectSnapSettings = {
+	enabled: true,
+	endpoints: true,
+	midpoints: true,
+	divisions: false,
+	divisionCount: DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
+	centers: true,
+	nearest: false,
+	geometricCenters: true,
+	quadrants: true,
+	intersections: true,
+	extensions: true,
+	insertions: false,
+	showPoints: true,
+};
+const OBJECT_SNAP_SETTING_KEYS: Record<
+	SkedraObjectSnapMode,
+	keyof SkedraObjectSnapSettings
+> = {
+	endpoint: "endpoints",
+	midpoint: "midpoints",
+	division: "divisions",
+	center: "centers",
+	"geometric-center": "geometricCenters",
+	quadrant: "quadrants",
+	intersection: "intersections",
+	extension: "extensions",
+	insertion: "insertions",
+	nearest: "nearest",
+};
 const EMPTY_SAVED_VIEW_SELECTION = new Set<string>();
 function createId() {
 	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -404,14 +474,6 @@ function toWorldPoint(
 	);
 }
 
-function snapWorldPoint(point: Point, enabled: boolean): Point {
-	if (!enabled) return point;
-	return {
-		x: Math.round(point.x / GRID_SIZE) * GRID_SIZE,
-		y: Math.round(point.y / GRID_SIZE) * GRID_SIZE,
-	};
-}
-
 function pickBrowserFile(accept: string): Promise<File | null> {
 	return new Promise((resolve) => {
 		const input = document.createElement("input");
@@ -432,8 +494,17 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			readOnly = false,
 			showToolbar = true,
 			showProperties = true,
+			canvasBackground: canvasBackgroundProp,
+			defaultCanvasBackground = "",
+			canvasBackgroundOptions = DEFAULT_CANVAS_BACKGROUND_OPTIONS,
+			onCanvasBackgroundChange,
 			showGrid = true,
 			onGridChange,
+			initialGridSnap = showGrid,
+			initialGridSize = GRID_SIZE,
+			initialObjectSnapSettings,
+			onGridSettingsChange,
+			onObjectSnapSettingsChange,
 			views,
 			defaultViews = [],
 			onViewsChange,
@@ -466,7 +537,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const rootRef = useRef<HTMLDivElement | null>(null);
 		const spacePressedRef = useRef(false);
 		const clipboardRef = useRef<CanvasElement[]>([]);
-		const formatClipboardRef = useRef<SdkFormatClipboard | null>(null);
+		const formatClipboardRef = useRef<CanvasElementFormat | null>(null);
 		const eyedropperTargetRef = useRef<"stroke" | "fill">("stroke");
 		const historyTransactionRef = useRef<CanvasElement[] | null>(null);
 		const undoStackRef = useRef<CanvasElement[][]>([]);
@@ -486,9 +557,54 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const [internalLibraries, setInternalLibraries] =
 			useState<SkedraLibraryFile[]>(defaultLibraries);
 		const [gridEnabled, setGridEnabled] = useState(showGrid);
+		const [gridSnapEnabled, setGridSnapEnabled] = useState(initialGridSnap);
+		const [gridSize, setGridSize] = useState(() =>
+			normalizeCanvasGridSize(initialGridSize),
+		);
 		const [theme, setTheme] = useState(themeProp);
+		const [internalCanvasBackground, setInternalCanvasBackground] = useState(
+			defaultCanvasBackground,
+		);
+		const canvasBackground = canvasBackgroundProp ?? internalCanvasBackground;
+		const setCanvasBackground = useCallback(
+			(background: string) => {
+				if (canvasBackgroundProp === undefined) {
+					setInternalCanvasBackground(background);
+				}
+				onCanvasBackgroundChange?.(background);
+			},
+			[canvasBackgroundProp, onCanvasBackgroundChange],
+		);
 		const [zenMode, setZenMode] = useState(false);
-		const [snapToObjects, setSnapToObjects] = useState(true);
+		const [objectSnapSettings, setObjectSnapSettingsState] =
+			useState<SkedraObjectSnapSettings>(() => {
+				const initial = {
+					...DEFAULT_OBJECT_SNAP_SETTINGS,
+					...initialObjectSnapSettings,
+				};
+				return {
+					...initial,
+					divisionCount: normalizeCanvasSnapDivisionCount(
+						initial.divisionCount,
+					),
+				};
+			});
+		const snapToObjects = objectSnapSettings.enabled;
+		const setSnapToObjects = useCallback((enabled: boolean) => {
+			setObjectSnapSettingsState((current) => ({ ...current, enabled }));
+		}, []);
+		const [transformOrigin, setTransformOrigin] = useState<Point | null>(null);
+		const [snapMenu, setSnapMenu] = useState<{
+			x: number;
+			y: number;
+			kind: "running" | "override";
+		} | null>(null);
+		const [contextMenu, setContextMenu] = useState<{
+			x: number;
+			y: number;
+		} | null>(null);
+		const [snapOverrideMode, setSnapOverrideMode] =
+			useState<SkedraObjectSnapMode | null>(null);
 		const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 		const [snapPointIndicators, setSnapPointIndicators] = useState<
 			SnapPointIndicator[]
@@ -532,6 +648,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			roughness: 0,
 			roughFillStyle: "solid",
 			roughFillScale: 1,
+			cloudArcRadius: DEFAULT_CLOUD_ARC_RADIUS,
+			pyramidSections: 1,
 			arrowHeadStart: "none",
 			arrowHeadEnd: "arrow",
 			arrowHeadScale: 1,
@@ -570,7 +688,38 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[currentElements],
 		);
 		const sortedElements = scene.getSortedElements();
-		const selectedElements = scene.getSelectedElements(selectedIds);
+		const selectedElements = useMemo(
+			() => scene.getSelectedElements(selectedIds),
+			[scene, selectedIds],
+		);
+		const visibleSnapPointIndicators = useMemo(() => {
+			const selectedOptions =
+				snapToObjects && objectSnapSettings.showPoints
+					? {
+							includeEndpoints: objectSnapSettings.endpoints,
+							includeCenters: objectSnapSettings.centers,
+							includeMidpoints: objectSnapSettings.midpoints,
+							includeDivisions: objectSnapSettings.divisions,
+							divisionCount: objectSnapSettings.divisionCount,
+							includeNearest: objectSnapSettings.nearest,
+							includeGeometricCenters: objectSnapSettings.geometricCenters,
+							includeQuadrants: objectSnapSettings.quadrants,
+							includeIntersections: objectSnapSettings.intersections,
+							includeExtensions: objectSnapSettings.extensions,
+							includeInsertions: objectSnapSettings.insertions,
+						}
+					: null;
+			return getCanvasSelectionSnapPointIndicators(
+				selectedElements,
+				selectedOptions,
+				snapPointIndicators,
+			);
+		}, [
+			objectSnapSettings,
+			selectedElements,
+			snapPointIndicators,
+			snapToObjects,
+		]);
 		const editingTextElement = editingTextId
 			? (currentElements.find((element) => element.id === editingTextId) ??
 				null)
@@ -612,31 +761,92 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		useEffect(() => onPathModeChange?.(pathMode), [onPathModeChange, pathMode]);
 		useEffect(() => onViewportChange?.(viewport), [onViewportChange, viewport]);
 		useEffect(() => onGridChange?.(gridEnabled), [gridEnabled, onGridChange]);
+		useEffect(
+			() =>
+				onGridSettingsChange?.({
+					visible: gridEnabled,
+					snap: gridSnapEnabled,
+					size: gridSize,
+				}),
+			[gridEnabled, gridSize, gridSnapEnabled, onGridSettingsChange],
+		);
+		useEffect(
+			() => onObjectSnapSettingsChange?.(objectSnapSettings),
+			[objectSnapSettings, onObjectSnapSettingsChange],
+		);
 		useEffect(() => setGridEnabled(showGrid), [showGrid]);
 		useEffect(() => setTheme(themeProp), [themeProp]);
 
-		const resolveEditorPoint = useCallback(
+		const resolveEditorSnap = useCallback(
 			(
 				point: Point,
-				options: { objectSnap?: boolean; excludeIds?: Set<string> } = {},
+				options: {
+					objectSnap?: boolean;
+					excludeIds?: Set<string>;
+					forceAnchor?: boolean;
+				} = {},
 			) => {
-				const gridPoint = snapWorldPoint(point, gridEnabled);
+				const overrideOptions =
+					getCanvasEditorSnapModeOptions(snapOverrideMode);
+				const gridPoint =
+					gridSnapEnabled && !overrideOptions
+						? snapCanvasPointToGrid(point, gridSize)
+						: point;
 				const result = resolveCanvasEditorPointSnap({
-					point: gridPoint,
+					point,
 					elements: elementMap,
 					excludeIds: options.excludeIds ?? new Set(["__draft"]),
 					snap: {
-						enabled: snapToObjects && options.objectSnap !== false,
-						includeCenters: true,
-						includeMidpoints: true,
-						showInactivePoints: true,
+						enabled:
+							options.forceAnchor === true ||
+							((snapToObjects || overrideOptions != null) &&
+								options.objectSnap !== false),
+						includeEndpoints:
+							overrideOptions?.includeEndpoints ?? objectSnapSettings.endpoints,
+						includeCenters:
+							overrideOptions?.includeCenters ?? objectSnapSettings.centers,
+						includeMidpoints:
+							overrideOptions?.includeMidpoints ?? objectSnapSettings.midpoints,
+						includeDivisions:
+							overrideOptions?.includeDivisions ?? objectSnapSettings.divisions,
+						divisionCount: objectSnapSettings.divisionCount,
+						includeNearest:
+							overrideOptions?.includeNearest ?? objectSnapSettings.nearest,
+						includeGeometricCenters:
+							overrideOptions?.includeGeometricCenters ??
+							objectSnapSettings.geometricCenters,
+						includeQuadrants:
+							overrideOptions?.includeQuadrants ?? objectSnapSettings.quadrants,
+						includeIntersections:
+							overrideOptions?.includeIntersections ??
+							objectSnapSettings.intersections,
+						includeExtensions:
+							overrideOptions?.includeExtensions ??
+							objectSnapSettings.extensions,
+						includeInsertions:
+							overrideOptions?.includeInsertions ??
+							objectSnapSettings.insertions,
+						showInactivePoints: objectSnapSettings.showPoints,
+						threshold: 12 / Math.max(viewport.zoom, 0.01),
 					},
+					forceAnchor: options.forceAnchor,
 				});
 				setSnapGuides(result.guides);
 				setSnapPointIndicators(result.indicators);
-				return result.point;
+				return {
+					...result,
+					point: resolveCanvasEditorPlacementPoint(result, gridPoint),
+				};
 			},
-			[elementMap, gridEnabled, snapToObjects],
+			[
+				elementMap,
+				gridSize,
+				gridSnapEnabled,
+				objectSnapSettings,
+				snapOverrideMode,
+				snapToObjects,
+				viewport.zoom,
+			],
 		);
 
 		const commitElements = useCallback(
@@ -1201,9 +1411,51 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const flipSelection = useCallback(
 			(axis: "horizontal" | "vertical") => {
-				applySelectedUpdates(getFlipUpdates(selectedElements, axis));
+				applySelectedUpdates(
+					getFlipUpdates(selectedElements, axis, transformOrigin ?? undefined),
+				);
+				if (transformOrigin) setTransformOrigin(null);
 			},
-			[applySelectedUpdates, selectedElements],
+			[applySelectedUpdates, selectedElements, transformOrigin],
+		);
+
+		const rotateSelection = useCallback(
+			(angle: number) => {
+				if (!Number.isFinite(angle)) return;
+				applySelectedUpdates(
+					getRotateUpdates(
+						selectedElements,
+						angle,
+						transformOrigin ?? undefined,
+					),
+				);
+				if (transformOrigin) setTransformOrigin(null);
+			},
+			[applySelectedUpdates, selectedElements, transformOrigin],
+		);
+
+		const cloneTransformedSelection = useCallback(
+			(transform: SkedraSelectionTransform) => {
+				if (readOnly || selectedElements.length === 0) return [];
+				const cloned = cloneTransformedCanvasSelection({
+					elements: selectedElements,
+					existingElements: currentElements,
+					createId,
+					transform,
+					origin: transformOrigin ?? undefined,
+				});
+				commitCanvasElements([...currentElements, ...cloned.elements]);
+				setSelectedIds(new Set(cloned.elements.map((element) => element.id)));
+				if (transformOrigin) setTransformOrigin(null);
+				return cloned.elements;
+			},
+			[
+				commitCanvasElements,
+				currentElements,
+				readOnly,
+				selectedElements,
+				transformOrigin,
+			],
 		);
 
 		const lockSelection = useCallback(
@@ -1215,74 +1467,62 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const setSelectionProperties = useCallback(
 			(properties: Partial<CanvasElement>) => {
-				applySelectedUpdates(
-					selectedElements.map((element) => ({
+				const updates = selectedElements.flatMap((element) => {
+					const ownUpdate = {
 						id: element.id,
-						changes: properties,
-					})),
-				);
+						changes: {
+							...properties,
+							...(element.type === "cloud" &&
+							properties.cloudArcRadius !== undefined
+								? buildCloudArcRadiusChanges(element, properties.cloudArcRadius)
+								: {}),
+						},
+					};
+					if (
+						element.type !== "frame" ||
+						(properties.x === undefined &&
+							properties.y === undefined &&
+							properties.width === undefined &&
+							properties.height === undefined)
+					) {
+						return [ownUpdate];
+					}
+					return [
+						ownUpdate,
+						...buildFrameResizeChildUpdates(
+							elementMap,
+							element.id,
+							{
+								x: element.x,
+								y: element.y,
+								width: element.width,
+								height: element.height,
+							},
+							{
+								x: properties.x ?? element.x,
+								y: properties.y ?? element.y,
+								width: properties.width ?? element.width,
+								height: properties.height ?? element.height,
+							},
+						),
+					];
+				});
+				applySelectedUpdates(updates);
 			},
-			[applySelectedUpdates, selectedElements],
+			[applySelectedUpdates, elementMap, selectedElements],
 		);
 
 		const copySelectionFormat = useCallback(() => {
 			const element = selectedElements[0];
 			if (!element) return;
-			formatClipboardRef.current = {
-				stroke: element.stroke,
-				fill: element.fill,
-				strokeWidth: element.strokeWidth,
-				strokeStyle: element.strokeStyle,
-				opacity: element.opacity,
-				cornerRadiusPercent:
-					element.type === "rectangle"
-						? getCornerRadiusPercent(element)
-						: undefined,
-				arrowHeadScale:
-					element.type === "arrow" ? (element.arrowHeadScale ?? 1) : undefined,
-				arrowHeadFilled:
-					element.type === "arrow"
-						? (element.arrowHeadFilled ?? true)
-						: undefined,
-				fontSize: element.fontSize,
-				fontFamily: element.fontFamily,
-			};
+			formatClipboardRef.current = getCanvasElementFormat(element);
 		}, [selectedElements]);
 
 		const pasteSelectionFormat = useCallback(() => {
 			const format = formatClipboardRef.current;
 			if (!format) return;
 			applySelectedUpdates(
-				selectedElements.map((element) => ({
-					id: element.id,
-					changes: {
-						stroke: format.stroke,
-						fill: format.fill,
-						strokeWidth: format.strokeWidth,
-						strokeStyle: format.strokeStyle,
-						opacity: format.opacity,
-						...(element.type === "rectangle" &&
-						format.cornerRadiusPercent !== undefined
-							? {
-									cornerRadiusPercent: format.cornerRadiusPercent,
-									cornerRadius: undefined,
-								}
-							: {}),
-						...(element.type === "arrow" && format.arrowHeadScale !== undefined
-							? { arrowHeadScale: format.arrowHeadScale }
-							: {}),
-						...(element.type === "arrow" && format.arrowHeadFilled !== undefined
-							? { arrowHeadFilled: format.arrowHeadFilled }
-							: {}),
-						...(element.fontSize !== undefined && format.fontSize !== undefined
-							? { fontSize: format.fontSize }
-							: {}),
-						...(element.fontFamily !== undefined &&
-						format.fontFamily !== undefined
-							? { fontFamily: format.fontFamily }
-							: {}),
-					},
-				})),
+				buildCanvasElementFormatUpdates(selectedElements, format),
 			);
 		}, [applySelectedUpdates, selectedElements]);
 
@@ -1296,6 +1536,39 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					id: selected.id,
 					changes: { link: url || undefined },
 				})),
+			);
+		}, [applySelectedUpdates, selectedElements]);
+
+		const embedSelectionInFrame = useCallback(() => {
+			if (readOnly || selectedElements.length === 0) return;
+			const planned = createSelectionFrame({
+				elements: selectedElements,
+				existingElements: currentElements,
+				createId,
+			});
+			if (!planned) return;
+			commitCanvasElements(
+				applyCanvasElementUpdates(
+					[...currentElements, planned.frame],
+					planned.updates,
+				),
+			);
+			setSelectedIds(
+				new Set([
+					planned.frame.id,
+					...selectedElements.map((element) => element.id),
+				]),
+			);
+		}, [commitCanvasElements, currentElements, readOnly, selectedElements]);
+
+		const removeSelectionFromFrame = useCallback(() => {
+			applySelectedUpdates(
+				selectedElements
+					.filter((element) => element.frameId)
+					.map((element) => ({
+						id: element.id,
+						changes: { frameId: undefined },
+					})),
 			);
 		}, [applySelectedUpdates, selectedElements]);
 
@@ -1359,6 +1632,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					...(properties.roughFillScale !== undefined
 						? { roughFillScale: properties.roughFillScale }
 						: {}),
+					...(properties.cloudArcRadius !== undefined
+						? { cloudArcRadius: properties.cloudArcRadius }
+						: {}),
+					...(properties.pyramidSections !== undefined
+						? { pyramidSections: properties.pyramidSections }
+						: {}),
 					...(properties.arrowHeadStart !== undefined
 						? { arrowHeadStart: properties.arrowHeadStart }
 						: {}),
@@ -1417,6 +1696,46 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const setGrid = useCallback(
 			(enabled: boolean) => setGridEnabled(enabled),
 			[],
+		);
+		const setGridSettings = useCallback(
+			(settings: Partial<SkedraGridSettings>) => {
+				if (settings.visible !== undefined) setGridEnabled(settings.visible);
+				if (settings.snap !== undefined) setGridSnapEnabled(settings.snap);
+				if (settings.size !== undefined) {
+					setGridSize(normalizeCanvasGridSize(settings.size));
+				}
+			},
+			[],
+		);
+		const setObjectSnapSettings = useCallback(
+			(settings: Partial<SkedraObjectSnapSettings>) => {
+				setObjectSnapSettingsState((current) => ({
+					...current,
+					...settings,
+					divisionCount:
+						settings.divisionCount === undefined
+							? current.divisionCount
+							: normalizeCanvasSnapDivisionCount(settings.divisionCount),
+				}));
+			},
+			[],
+		);
+		const toggleObjectSnapMode = useCallback((mode: SkedraObjectSnapMode) => {
+			const key = OBJECT_SNAP_SETTING_KEYS[mode];
+			setObjectSnapSettingsState((current) => ({
+				...current,
+				[key]: !current[key],
+			}));
+		}, []);
+		const objectSnapModes = useMemo(
+			() =>
+				Object.fromEntries(
+					Object.entries(OBJECT_SNAP_SETTING_KEYS).map(([mode, key]) => [
+						mode,
+						objectSnapSettings[key],
+					]),
+				) as Record<SkedraObjectSnapMode, boolean>,
+			[objectSnapSettings],
 		);
 
 		const insertImage = useCallback(
@@ -1579,8 +1898,21 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					elements: currentElements,
 					views: currentViews,
 					viewport,
+					canvasBg: canvasBackground,
 				}),
-			[currentElements, currentViews, viewport],
+			[canvasBackground, currentElements, currentViews, viewport],
+		);
+
+		const exportFrame = useCallback(
+			async (frameId: string, format: "svg" | "png" | "pdf" | "pptx") => {
+				const svg = svgRef.current;
+				const frame = currentElements.find(
+					(element) => element.id === frameId && element.type === "frame",
+				);
+				if (!svg || !frame) return null;
+				return exportSdkFrame(svg, frame, format);
+			},
+			[currentElements],
 		);
 
 		const importFile = useCallback(
@@ -1588,9 +1920,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				commitCanvasElements(file.elements);
 				commitViews(file.views ?? []);
 				if (file.appState?.viewport) setViewport(file.appState.viewport);
+				setCanvasBackground(file.appState?.canvasBg ?? "");
 				setSelectedIds(new Set());
 			},
-			[commitCanvasElements, commitViews],
+			[commitCanvasElements, commitViews, setCanvasBackground],
 		);
 
 		const executeCommand = useCallback(
@@ -1677,7 +2010,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						setGridEnabled((enabled) => !enabled);
 						break;
 					case "toggle-object-snap":
-						setSnapToObjects((enabled) => !enabled);
+						setSnapToObjects(!snapToObjects);
 						break;
 					case "fit-to-content":
 						fitToContent();
@@ -1699,6 +2032,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				lockSelection,
 				pasteSelection,
 				redo,
+				setSnapToObjects,
+				snapToObjects,
 				undo,
 				ungroupSelection,
 			],
@@ -1753,12 +2088,26 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				distribute: distributeSelection,
 				layer: layerSelection,
 				flip: flipSelection,
+				rotateSelection,
+				cloneTransformedSelection,
+				setTransformOrigin,
+				getTransformOrigin: () => transformOrigin,
 				setLocked: lockSelection,
 				setProperties: setSelectionProperties,
+				setCanvasBackground,
+				getCanvasBackground: () => canvasBackground,
 				setGrid,
 				getGrid: () => gridEnabled,
+				setGridSettings,
+				getGridSettings: () => ({
+					visible: gridEnabled,
+					snap: gridSnapEnabled,
+					size: gridSize,
+				}),
 				setObjectSnap: setSnapToObjects,
 				getObjectSnap: () => snapToObjects,
+				setObjectSnapSettings,
+				getObjectSnapSettings: () => objectSnapSettings,
 				getViewport: () => viewport,
 				setViewport,
 				insertImage,
@@ -1780,15 +2129,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				previousView: () => movePresentation(-1),
 				stopPresentation: () => setPresentationViewId(null),
 				exportFile,
+				exportFrame,
 				importFile,
 				executeCommand,
 			}),
 			[
 				addFlowchartStep,
 				alignSelection,
+				canvasBackground,
 				commitCanvasElements,
 				commitElements,
 				commitLibraries,
+				cloneTransformedSelection,
 				copySelection,
 				createView,
 				currentElements,
@@ -1802,11 +2154,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				duplicateSelection,
 				executeCommand,
 				exportFile,
+				exportFrame,
 				fitToContent,
 				flipSelection,
 				goToView,
 				gridEnabled,
+				gridSize,
+				gridSnapEnabled,
 				snapToObjects,
+				objectSnapSettings,
 				groupSelection,
 				importFile,
 				insertImage,
@@ -1825,9 +2181,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				pasteSelection,
 				pasteFromClipboard,
 				redo,
+				rotateSelection,
 				selectedIds,
 				setFlowchartNodeKind,
+				setCanvasBackground,
 				setGrid,
+				setGridSettings,
+				setObjectSnapSettings,
+				setSnapToObjects,
 				setSelectionProperties,
 				startPresentation,
 				undo,
@@ -1836,6 +2197,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				updateKanbanList,
 				updateView,
 				viewport,
+				transformOrigin,
 			],
 		);
 
@@ -2000,7 +2362,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					setLaserTrail({ points: laserPointsRef.current, finished: true });
 				},
 			},
-			resolvePoint: (clientX, clientY) => {
+			resolvePoint: (clientX, clientY, options) => {
 				const svg = svgRef.current;
 				if (!svg) {
 					return {
@@ -2009,15 +2371,25 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					};
 				}
 				const raw = toWorldPoint({ clientX, clientY }, svg, viewport);
-				const snapped = resolveEditorPoint(raw, {
+				const snap = resolveEditorSnap(raw, {
 					objectSnap:
 						tool === "line" ||
 						tool === "arrow" ||
 						tool === "rectangle" ||
 						tool === "ellipse" ||
-						tool === "diamond",
+						tool === "diamond" ||
+						tool === "triangle" ||
+						tool === "cloud" ||
+						options?.objectSnap === true ||
+						(options?.forceAnchor && tool === "select"),
+					forceAnchor: options?.forceAnchor,
+					excludeIds: options?.excludeIds,
 				});
-				return { raw, snapped };
+				return {
+					raw,
+					snapped: snap.point,
+					snapAnchor: snap.anchor,
+				};
 			},
 			startTextPlacement: (placement) => {
 				if (textPrompt) {
@@ -2072,6 +2444,16 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				if (!toolLocked) setTool("select");
 				return true;
 			},
+			onTentativeSnap: (point) => {
+				if (!point.snapAnchor) return false;
+				setTransformOrigin({ ...point.snapped });
+				return true;
+			},
+			isTentativeSnapActive: () => transformOrigin != null,
+			onTentativeSnapConsumed: () => setTransformOrigin(null),
+			onGestureFinished: (action) => {
+				if (action === "rotate") setTransformOrigin(null);
+			},
 		});
 		const onSdkSurfacePointerDown = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
@@ -2101,12 +2483,16 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					}
 					return;
 				}
+				const consumeSnapOverride =
+					event.button === 0 && snapOverrideMode != null;
 				editorPointer.onPointerDown(event);
+				if (consumeSnapOverride) setSnapOverrideMode(null);
 			},
 			[
 				cancelViewInteraction,
 				editorPointer,
 				isCapturingView,
+				snapOverrideMode,
 				startViewCapture,
 				viewport,
 			],
@@ -2122,6 +2508,47 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				);
 			},
 			[editorPointer, handleViewPointerMove, viewport],
+		);
+		const onSdkSurfaceContextMenu = useCallback(
+			(event: ReactMouseEvent<SVGSVGElement>) => {
+				if (presentationViewId) {
+					event.preventDefault();
+					return;
+				}
+				if (event.shiftKey && canvasEditorToolSupportsSnapOverride(tool)) {
+					event.preventDefault();
+					setContextMenu(null);
+					setSnapMenu({
+						x: event.clientX,
+						y: event.clientY,
+						kind: "override",
+					});
+					return;
+				}
+				if (editorPointer.onContextMenu(event)) return;
+				event.preventDefault();
+				event.stopPropagation();
+				setSnapMenu(null);
+				const point = toWorldPoint(event, event.currentTarget, viewport);
+				const target = scene.getElementAtPosition(point.x, point.y);
+				setSelectedIds(
+					resolveCanvasEditorContextSelectionIds(
+						target,
+						elementMap,
+						selectedIds,
+					),
+				);
+				setContextMenu({ x: event.clientX, y: event.clientY });
+			},
+			[
+				editorPointer,
+				elementMap,
+				presentationViewId,
+				scene,
+				selectedIds,
+				tool,
+				viewport,
+			],
 		);
 		const onSdkSurfacePointerUp = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
@@ -2170,6 +2597,16 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					current.id === element.id ? { ...current, ...changes } : current,
 				),
 			);
+		};
+
+		const rotateWithKeyboard = (
+			event: ReactKeyboardEvent<SVGCircleElement>,
+		) => {
+			const angle = resolveCanvasEditorRotationKeyDelta(event);
+			if (angle == null) return;
+			event.preventDefault();
+			event.stopPropagation();
+			rotateSelection(angle);
 		};
 
 		const handleDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
@@ -2411,7 +2848,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			},
 			tool: setTool,
 			toggleToolLock: () => setToolLocked((locked) => !locked),
-			toggleObjectSnap: () => setSnapToObjects((enabled) => !enabled),
+			toggleObjectSnap: () => setSnapToObjects(!snapToObjects),
 			insertImage: () => void pickAndInsertImage(),
 			openHelp: () =>
 				requestSdkHostAction("skedra:help-request", onHelpRequest),
@@ -2652,6 +3089,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			downloadSkedraBlob(blob, `skedra-whiteboard.${format}`);
 		};
 
+		const downloadFrame = async (
+			frame: CanvasElement,
+			format: "svg" | "png",
+		) => {
+			const blob = await exportFrame(frame.id, format);
+			if (!blob) return;
+			downloadSkedraBlob(blob, getSkedraFrameExportFilename(frame, format));
+		};
+
 		const pickAndAddLibrary = async () => {
 			const file = await pickBrowserFile(
 				".skedralib,.excalidrawlib,application/json",
@@ -2855,7 +3301,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				label: "Object snapping (Alt+S)",
 				icon: <Magnet size={17} />,
 				active: snapToObjects,
-				onSelect: () => setSnapToObjects((enabled) => !enabled),
+				onSelect: () => setSnapToObjects(!snapToObjects),
 			},
 			{ type: "separator", id: "style-separator" },
 			{
@@ -2897,7 +3343,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				documentAdapter={editorDocumentAdapter}
 				collaboration={{ enabled: false }}
 				className={normalizeClassName(className)}
-				style={style}
+				style={{
+					...style,
+					...(canvasBackground ? { backgroundColor: canvasBackground } : {}),
+				}}
 				data-theme={theme}
 				data-history-revision={historyRevision}
 			>
@@ -2931,6 +3380,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								),
 						}}
 						items={toolbarItems}
+						responsive={{
+							moreLabel: "More tools and actions",
+							moreIcon: <LayoutTemplate size={17} strokeWidth={2} />,
+							popoverClassName: "skedra-sdk__menu-wide",
+						}}
 						classes={{
 							root: "skedra-sdk__toolbar",
 							action: "skedra-sdk__tool",
@@ -2954,7 +3408,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					onPointerUp={onSdkSurfacePointerUp}
 					onPointerCancel={editorPointer.onPointerCancel}
 					onLostPointerCapture={editorPointer.onLostPointerCapture}
-					onContextMenu={editorPointer.onContextMenu}
+					onContextMenu={onSdkSurfaceContextMenu}
 					onDoubleClick={(event) => {
 						if (!editorPointer.onDoubleClick()) handleDoubleClick(event);
 					}}
@@ -2964,6 +3418,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					<CanvasEditorGridOverlay
 						enabled={gridEnabled}
 						zoom={viewport.zoom}
+						gridSize={gridSize}
 						patternId={gridPatternId}
 						color="currentColor"
 						opacity={0.08}
@@ -2997,8 +3452,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					/>
 					<CanvasEditorSnapOverlay
 						guides={snapGuides}
-						points={snapPointIndicators}
+						points={visibleSnapPointIndicators}
 						zoom={viewport.zoom}
+						origin={transformOrigin}
 					/>
 					{editingView && !pendingText && !editingSession && (
 						<CanvasEditorSavedViewOverlay
@@ -3036,6 +3492,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						selected={selectedElements}
 						zoom={viewport.zoom}
 						readOnly={readOnly}
+						transformOrigin={transformOrigin}
 						outlinePadding={4}
 						handleSize={10}
 						outlineStroke="var(--skedra-sdk-accent, #2563eb)"
@@ -3048,6 +3505,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						}}
 						onResizeStart={editorPointer.beginResize}
 						onResizeKeyDown={resizeWithKeyboard}
+						onRotateStart={editorPointer.beginRotate}
+						onRotateKeyDown={rotateWithKeyboard}
 						onPathPointDragStart={editorPointer.beginPathPointDrag}
 						onInsertPathPoint={(element, pointIndex, point, event) =>
 							editorPointer.runPointerUpAction(event, () =>
@@ -3106,6 +3565,88 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							) : null,
 						)}
 				</CanvasEditorSurface>
+				{contextMenu && !zenMode && !presentationViewId && (
+					<CanvasEditorContextMenu
+						x={contextMenu.x}
+						y={contextMenu.y}
+						hasSelection={selectedIds.size > 0}
+						selectionCount={selectedIds.size}
+						isLocked={
+							selectedElements.length > 0 &&
+							selectedElements.every((element) => element.locked)
+						}
+						isInFrame={selectedElements.some((element) => !!element.frameId)}
+						isGrouped={selectedElements.some((element) => !!element.groupId)}
+						readOnly={readOnly}
+						canPaste={clipboardRef.current.length > 0}
+						canPasteFormat={formatClipboardRef.current != null}
+						onCopy={copySelection}
+						onCut={cutSelection}
+						onPaste={() => {
+							void pasteFromClipboard();
+						}}
+						onDuplicate={duplicateSelection}
+						onDelete={deleteSelection}
+						onSelectAll={() =>
+							setSelectedIds(
+								new Set(currentElements.map((element) => element.id)),
+							)
+						}
+						onToggleLock={() => lockSelection()}
+						onCopyFormat={copySelectionFormat}
+						onPasteFormat={pasteSelectionFormat}
+						onBringForward={() => layerSelection("bring-forward")}
+						onSendBackward={() => layerSelection("send-backward")}
+						onBringToFront={() => layerSelection("bring-to-front")}
+						onSendToBack={() => layerSelection("send-to-back")}
+						onFlipHorizontal={() => flipSelection("horizontal")}
+						onFlipVertical={() => flipSelection("vertical")}
+						onCopyMirrorHorizontal={() =>
+							cloneTransformedSelection({
+								type: "flip",
+								axis: "horizontal",
+							})
+						}
+						onCopyMirrorVertical={() =>
+							cloneTransformedSelection({
+								type: "flip",
+								axis: "vertical",
+							})
+						}
+						onRotate={rotateSelection}
+						onCopyRotate={(angle) =>
+							cloneTransformedSelection({ type: "rotate", angle })
+						}
+						onAddLink={addSelectionLink}
+						onEmbedInFrame={embedSelectionInFrame}
+						onRemoveFromFrame={removeSelectionFromFrame}
+						onGroup={groupSelection}
+						onUngroup={ungroupSelection}
+						snapToObjects={snapToObjects}
+						onToggleSnap={() => setSnapToObjects(!snapToObjects)}
+						showSnapPoints={objectSnapSettings.showPoints}
+						onToggleSnapPoints={() =>
+							setObjectSnapSettings({
+								showPoints: !objectSnapSettings.showPoints,
+							})
+						}
+						snapModes={objectSnapModes}
+						onToggleSnapMode={toggleObjectSnapMode}
+						snapDivisionCount={objectSnapSettings.divisionCount}
+						onSnapDivisionCountChange={(divisionCount) =>
+							setObjectSnapSettings({ divisionCount })
+						}
+						gridEnabled={gridEnabled}
+						onToggleGrid={() => setGridEnabled((enabled) => !enabled)}
+						gridSnapEnabled={gridSnapEnabled}
+						onToggleGridSnap={() => setGridSnapEnabled((enabled) => !enabled)}
+						gridSize={gridSize}
+						onGridSizeChange={(size) =>
+							setGridSize(normalizeCanvasGridSize(size))
+						}
+						onClose={() => setContextMenu(null)}
+					/>
+				)}
 				{(pendingText || editingSession) &&
 					(editingSession?.editingText.variant === "sticky-note" ? (
 						<CanvasEditorStickyNoteOverlay
@@ -3133,6 +3674,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						selected={propertiesSelection}
 						mode={selectedElements.length > 0 ? "selection" : "defaults"}
 						readOnly={readOnly}
+						canvasBackground={{
+							value: canvasBackground,
+							options: canvasBackgroundOptions,
+							onChange: setCanvasBackground,
+						}}
 						pathDrawMode={pathDrawMode}
 						onPathDrawModeChange={setPathDrawMode}
 						onSetProperties={
@@ -3170,6 +3716,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							cropImage(id, crop);
 						}}
 						onStartImageCrop={setCroppingImageId}
+						onExportFrame={
+							selectedElements.length === 1 &&
+							selectedElements[0]?.type === "frame"
+								? (format) => {
+										void downloadFrame(selectedElements[0], format);
+									}
+								: undefined
+						}
 						onAddFlowchartStep={(nodeId, options) => {
 							addFlowchartStep(nodeId, options);
 						}}

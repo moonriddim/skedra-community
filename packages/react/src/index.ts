@@ -5,11 +5,13 @@ export {
 } from "./skedra-canvas.js";
 export { SKEDRA_CANVAS_COMMAND_IDS } from "./commands.js";
 export {
+	exportSkedraFrame,
 	exportSkedraPdf,
 	exportSkedraPng,
 	exportSkedraPptx,
 	exportSkedraSvg,
 	exportSkedraVisual,
+	getSkedraFrameExportFilename,
 } from "./exporters.js";
 export {
 	SKEDRA_ENCRYPTED_FILE_TYPE,
@@ -40,11 +42,23 @@ export {
 } from "./io.js";
 export { SkedraPropertiesPanel } from "./properties-panel.js";
 export {
+	SkedraContextMenu,
+	SkedraLayerPanel,
+	SkedraSnapMenu,
+	SkedraWireframePanel,
+	getSkedraLayerReorderUpdates,
+} from "./editor-panels.js";
+export {
 	SKEDRA_WORKSPACE_CALL_DISABLED,
 	SKEDRA_WORKSPACE_HOOKS_DISABLED,
 } from "./workspace-hooks.js";
 export {
 	SKEDRA_TEMPLATES,
+	SKEDRA_WIREFRAME_BLANK_PRESET_IDS,
+	SKEDRA_WIREFRAME_COMPONENT_CATEGORIES,
+	SKEDRA_WIREFRAME_COMPONENT_IDS,
+	SKEDRA_WIREFRAME_PRESET_IDS,
+	SKEDRA_WIREFRAME_STARTER_PRESET_IDS,
 	createSkedraElementId,
 	createSkedraFrameElement,
 	createSkedraKanbanBoardElements,
@@ -53,6 +67,9 @@ export {
 	createSkedraStickyNoteElement,
 	createSkedraTemplateElements,
 	createSkedraTemplateSectionFrame,
+	createSkedraWireframeComponentElements,
+	createSkedraWireframePresetElements,
+	createSkedraWireframeScreenElements,
 	getSkedraElementFactoryDefaults,
 	withSkedraStackIndexes,
 } from "./factories.js";
@@ -72,11 +89,16 @@ export type {
 	SkedraCanvasExtendedApi,
 	SkedraDistribution,
 	SkedraFlowchartStepOptions,
+	SkedraGridSettings,
 	SkedraKanbanCardDetails,
 	SkedraLayerCommand,
+	SkedraObjectSnapMode,
+	SkedraObjectSnapSettings,
+	SkedraSelectionTransform,
 } from "./commands.js";
 
 export type {
+	SkedraFrameExportElement,
 	SkedraVisualExportFormat,
 	SkedraVisualExportOptions,
 } from "./exporters.js";
@@ -90,6 +112,17 @@ export type {
 } from "./io.js";
 
 export type { SkedraPropertiesPanelProps } from "./properties-panel.js";
+export type {
+	SkedraCanvasElementUpdate,
+	SkedraContextMenuProps,
+	SkedraEditorTranslate,
+	SkedraLayerPanelProps,
+	SkedraLayerReorderPosition,
+	SkedraObjectSnapModeState,
+	SkedraSnapMenuProps,
+	SkedraWireframeInsertionTarget,
+	SkedraWireframePanelProps,
+} from "./editor-panels.js";
 
 export type {
 	SkedraWorkspaceCallStatus,
@@ -112,10 +145,17 @@ export type {
 	CreateSkedraStickyNoteOptions,
 	CreateSkedraTemplateElementsOptions,
 	CreateSkedraTemplateSectionFrameOptions,
+	CreateSkedraWireframeComponentOptions,
+	CreateSkedraWireframePresetOptions,
+	CreateSkedraWireframeScreenOptions,
 	SkedraElementFactoryDefaults,
 	SkedraFactoryOptions,
 	SkedraSdkResolvedTheme,
 	SkedraSdkTemplateId,
 	SkedraSdkThemeState,
 	SkedraTemplateDefinition,
+	SkedraWireframeChrome,
+	SkedraWireframeComponentId,
+	SkedraWireframePresetId,
+	SkedraWireframeViewport,
 } from "./factories.js";

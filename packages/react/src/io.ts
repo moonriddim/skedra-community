@@ -2,8 +2,13 @@ import {
 	buildCroppedImageUpdate,
 	cloneCanvasSelection,
 	convertExcalidrawLibraryGroups,
+	fitImageSize,
 	getCombinedBBox,
 } from "@skedra/canvas-core";
+import {
+	canvasBlobToDataUrl,
+	loadCanvasImageDimensions,
+} from "@skedra/canvas-io/browser-images";
 import { decodeCanvasElement } from "@skedra/canvas-io/codecs";
 import {
 	SKEDRA_ENCRYPTED_FILE_TYPE as SHARED_ENCRYPTED_FILE_TYPE,
@@ -294,17 +299,19 @@ export async function createSkedraImageElement(
 	source: Blob | string,
 	options: SkedraImageOptions = {},
 ): Promise<CanvasElement> {
-	const src = typeof source === "string" ? source : await blobToDataUrl(source);
-	const dimensions = await loadImageDimensions(src);
+	const src =
+		typeof source === "string" ? source : await canvasBlobToDataUrl(source);
+	const dimensions = await loadCanvasImageDimensions(src).catch(() => {
+		throw new SkedraIoError("invalidImage");
+	});
 	const maxWidth = options.maxWidth ?? 1200;
 	const maxHeight = options.maxHeight ?? 900;
-	const scale = Math.min(
-		1,
-		maxWidth / dimensions.width,
-		maxHeight / dimensions.height,
+	const { width, height } = fitImageSize(
+		dimensions.width,
+		dimensions.height,
+		maxWidth,
+		maxHeight,
 	);
-	const width = Math.max(1, dimensions.width * scale);
-	const height = Math.max(1, dimensions.height * scale);
 	return {
 		id: (options.createId ?? createSkedraElementId)(),
 		type: "image",
@@ -378,28 +385,4 @@ function parseJson(value: string): unknown {
 
 function cloneJson<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onerror = () => reject(reader.error);
-		reader.onload = () => resolve(String(reader.result ?? ""));
-		reader.readAsDataURL(blob);
-	});
-}
-
-function loadImageDimensions(
-	src: string,
-): Promise<{ width: number; height: number }> {
-	return new Promise((resolve, reject) => {
-		const image = new Image();
-		image.onload = () =>
-			resolve({
-				width: image.naturalWidth || 1,
-				height: image.naturalHeight || 1,
-			});
-		image.onerror = () => reject(new SkedraIoError("invalidImage"));
-		image.src = src;
-	});
 }

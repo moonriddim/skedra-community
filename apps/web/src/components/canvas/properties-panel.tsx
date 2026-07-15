@@ -66,6 +66,7 @@ interface PropertiesPanelProps {
 		| "addKanbanCard"
 		| "addTemplateSticky"
 		| "addFlowchartStep"
+		| "exportFrame"
 		| "openKanbanCard"
 		| "openKanbanList"
 	>;
@@ -139,6 +140,8 @@ export function PropertiesPanel({
 			roughness: panel.currentRoughness,
 			roughFillStyle: panel.currentRoughFillStyle,
 			roughFillScale: panel.roughFillScalePercent / 100,
+			cloudArcRadius: panel.currentCloudArcRadius,
+			pyramidSections: panel.currentPyramidSections,
 			arrowMode: panel.currentArrowMode,
 			arrowHeadStart: panel.currentArrowHeadStart,
 			arrowHeadEnd: panel.currentArrowHeadEnd,
@@ -190,11 +193,20 @@ export function PropertiesPanel({
 				kanbanList: panel.kanbanList,
 				frameElement: panel.frameElement,
 				framePresetToolActive: panel.framePresetToolActive,
+				frameChildElements: panel.frameChildElements,
 				onSetFrameLabel: panel.setFrameLabel,
 				onRenameFrame: panel.startFrameRename,
 				onSetFrameSize: panel.setFrameSize,
+				onSetFrameChildConstraints: panel.setFrameChildConstraints,
 				onApplyFramePreset: panel.applyFramePreset,
 				onStartFramePresetPlacement: panel.startFramePresetPlacement,
+				onExportFrame: panel.frameElement
+					? (format) => {
+							if (panel.frameElement) {
+								void commands.exportFrame(panel.frameElement.id, format);
+							}
+						}
+					: undefined,
 				currentPriority: panel.currentPriority,
 				templateSection: panel.templateSection,
 				isTemplateNoteSelection: panel.isTemplateNoteSelection,
@@ -231,9 +243,14 @@ export function PropertiesPanel({
 				currentShapeWidth: panel.currentShapeWidth,
 				currentShapeHeight: panel.currentShapeHeight,
 				ellipseDiameter: panel.ellipseDiameter,
+				showPyramidOptions: panel.showPyramidOptions,
+				currentPyramidSections: panel.currentPyramidSections,
+				showCloudArcRadius: panel.showCloudArcRadius,
+				currentCloudArcRadius: panel.currentCloudArcRadius,
 				currentOpacity: panel.currentOpacity,
 				strokeColors: panel.strokeColors,
 				showPathDrawMode: panel.showPathDrawMode,
+				isCloudDrawMode: panel.isCloudDrawMode,
 				isPathElement: panel.isPathElement,
 				isArrowElement: panel.isArrowElement,
 				showPathClosed: panel.showPathClosed,

@@ -1,9 +1,11 @@
 import {
+	exportSkedraFrame as exportSharedFrame,
 	exportSkedraPdf as exportSharedPdf,
 	exportSkedraPng as exportSharedPng,
 	exportSkedraPptx as exportSharedPptx,
 	exportSkedraSvg as exportSharedSvg,
 	exportSkedraVisual as exportSharedVisual,
+	getSkedraFrameExportFilename as getSharedFrameExportFilename,
 	measureSkedraExportBounds as measureSharedExportBounds,
 } from "@skedra/canvas-io/exporters";
 
@@ -13,6 +15,31 @@ export interface SkedraVisualExportOptions {
 	padding?: number;
 	background?: string;
 	scale?: number;
+}
+
+export interface SkedraFrameExportElement {
+	id: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	frameLabel?: string;
+}
+
+export function getSkedraFrameExportFilename(
+	frame: Pick<SkedraFrameExportElement, "frameLabel">,
+	format: SkedraVisualExportFormat,
+): string {
+	return getSharedFrameExportFilename(frame, format);
+}
+
+export function exportSkedraFrame(
+	svgElement: SVGSVGElement,
+	frame: SkedraFrameExportElement,
+	format: SkedraVisualExportFormat,
+	options: SkedraVisualExportOptions = {},
+): Promise<Blob> {
+	return exportSharedFrame(svgElement, frame, format, options);
 }
 
 export function exportSkedraSvg(

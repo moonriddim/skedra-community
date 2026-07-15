@@ -2,6 +2,7 @@
  * Kontextmenue und Text-/Sticky-Editoren ueber dem Canvas.
  */
 
+import { CanvasSnapMenuOverlay } from "@/components/canvas/canvas-snap-menu-overlay";
 import { ContextMenu } from "@/components/canvas/context-menu";
 import type { useCanvasTextEditing } from "@/components/canvas/hooks/use-canvas-text-editing";
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
@@ -10,7 +11,7 @@ import type {
 	StickyChecklistItem,
 	StickyNoteMode,
 } from "@/lib/canvas/sticky-note-utils";
-import type { CanvasElement } from "@skedra/canvas-core";
+import type { CanvasElement, CanvasObjectSnapMode } from "@skedra/canvas-core";
 import {
 	CanvasEditorStickyNoteOverlay,
 	CanvasEditorTextOverlay,
@@ -46,6 +47,9 @@ type KeyboardApi = Pick<
 	| "sendToBack"
 	| "flipHorizontal"
 	| "flipVertical"
+	| "rotateSelection"
+	| "copyMirrorSelection"
+	| "copyRotateSelection"
 	| "addLink"
 	| "toggleLock"
 	| "embedInFrame"
@@ -102,6 +106,30 @@ export function SkedraCanvasEditLayer({
 		handleCloseTextEditorAfterSave,
 		registerTextEditorCommit,
 	} = textEditing;
+	const snapModes = {
+		endpoint: store.snapToEndpoints,
+		midpoint: store.snapToMidpoints,
+		division: store.snapToDivisions,
+		center: store.snapToCenters,
+		"geometric-center": store.snapToGeometricCenters,
+		quadrant: store.snapToQuadrants,
+		intersection: store.snapToIntersections,
+		extension: store.snapToExtensions,
+		insertion: store.snapToInsertions,
+		nearest: store.snapToNearest,
+	} satisfies Record<CanvasObjectSnapMode, boolean>;
+	const snapModeToggles = {
+		endpoint: store.toggleSnapToEndpoints,
+		midpoint: store.toggleSnapToMidpoints,
+		division: store.toggleSnapToDivisions,
+		center: store.toggleSnapToCenters,
+		"geometric-center": store.toggleSnapToGeometricCenters,
+		quadrant: store.toggleSnapToQuadrants,
+		intersection: store.toggleSnapToIntersections,
+		extension: store.toggleSnapToExtensions,
+		insertion: store.toggleSnapToInsertions,
+		nearest: store.toggleSnapToNearest,
+	} satisfies Record<CanvasObjectSnapMode, () => void>;
 
 	return (
 		<>
@@ -142,6 +170,7 @@ export function SkedraCanvasEditLayer({
 					x={contextMenu.x}
 					y={contextMenu.y}
 					hasSelection={selectedIds.size > 0}
+					selectionCount={selectedIds.size}
 					isLocked={isLocked}
 					isInFrame={selectedEls.some((el) => !!el.frameId)}
 					isGrouped={selectedEls.some((el) => !!el.groupId)}
@@ -165,6 +194,12 @@ export function SkedraCanvasEditLayer({
 					onSendToBack={keyboard.sendToBack}
 					onFlipHorizontal={keyboard.flipHorizontal}
 					onFlipVertical={keyboard.flipVertical}
+					onCopyMirrorHorizontal={() =>
+						keyboard.copyMirrorSelection("horizontal")
+					}
+					onCopyMirrorVertical={() => keyboard.copyMirrorSelection("vertical")}
+					onRotate={keyboard.rotateSelection}
+					onCopyRotate={keyboard.copyRotateSelection}
 					onAddLink={keyboard.addLink}
 					onEmbedInFrame={keyboard.embedInFrame}
 					onRemoveFromFrame={keyboard.removeFromFrame}
@@ -174,15 +209,21 @@ export function SkedraCanvasEditLayer({
 					onToggleSnap={store.toggleSnapToObjects}
 					showSnapPoints={store.showSnapPoints}
 					onToggleSnapPoints={store.toggleShowSnapPoints}
-					snapToCenters={store.snapToCenters}
-					onToggleSnapCenters={store.toggleSnapToCenters}
-					snapToMidpoints={store.snapToMidpoints}
-					onToggleSnapMidpoints={store.toggleSnapToMidpoints}
+					snapModes={snapModes}
+					onToggleSnapMode={(mode) => snapModeToggles[mode]()}
+					snapDivisionCount={store.snapDivisionCount}
+					onSnapDivisionCountChange={store.setSnapDivisionCount}
 					gridEnabled={store.gridEnabled}
 					onToggleGrid={store.toggleGrid}
+					gridSnapEnabled={store.gridSnapEnabled}
+					onToggleGridSnap={store.toggleGridSnap}
+					gridSize={store.gridSize}
+					onGridSizeChange={store.setGridSize}
 					onClose={() => store.setContextMenu(null)}
 				/>
 			)}
+
+			<CanvasSnapMenuOverlay />
 		</>
 	);
 }

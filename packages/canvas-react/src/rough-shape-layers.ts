@@ -1,6 +1,9 @@
 import {
+	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getLinePath,
+	getPyramidDividerSegments,
+	getTrianglePoints,
 	roundedRectSvgPath,
 } from "@skedra/canvas-core";
 import type {
@@ -53,7 +56,13 @@ function getRoughPreset(el: CanvasElement, level: number) {
 	if (el.customData?.excalidrawImport === true && level > 0) {
 		return EXCALIDRAW_ROUGH;
 	}
-	return ROUGH_PRESETS[level] ?? ROUGH_PRESETS[1];
+	const preset = ROUGH_PRESETS[level] ?? ROUGH_PRESETS[1];
+	if (el.type !== "triangle") return preset;
+	return {
+		roughness: preset.roughness * 1.18,
+		bowing: preset.bowing * 1.2,
+		maxRandomnessOffset: preset.maxRandomnessOffset * 1.28,
+	};
 }
 
 function isFillCapableShape(el: CanvasElement): boolean {
@@ -61,6 +70,8 @@ function isFillCapableShape(el: CanvasElement): boolean {
 		el.type === "rectangle" ||
 		el.type === "ellipse" ||
 		el.type === "diamond" ||
+		el.type === "triangle" ||
+		el.type === "cloud" ||
 		(el.type === "line" && el.closed === true && (el.points?.length ?? 0) >= 3)
 	);
 }
@@ -72,6 +83,8 @@ export interface RoughShapeLayers {
 	strokeHtml: string | null;
 	/** Exakter SVG-Strich ueber geclipptem Muster (Sauberkeit = exakt) */
 	svgStrokeFallback: boolean;
+	/** Zusaetzliche skizzierte Formdetails, zum Beispiel Pyramiden-Trennlinien. */
+	detailHtml: string | null;
 }
 
 type RoughGenerator = ReturnType<typeof rough.svg>;
@@ -311,6 +324,10 @@ function buildRoughNode(
 				opts,
 			);
 		}
+		case "triangle":
+			return rc.polygon(getTrianglePoints(el), opts);
+		case "cloud":
+			return rc.path(getCloudSvgPath(el), opts);
 		case "line":
 			if (el.points && el.points.length >= 2) {
 				const absolutePoints = el.points.map(
@@ -348,6 +365,28 @@ function buildRoughNode(
 		default:
 			return null;
 	}
+}
+
+function buildRoughPyramidDividerHtml(
+	rc: RoughGenerator,
+	el: CanvasElement,
+	opts: RoughOptions,
+): string | null {
+	if (el.type !== "triangle") return null;
+	const dividers = getPyramidDividerSegments(el, el.pyramidSections);
+	if (dividers.length === 0) return null;
+	const baseSeed = opts?.seed ?? getElementRoughSeed(el);
+	return dividers
+		.map(
+			(divider, index) =>
+				rc.line(divider.x1, divider.y1, divider.x2, divider.y2, {
+					...opts,
+					fill: undefined,
+					fillStyle: undefined,
+					seed: baseSeed + (index + 1) * 97,
+				}).innerHTML,
+		)
+		.join("");
 }
 
 export function useRoughShapeLayers(
@@ -390,6 +429,9 @@ export function useRoughShapeLayers(
 			preserveVertices: true,
 			fillShapeRoughnessGain: 0.35,
 		};
+		const detailHtml = needsRoughStroke
+			? buildRoughPyramidDividerHtml(rc, el, baseOpts)
+			: null;
 
 		if (needsPatternFill) {
 			const fillNode = buildRoughNode(rc, el, {
@@ -418,6 +460,7 @@ export function useRoughShapeLayers(
 					fillHtml: fillNode?.innerHTML ?? null,
 					strokeHtml,
 					svgStrokeFallback: false,
+					detailHtml,
 				};
 			}
 
@@ -425,6 +468,7 @@ export function useRoughShapeLayers(
 				fillHtml: fillNode?.innerHTML ?? null,
 				strokeHtml: null,
 				svgStrokeFallback: true,
+				detailHtml: null,
 			};
 		}
 
@@ -437,6 +481,7 @@ export function useRoughShapeLayers(
 					isExcalidrawImport ? 1 : 2,
 				),
 				svgStrokeFallback: false,
+				detailHtml: null,
 			};
 		}
 
@@ -454,6 +499,7 @@ export function useRoughShapeLayers(
 			fillHtml: null,
 			strokeHtml: node.innerHTML,
 			svgStrokeFallback: false,
+			detailHtml,
 		};
 	}, [el]);
 }

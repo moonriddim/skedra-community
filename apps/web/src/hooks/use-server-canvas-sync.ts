@@ -10,7 +10,10 @@ import {
 	yjsUpdateElements,
 	yjsUpdateView,
 } from "@/lib/canvas/yjs-canvas-mutations";
-import { readCanvasMapsFromYDoc } from "@/lib/canvas/yjs-document-helpers";
+import {
+	readCanvasMapsFromYDoc,
+	setCanvasBackgroundInYDoc,
+} from "@/lib/canvas/yjs-document-helpers";
 import { base64ToBytes, bytesToBase64 } from "@/lib/e2ee";
 import {
 	deletePendingServerUpdates,
@@ -88,6 +91,7 @@ export function useServerCanvasSync(
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
+	const [canvasBg, setCanvasBgState] = useState("");
 	const [isConnected, setIsConnected] = useState(false);
 	const [connectionError, setConnectionError] = useState<string | null>(null);
 	const [updateCursor, setUpdateCursor] = useState<ServerUpdateCursor | null>(
@@ -169,6 +173,7 @@ export function useServerCanvasSync(
 		const next = readCanvasMapsFromYDoc(ydoc);
 		setScene(CanvasScene.from(next.elements));
 		setViews(next.views);
+		setCanvasBgState(next.canvasBg);
 	}, []);
 
 	const scheduleSyncFromYjs = useCallback(() => {
@@ -258,13 +263,16 @@ export function useServerCanvasSync(
 		setUpdateCursor(null);
 		setScene(CanvasScene.empty());
 		setViews(new Map());
+		setCanvasBgState("");
 		setIsConnected(false);
 		setConnectionError(null);
 
 		const yElements = ydoc.getMap<Y.Map<unknown>>("elementsMap");
 		const yViews = ydoc.getMap<Y.Map<unknown>>("viewsMap");
+		const yAppState = ydoc.getMap<unknown>("appStateMap");
 		yElements.observeDeep(scheduleSyncFromYjs);
 		yViews.observeDeep(scheduleSyncFromYjs);
+		yAppState.observeDeep(scheduleSyncFromYjs);
 
 		const updateObserver = (update: Uint8Array, origin: unknown) => {
 			if (
@@ -328,6 +336,7 @@ export function useServerCanvasSync(
 			ydoc.off("update", updateObserver);
 			yElements.unobserveDeep(scheduleSyncFromYjs);
 			yViews.unobserveDeep(scheduleSyncFromYjs);
+			yAppState.unobserveDeep(scheduleSyncFromYjs);
 			ydoc.destroy();
 			ydocRef.current = null;
 			syncReadyRef.current = false;
@@ -541,6 +550,13 @@ export function useServerCanvasSync(
 		},
 		[guardWrite],
 	);
+	const setCanvasBg = useCallback(
+		(value: string) => {
+			const doc = guardWrite();
+			if (doc) setCanvasBackgroundInYDoc(doc, value);
+		},
+		[guardWrite],
+	);
 	const loadSkedraFile = useCallback(
 		(file: SkedraFile) => {
 			const doc = guardWrite();
@@ -557,6 +573,7 @@ export function useServerCanvasSync(
 		scene,
 		elements,
 		views,
+		canvasBg,
 		connectionError,
 		remotePresence: presenceApi.remotePresence,
 		localPresence: null as LocalCanvasPresence | null,
@@ -568,6 +585,7 @@ export function useServerCanvasSync(
 		createView,
 		updateView,
 		deleteView,
+		setCanvasBg,
 		loadSkedraFile,
 		setPresenceSelection: presenceApi.setPresenceSelection,
 		setPresenceCursor: presenceApi.setPresenceCursor,

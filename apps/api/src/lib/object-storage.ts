@@ -5,10 +5,10 @@ import {
 	S3Client,
 	type S3ClientConfig,
 } from "@aws-sdk/client-s3";
-import { instanceSettings } from "@skedra/db";
+import { instanceSettings, userProfileImages } from "@skedra/db";
 import type { Database } from "@skedra/db";
 import { decryptText, encryptText } from "@skedra/shared/server-crypto";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { env } from "../env";
 import { getOrCreateInstanceSettings } from "./instance-settings";
 
@@ -182,8 +182,16 @@ function storageLocationsEqual(
 }
 
 async function hasStoredAssetObjects(db: Database) {
-	const asset = await db.query.assets.findFirst({ columns: { id: true } });
-	return !!asset;
+	const [asset, profileImage] = await Promise.all([
+		db.query.assets.findFirst({ columns: { id: true } }),
+		db
+			.select({ userId: userProfileImages.userId })
+			.from(userProfileImages)
+			.where(ne(userProfileImages.provider, "inline"))
+			.limit(1)
+			.then((rows) => rows[0]),
+	]);
+	return !!asset || !!profileImage;
 }
 
 export function isManagedDeployment() {

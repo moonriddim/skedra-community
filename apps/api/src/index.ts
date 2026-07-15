@@ -55,6 +55,14 @@ import {
 	subscribePresentationLive,
 } from "./lib/presentation-live-bus";
 import {
+	PROFILE_IMAGE_MAX_BYTES,
+	ProfileImageError,
+	migrateStoredProfileImages,
+	readProfileImage,
+	removeProfileImage,
+	replaceProfileImage,
+} from "./lib/profile-images";
+import {
 	assignFirstUserAsInstanceAdmin,
 	canSignUpWithEmail,
 	closeRegistrationLocks,
@@ -761,6 +769,89 @@ app.get("/api/assets/:assetId", async (c) => {
 		}
 		console.error("Asset delivery failed", { assetId, error });
 		return c.json({ error: "Asset konnte nicht geladen werden" }, 502);
+	}
+});
+
+app.use(
+	"/api/profile-image",
+	bodyLimit({
+		maxSize: PROFILE_IMAGE_MAX_BYTES + 128 * 1024,
+		onError: (c) => c.json({ error: "Profilbild ist zu gross" }, 413),
+	}),
+);
+
+app.post("/api/profile-image", async (c) => {
+	const session = await auth.api.getSession({ headers: c.req.raw.headers });
+	if (!session?.user) return c.json({ error: "Nicht authentifiziert" }, 401);
+
+	const formData = await c.req.raw.formData().catch(() => null);
+	const file = formData?.get("file");
+	if (!file || typeof file === "string") {
+		return c.json({ error: "Bilddatei fehlt" }, 400);
+	}
+
+	try {
+		enforceAssetUploadRateLimit({
+			key: `profile:${session.user.id}`,
+			maxUploads: 20,
+		});
+		const result = await replaceProfileImage({
+			db,
+			userId: session.user.id,
+			file,
+		});
+		return c.json(result, 201);
+	} catch (error) {
+		if (error instanceof AssetAccessError) {
+			return c.json({ error: error.message }, error.status);
+		}
+		if (error instanceof ProfileImageError) {
+			return c.json({ error: error.message }, error.status);
+		}
+		console.error("Profile image upload failed", {
+			userId: session.user.id,
+			error,
+		});
+		return c.json({ error: "Profilbild konnte nicht gespeichert werden" }, 500);
+	}
+});
+
+app.delete("/api/profile-image", async (c) => {
+	const session = await auth.api.getSession({ headers: c.req.raw.headers });
+	if (!session?.user) return c.json({ error: "Nicht authentifiziert" }, 401);
+
+	try {
+		return c.json(await removeProfileImage({ db, userId: session.user.id }));
+	} catch (error) {
+		console.error("Profile image removal failed", {
+			userId: session.user.id,
+			error,
+		});
+		return c.json({ error: "Profilbild konnte nicht entfernt werden" }, 500);
+	}
+});
+
+app.get("/api/profile-images/:userId", async (c) => {
+	const userId = c.req.param("userId");
+	try {
+		const stored = await readProfileImage(db, userId);
+		if (!stored) return c.json({ error: "Profilbild nicht gefunden" }, 404);
+		const bytes = stored.body;
+		const body = bytes.buffer.slice(
+			bytes.byteOffset,
+			bytes.byteOffset + bytes.byteLength,
+		) as ArrayBuffer;
+		return new Response(body, {
+			headers: {
+				"Content-Type": stored.image.mimeType,
+				"Content-Length": String(bytes.byteLength),
+				"Cache-Control": "private, max-age=300, stale-while-revalidate=60",
+				"X-Content-Type-Options": "nosniff",
+			},
+		});
+	} catch (error) {
+		console.error("Profile image delivery failed", { userId, error });
+		return c.json({ error: "Profilbild konnte nicht geladen werden" }, 502);
 	}
 });
 
@@ -1669,6 +1760,13 @@ app.all("/api/trpc/*", (c) =>
 		createContext: ({ req }) => createContext({ req }),
 	}),
 );
+
+const migratedProfileImages = await migrateStoredProfileImages(db);
+if (migratedProfileImages > 0) {
+	console.log(
+		`[Skedra API] Encrypted ${migratedProfileImages} stored profile image(s).`,
+	);
+}
 
 const server = serve({ fetch: app.fetch, port: 3001 }, () => {
 	console.log("[Skedra API] http://localhost:3001");

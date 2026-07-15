@@ -65,6 +65,15 @@ test("inline text edits on plain frames rename the frame label", () => {
 		frameLabel: "Login",
 	});
 
+	const wireframeScreen = {
+		...frame,
+		customData: { skedraType: "wireframe-screen" },
+	} as CanvasElement;
+	assert.deepEqual(
+		buildCanvasTextUpdate({ element: wireframeScreen, text: "Checkout" }),
+		{ frameLabel: "Checkout" },
+	);
+
 	/* Kanban-Listen behalten ihr bestehendes Label-Verhalten */
 	const kanbanList = {
 		...frame,

@@ -6,7 +6,7 @@ import {
 	type KanbanPriority,
 	computeKanbanCardHeight,
 } from "./kanban";
-import { type CanvasElement, DEFAULT_FONT_FAMILY } from "./types";
+import { type CanvasElement, DEFAULT_FILL, DEFAULT_FONT_FAMILY } from "./types";
 
 export const STICKY_NOTE_TEXT_PADDING = 12;
 export const KANBAN_LIST_WIDTH = 280;
@@ -93,11 +93,120 @@ export function fitImageSize(
 	maxWidth = 480,
 	maxHeight = 360,
 ) {
+	if (width <= 0 || height <= 0) return { width: maxWidth, height: maxHeight };
 	const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
 	return {
-		width: Math.max(1, Math.round(width * ratio)),
-		height: Math.max(1, Math.round(height * ratio)),
+		width: Math.round(width * ratio),
+		height: Math.round(height * ratio),
 	};
+}
+
+export type CanvasElementBoundsInput = Pick<
+	CanvasElement,
+	"type" | "x" | "y" | "width" | "height"
+> &
+	Partial<
+		Pick<
+			CanvasElement,
+			| "id"
+			| "rotation"
+			| "fill"
+			| "stroke"
+			| "strokeWidth"
+			| "opacity"
+			| "text"
+			| "fontSize"
+			| "fontWeight"
+			| "textAlign"
+			| "textColor"
+			| "frameId"
+			| "frameLabel"
+			| "cornerRadius"
+			| "cornerRadiusPercent"
+			| "cloudArcRadius"
+			| "pyramidSections"
+			| "closed"
+			| "arrowHeadScale"
+			| "arrowHeadFilled"
+			| "stackIndex"
+			| "customData"
+			| "points"
+		>
+	>;
+
+/**
+ * Converts the bounds-oriented public API contract into a complete element.
+ * Hosts only provide their approved IDs and theme-dependent stroke default.
+ */
+export function createCanvasElementFromBoundsInput(
+	defaults: CanvasElementFactoryDefaults,
+	input: CanvasElementBoundsInput,
+	options: { createPathPointsFromBounds?: boolean } = {},
+): CanvasElement {
+	const isPath = input.type === "line" || input.type === "arrow";
+	const points =
+		input.points ??
+		(isPath && options.createPathPointsFromBounds
+			? ([
+					[0, 0],
+					[input.width, input.height],
+				] as [number, number][])
+			: undefined);
+	return createBaseCanvasElement(
+		{
+			...defaults,
+			createId: () => input.id ?? defaults.createId(),
+		},
+		{
+			type: input.type,
+			x: input.x,
+			y: input.y,
+			width: input.width,
+			height: input.height,
+			rotation: input.rotation ?? 0,
+			fill: input.fill ?? DEFAULT_FILL,
+			stroke: input.stroke ?? defaults.stroke,
+			strokeWidth: input.strokeWidth ?? 2,
+			opacity: input.opacity ?? 100,
+			...(input.text !== undefined ? { text: input.text } : {}),
+			...(input.fontSize !== undefined ? { fontSize: input.fontSize } : {}),
+			...(input.fontWeight !== undefined
+				? { fontWeight: input.fontWeight }
+				: {}),
+			...(input.textAlign !== undefined ? { textAlign: input.textAlign } : {}),
+			...(input.textColor !== undefined ? { textColor: input.textColor } : {}),
+			...(input.frameId !== undefined ? { frameId: input.frameId } : {}),
+			...(input.frameLabel !== undefined
+				? { frameLabel: input.frameLabel }
+				: {}),
+			...(input.cornerRadius !== undefined
+				? { cornerRadius: input.cornerRadius }
+				: {}),
+			...(input.cornerRadiusPercent !== undefined
+				? { cornerRadiusPercent: input.cornerRadiusPercent }
+				: {}),
+			...(input.cloudArcRadius !== undefined
+				? { cloudArcRadius: input.cloudArcRadius }
+				: {}),
+			...(input.pyramidSections !== undefined
+				? { pyramidSections: input.pyramidSections }
+				: {}),
+			...(input.closed !== undefined ? { closed: input.closed } : {}),
+			...(input.arrowHeadScale !== undefined
+				? { arrowHeadScale: input.arrowHeadScale }
+				: {}),
+			...(input.arrowHeadFilled !== undefined
+				? { arrowHeadFilled: input.arrowHeadFilled }
+				: {}),
+			...(input.stackIndex !== undefined
+				? { stackIndex: input.stackIndex }
+				: {}),
+			...(input.customData !== undefined
+				? { customData: input.customData }
+				: {}),
+			...(points ? { points } : {}),
+		},
+	);
 }
 
 export function createImageCanvasElement(

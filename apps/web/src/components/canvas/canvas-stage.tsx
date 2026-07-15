@@ -1,7 +1,12 @@
 import type { RemoteCanvasPresence } from "@/hooks/canvas-sync-types";
 import type { BBox } from "@skedra/canvas-core";
-import type { SnapGuide, SnapPointIndicator } from "@skedra/canvas-core";
+import type {
+	SnapGuide,
+	SnapPointIndicator,
+	SnapPointOptions,
+} from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
+import { getCanvasSelectionSnapPointIndicators } from "@skedra/canvas-core";
 import type {
 	CanvasElement,
 	CanvasPathStartSnapState,
@@ -45,6 +50,7 @@ interface CanvasStageProps {
 	searchActiveIndex?: number | null;
 	readOnly?: boolean;
 	gridEnabled: boolean;
+	gridSize: number;
 	editingTextId: string | null;
 	remotePresence: RemoteCanvasPresence[];
 	editingView: SavedCanvasView | null;
@@ -56,6 +62,8 @@ interface CanvasStageProps {
 	pathStartSnap: CanvasPathStartSnapState | null;
 	snapGuides: SnapGuide[];
 	snapPointIndicators: SnapPointIndicator[];
+	selectedSnapOptions?: SnapPointOptions | null;
+	transformOrigin?: { x: number; y: number } | null;
 	laserTrails?: LaserTrail[];
 	croppingElement?: CanvasElement | null;
 	resolveAssetUrl?: (src: string) => string;
@@ -74,6 +82,16 @@ interface CanvasStageProps {
 		event: React.PointerEvent<SVGRectElement>,
 		element: CanvasElement,
 		handle: HandlePosition,
+	) => void;
+	onElementRotateStart: (
+		event: React.PointerEvent<SVGCircleElement>,
+		elements: readonly CanvasElement[],
+		basePoint: { x: number; y: number },
+	) => void;
+	onElementRotateKeyDown: (
+		event: React.KeyboardEvent<SVGCircleElement>,
+		elements: readonly CanvasElement[],
+		basePoint: { x: number; y: number },
 	) => void;
 	onPathPointDragStart: (
 		event: React.PointerEvent<SVGCircleElement>,
@@ -102,6 +120,7 @@ export function CanvasStage({
 	searchActiveIndex = null,
 	readOnly = false,
 	gridEnabled,
+	gridSize,
 	editingTextId,
 	remotePresence,
 	editingView,
@@ -113,6 +132,8 @@ export function CanvasStage({
 	pathStartSnap,
 	snapGuides,
 	snapPointIndicators,
+	selectedSnapOptions = null,
+	transformOrigin = null,
 	laserTrails = [],
 	croppingElement = null,
 	resolveAssetUrl,
@@ -128,6 +149,8 @@ export function CanvasStage({
 	onPointerLeave,
 	onDoubleClick,
 	onElementResizeStart,
+	onElementRotateStart,
+	onElementRotateKeyDown,
 	onPathPointDragStart,
 	runPointerUpAction,
 	onViewMoveStart,
@@ -146,6 +169,13 @@ export function CanvasStage({
 				.filter((element): element is CanvasElement => Boolean(element)),
 		[elements, selectedIds],
 	);
+	const visibleSnapPointIndicators = useMemo(() => {
+		return getCanvasSelectionSnapPointIndicators(
+			selectedElements,
+			selectedSnapOptions,
+			snapPointIndicators,
+		);
+	}, [selectedElements, selectedSnapOptions, snapPointIndicators]);
 
 	useLayoutEffect(() => {
 		const svg = svgRef.current;
@@ -177,7 +207,11 @@ export function CanvasStage({
 			onPointerLeave={onPointerLeave}
 			onDoubleClick={onDoubleClick}
 		>
-			<CanvasEditorGridOverlay enabled={gridEnabled} zoom={viewport.zoom} />
+			<CanvasEditorGridOverlay
+				enabled={gridEnabled}
+				zoom={viewport.zoom}
+				gridSize={gridSize}
+			/>
 			<CanvasRenderer
 				scene={scene}
 				selectedIds={selectedIds}
@@ -210,7 +244,10 @@ export function CanvasStage({
 					selected={selectedElements}
 					zoom={viewport.zoom}
 					readOnly={readOnly}
+					transformOrigin={transformOrigin}
 					onResizeStart={onElementResizeStart}
+					onRotateStart={onElementRotateStart}
+					onRotateKeyDown={onElementRotateKeyDown}
 					onPathPointDragStart={onPathPointDragStart}
 					onInsertPathPoint={(element, pointIndex, point, event) =>
 						runPointerUpAction(event, () =>
@@ -271,8 +308,9 @@ export function CanvasStage({
 
 			<CanvasEditorSnapOverlay
 				guides={snapGuides}
-				points={snapPointIndicators}
+				points={visibleSnapPointIndicators}
 				zoom={viewport.zoom}
+				origin={transformOrigin}
 			/>
 		</CanvasEditorSurface>
 	);

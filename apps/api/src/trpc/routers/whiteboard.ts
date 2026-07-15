@@ -500,6 +500,40 @@ export const whiteboardRouter = router({
 		return findArchivedBoardsForUser(ctx.db, ctx.user.id);
 	}),
 
+	/**
+	 * Update-Log fuer die sichtbaren Vorschaubilder in der Board-Bibliothek.
+	 * Serververwaltete Updates werden hier entschluesselt; E2EE-Updates bleiben
+	 * Ciphertext und koennen ausschliesslich mit dem lokalen Board-Key gelesen
+	 * werden.
+	 */
+	getPreviewState: protectedProcedure
+		.input(z.object({ id: z.string().uuid() }))
+		.query(async ({ ctx, input }) => {
+			const access = await requireBoardMember(ctx, input.id);
+			const rows = await ctx.db.query.whiteboardE2eeUpdates.findMany({
+				where: eq(whiteboardE2eeUpdates.whiteboardId, input.id),
+				orderBy: [
+					asc(whiteboardE2eeUpdates.createdAt),
+					asc(whiteboardE2eeUpdates.id),
+				],
+				limit: 501,
+				columns: { update: true },
+			});
+			const encryptionMode = access.whiteboard.encryptionMode;
+
+			return {
+				encryptionMode,
+				updates: rows
+					.slice(0, 500)
+					.map((row) =>
+						encryptionMode === "server"
+							? decryptServerUpdate(row.update)
+							: row.update,
+					),
+				truncated: rows.length > 500,
+			};
+		}),
+
 	listActivity: protectedProcedure
 		.input(
 			z.object({ limit: z.number().min(1).max(100).optional() }).optional(),

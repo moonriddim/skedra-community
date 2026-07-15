@@ -5,6 +5,8 @@ const TEXT_EDITABLE_ELEMENT_TYPES = new Set<CanvasElement["type"]>([
 	"rectangle",
 	"ellipse",
 	"diamond",
+	"triangle",
+	"cloud",
 	"frame",
 	"line",
 	"arrow",
@@ -38,6 +40,19 @@ export function isPlainCanvasFrame(
 }
 
 /**
+ * Frames whose visible label can be renamed directly on the canvas.
+ * Wireframe screens keep their semantic role while sharing the canonical
+ * frame-label editing behaviour with plain design frames.
+ */
+export function isCanvasFrameLabelEditable(
+	element: Pick<CanvasElement, "type" | "customData"> | null | undefined,
+): boolean {
+	if (!element || element.type !== "frame") return false;
+	const skedraType = element.customData?.skedraType;
+	return skedraType == null || skedraType === "wireframe-screen";
+}
+
+/**
  * Trefferbereich des Frame-Labels in Canvas-Koordinaten. Das Label sitzt
  * oberhalb der Frame-Bounding-Box; die Breite wird aus der Textlaenge
  * geschaetzt (kein DOM-Zugriff noetig, damit der Hit-Test host-neutral bleibt).
@@ -67,7 +82,7 @@ export function frameLabelHitTest(
 	px: number,
 	py: number,
 ): boolean {
-	if (!isPlainCanvasFrame(element)) return false;
+	if (!isCanvasFrameLabelEditable(element)) return false;
 	const box = getFrameLabelHitBox(element);
 	return (
 		px >= box.x &&

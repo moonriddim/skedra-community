@@ -22,6 +22,8 @@ import { useServerCanvasSync } from "@/hooks/use-server-canvas-sync";
 import type { AssetAccessTokens } from "@/lib/canvas/asset-urls";
 import { mergeElementCustomData } from "@/lib/canvas/custom-data-utils";
 import {
+	exportFramePNG,
+	exportFrameSVG,
 	exportPDF,
 	exportPNG,
 	exportPPTX,
@@ -58,6 +60,7 @@ import type {
 import {
 	CanvasEditor,
 	type CanvasEditorSavedViewPreviewRenderer,
+	resolveCanvasEditorRotationKeyDelta,
 	useCanvasEditorSavedViews,
 } from "@skedra/canvas-editor";
 import { nanoid } from "nanoid";
@@ -441,13 +444,25 @@ export function SkedraCanvas({
 			editingTextId: state.editingTextId,
 			flowchartInsertKind: state.flowchartInsertKind,
 			gridEnabled: state.gridEnabled,
+			gridSize: state.gridSize,
 			isSpacePressed: state.isSpacePressed,
 			selectedIds: state.selectedIds,
 			showSnapPoints: state.showSnapPoints,
+			snapDivisionCount: state.snapDivisionCount,
+			snapOverrideMode: state.snapOverrideMode,
 			snapToCenters: state.snapToCenters,
+			snapToDivisions: state.snapToDivisions,
+			snapToEndpoints: state.snapToEndpoints,
+			snapToExtensions: state.snapToExtensions,
+			snapToGeometricCenters: state.snapToGeometricCenters,
+			snapToInsertions: state.snapToInsertions,
+			snapToIntersections: state.snapToIntersections,
 			snapToMidpoints: state.snapToMidpoints,
+			snapToNearest: state.snapToNearest,
 			snapToObjects: state.snapToObjects,
+			snapToQuadrants: state.snapToQuadrants,
 			strokeColor: state.strokeColor,
+			transformOrigin: state.transformOrigin,
 			viewport: state.viewport,
 			zenMode: state.zenMode,
 		})),
@@ -464,6 +479,55 @@ export function SkedraCanvas({
 		commandPaletteOpen,
 		canvasSearchOpen,
 	} = store;
+	const setStoreCanvasBg = store.setCanvasBg;
+	const canvasBackgroundSyncRef = useRef<{
+		scope: string;
+		value: string;
+	} | null>(null);
+	const canvasBackgroundScope = localMode ? "local" : (whiteboardId ?? "none");
+
+	useEffect(() => {
+		if (!sync.isConnected || audienceFrameMode) return;
+
+		const last = canvasBackgroundSyncRef.current;
+		if (!last || last.scope !== canvasBackgroundScope) {
+			canvasBackgroundSyncRef.current = {
+				scope: canvasBackgroundScope,
+				value: sync.canvasBg,
+			};
+			if (canvasBg !== sync.canvasBg) {
+				setStoreCanvasBg(sync.canvasBg);
+			}
+			return;
+		}
+
+		if (sync.canvasBg !== last.value) {
+			canvasBackgroundSyncRef.current = {
+				scope: canvasBackgroundScope,
+				value: sync.canvasBg,
+			};
+			if (canvasBg !== sync.canvasBg) {
+				setStoreCanvasBg(sync.canvasBg);
+			}
+			return;
+		}
+
+		if (canvasBg !== last.value) {
+			canvasBackgroundSyncRef.current = {
+				scope: canvasBackgroundScope,
+				value: canvasBg,
+			};
+			sync.setCanvasBg(canvasBg);
+		}
+	}, [
+		audienceFrameMode,
+		canvasBackgroundScope,
+		canvasBg,
+		setStoreCanvasBg,
+		sync.canvasBg,
+		sync.isConnected,
+		sync.setCanvasBg,
+	]);
 	const history = useCanvasHistory({
 		getYDoc: sync.getYDoc,
 		scopeKey: localMode ? "local" : (whiteboardId ?? "none"),
@@ -984,7 +1048,15 @@ export function SkedraCanvas({
 	const addElements = useCanvasAddElements({
 		createElement: sync.createElement,
 		setKanbanDetailId,
+		stopUndoCapture: history.stopCapturing,
 	});
+	const fitElementsToViewport = useCallback(
+		(elementsToFit: CanvasElement[]) => {
+			const bounds = sync.scene.getCombinedBBox(elementsToFit);
+			if (bounds) fitViewportToBounds(bounds, 80);
+		},
+		[fitViewportToBounds, sync.scene],
+	);
 
 	const croppingElement = croppingImageId
 		? (sync.elements.get(croppingImageId) ?? null)
@@ -1088,10 +1160,23 @@ export function SkedraCanvas({
 		[],
 	);
 
+	/* Einzelnen Frame geclippt exportieren (Frame-Rahmen wird ausgeblendet). */
+	const exportFrame = useCallback<CanvasCommands["exportFrame"]>(
+		async (frameId, format) => {
+			const svg = svgRef.current;
+			const frame = sync.elements.get(frameId);
+			if (!svg || !frame || frame.type !== "frame") return;
+			if (format === "svg") await exportFrameSVG(svg, frame);
+			else await exportFramePNG(svg, frame);
+		},
+		[sync.elements],
+	);
+
 	const canvasCommands = useMemo<CanvasCommands>(
 		() => ({
 			openHelp: () => setHelpDialogOpen(true),
 			exportVisual,
+			exportFrame,
 			pasteElement,
 			startTextPlacement,
 			openKanbanCard,
@@ -1116,6 +1201,7 @@ export function SkedraCanvas({
 			addTemplateStickyNote,
 			createMindmapChild,
 			createMindmapSibling,
+			exportFrame,
 			exportVisual,
 			insertWaypoint,
 			openKanbanCard,
@@ -1171,6 +1257,7 @@ export function SkedraCanvas({
 		handleViewPointerUp,
 		cancelViewInteraction,
 		pointerHandlers,
+		elements: sync.elements,
 		getEventElement,
 		getElementAtPosition,
 		getKanbanElementAtPosition,
@@ -1235,6 +1322,7 @@ export function SkedraCanvas({
 					editingArrowTextOrientation={editingArrowTextOrientation}
 					getViewportCenter={getViewportCenter}
 					addElements={addElements}
+					fitElementsToViewport={fitElementsToViewport}
 					handleUpdatePendingText={handleUpdatePendingText}
 					handleUpdateEditingText={handleUpdateEditingText}
 					setEditingArrowTextSide={setEditingArrowTextSide}
@@ -1289,6 +1377,14 @@ export function SkedraCanvas({
 					onPointerLeave={handleCanvasPointerLeave}
 					onDoubleClick={handleDoubleClick}
 					onElementResizeStart={pointerHandlers.beginResize}
+					onElementRotateStart={pointerHandlers.beginRotate}
+					onElementRotateKeyDown={(event) => {
+						const angleDelta = resolveCanvasEditorRotationKeyDelta(event);
+						if (angleDelta == null) return;
+						event.preventDefault();
+						event.stopPropagation();
+						keyboard.rotateSelection(angleDelta);
+					}}
 					onPathPointDragStart={pointerHandlers.beginPathPointDrag}
 					runPointerUpAction={pointerHandlers.runPointerUpAction}
 					onViewMoveStart={(event) => {
@@ -1355,6 +1451,8 @@ export function SkedraCanvas({
 									onFitViewport: handleFitViewport,
 									onZoomBy: handleZoomBy,
 									zoom: viewport.zoom,
+									snapEnabled: store.snapToObjects,
+									onToggleSnap: store.toggleSnapToObjects,
 									views: savedViewList,
 									elements: sync.elements,
 									activeViewId,
@@ -1475,8 +1573,11 @@ type SkedraCanvasStageSurfaceProps = Omit<
 	| "selectionBox"
 	| "lassoPath"
 	| "gridEnabled"
+	| "gridSize"
 	| "snapGuides"
 	| "snapPointIndicators"
+	| "selectedSnapOptions"
+	| "transformOrigin"
 	| "laserTrails"
 >;
 
@@ -1484,13 +1585,68 @@ function SkedraCanvasStageSurface(props: SkedraCanvasStageSurfaceProps) {
 	const visualState = useCanvasStore(
 		useShallow((state) => ({
 			gridEnabled: state.gridEnabled,
+			gridSize: state.gridSize,
 			lassoPath: state.lassoPath,
 			laserTrails: state.laserTrails,
 			selectionBox: state.selectionBox,
 			snapGuides: state.snapGuides,
 			snapPointIndicators: state.snapPointIndicators,
+			showSnapPoints: state.showSnapPoints,
+			snapToObjects: state.snapToObjects,
+			snapToEndpoints: state.snapToEndpoints,
+			snapToCenters: state.snapToCenters,
+			snapToMidpoints: state.snapToMidpoints,
+			snapToDivisions: state.snapToDivisions,
+			snapDivisionCount: state.snapDivisionCount,
+			snapToNearest: state.snapToNearest,
+			snapToGeometricCenters: state.snapToGeometricCenters,
+			snapToQuadrants: state.snapToQuadrants,
+			snapToIntersections: state.snapToIntersections,
+			snapToExtensions: state.snapToExtensions,
+			snapToInsertions: state.snapToInsertions,
+			transformOrigin: state.transformOrigin,
 		})),
 	);
 
-	return <CanvasStage {...props} {...visualState} />;
+	const {
+		showSnapPoints,
+		snapToObjects,
+		snapToEndpoints,
+		snapToCenters,
+		snapToMidpoints,
+		snapToDivisions,
+		snapDivisionCount,
+		snapToNearest,
+		snapToGeometricCenters,
+		snapToQuadrants,
+		snapToIntersections,
+		snapToExtensions,
+		snapToInsertions,
+		transformOrigin,
+		...stageVisualState
+	} = visualState;
+	const selectedSnapOptions =
+		snapToObjects && showSnapPoints
+			? {
+					includeEndpoints: snapToEndpoints,
+					includeCenters: snapToCenters,
+					includeMidpoints: snapToMidpoints,
+					includeDivisions: snapToDivisions,
+					divisionCount: snapDivisionCount,
+					includeNearest: snapToNearest,
+					includeGeometricCenters: snapToGeometricCenters,
+					includeQuadrants: snapToQuadrants,
+					includeIntersections: snapToIntersections,
+					includeExtensions: snapToExtensions,
+					includeInsertions: snapToInsertions,
+				}
+			: null;
+	return (
+		<CanvasStage
+			{...props}
+			{...stageVisualState}
+			transformOrigin={transformOrigin}
+			selectedSnapOptions={selectedSnapOptions}
+		/>
+	);
 }

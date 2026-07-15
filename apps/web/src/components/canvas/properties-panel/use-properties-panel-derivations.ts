@@ -34,6 +34,7 @@ import type {
 import {
 	DEFAULT_ARROW_HEAD_FILLED,
 	DEFAULT_ARROW_HEAD_SCALE,
+	DEFAULT_CLOUD_ARC_RADIUS,
 	DEFAULT_ROUGH_FILL_SCALE,
 	DEFAULT_ROUGH_FILL_STYLE,
 } from "@skedra/canvas-core";
@@ -80,10 +81,14 @@ interface PropertiesPanelDerivations {
 	showCornerRadius: boolean;
 	geometryPresetTool: Extract<
 		ToolType,
-		"rectangle" | "ellipse" | "diamond"
+		"rectangle" | "ellipse" | "diamond" | "triangle" | "cloud"
 	> | null;
 	singleGeometryElement: CanvasElement | null;
 	showDimensions: boolean;
+	showPyramidOptions: boolean;
+	currentPyramidSections: number;
+	showCloudArcRadius: boolean;
+	currentCloudArcRadius: number;
 	hasTextElement: boolean;
 	isPathElement: boolean;
 	isArrowElement: boolean;
@@ -91,6 +96,7 @@ interface PropertiesPanelDerivations {
 	currentPathClosed: boolean;
 	showArrowTextPosition: boolean;
 	showPathDrawMode: boolean;
+	isCloudDrawMode: boolean;
 	showStroke: boolean;
 	currentStroke: string;
 	currentFill: string;
@@ -127,6 +133,8 @@ interface PropertiesPanelDerivations {
 	kanbanList: CanvasElement | null;
 	frameElement: CanvasElement | null;
 	framePresetToolActive: boolean;
+	/** Selektierte Kinder einfacher Frames (fuer Constraints-Optionen). */
+	frameChildElements: CanvasElement[];
 	templateSection: ReturnType<typeof getTemplateSectionMeta>;
 	isTemplateNoteSelection: boolean;
 	templateNoteMeta: ReturnType<typeof getTemplateStickyNoteMeta>;
@@ -200,7 +208,9 @@ function derivePropertiesPanelState({
 			? inspected.some(isGenericGeometry)
 			: activeTool === "rectangle" ||
 				activeTool === "ellipse" ||
-				activeTool === "diamond";
+				activeTool === "diamond" ||
+				activeTool === "triangle" ||
+				activeTool === "cloud";
 
 	const isKanbanOnly =
 		!isEditingTextContext &&
@@ -257,7 +267,9 @@ function derivePropertiesPanelState({
 		!hasSelection &&
 		(activeTool === "rectangle" ||
 			activeTool === "ellipse" ||
-			activeTool === "diamond")
+			activeTool === "diamond" ||
+			activeTool === "triangle" ||
+			activeTool === "cloud")
 			? activeTool
 			: null;
 
@@ -271,6 +283,19 @@ function derivePropertiesPanelState({
 
 	const showDimensions =
 		singleGeometryElement != null || geometryPresetTool != null;
+	const showPyramidOptions =
+		singleGeometryElement?.type === "triangle" ||
+		geometryPresetTool === "triangle";
+	const currentPyramidSections =
+		singleGeometryElement?.type === "triangle"
+			? (singleGeometryElement.pyramidSections ?? 1)
+			: store.pyramidSections;
+	const showCloudArcRadius =
+		singleGeometryElement?.type === "cloud" || geometryPresetTool === "cloud";
+	const currentCloudArcRadius =
+		singleGeometryElement?.type === "cloud"
+			? (singleGeometryElement.cloudArcRadius ?? DEFAULT_CLOUD_ARC_RADIUS)
+			: store.cloudArcRadius;
 
 	const hasTextElement =
 		isStickyNoteOnly ||
@@ -298,7 +323,9 @@ function derivePropertiesPanelState({
 			: activeTool === "arrow";
 
 	const showArrowTextPosition = inspectedPathTextElements.length > 0;
-	const showPathDrawMode = activeTool === "line" || activeTool === "arrow";
+	const showPathDrawMode =
+		activeTool === "line" || activeTool === "arrow" || activeTool === "cloud";
+	const isCloudDrawMode = activeTool === "cloud";
 	const showPathClosed =
 		hasInspectionTarget &&
 		inspected.every(
@@ -472,6 +499,15 @@ function derivePropertiesPanelState({
 	const framePresetToolActive =
 		!isEditingTextContext && !hasSelection && activeTool === "frame";
 
+	/* Kinder einfacher Frames: Constraints-Sektion anzeigen. */
+	const frameChildElements = isEditingTextContext
+		? []
+		: selected.filter((el) => {
+				if (!el.frameId || el.type === "frame") return false;
+				const parent = elements.get(el.frameId);
+				return parent != null && isPlainCanvasFrame(parent);
+			});
+
 	const templateSection = selectedTemplateSection;
 	const templateNotes = hasSelection
 		? selected.map((el) => getTemplateStickyNoteMeta(el))
@@ -514,6 +550,10 @@ function derivePropertiesPanelState({
 		geometryPresetTool,
 		singleGeometryElement,
 		showDimensions,
+		showPyramidOptions,
+		currentPyramidSections,
+		showCloudArcRadius,
+		currentCloudArcRadius,
 		hasTextElement,
 		isPathElement,
 		isArrowElement,
@@ -521,6 +561,7 @@ function derivePropertiesPanelState({
 		currentPathClosed,
 		showArrowTextPosition,
 		showPathDrawMode,
+		isCloudDrawMode,
 		showStroke,
 		currentStroke,
 		currentFill,
@@ -557,6 +598,7 @@ function derivePropertiesPanelState({
 		kanbanList,
 		frameElement,
 		framePresetToolActive,
+		frameChildElements,
 		templateSection,
 		isTemplateNoteSelection,
 		templateNoteMeta,

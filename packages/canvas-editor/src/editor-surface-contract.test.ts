@@ -8,10 +8,36 @@ import {
 import {
 	buildCanvasEditorDefaultsElement,
 	buildCanvasEditorEditingSession,
+	canvasEditorToolSupportsSnapOverride,
+	getCanvasEditorContextSelectionIds,
+	getCanvasEditorSnapModeOptions,
+	resolveCanvasEditorContextSelectionIds,
 	resolveCanvasEditorMoveGesture,
+	resolveCanvasEditorPlacementPoint,
 	resolveCanvasEditorPointSnap,
 	resolveCanvasEditorSelectPointerDown,
 } from "./index";
+
+test("snap overrides share one mode and tool policy", () => {
+	assert.equal(canvasEditorToolSupportsSnapOverride("line"), true);
+	assert.equal(canvasEditorToolSupportsSnapOverride("select"), false);
+	assert.deepEqual(getCanvasEditorSnapModeOptions("intersection"), {
+		includeEndpoints: false,
+		includeMidpoints: false,
+		includeDivisions: false,
+		includeCenters: false,
+		includeGeometricCenters: false,
+		includeQuadrants: false,
+		includeIntersections: true,
+		includeExtensions: false,
+		includeInsertions: false,
+		includeNearest: false,
+	});
+	assert.equal(
+		getCanvasEditorSnapModeOptions("division")?.includeDivisions,
+		true,
+	);
+});
 
 function rectangle(
 	id: string,
@@ -48,6 +74,56 @@ test("selection routing expands groups through the shared controller", () => {
 	});
 	assert.equal(result.handled, true);
 	assert.deepEqual([...selected].sort(), ["a", "b"]);
+});
+
+test("context selection expands groups and complete frame relationships", () => {
+	const frame = {
+		...rectangle("frame", 0, 0),
+		type: "frame" as const,
+		width: 420,
+		height: 280,
+	};
+	const first = rectangle("a", 20, 20, { frameId: frame.id });
+	const second = rectangle("b", 160, 20, { frameId: frame.id });
+	const grouped = rectangle("grouped", 500, 0, { groupId: "group" });
+	const groupedPeer = rectangle("grouped-peer", 640, 0, {
+		groupId: "group",
+	});
+	const elements = new Map(
+		[frame, first, second, grouped, groupedPeer].map((element) => [
+			element.id,
+			element,
+		]),
+	);
+
+	assert.deepEqual(
+		[...getCanvasEditorContextSelectionIds(first, elements)].sort(),
+		["a", "b", "frame"],
+	);
+	assert.deepEqual(
+		[...getCanvasEditorContextSelectionIds(grouped, elements)].sort(),
+		["grouped", "grouped-peer"],
+	);
+	assert.deepEqual(
+		[
+			...resolveCanvasEditorContextSelectionIds(
+				grouped,
+				elements,
+				new Set(["a", "b"]),
+			),
+		].sort(),
+		["grouped", "grouped-peer"],
+	);
+	assert.deepEqual(
+		[
+			...resolveCanvasEditorContextSelectionIds(
+				first,
+				elements,
+				new Set(["a", "b", "frame"]),
+			),
+		].sort(),
+		["a", "b", "frame"],
+	);
 });
 
 test("read-only selection never starts a move gesture", () => {
@@ -89,6 +165,17 @@ test("object anchors and move guides use the same snap contract", () => {
 	});
 	assert.deepEqual(point.point, { x: 100, y: 100 });
 	assert.equal(point.anchor?.elementId, fixed.id);
+	assert.deepEqual(resolveCanvasEditorPlacementPoint(point, { x: 80, y: 80 }), {
+		x: 100,
+		y: 100,
+	});
+	assert.deepEqual(
+		resolveCanvasEditorPlacementPoint(
+			{ point: { x: 73, y: 74 }, anchor: null },
+			{ x: 80, y: 80 },
+		),
+		{ x: 80, y: 80 },
+	);
 
 	const move = resolveCanvasEditorMoveGesture({
 		elements,
@@ -99,6 +186,17 @@ test("object anchors and move guides use the same snap contract", () => {
 		snapToObjects: true,
 	});
 	assert.equal(move.updates[0]?.changes.x, 100);
+
+	const exactBasePointMove = resolveCanvasEditorMoveGesture({
+		elements,
+		moveStart: new Map([[moving.id, { x: moving.x, y: moving.y }]]),
+		selectedIds: new Set([moving.id]),
+		start: { x: 0, y: 0 },
+		current: { x: 96, y: 0 },
+		snapToObjects: true,
+		anchorSnapped: true,
+	});
+	assert.equal(exactBasePointMove.updates[0]?.changes.x, 96);
 });
 
 test("sticky and arrow inline editing sessions are host independent", () => {
@@ -154,6 +252,19 @@ test("plain frame editing session targets the label above the frame", () => {
 	assert.equal(session.editingText.text, "Login Screen");
 	/* Editor sitzt oberhalb der Frame-Kante am Label, nicht auf der Flaeche */
 	assert.ok(session.editingText.y < frame.y);
+
+	const wireframeScreen = {
+		...frame,
+		id: "wireframe",
+		customData: { skedraType: "wireframe-screen" },
+		frameLabel: "Desktop · Login",
+	} as CanvasElement;
+	const wireframeSession = buildCanvasEditorEditingSession({
+		element: wireframeScreen,
+	});
+	assert.equal(wireframeSession.editingText.variant, "frame-label");
+	assert.equal(wireframeSession.editingText.text, "Desktop · Login");
+	assert.ok(wireframeSession.editingText.y < wireframeScreen.y);
 
 	/* Kanban-Listen behalten ihre eigene Label-Session (im Frame-Kopf) */
 	const kanbanList = {

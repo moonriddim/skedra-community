@@ -205,6 +205,34 @@ export function buildSendToBackUpdates(
 	return buildSelectedStackIndexUpdates([...selected, ...rest], selectedIds);
 }
 
+/**
+ * Verschiebt ein Element in der Stapel-Reihenfolge direkt ueber oder unter
+ * ein Ziel-Element (fuer Drag-und-Drop im Layer-Panel).
+ */
+export function buildLayerReorderUpdates(
+	elements: Iterable<CanvasElement>,
+	movedId: string,
+	targetId: string,
+	position: "above" | "below",
+): Array<{ id: string; changes: Partial<CanvasElement> }> {
+	if (movedId === targetId) return [];
+	const sorted = normalizeCanvasElementStackIndexes(elements);
+	const withoutMoved = sorted.filter((element) => element.id !== movedId);
+	const moved = sorted.find((element) => element.id === movedId);
+	const targetIndex = withoutMoved.findIndex(
+		(element) => element.id === targetId,
+	);
+	if (!moved || targetIndex < 0) return [];
+
+	/* "above" = weiter oben im Stapel = NACH dem Ziel in sortierter Liste. */
+	const insertIndex = position === "above" ? targetIndex + 1 : targetIndex;
+	const previous = withoutMoved[insertIndex - 1] ?? null;
+	const next = withoutMoved[insertIndex] ?? null;
+	const stackIndex = createStackIndexBetween(previous, next, movedId);
+	if (moved.stackIndex === stackIndex) return [];
+	return [{ id: movedId, changes: { stackIndex } }];
+}
+
 function buildSelectedStackIndexUpdates(
 	target: CanvasElement[],
 	selectedIds: Set<string>,

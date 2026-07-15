@@ -6,12 +6,6 @@ import {
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 
-export {
-	createCanvasTemplateSectionFrame as createTemplateSectionFrame,
-	findTemplateSectionAtPoint,
-	getTemplateStickyAssignmentChanges,
-} from "@skedra/canvas-core";
-
 export function buildTemplateSectionPaletteUpdates(
 	section: CanvasElement,
 	elements: Map<string, CanvasElement>,

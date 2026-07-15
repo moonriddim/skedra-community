@@ -16,6 +16,8 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.12.1",
 		"@skedra/canvas-core": "workspace:*",
+		"@skedra/canvas-io": "workspace:*",
+		"@skedra/shared": "workspace:*",
 		"yjs": "^13.6.29",
 		"zod": "^3.24.0"
 	},

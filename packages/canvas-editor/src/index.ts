@@ -33,6 +33,7 @@ export type {
 export {
 	createCanvasEditorTouchSession,
 	resolveCanvasEditorPinchViewport,
+	resolveCanvasEditorTentativeDataPoint,
 	resolveCanvasEditorWheelViewport,
 	shouldDeferCanvasEditorTouchAction,
 } from "./pointer-contract";
@@ -71,7 +72,10 @@ export {
 	matchesCanvasEditorUiShortcut,
 } from "./command-shortcuts";
 export { CanvasEditorToolStrip } from "./canvas-editor-tool-strip";
-export { CanvasEditorToolbar } from "./canvas-editor-toolbar";
+export {
+	CanvasEditorToolbar,
+	DEFAULT_CANVAS_EDITOR_COMPACT_TOOL_IDS,
+} from "./canvas-editor-toolbar";
 export { resolveCanvasEditorMenuKeyAction } from "./canvas-editor-toolbar";
 export type { CanvasEditorMenuKeyAction } from "./canvas-editor-toolbar";
 export {
@@ -79,6 +83,7 @@ export {
 	resolveCanvasEditorCursor,
 } from "./canvas-editor-surface";
 export { CanvasEditorSelectionOverlay } from "./canvas-editor-selection-overlay";
+export { resolveCanvasEditorRotationKeyDelta } from "./canvas-editor-selection-overlay";
 export { CanvasEditorSelectionGestureOverlay } from "./canvas-editor-selection-gesture-overlay";
 export { CanvasEditorGridOverlay } from "./canvas-editor-grid-overlay";
 export { buildCanvasEditorDefaultsElement } from "./editor-defaults";
@@ -88,6 +93,16 @@ export type {
 } from "./editor-defaults";
 export { CanvasEditorPropertiesPanel } from "./canvas-editor-properties-panel";
 export { CanvasEditorClassicPropertiesPanel } from "./canvas-editor-classic-properties-panel";
+export { CanvasEditorLayerPanel } from "./canvas-editor-layer-panel";
+export type {
+	CanvasEditorLayerPanelProps,
+	CanvasEditorLayerReorderPosition,
+} from "./canvas-editor-layer-panel";
+export { CanvasEditorWireframePanel } from "./canvas-editor-wireframe-panel";
+export type {
+	CanvasEditorWireframePanelProps,
+	CanvasEditorWireframeTranslate,
+} from "./canvas-editor-wireframe-panel";
 export { CanvasEditorImageCropOverlay } from "./canvas-editor-image-crop-overlay";
 export type { CanvasEditorImageCropOverlayProps } from "./canvas-editor-image-crop-overlay";
 export { CanvasEditorTextOverlay } from "./canvas-editor-text-overlay";
@@ -123,6 +138,11 @@ export type {
 	CanvasEditorPathPointGestureOptions,
 } from "./gesture-operations";
 export {
+	CANVAS_EDITOR_OBJECT_SNAP_MODES,
+	CANVAS_EDITOR_SNAP_OVERRIDE_TOOL_IDS,
+	canvasEditorToolSupportsSnapOverride,
+	getCanvasEditorSnapModeOptions,
+	resolveCanvasEditorPlacementPoint,
 	resolveCanvasEditorPointSnap,
 	resolveCanvasEditorRectSnap,
 } from "./snap-controller";
@@ -132,7 +152,22 @@ export type {
 } from "./snap-controller";
 export { CanvasEditorSnapOverlay } from "./canvas-editor-snap-overlay";
 export type { CanvasEditorSnapOverlayProps } from "./canvas-editor-snap-overlay";
-export { resolveCanvasEditorSelectPointerDown } from "./selection-pointer-controller";
+export { CanvasEditorSnapMenu } from "./canvas-editor-snap-menu";
+export { CanvasEditorContextMenu } from "./canvas-editor-context-menu";
+export type {
+	CanvasEditorSnapMenuKind,
+	CanvasEditorSnapMenuProps,
+	CanvasEditorSnapModeState,
+} from "./canvas-editor-snap-menu";
+export type {
+	CanvasEditorContextMenuProps,
+	CanvasEditorContextMenuTranslate,
+} from "./canvas-editor-context-menu";
+export {
+	getCanvasEditorContextSelectionIds,
+	resolveCanvasEditorContextSelectionIds,
+	resolveCanvasEditorSelectPointerDown,
+} from "./selection-pointer-controller";
 export type {
 	CanvasEditorPointerSelectionState,
 	CanvasEditorSelectPointerDownContext,
@@ -203,6 +238,7 @@ export type {
 	CanvasEditorToolbarMenuItem,
 	CanvasEditorToolbarMenuItemAction,
 	CanvasEditorToolbarProps,
+	CanvasEditorToolbarResponsiveOptions,
 	CanvasEditorToolbarSeparator,
 } from "./canvas-editor-toolbar";
 export type { CanvasEditorSurfaceProps } from "./canvas-editor-surface";
