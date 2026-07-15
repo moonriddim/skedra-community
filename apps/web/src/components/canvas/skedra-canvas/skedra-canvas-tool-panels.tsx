@@ -8,10 +8,19 @@ import { PropertiesPanel } from "@/components/canvas/properties-panel";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
 import type { useCommunityCanvasKeyboardAdapter as useCanvasKeyboard } from "@/hooks/use-community-canvas-keyboard-adapter";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
+import { useI18n } from "@/lib/i18n";
 import type { KanbanAssignmentOptions } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
-import { type ComponentProps, Suspense, lazy, memo } from "react";
+import { PaintBucket, Pencil, SlidersHorizontal } from "lucide-react";
+import {
+	type ComponentProps,
+	Suspense,
+	lazy,
+	memo,
+	useEffect,
+	useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 
 const LibraryPanel = lazy(() =>
@@ -162,16 +171,28 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	onPresentationElementsPreview,
 	commands,
 }: SkedraCanvasToolPanelsProps) {
+	const { t } = useI18n();
+	const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
 	const panelStore = useCanvasStore(
 		useShallow((state) => ({
 			activePanel: state.activePanel,
+			activeTool: state.activeTool,
+			fillColor: state.fillColor,
+			strokeColor: state.strokeColor,
 			clearSelection: state.clearSelection,
 			clearStickyNotePlacementDraft: state.clearStickyNotePlacementDraft,
 			setActivePanel: state.setActivePanel,
+			setFillColor: state.setFillColor,
 			setKanbanCardPlacementDraft: state.setKanbanCardPlacementDraft,
+			setStrokeColor: state.setStrokeColor,
 			setStickyNotePlacementDraft: state.setStickyNotePlacementDraft,
 		})),
 	);
+	const activeTool = panelStore.activeTool;
+
+	useEffect(() => {
+		if (activeTool) setMobilePropertiesOpen(false);
+	}, [activeTool]);
 
 	return (
 		<>
@@ -189,38 +210,104 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 			)}
 
 			{showProperties && (
-				<PropertiesPanel
-					elements={sync.elements}
-					selectedIds={selectedIds}
-					editingTextId={editingTextId}
-					editingArrowTextSide={editingArrowTextSide}
-					editingArrowTextOrientation={editingArrowTextOrientation}
-					pendingText={pendingText}
-					onUpdateElement={sync.updateElement}
-					onUpdateElements={sync.updateElements}
-					onUpdatePendingText={handleUpdatePendingText}
-					onUpdateEditingText={handleUpdateEditingText}
-					onUpdateEditingArrowTextSide={setEditingArrowTextSide}
-					onUpdateEditingArrowTextOrientation={setEditingArrowTextOrientation}
-					onDeleteElements={(ids) => {
-						deleteElementsWithKanbanReflow(ids);
-						panelStore.clearSelection();
-					}}
-					onBringForward={keyboard.bringForward}
-					onSendBackward={keyboard.sendBackward}
-					onBringToFront={keyboard.bringToFront}
-					onSendToBack={keyboard.sendToBack}
-					onCopy={keyboard.copySelection}
-					onAddLink={keyboard.addLink}
-					onFlipHorizontal={keyboard.flipHorizontal}
-					onFlipVertical={keyboard.flipVertical}
-					onToggleLock={keyboard.toggleLock}
-					onGroup={keyboard.groupSelection}
-					onUngroup={keyboard.ungroupSelection}
-					onAlign={keyboard.alignSelection}
-					onDistribute={keyboard.distributeSelection}
-					commands={commands}
-				/>
+				<>
+					<div
+						className="canvas-editor__mobile-style-bar"
+						role="toolbar"
+						aria-label={t("canvas.properties.appearance")}
+					>
+						<label
+							className="canvas-editor__mobile-style-button"
+							title={t("canvas.properties.stroke")}
+						>
+							<Pencil
+								aria-hidden="true"
+								style={{ color: panelStore.strokeColor }}
+							/>
+							<input
+								type="color"
+								value={panelStore.strokeColor}
+								onChange={(event) =>
+									panelStore.setStrokeColor(event.target.value)
+								}
+								aria-label={t("canvas.properties.stroke")}
+							/>
+						</label>
+						<label
+							className="canvas-editor__mobile-style-button"
+							title={t("canvas.properties.roughFillStyle")}
+						>
+							<PaintBucket
+								aria-hidden="true"
+								style={{
+									color:
+										panelStore.fillColor === "transparent"
+											? "var(--muted-foreground)"
+											: panelStore.fillColor,
+								}}
+							/>
+							<input
+								type="color"
+								value={
+									panelStore.fillColor === "transparent"
+										? "#ffffff"
+										: panelStore.fillColor
+								}
+								onChange={(event) =>
+									panelStore.setFillColor(event.target.value)
+								}
+								aria-label={t("canvas.properties.roughFillStyle")}
+							/>
+						</label>
+						<button
+							type="button"
+							className="canvas-editor__mobile-style-button"
+							data-active={mobilePropertiesOpen || undefined}
+							onClick={() => setMobilePropertiesOpen((open) => !open)}
+							aria-label={t("canvas.properties.appearance")}
+							aria-expanded={mobilePropertiesOpen}
+						>
+							<SlidersHorizontal aria-hidden="true" />
+						</button>
+					</div>
+					<PropertiesPanel
+						className={
+							mobilePropertiesOpen
+								? "canvas-editor__properties--mobile-open"
+								: undefined
+						}
+						elements={sync.elements}
+						selectedIds={selectedIds}
+						editingTextId={editingTextId}
+						editingArrowTextSide={editingArrowTextSide}
+						editingArrowTextOrientation={editingArrowTextOrientation}
+						pendingText={pendingText}
+						onUpdateElement={sync.updateElement}
+						onUpdateElements={sync.updateElements}
+						onUpdatePendingText={handleUpdatePendingText}
+						onUpdateEditingText={handleUpdateEditingText}
+						onUpdateEditingArrowTextSide={setEditingArrowTextSide}
+						onUpdateEditingArrowTextOrientation={setEditingArrowTextOrientation}
+						onDeleteElements={(ids) => {
+							deleteElementsWithKanbanReflow(ids);
+							panelStore.clearSelection();
+						}}
+						onBringForward={keyboard.bringForward}
+						onSendBackward={keyboard.sendBackward}
+						onBringToFront={keyboard.bringToFront}
+						onSendToBack={keyboard.sendToBack}
+						onCopy={keyboard.copySelection}
+						onAddLink={keyboard.addLink}
+						onFlipHorizontal={keyboard.flipHorizontal}
+						onFlipVertical={keyboard.flipVertical}
+						onToggleLock={keyboard.toggleLock}
+						onGroup={keyboard.groupSelection}
+						onUngroup={keyboard.ungroupSelection}
+						onAlign={keyboard.alignSelection}
+						onDistribute={keyboard.distributeSelection}
+						commands={commands}
+					/>
+				</>
 			)}
 
 			{showEditorChrome && panelStore.activePanel === "sticky" && (

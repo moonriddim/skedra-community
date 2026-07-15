@@ -64,6 +64,8 @@ export function GuestCanvasPage() {
 	const [saveError, setSaveError] = useState("");
 	const pendingE2eeKeyRef = useRef<string | null>(null);
 	const zenMode = useCanvasStore((state) => state.zenMode);
+	const activeTool = useCanvasStore((state) => state.activeTool);
+	const activePanel = useCanvasStore((state) => state.activePanel);
 
 	const createWithState = trpc.whiteboard.createWithState.useMutation({
 		onSuccess: (board) => {
@@ -246,7 +248,12 @@ export function GuestCanvasPage() {
 			</Suspense>
 
 			<GuestWelcomeSplash
-				visible={elementCount === 0 && !zenMode}
+				visible={
+					elementCount === 0 &&
+					!zenMode &&
+					activeTool === "select" &&
+					activePanel === null
+				}
 				onSave={handleSaveClick}
 				onOpenHelp={openHelp}
 				onOpenLiveCollaboration={handleLiveCollaborationClick}

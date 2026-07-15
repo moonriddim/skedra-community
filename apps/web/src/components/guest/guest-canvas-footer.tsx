@@ -16,14 +16,16 @@ export function GuestCanvasFooter({
 	const { t } = useI18n();
 
 	return (
-		<CanvasFooter
-			onOpenHelp={onOpenHelp}
-			encryptionMode="guest"
-			annotation={
-				showHelpAnnotation ? (
-					<GuestHelpArrowHint label={t("guestCanvas.onboarding.helpHint")} />
-				) : undefined
-			}
-		/>
+		<div className="hidden lg:block">
+			<CanvasFooter
+				onOpenHelp={onOpenHelp}
+				encryptionMode="guest"
+				annotation={
+					showHelpAnnotation ? (
+						<GuestHelpArrowHint label={t("guestCanvas.onboarding.helpHint")} />
+					) : undefined
+				}
+			/>
+		</div>
 	);
 }

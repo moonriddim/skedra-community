@@ -920,6 +920,10 @@
 	overscroll-behavior: contain;
 }
 
+.canvas-editor__mobile-style-bar {
+	display: none;
+}
+
 .skedra-sdk__properties {
 	display: grid;
 	gap: 0;
@@ -1389,31 +1393,44 @@
 
 @container canvas-editor (max-width: 1023px) {
 	.canvas-editor__saved-views-bar {
+		right: calc(0.75rem + var(--canvas-editor-safe-right));
 		bottom: calc(5rem + var(--canvas-editor-safe-bottom));
-		width: calc(
-			100cqw -
-			1.5rem -
-			var(--canvas-editor-safe-left) -
-			var(--canvas-editor-safe-right)
-		);
+		left: auto;
+		width: auto;
+		pointer-events: none;
+		transform: none;
 	}
 
 	.canvas-editor__saved-views-controls {
-		max-width: 100%;
-		flex-shrink: 0;
+		gap: 0.25rem;
+		padding: 0;
+		overflow: visible;
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		backdrop-filter: none;
+		pointer-events: auto;
+		-webkit-backdrop-filter: none;
 	}
 
-	.canvas-editor__saved-views-track {
-		max-width: min(28cqw, 13.75rem);
+	.canvas-editor__saved-views-rail,
+	.canvas-editor__saved-views-rail-empty,
+	.canvas-editor__saved-views-controls > * {
+		display: none;
 	}
 
-	.canvas-editor__saved-views-button,
-	.canvas-editor__saved-views-zoom {
-		min-height: 2.75rem;
+	.canvas-editor__saved-views-controls
+		> [data-control="undo"],
+	.canvas-editor__saved-views-controls
+		> [data-control="redo"] {
+		display: inline-flex;
 	}
 
-	.canvas-editor__saved-views-button {
+	.canvas-editor__saved-views-button[data-control="undo"],
+	.canvas-editor__saved-views-button[data-control="redo"] {
 		width: 2.75rem;
+		height: 2.75rem;
+		min-height: 2.75rem;
 	}
 
 	.canvas-editor__saved-views-label {
@@ -1488,10 +1505,10 @@
 	.canvas-editor__properties {
 		top: auto;
 		right: auto;
-		bottom: var(--canvas-editor-properties-mobile-bottom);
-		left: 50%;
+		bottom: calc(8.75rem + var(--canvas-editor-safe-bottom));
+		left: calc(0.75rem + var(--canvas-editor-safe-left));
 		width: min(
-			22rem,
+			15.5rem,
 			calc(
 				100cqw -
 				var(--canvas-editor-chrome-inline) -
@@ -1500,8 +1517,69 @@
 				var(--canvas-editor-safe-right)
 			)
 		);
-		max-height: min(36cqh, 20rem);
-		transform: translateX(-50%);
+		max-height: min(55cqh, 28rem);
+		transform: none;
+	}
+
+	.canvas-editor__properties:not(.canvas-editor__properties--mobile-open) {
+		display: none;
+	}
+
+	.canvas-editor__mobile-style-bar {
+		position: absolute;
+		bottom: calc(5rem + var(--canvas-editor-safe-bottom));
+		left: calc(0.75rem + var(--canvas-editor-safe-left));
+		z-index: var(--canvas-editor-properties-z-index, 40);
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border: 1px solid var(--border-color, var(--skedra-sdk-panel-border, #d8ded2));
+		border-radius: 0.75rem;
+		background: color-mix(
+			in srgb,
+			var(--card, var(--skedra-sdk-panel, #fffef9)) 92%,
+			transparent
+		);
+		box-shadow: 0 20px 36px -24px rgba(0, 0, 0, 0.55);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+	}
+
+	.canvas-editor__mobile-style-button {
+		position: relative;
+		display: inline-flex;
+		width: 2.75rem;
+		height: 2.75rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 0;
+		border-radius: 0.625rem;
+		background: transparent;
+		color: var(--muted-foreground, var(--skedra-sdk-muted, #647067));
+		cursor: pointer;
+		touch-action: manipulation;
+	}
+
+	.canvas-editor__mobile-style-button:hover,
+	.canvas-editor__mobile-style-button[data-active="true"] {
+		background: var(--accent, var(--skedra-sdk-primary-soft, rgba(15, 118, 110, 0.12)));
+		color: var(--primary, var(--skedra-sdk-primary, #0f766e));
+	}
+
+	.canvas-editor__mobile-style-button > svg {
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	.canvas-editor__mobile-style-button > input[type="color"] {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		cursor: pointer;
+		opacity: 0;
 	}
 
 	.canvas-editor__wireframe-panel {

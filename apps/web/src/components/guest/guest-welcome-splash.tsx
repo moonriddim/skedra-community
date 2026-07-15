@@ -52,33 +52,36 @@ export function GuestWelcomeSplash({
 			<GuestToolbarHints />
 
 			{/* Zentrale Willkommens-Karte — unterhalb der Top-Hinweise */}
-			<div className="guest-welcome-scroll flex h-full items-center justify-center px-6 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(10rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pt-36 max-sm:px-4">
-				<div className="pointer-events-auto max-w-md text-center">
+			<div className="guest-welcome-scroll flex h-full items-center justify-center px-6 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pt-36 max-sm:px-4">
+				<div className="max-w-md text-center max-lg:max-w-[18rem]">
 					<div className="inline-flex max-w-full items-center justify-center gap-2.5">
 						<img
 							src="/logo-mark-transparent-dark.png"
 							alt=""
 							aria-hidden="true"
 							decoding="async"
-							className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(13,188,174,0.25)] sm:h-16 sm:w-16"
+							className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(13,188,174,0.25)] lg:h-16 lg:w-16"
 						/>
-						<h1 className="font-comic-note text-3xl font-bold leading-tight tracking-wide text-primary sm:text-5xl">
+						<h1 className="font-comic-note text-2xl font-bold leading-tight tracking-wide text-primary lg:text-5xl">
 							Skedra Online Whiteboard
 						</h1>
 					</div>
-					<p className="mt-4 font-comic-note text-base leading-relaxed text-foreground">
+					<p className="mt-4 hidden font-comic-note text-base leading-relaxed text-foreground lg:block">
 						{t("guestCanvas.productDescription")}
 					</p>
-					<p className="mt-3 font-comic-note text-sm leading-relaxed text-muted-foreground">
+					<p className="mt-3 hidden font-comic-note text-sm leading-relaxed text-muted-foreground lg:block">
 						{t("guestCanvas.storageWarning")}
 					</p>
+					<p className="mt-4 font-comic-note text-sm leading-relaxed text-muted-foreground lg:hidden">
+						{t("guestCanvas.startDrawingHint")}
+					</p>
 
-					<ul className="mt-8 space-y-3 text-left font-comic-note text-base">
+					<ul className="mt-8 hidden space-y-3 text-left font-comic-note text-base lg:block">
 						<li>
 							<button
 								type="button"
 								onClick={onSave}
-								className="inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
+								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
 							>
 								<Save className="h-4 w-4 shrink-0" />
 								{t("guestCanvas.saveToCloud")}
@@ -88,7 +91,7 @@ export function GuestWelcomeSplash({
 							<button
 								type="button"
 								onClick={onOpenHelp}
-								className="inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
+								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
 							>
 								<HelpCircle className="h-4 w-4 shrink-0" />
 								{t("guestCanvas.help")}
@@ -98,7 +101,7 @@ export function GuestWelcomeSplash({
 							<button
 								type="button"
 								onClick={onOpenLiveCollaboration}
-								className="inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
+								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
 							>
 								<Users className="h-4 w-4 shrink-0" />
 								{t("guestCanvas.liveCollaboration.menuLabel")}
@@ -109,7 +112,7 @@ export function GuestWelcomeSplash({
 								<li>
 									<Link
 										to={`${managedBilling ? publicPath("/pricing") : "/register"}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`}
-										className="inline-flex items-center gap-2.5 text-primary hover:underline"
+										className="pointer-events-auto inline-flex items-center gap-2.5 text-primary hover:underline"
 									>
 										<UserPlus className="h-4 w-4 shrink-0" />
 										{t("guestCanvas.signUp")}
@@ -118,7 +121,7 @@ export function GuestWelcomeSplash({
 								<li>
 									<Link
 										to={`${managedBilling ? publicPath("/pricing") : "/login"}?redirect=${encodeURIComponent(publicPath("/"))}`}
-										className="inline-flex items-center gap-2.5 text-muted-foreground hover:text-foreground hover:underline"
+										className="pointer-events-auto inline-flex items-center gap-2.5 text-muted-foreground hover:text-foreground hover:underline"
 									>
 										<LogIn className="h-4 w-4 shrink-0" />
 										{t("guestCanvas.signIn")}

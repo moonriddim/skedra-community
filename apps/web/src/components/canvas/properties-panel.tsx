@@ -31,6 +31,7 @@ const WEB_PROPERTIES_PANEL_STYLE = {
 } as CSSProperties;
 
 interface PropertiesPanelProps {
+	className?: string;
 	elements: Map<string, CanvasElement>;
 	selectedIds: Set<string>;
 	editingTextId?: string | null;
@@ -73,6 +74,7 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({
+	className,
 	elements,
 	selectedIds,
 	editingTextId,
@@ -176,6 +178,7 @@ export function PropertiesPanel({
 
 	return (
 		<CanvasEditorPropertiesPanel
+			className={className}
 			selected={editorSelection}
 			mode={panel.hasInspectionTarget ? "selection" : "defaults"}
 			style={WEB_PROPERTIES_PANEL_STYLE}

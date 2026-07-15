@@ -208,6 +208,7 @@ export function CanvasEditorSavedViewsBar({
 				aria-label={t("canvas.bottomBar.controls", FALLBACKS.controls)}
 			>
 				<BarButton
+					control="zoom-out"
 					label={t("canvas.bottomBar.zoomOut", FALLBACKS.zoomOut)}
 					onClick={() => onZoomBy(0.8)}
 				>
@@ -217,11 +218,13 @@ export function CanvasEditorSavedViewsBar({
 					type="button"
 					onClick={onFitViewport}
 					className="canvas-editor__saved-views-zoom"
+					data-control="fit-viewport"
 					title={t("canvas.bottomBar.resetZoom", FALLBACKS.resetZoom)}
 				>
 					{zoomPercent}%
 				</button>
 				<BarButton
+					control="zoom-in"
 					label={t("canvas.bottomBar.zoomIn", FALLBACKS.zoomIn)}
 					onClick={() => onZoomBy(1.25)}
 				>
@@ -229,6 +232,7 @@ export function CanvasEditorSavedViewsBar({
 				</BarButton>
 				{onToggleSnap && snapEnabled !== undefined && (
 					<BarButton
+						control="snap"
 						label={t("canvas.bottomBar.objectSnap", FALLBACKS.objectSnap)}
 						onClick={onToggleSnap}
 						pressed={snapEnabled}
@@ -242,6 +246,7 @@ export function CanvasEditorSavedViewsBar({
 				{!presentationMode && (
 					<>
 						<BarButton
+							control="undo"
 							label={t("canvas.bottomBar.undo", FALLBACKS.undo)}
 							onClick={onUndo}
 							disabled={!canUndo}
@@ -249,6 +254,7 @@ export function CanvasEditorSavedViewsBar({
 							<Undo2 size={16} />
 						</BarButton>
 						<BarButton
+							control="redo"
 							label={t("canvas.bottomBar.redo", FALLBACKS.redo)}
 							onClick={onRedo}
 							disabled={!canRedo}
@@ -269,6 +275,7 @@ export function CanvasEditorSavedViewsBar({
 						</span>
 						{!readOnly && (
 							<BarButton
+								control="save-view"
 								label={t(
 									isCapturingView
 										? presentationPreparationMode
@@ -296,6 +303,7 @@ export function CanvasEditorSavedViewsBar({
 							canUsePresenterNotes &&
 							onOpenPresenterNotes && (
 								<BarButton
+									control="presenter-notes"
 									label={t(
 										"canvas.bottomBar.presenterNotes",
 										FALLBACKS.presenterNotes,
@@ -413,12 +421,14 @@ function SavedViewsRail({
 
 function BarButton({
 	children,
+	control,
 	label,
 	onClick,
 	disabled,
 	pressed,
 }: {
 	children: ReactNode;
+	control: string;
 	label: string;
 	onClick?: () => void;
 	disabled?: boolean;
@@ -430,6 +440,7 @@ function BarButton({
 			onClick={onClick}
 			disabled={disabled}
 			className="canvas-editor__saved-views-button"
+			data-control={control}
 			data-active={pressed || undefined}
 			title={label}
 			aria-label={label}
