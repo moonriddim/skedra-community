@@ -33,6 +33,7 @@
 		"./path-drawing": "./src/path-drawing.ts",
 		"./path-editing": "./src/path-editing.ts",
 		"./scene": "./src/scene.ts",
+		"./search": "./src/search.ts",
 		"./selection": "./src/selection.ts",
 		"./selection-operations": "./src/selection-operations.ts",
 		"./snap": "./src/snap.ts",

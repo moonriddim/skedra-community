@@ -3,10 +3,15 @@
  */
 
 import { CanvasCommandPalette } from "@/components/canvas/canvas-command-palette";
-import type { CanvasCommand } from "@/components/canvas/canvas-command-palette";
+import type { CanvasCommand } from "@/components/canvas/canvas-command-registry";
+import { CanvasFindOnCanvas } from "@/components/canvas/canvas-find-on-canvas";
 import { CanvasFooter } from "@/components/canvas/canvas-footer";
 import { useI18n } from "@/lib/i18n";
-import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
+import type {
+	CanvasElement,
+	CanvasSearchMatch,
+	SavedCanvasView,
+} from "@skedra/canvas-core";
 import { Sparkles } from "lucide-react";
 import { Suspense, lazy } from "react";
 
@@ -50,6 +55,15 @@ interface SkedraCanvasChromeProps {
 	commandPaletteOpen: boolean;
 	onCommandPaletteOpenChange: (open: boolean) => void;
 	commandPaletteCommands: CanvasCommand[];
+	canvasSearchOpen: boolean;
+	canvasSearchQuery: string;
+	canvasSearchMatches: readonly CanvasSearchMatch[];
+	canvasSearchActiveIndex: number | null;
+	onCanvasSearchOpenChange: (open: boolean) => void;
+	onCanvasSearchQueryChange: (query: string) => void;
+	onCanvasSearchActiveIndexChange: (index: number) => void;
+	onCanvasSearchNext: () => void;
+	onCanvasSearchPrevious: () => void;
 	aiPanelOpen: boolean;
 	onAiPanelOpenChange: (open: boolean) => void;
 	onAddElements: (elements: CanvasElement[]) => void;
@@ -94,6 +108,15 @@ export function SkedraCanvasChrome({
 	commandPaletteOpen,
 	onCommandPaletteOpenChange,
 	commandPaletteCommands,
+	canvasSearchOpen,
+	canvasSearchQuery,
+	canvasSearchMatches,
+	canvasSearchActiveIndex,
+	onCanvasSearchOpenChange,
+	onCanvasSearchQueryChange,
+	onCanvasSearchActiveIndexChange,
+	onCanvasSearchNext,
+	onCanvasSearchPrevious,
 	aiPanelOpen,
 	onAiPanelOpenChange,
 	onAddElements,
@@ -141,6 +164,18 @@ export function SkedraCanvasChrome({
 				open={commandPaletteOpen}
 				onOpenChange={onCommandPaletteOpenChange}
 				commands={commandPaletteCommands}
+			/>
+
+			<CanvasFindOnCanvas
+				open={canvasSearchOpen}
+				query={canvasSearchQuery}
+				matches={canvasSearchMatches}
+				activeIndex={canvasSearchActiveIndex}
+				onOpenChange={onCanvasSearchOpenChange}
+				onQueryChange={onCanvasSearchQueryChange}
+				onActiveIndexChange={onCanvasSearchActiveIndexChange}
+				onNext={onCanvasSearchNext}
+				onPrevious={onCanvasSearchPrevious}
 			/>
 
 			{!presentationMode && !presenterMode && !zenMode && (

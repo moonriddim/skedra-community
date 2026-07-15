@@ -72,6 +72,7 @@ import { CanvasStage } from "./canvas-stage";
 import { hasCanvasToolProperties } from "./canvas-tool-types";
 import { useCanvasAddElements } from "./hooks/use-canvas-add-elements";
 import { useCanvasDoubleClick } from "./hooks/use-canvas-double-click";
+import { useCanvasSearch } from "./hooks/use-canvas-search";
 import { useCanvasTextEditing } from "./hooks/use-canvas-text-editing";
 import { useFlowchartCanvasTool } from "./hooks/use-flowchart-canvas-tool";
 import { useKanbanCanvasTool } from "./hooks/use-kanban-canvas-tool";
@@ -433,6 +434,7 @@ export function SkedraCanvas({
 			activePanel: state.activePanel,
 			activeTool: state.activeTool,
 			canvasBg: state.canvasBg,
+			canvasSearchOpen: state.canvasSearchOpen,
 			commandPaletteOpen: state.commandPaletteOpen,
 			contextMenu: state.contextMenu,
 			croppingImageId: state.croppingImageId,
@@ -460,6 +462,7 @@ export function SkedraCanvas({
 		zenMode,
 		croppingImageId,
 		commandPaletteOpen,
+		canvasSearchOpen,
 	} = store;
 	const history = useCanvasHistory({
 		getYDoc: sync.getYDoc,
@@ -824,6 +827,14 @@ export function SkedraCanvas({
 		fitViewportToBounds,
 		addFlowchartStep,
 	});
+	const canvasSearch = useCanvasSearch({
+		open: canvasSearchOpen,
+		elements: sync.elements,
+		scene: sync.scene,
+		viewport: store.viewport,
+		viewportSize: canvasViewportSize,
+		onViewportChange: store.setViewport,
+	});
 
 	useEffect(() => {
 		if (!activeViewId) return;
@@ -840,7 +851,8 @@ export function SkedraCanvas({
 	}, [editingViewId, setEditingViewId, sync.views]);
 
 	const keyboard = useCommunityCanvasKeyboardAdapter({
-		enabled: !presentationMode && !sync.isReadonly,
+		enabled: !presentationMode,
+		readOnly: sync.isReadonly,
 		editingText: textEditorOpen,
 		elements: sync.elements,
 		createElement: sync.createElement,
@@ -869,6 +881,7 @@ export function SkedraCanvas({
 			flowchartNavigate: handleFlowchartNavigate,
 			mindmapCreateSibling: createMindmapSibling,
 			openCommandPalette: () => store.setCommandPaletteOpen(true),
+			openCanvasSearch: () => store.setCanvasSearchOpen(true),
 		},
 	});
 
@@ -979,8 +992,17 @@ export function SkedraCanvas({
 
 	const commandPaletteCommands = useSkedraCanvasCommandPalette({
 		store,
+		elements: sync.elements,
+		keyboard,
+		readOnly: sync.isReadonly,
+		canUndo: history.canUndo,
+		canRedo: history.canRedo,
+		undo: history.undo,
+		redo: history.redo,
+		deleteElements: deleteElementsWithKanbanReflow,
 		handleInsertImage,
 		handleFitViewport,
+		handleFitSelection: fitSelectionViewport,
 		handleRequestClearCanvas,
 		setHelpDialogOpen,
 	});
@@ -1241,6 +1263,8 @@ export function SkedraCanvas({
 					scene={sync.scene}
 					elements={sync.elements}
 					selectedIds={selectedIds}
+					searchMatches={canvasSearch.matches}
+					searchActiveIndex={canvasSearch.activeIndex}
 					readOnly={presentationMode || sync.isReadonly}
 					editingTextId={store.editingTextId}
 					remotePresence={sync.remotePresence}
@@ -1393,6 +1417,15 @@ export function SkedraCanvas({
 					commandPaletteOpen={commandPaletteOpen}
 					onCommandPaletteOpenChange={store.setCommandPaletteOpen}
 					commandPaletteCommands={commandPaletteCommands}
+					canvasSearchOpen={canvasSearchOpen}
+					canvasSearchQuery={canvasSearch.query}
+					canvasSearchMatches={canvasSearch.matches}
+					canvasSearchActiveIndex={canvasSearch.activeIndex}
+					onCanvasSearchOpenChange={store.setCanvasSearchOpen}
+					onCanvasSearchQueryChange={canvasSearch.setQuery}
+					onCanvasSearchActiveIndexChange={canvasSearch.setActiveIndex}
+					onCanvasSearchNext={canvasSearch.goToNext}
+					onCanvasSearchPrevious={canvasSearch.goToPrevious}
 					aiPanelOpen={aiPanelOpen}
 					onAiPanelOpenChange={setAiPanelOpen}
 					onAddElements={addElements}

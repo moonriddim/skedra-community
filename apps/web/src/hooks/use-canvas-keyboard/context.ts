@@ -19,4 +19,5 @@ export interface CanvasKeyboardActions {
 	flowchartNavigate?: (direction: FlowchartDirection) => void;
 	mindmapCreateSibling?: (nodeId: string) => void;
 	openCommandPalette?: () => void;
+	openCanvasSearch?: () => void;
 }

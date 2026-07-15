@@ -714,6 +714,7 @@ for (const relative of [
 	"apps/web/src/lib/templates/mindmap.ts",
 	"apps/web/src/lib/templates/retrospective.ts",
 	"apps/web/src/lib/templates/swot.ts",
+	"apps/web/src/lib/templates/wireframe.ts",
 	"packages/react/src/factories.ts",
 ]) {
 	if (!/createCanvasTemplateElements/u.test(readRepoFile(relative))) {

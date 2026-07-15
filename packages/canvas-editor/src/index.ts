@@ -65,6 +65,11 @@ export {
 	getCanvasEditorToolDefinition,
 	resolveCanvasEditorKeyboardAction,
 } from "./editor-contract";
+export {
+	CANVAS_EDITOR_UI_SHORTCUTS,
+	getCanvasEditorUiShortcutLabels,
+	matchesCanvasEditorUiShortcut,
+} from "./command-shortcuts";
 export { CanvasEditorToolStrip } from "./canvas-editor-tool-strip";
 export { CanvasEditorToolbar } from "./canvas-editor-toolbar";
 export { resolveCanvasEditorMenuKeyAction } from "./canvas-editor-toolbar";

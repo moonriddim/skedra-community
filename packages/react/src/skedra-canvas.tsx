@@ -308,6 +308,7 @@ export interface SkedraCanvasProps {
 	onZenModeChange?: (enabled: boolean) => void;
 	onHelpRequest?: () => void;
 	onCommandPaletteRequest?: () => void;
+	onFindOnCanvasRequest?: () => void;
 	initialTool?: SkedraSdkTool;
 	initialPathDrawMode?: SkedraPathDrawMode;
 	initialPathMode?: ArrowMode;
@@ -448,6 +449,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			onZenModeChange,
 			onHelpRequest,
 			onCommandPaletteRequest,
+			onFindOnCanvasRequest,
 			initialTool = "select",
 			initialPathDrawMode = "normal",
 			initialPathMode = "straight",
@@ -949,7 +951,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const requestSdkHostAction = useCallback(
 			(
-				eventName: "skedra:help-request" | "skedra:command-palette-request",
+				eventName:
+					| "skedra:help-request"
+					| "skedra:command-palette-request"
+					| "skedra:find-on-canvas-request",
 				callback?: () => void,
 			) => {
 				if (callback) callback();
@@ -2415,6 +2420,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					"skedra:command-palette-request",
 					onCommandPaletteRequest,
 				),
+			openCanvasSearch: () =>
+				requestSdkHostAction(
+					"skedra:find-on-canvas-request",
+					onFindOnCanvasRequest,
+				),
 			focusProperty: focusSdkProperty,
 			eyedropper: (target) => {
 				eyedropperTargetRef.current = target;
@@ -2944,6 +2954,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					onPointerUp={onSdkSurfacePointerUp}
 					onPointerCancel={editorPointer.onPointerCancel}
 					onLostPointerCapture={editorPointer.onLostPointerCapture}
+					onContextMenu={editorPointer.onContextMenu}
 					onDoubleClick={(event) => {
 						if (!editorPointer.onDoubleClick()) handleDoubleClick(event);
 					}}

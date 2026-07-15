@@ -104,7 +104,7 @@ export function buildShapePlacementPreview(
 	centerY: number,
 	store: CanvasStoreState,
 ): CanvasElement {
-	return buildCanvasEditorDrawingElement({
+	const element = buildCanvasEditorDrawingElement({
 		id: "__preview",
 		tool: draft.type,
 		start: {
@@ -117,6 +117,11 @@ export function buildShapePlacementPreview(
 		},
 		style: getDrawingStyle(store),
 	});
+	/* Frame-Presets tragen ihren Namen (z. B. "iPhone 15 Pro") als Label. */
+	if (draft.type === "frame" && draft.label) {
+		return { ...element, frameLabel: draft.label };
+	}
+	return element;
 }
 
 export function buildPlacedShapeElement(

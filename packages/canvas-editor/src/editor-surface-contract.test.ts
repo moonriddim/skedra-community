@@ -136,6 +136,37 @@ test("sticky and arrow inline editing sessions are host independent", () => {
 	);
 });
 
+test("plain frame editing session targets the label above the frame", () => {
+	const frame = createBaseCanvasElement(
+		{ createId: () => "frame", stroke: "#111111" },
+		{
+			id: "frame",
+			type: "frame",
+			x: 40,
+			y: 80,
+			width: 400,
+			height: 300,
+			frameLabel: "Login Screen",
+		},
+	);
+	const session = buildCanvasEditorEditingSession({ element: frame });
+	assert.equal(session.editingText.variant, "frame-label");
+	assert.equal(session.editingText.text, "Login Screen");
+	/* Editor sitzt oberhalb der Frame-Kante am Label, nicht auf der Flaeche */
+	assert.ok(session.editingText.y < frame.y);
+
+	/* Kanban-Listen behalten ihre eigene Label-Session (im Frame-Kopf) */
+	const kanbanList = {
+		...frame,
+		id: "list",
+		customData: { skedraType: "kanban-list" },
+		frameLabel: "Backlog",
+	} as CanvasElement;
+	const listSession = buildCanvasEditorEditingSession({ element: kanbanList });
+	assert.equal(listSession.editingText.variant, "frame-label");
+	assert.equal(listSession.editingText.y, kanbanList.y);
+});
+
 test("web and sdk properties consume the same drawing defaults element", () => {
 	const defaults = buildCanvasEditorDefaultsElement({
 		tool: "arrow",

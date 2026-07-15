@@ -17,6 +17,7 @@ import { createFlowchartTemplate } from "./flowchart";
 import { createMindmapTemplate } from "./mindmap";
 import { createRetrospectiveTemplate } from "./retrospective";
 import { createSwotTemplate } from "./swot";
+import { createWireframeTemplate } from "./wireframe";
 
 export interface WhiteboardTemplate {
 	id: string;
@@ -60,6 +61,14 @@ export const TEMPLATES: WhiteboardTemplate[] = [
 		description: "Klare Prozesskette mit Entscheidungspfaden",
 		icon: "📊",
 		create: (cx, cy, theme) => createFlowchartTemplate(cx, cy, { theme }),
+	},
+	{
+		id: "wireframe",
+		name: "Low-Fidelity-Wireframe",
+		description:
+			"Editierbares Desktop- und Mobile-Grundgerüst für frühe Produktideen",
+		icon: "▱",
+		create: (cx, cy) => createWireframeTemplate(cx, cy),
 	},
 	{
 		id: "retrospective",

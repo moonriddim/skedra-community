@@ -6,6 +6,7 @@ import {
 	applyCanvasMutationPlan,
 	buildCanvasDrawingElement,
 	buildCanvasMoveUpdates,
+	buildCanvasTextUpdate,
 	collectCanvasSelectionRectIds,
 	executeCanvasMutationPlan,
 	getCanvasKeyboardCommand,
@@ -52,6 +53,40 @@ function applyThroughAdapter(
 	});
 	return current;
 }
+
+test("inline text edits on plain frames rename the frame label", () => {
+	const frame = createBaseCanvasElement(
+		{ createId: idFactory("frame"), stroke: "#111111" },
+		{ type: "frame", x: 0, y: 0, width: 400, height: 300 },
+	);
+
+	/* Einfacher Frame: Text-Commit aktualisiert das Label, nicht el.text */
+	assert.deepEqual(buildCanvasTextUpdate({ element: frame, text: "Login" }), {
+		frameLabel: "Login",
+	});
+
+	/* Kanban-Listen behalten ihr bestehendes Label-Verhalten */
+	const kanbanList = {
+		...frame,
+		customData: { skedraType: "kanban-list" },
+	} as CanvasElement;
+	assert.deepEqual(
+		buildCanvasTextUpdate({ element: kanbanList, text: "Backlog" }),
+		{ frameLabel: "Backlog" },
+	);
+
+	/* Template-Sektionen bearbeiten weiterhin die Beschreibung (el.text) */
+	const templateSection = {
+		...frame,
+		customData: { skedraType: "template-section" },
+	} as CanvasElement;
+	const update = buildCanvasTextUpdate({
+		element: templateSection,
+		text: "Notes",
+	});
+	assert.equal(update.text, "Notes");
+	assert.equal(update.frameLabel, undefined);
+});
 
 test("multiple updates for one element are merged in mutation order", () => {
 	const element = createBaseCanvasElement(

@@ -5,8 +5,10 @@
 import { readElementCustomData } from "@/lib/canvas/custom-data-utils";
 import {
 	type ArrowTextSide,
+	frameLabelHitTest,
 	getArrowTextSideFromPoint,
 	hitTest,
+	isPlainCanvasFrame,
 	pathTextLabelHitTest,
 } from "@skedra/canvas-core";
 import { getBBox } from "@skedra/canvas-core";
@@ -127,6 +129,33 @@ function openSelectedKanbanAtPosition(
 		}
 	}
 	return false;
+}
+
+/**
+ * Findet den obersten einfachen Frame, dessen Label (oberhalb der Frame-Kante)
+ * am Punkt getroffen wird. Das Label liegt ausserhalb der Frame-BBox und wird
+ * deshalb nicht vom regulaeren Hit-Test erfasst.
+ */
+function getFrameLabelAtPosition(
+	scene: CanvasScene,
+	canvasX: number,
+	canvasY: number,
+): CanvasElement | null {
+	for (const el of scene.getHitTestOrderedElements()) {
+		if (el.locked) continue;
+		if (frameLabelHitTest(el, canvasX, canvasY)) return el;
+		/*
+		 * Liegt ein anderes Element (kein einfacher Frame) an diesem Punkt weiter
+		 * oben, gewinnt dieses Element; Frame-Koerper blockieren Labels nicht.
+		 */
+		if (
+			!isPlainCanvasFrame(el) &&
+			hitTest(el, canvasX, canvasY, { pathTextLabelHitTest })
+		) {
+			return null;
+		}
+	}
+	return null;
 }
 
 function getSelectedKanbanAtPosition(
@@ -284,6 +313,16 @@ export function useCanvasDoubleClick({
 				return;
 			}
 
+			/* Doppelklick auf das Frame-Label: Frame-Namen inline umbenennen. */
+			const labelFrame = getFrameLabelAtPosition(scene, canvasX, canvasY);
+			if (labelFrame) {
+				store.setSelectedIds(new Set([labelFrame.id]));
+				store.setEditingTextId(labelFrame.id);
+				e.preventDefault();
+				e.stopPropagation();
+				return;
+			}
+
 			const targetElement = getEventElement(e.target);
 			if (
 				targetElement &&
@@ -309,6 +348,11 @@ export function useCanvasDoubleClick({
 
 			for (const el of scene.getHitTestOrderedElements()) {
 				if (el.locked) continue;
+				/*
+				 * Doppelklick in den Frame-Koerper oeffnet keinen Text-Editor mehr:
+				 * Umbenennen laeuft ueber das Label, Inhalte ueber die Elemente im Frame.
+				 */
+				if (isPlainCanvasFrame(el)) continue;
 				if (!hitTest(el, canvasX, canvasY, { pathTextLabelHitTest })) continue;
 				if (
 					openKanbanFromElement(el, setKanbanDetailId, setKanbanListDetailId)

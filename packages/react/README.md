@@ -62,7 +62,7 @@ The main layout hooks are:
 - `initialPathMode` / `onPathModeChange`: selects cornered or curved paths. Legacy elbow values remain readable for existing documents.
 - `theme` / `onThemeChange`: controls the light/dark theme and reports shortcut changes.
 - `onZenModeChange`: reports Zen-mode changes triggered by the shared shortcut.
-- `onHelpRequest` / `onCommandPaletteRequest`: handles the shared help and command-palette shortcuts. Without callbacks, the canvas dispatches bubbling `skedra:help-request` and `skedra:command-palette-request` DOM events.
+- `onHelpRequest` / `onCommandPaletteRequest` / `onFindOnCanvasRequest`: handles the shared help, command-browser, and find-on-canvas shortcuts. Without callbacks, the canvas dispatches bubbling `skedra:help-request`, `skedra:command-palette-request`, and `skedra:find-on-canvas-request` DOM events.
 
 ## Imperative API
 

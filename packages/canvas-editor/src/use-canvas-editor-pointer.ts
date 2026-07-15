@@ -16,6 +16,7 @@ import {
 } from "@skedra/canvas-core";
 import {
 	type Dispatch,
+	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
 	type WheelEvent as ReactWheelEvent,
 	type RefObject,
@@ -30,7 +31,10 @@ import {
 	resolveCanvasEditorMoveGesture,
 	resolveCanvasEditorPathPointGesture,
 } from "./gesture-operations";
-import { isCanvasMultiPathTool } from "./path-editor-controller";
+import {
+	isCanvasMultiPathTool,
+	shouldFinishCanvasMultiPathOnContextMenu,
+} from "./path-editor-controller";
 import {
 	type CanvasEditorPinchPoints,
 	type CanvasEditorPointerAction,
@@ -1186,6 +1190,26 @@ export function useCanvasEditorPointer({
 			: false;
 	}, [finishPath, uiAdapter]);
 
+	const onContextMenu = useCallback(
+		(event: ReactMouseEvent<Element>) => {
+			const ui = uiAdapter.getState();
+			if (
+				!shouldFinishCanvasMultiPathOnContextMenu(
+					ui.activeTool,
+					ui.pathDrawMode,
+					pathEditorRef.current.isActive(),
+				)
+			) {
+				return false;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			finishPath({ selectCreated: true });
+			return true;
+		},
+		[finishPath, pathEditorRef, uiAdapter],
+	);
+
 	const beginResize = useCallback(
 		(
 			event: ReactPointerEvent<SVGElement>,
@@ -1243,6 +1267,7 @@ export function useCanvasEditorPointer({
 		onLostPointerCapture,
 		onWheel,
 		onDoubleClick,
+		onContextMenu,
 		beginResize,
 		beginPathPointDrag,
 		beginAuxiliaryPointerGesture,

@@ -16,6 +16,7 @@ import {
 	getFlowchartConnectorMeta,
 	getFlowchartNodeMeta,
 	getMindmapBranchRootIdForElement,
+	isPlainCanvasFrame,
 } from "@skedra/canvas-core";
 import type {
 	ArrowTextOrientation,
@@ -124,6 +125,8 @@ interface PropertiesPanelDerivations {
 	currentPriority: KanbanPriority | null;
 	isKanbanListSelection: boolean;
 	kanbanList: CanvasElement | null;
+	frameElement: CanvasElement | null;
+	framePresetToolActive: boolean;
 	templateSection: ReturnType<typeof getTemplateSectionMeta>;
 	isTemplateNoteSelection: boolean;
 	templateNoteMeta: ReturnType<typeof getTemplateStickyNoteMeta>;
@@ -458,6 +461,17 @@ function derivePropertiesPanelState({
 		selected[0].customData?.skedraType === "kanban-list";
 	const kanbanList = isKanbanListSelection ? selected[0] : null;
 
+	/* Einzelner einfacher Frame: Frame-Optionen (Name, Presets) anzeigen. */
+	const frameElement =
+		!isEditingTextContext &&
+		selected.length === 1 &&
+		isPlainCanvasFrame(selected[0])
+			? selected[0]
+			: null;
+	/* Frame-Werkzeug aktiv ohne Selektion: Presets zum Platzieren anbieten. */
+	const framePresetToolActive =
+		!isEditingTextContext && !hasSelection && activeTool === "frame";
+
 	const templateSection = selectedTemplateSection;
 	const templateNotes = hasSelection
 		? selected.map((el) => getTemplateStickyNoteMeta(el))
@@ -541,6 +555,8 @@ function derivePropertiesPanelState({
 		currentPriority,
 		isKanbanListSelection,
 		kanbanList,
+		frameElement,
+		framePresetToolActive,
 		templateSection,
 		isTemplateNoteSelection,
 		templateNoteMeta,

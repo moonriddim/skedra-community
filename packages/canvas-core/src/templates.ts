@@ -12,13 +12,15 @@ import {
 import { createMindmapTemplateElements } from "./mindmap";
 import { sortCanvasElements } from "./ordering";
 import type { CanvasElement } from "./types";
+import { createWireframeTemplateElements } from "./wireframe";
 
 export type CanvasTemplateId =
 	| "kanban"
 	| "mindmap"
 	| "flowchart"
 	| "retrospective"
-	| "swot";
+	| "swot"
+	| "wireframe";
 
 export type TemplateToolId = "retrospective" | "swot" | "flowchart";
 export type TemplateNoteType =
@@ -194,6 +196,8 @@ export function createCanvasTemplateElements(
 			return createRetrospectiveTemplate(options);
 		case "swot":
 			return createSwotTemplate(options);
+		case "wireframe":
+			return createWireframeTemplateElements(options);
 	}
 }
 

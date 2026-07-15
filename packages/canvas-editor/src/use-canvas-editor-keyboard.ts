@@ -79,7 +79,15 @@ export function useCanvasEditorKeyboard(adapter: CanvasEditorKeyboardAdapter) {
 				return;
 			}
 			if (action) {
-				if (state.readOnly && action.type !== "tool") return;
+				if (
+					state.readOnly &&
+					action.type !== "tool" &&
+					action.type !== "open-help" &&
+					action.type !== "open-command-palette" &&
+					action.type !== "open-canvas-search"
+				) {
+					return;
+				}
 				const handled = current.onEditorAction(action, event);
 				if (handled !== false) {
 					event.preventDefault();

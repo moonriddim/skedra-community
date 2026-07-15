@@ -12,6 +12,7 @@ import { useCanvasStore, useCanvasStoreRef } from "./use-canvas-store";
 
 interface UseCommunityCanvasKeyboardAdapterOptions {
 	enabled?: boolean;
+	readOnly?: boolean;
 	editingText?: boolean;
 	elements: Map<string, CanvasElement>;
 	createElement: (el: CanvasElement) => void;
@@ -26,6 +27,7 @@ interface UseCommunityCanvasKeyboardAdapterOptions {
 
 export function useCommunityCanvasKeyboardAdapter({
 	enabled = true,
+	readOnly = false,
 	editingText = false,
 	elements,
 	createElement,
@@ -46,7 +48,7 @@ export function useCommunityCanvasKeyboardAdapter({
 	useCanvasEditorKeyboard({
 		getState: () => ({
 			enabled,
-			readOnly: false,
+			readOnly,
 			editingText: editingText || storeRef.current.editingTextId != null,
 			hasSelection: storeRef.current.selectedIds.size > 0,
 		}),
@@ -91,6 +93,10 @@ export function useCommunityCanvasKeyboardAdapter({
 			}
 			if (action.type === "open-command-palette") {
 				actions?.openCommandPalette?.();
+				return true;
+			}
+			if (action.type === "open-canvas-search") {
+				actions?.openCanvasSearch?.();
 				return true;
 			}
 			if (action.type === "focus-property") {

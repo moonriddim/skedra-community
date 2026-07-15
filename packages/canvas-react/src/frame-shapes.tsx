@@ -342,17 +342,20 @@ function DefaultFrameShape({
 				rx={4}
 				opacity={0.5}
 			/>
-			<text
-				x={el.x + 6}
-				y={el.y - 6}
-				fill="var(--primary, #6366f1)"
-				fontSize={12}
-				fontFamily="system-ui, sans-serif"
-				opacity={0.7}
-				pointerEvents="none"
-			>
-				{label}
-			</text>
+			{/* Label ausblenden, solange der Inline-Editor den Namen bearbeitet */}
+			{!isEditingText && (
+				<text
+					x={el.x + 6}
+					y={el.y - 6}
+					fill="var(--primary, #6366f1)"
+					fontSize={12}
+					fontFamily="system-ui, sans-serif"
+					opacity={0.7}
+					pointerEvents="none"
+				>
+					{label}
+				</text>
+			)}
 			{!isEditingText && el.text && <RectText el={el} />}
 		</g>
 	);

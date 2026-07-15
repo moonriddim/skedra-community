@@ -24,6 +24,7 @@ export type SkedraSdkKeyboardAction =
 	| { type: "insert-image" }
 	| { type: "open-help" }
 	| { type: "open-command-palette" }
+	| { type: "open-canvas-search" }
 	| { type: "focus-property"; property: "stroke" | "fill" | "font" }
 	| { type: "eyedropper"; target: "stroke" | "fill" }
 	| { type: "paste-plain-text" }
@@ -53,6 +54,7 @@ export interface SkedraSdkKeyboardActionHandlers {
 	insertImage: () => void;
 	openHelp: () => void;
 	openCommandPalette: () => void;
+	openCanvasSearch: () => void;
 	focusProperty: (property: "stroke" | "fill" | "font") => void;
 	eyedropper: (target: "stroke" | "fill") => void;
 	pastePlainText: () => void;
@@ -99,6 +101,9 @@ export function handleSkedraSdkKeyboardAction(
 			break;
 		case "open-command-palette":
 			handlers.openCommandPalette();
+			break;
+		case "open-canvas-search":
+			handlers.openCanvasSearch();
 			break;
 		case "focus-property":
 			handlers.focusProperty(action.property);

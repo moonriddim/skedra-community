@@ -1,4 +1,8 @@
-import type { CanvasElement, CanvasPathDrawMode } from "@skedra/canvas-core";
+import {
+	type CanvasElement,
+	type CanvasPathDrawMode,
+	getCanvasLayoutItemCount,
+} from "@skedra/canvas-core";
 import type { CSSProperties } from "react";
 import { useOptionalCanvasEditorServices } from "./canvas-editor";
 import {
@@ -196,6 +200,7 @@ export function CanvasEditorPropertiesPanel({
 		);
 	}
 	const custom = element.customData ?? {};
+	const layoutItemCount = getCanvasLayoutItemCount(selected);
 	const isFlowchart = custom.skedraType === "flowchart-node";
 	const isFlowchartConnector = custom.skedraType === "flowchart-connector";
 	const isKanbanCard = custom.skedraType === "kanban-card";
@@ -1373,7 +1378,7 @@ export function CanvasEditorPropertiesPanel({
 							<button
 								key={alignment}
 								type="button"
-								disabled={disabled || selected.length < 2}
+								disabled={disabled || layoutItemCount < 2}
 								onClick={() => onAlign(alignment)}
 							>
 								{t(`canvas.properties.align.${alignment}`, alignment)}
@@ -1381,14 +1386,14 @@ export function CanvasEditorPropertiesPanel({
 						))}
 						<button
 							type="button"
-							disabled={disabled || selected.length < 3}
+							disabled={disabled || layoutItemCount < 3}
 							onClick={() => onDistribute("horizontal")}
 						>
 							{t("canvas.properties.distributeHorizontal", "Distribute H")}
 						</button>
 						<button
 							type="button"
-							disabled={disabled || selected.length < 3}
+							disabled={disabled || layoutItemCount < 3}
 							onClick={() => onDistribute("vertical")}
 						>
 							{t("canvas.properties.distributeVertical", "Distribute V")}

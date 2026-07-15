@@ -10,6 +10,7 @@ import { createFlowchartTemplate } from "@/lib/templates/flowchart";
 import { createMindmapTemplate } from "@/lib/templates/mindmap";
 import { createRetrospectiveTemplate } from "@/lib/templates/retrospective";
 import { createSwotTemplate } from "@/lib/templates/swot";
+import { createWireframeTemplate } from "@/lib/templates/wireframe";
 import { useThemeStore } from "@/stores/theme";
 import type { CanvasElement } from "@skedra/canvas-core";
 import {
@@ -38,6 +39,7 @@ import {
 	Minus,
 	MonitorPlay,
 	MousePointer2,
+	PanelsTopLeft,
 	Pencil,
 	Pipette,
 	Save,
@@ -196,6 +198,12 @@ export function CanvasToolbar({
 							}),
 						);
 					},
+				},
+				{
+					id: "wireframe",
+					label: t("canvas.toolbar.insertWireframe"),
+					icon: <PanelsTopLeft className="h-4 w-4" />,
+					onSelect: () => insertAtCenter(createWireframeTemplate),
 				},
 				{
 					id: "retrospective",

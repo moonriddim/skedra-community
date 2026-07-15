@@ -1,4 +1,5 @@
 import {
+	type AlignEdge,
 	type ArrowHead,
 	type ArrowMode,
 	type ArrowTextOrientation,
@@ -7,10 +8,13 @@ import {
 	type CanvasPathDrawMode,
 	DEFAULT_ARROW_HEAD_FILLED,
 	DEFAULT_ARROW_HEAD_SCALE,
+	type DistributionAxis,
+	FRAME_SIZE_PRESET_CATEGORIES,
 	type FlowchartConnectorMeta,
 	type FlowchartConnectorRoute,
 	type FlowchartNodeKind,
 	type FlowchartNodeMeta,
+	type FrameSizePreset,
 	type KanbanPriority,
 	MAX_ARROW_HEAD_SCALE,
 	MAX_ROUGH_FILL_SCALE,
@@ -18,11 +22,21 @@ import {
 	MIN_ROUGH_FILL_SCALE,
 	type RoughFillStyle,
 	type StrokeStyle,
+	getCanvasLayoutItemCount,
+	getFrameSizePresetsByCategory,
 } from "@skedra/canvas-core";
 import {
 	AlignCenter,
+	AlignHorizontalJustifyCenter,
+	AlignHorizontalJustifyEnd,
+	AlignHorizontalJustifyStart,
+	AlignHorizontalSpaceBetween,
 	AlignLeft,
 	AlignRight,
+	AlignVerticalJustifyCenter,
+	AlignVerticalJustifyEnd,
+	AlignVerticalJustifyStart,
+	AlignVerticalSpaceBetween,
 	ArrowDown,
 	ArrowLeft,
 	ArrowRight,
@@ -34,6 +48,7 @@ import {
 	Copy,
 	Italic,
 	Link,
+	type LucideIcon,
 	Pencil,
 	Plus,
 	Trash2,
@@ -93,6 +108,21 @@ export interface CanvasEditorClassicPropertiesView {
 	flowchartConnector: CanvasElement | null;
 	flowchartConnectorMeta: FlowchartConnectorMeta | null;
 	flowchartInsertKind: FlowchartNodeKind;
+	/* Frame-Optionen (optional, damit bestehende Hosts nicht brechen) */
+	/** Einzelner selektierter einfacher Frame, sonst null. */
+	frameElement?: CanvasElement | null;
+	/** True, wenn das Frame-Werkzeug aktiv ist und nichts selektiert wurde. */
+	framePresetToolActive?: boolean;
+	/** Frame-Namen setzen (frameLabel). */
+	onSetFrameLabel?: (label: string) => void;
+	/** Inline-Umbenennen des Frame-Labels auf dem Canvas starten. */
+	onRenameFrame?: () => void;
+	/** Preset-Groesse auf den selektierten Frame anwenden. */
+	onApplyFramePreset?: (preset: FrameSizePreset) => void;
+	/** Platzierung eines neuen Frames mit Preset-Groesse starten. */
+	onStartFramePresetPlacement?: (preset: FrameSizePreset) => void;
+	/** Breite/Hoehe des selektierten Frames direkt setzen. */
+	onSetFrameSize?: (size: { width: number; height: number }) => void;
 	showStroke: boolean;
 	isTextOnly: boolean;
 	hasMindmapBranch: boolean;
@@ -179,6 +209,8 @@ export interface CanvasEditorClassicPropertiesView {
 	onSendBackward: () => void;
 	onBringToFront: () => void;
 	onSendToBack: () => void;
+	onAlign: (alignment: AlignEdge) => void;
+	onDistribute: (axis: DistributionAxis) => void;
 	onCopy: () => void;
 	onDelete: () => void;
 	onAddLink: () => void;
@@ -292,6 +324,59 @@ const KANBAN_PRIORITIES: Array<{
 		color: "var(--kanban-priority-urgent, #fa5252)",
 		labelKey: "canvas.properties.urgent",
 		fallback: "Urgent",
+	},
+];
+
+const ALIGNMENT_ACTIONS: ReadonlyArray<{
+	value: AlignEdge;
+	Icon: LucideIcon;
+	fallback: string;
+}> = [
+	{
+		value: "left",
+		Icon: AlignHorizontalJustifyStart,
+		fallback: "Align left",
+	},
+	{
+		value: "horizontal-center",
+		Icon: AlignHorizontalJustifyCenter,
+		fallback: "Center horizontally",
+	},
+	{
+		value: "right",
+		Icon: AlignHorizontalJustifyEnd,
+		fallback: "Align right",
+	},
+	{ value: "top", Icon: AlignVerticalJustifyStart, fallback: "Align top" },
+	{
+		value: "vertical-center",
+		Icon: AlignVerticalJustifyCenter,
+		fallback: "Center vertically",
+	},
+	{
+		value: "bottom",
+		Icon: AlignVerticalJustifyEnd,
+		fallback: "Align bottom",
+	},
+];
+
+const DISTRIBUTION_ACTIONS: ReadonlyArray<{
+	value: DistributionAxis;
+	Icon: LucideIcon;
+	labelKey: string;
+	fallback: string;
+}> = [
+	{
+		value: "horizontal",
+		Icon: AlignHorizontalSpaceBetween,
+		labelKey: "canvas.properties.distributeHorizontal",
+		fallback: "Distribute horizontally",
+	},
+	{
+		value: "vertical",
+		Icon: AlignVerticalSpaceBetween,
+		labelKey: "canvas.properties.distributeVertical",
+		fallback: "Distribute vertically",
 	},
 ];
 
@@ -523,6 +608,7 @@ export function CanvasEditorClassicPropertiesPanel({
 			<KanbanProperties view={view} t={t} />
 			<TemplateProperties view={view} t={t} />
 			<FlowchartProperties view={view} t={t} />
+			<FrameProperties view={view} t={t} />
 			<AppearanceProperties view={view} t={t} />
 			<ArrowProperties view={view} t={t} />
 			{view.hasTextElement && <TextProperties view={view} t={t} />}
@@ -567,6 +653,194 @@ function StickyProperties({
 					onSelect={(color) => view.onSetProperty("fill", color)}
 					t={t}
 				/>
+			</Section>
+		</>
+	);
+}
+
+/** Anzeigenamen der Preset-Kategorien (uebersetzbar mit Fallback). */
+const FRAME_PRESET_CATEGORY_LABELS: Record<
+	FrameSizePreset["category"],
+	{ key: string; fallback: string }
+> = {
+	phone: { key: "canvas.properties.framePresetPhone", fallback: "Phone" },
+	tablet: { key: "canvas.properties.framePresetTablet", fallback: "Tablet" },
+	desktop: {
+		key: "canvas.properties.framePresetDesktop",
+		fallback: "Desktop",
+	},
+	print: { key: "canvas.properties.framePresetPrint", fallback: "Print" },
+	social: {
+		key: "canvas.properties.framePresetSocial",
+		fallback: "Social media",
+	},
+};
+
+function framePresetCategoryLabel(
+	category: FrameSizePreset["category"],
+	t: CanvasEditorPropertiesTranslate,
+): string {
+	const entry = FRAME_PRESET_CATEGORY_LABELS[category];
+	return t(entry.key, entry.fallback);
+}
+
+/** Eingabefeld fuer den Frame-Namen; committet bei Blur und Enter. */
+function FrameNameInput({
+	frame,
+	onSetFrameLabel,
+	t,
+}: {
+	frame: CanvasElement;
+	onSetFrameLabel: (label: string) => void;
+	t: CanvasEditorPropertiesTranslate;
+}) {
+	const [draft, setDraft] = useState(frame.frameLabel ?? "");
+	/* Bei Frame-Wechsel oder externem Rename (Inline-Editor) neu uebernehmen */
+	useEffect(() => {
+		setDraft(frame.frameLabel ?? "");
+	}, [frame.frameLabel]);
+	const commit = () => {
+		const next = draft.trim();
+		if (next === (frame.frameLabel ?? "")) return;
+		onSetFrameLabel(next);
+	};
+	return (
+		<input
+			type="text"
+			value={draft}
+			placeholder={t("canvas.properties.frameDefault", "Frame")}
+			onChange={(event) => setDraft(event.target.value)}
+			onBlur={commit}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") event.currentTarget.blur();
+				if (event.key === "Escape") {
+					setDraft(frame.frameLabel ?? "");
+					event.currentTarget.blur();
+				}
+			}}
+			className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] text-card-foreground outline-none transition-colors focus:border-primary"
+		/>
+	);
+}
+
+/**
+ * Frame-Optionen: Name, eigene Groesse und Standard-Bildschirmgroessen.
+ * Sichtbar bei selektiertem einfachen Frame oder aktivem Frame-Werkzeug.
+ */
+function FrameProperties({
+	view,
+	t,
+}: {
+	view: CanvasEditorClassicPropertiesView;
+	t: CanvasEditorPropertiesTranslate;
+}) {
+	const frame = view.frameElement ?? null;
+	const showPresets = frame != null || view.framePresetToolActive === true;
+	if (!showPresets) return null;
+
+	const applyPreset = (preset: FrameSizePreset) => {
+		if (frame) view.onApplyFramePreset?.(preset);
+		else view.onStartFramePresetPlacement?.(preset);
+	};
+
+	return (
+		<>
+			{frame && (
+				<Section label={t("canvas.properties.frameName", "Frame name")}>
+					{view.onSetFrameLabel && (
+						<FrameNameInput
+							frame={frame}
+							onSetFrameLabel={view.onSetFrameLabel}
+							t={t}
+						/>
+					)}
+					{view.onRenameFrame && (
+						<button
+							type="button"
+							onClick={view.onRenameFrame}
+							className="mt-1.5 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded border border-border py-1.5 transition-all hover:border-primary hover:bg-primary/10"
+						>
+							<Pencil className="h-3.5 w-3.5" />
+							<span>
+								{t("canvas.properties.frameRenameOnCanvas", "Rename on canvas")}
+							</span>
+						</button>
+					)}
+				</Section>
+			)}
+			{frame && view.onSetFrameSize && (
+				<Section label={t("canvas.properties.dimensions", "Dimensions")}>
+					<div className="grid grid-cols-2 gap-1">
+						<DimensionInput
+							label={t("canvas.properties.width", "Width")}
+							value={Math.round(frame.width)}
+							onCommit={(value) =>
+								view.onSetFrameSize?.({
+									width: value,
+									height: Math.round(frame.height),
+								})
+							}
+						/>
+						<DimensionInput
+							label={t("canvas.properties.height", "Height")}
+							value={Math.round(frame.height)}
+							onCommit={(value) =>
+								view.onSetFrameSize?.({
+									width: Math.round(frame.width),
+									height: value,
+								})
+							}
+						/>
+					</div>
+				</Section>
+			)}
+			<Section label={t("canvas.properties.framePresetSizes", "Preset sizes")}>
+				{!frame && (
+					<p className="mb-1.5 text-[10px] text-muted-foreground">
+						{t(
+							"canvas.properties.framePresetPlaceHint",
+							"Pick a size, then click the canvas to place the frame.",
+						)}
+					</p>
+				)}
+				<div className="scrollbar-thin max-h-56 space-y-2 overflow-y-auto pr-0.5">
+					{FRAME_SIZE_PRESET_CATEGORIES.map((category) => {
+						const presets = getFrameSizePresetsByCategory(category);
+						if (presets.length === 0) return null;
+						return (
+							<div key={category}>
+								<p className="mb-0.5 text-[9px] text-muted-foreground uppercase tracking-wider">
+									{framePresetCategoryLabel(category, t)}
+								</p>
+								<div className="space-y-0.5">
+									{presets.map((preset) => {
+										const active =
+											frame != null &&
+											Math.round(frame.width) === preset.width &&
+											Math.round(frame.height) === preset.height;
+										return (
+											<button
+												key={preset.id}
+												type="button"
+												onClick={() => applyPreset(preset)}
+												className={`flex w-full cursor-pointer items-center justify-between rounded border px-2 py-1 text-[10px] transition-all ${
+													active
+														? "border-primary bg-primary/15 text-card-foreground"
+														: "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-card-foreground"
+												}`}
+											>
+												<span className="truncate">{preset.name}</span>
+												<span className="ml-2 shrink-0 tabular-nums">
+													{preset.width}×{preset.height}
+												</span>
+											</button>
+										);
+									})}
+								</div>
+							</div>
+						);
+					})}
+				</div>
 			</Section>
 		</>
 	);
@@ -1663,18 +1937,26 @@ function ActionButton({
 	title,
 	onClick,
 	danger,
+	disabled,
 }: {
 	children: ReactNode;
 	title: string;
 	onClick: () => void;
 	danger?: boolean;
+	disabled?: boolean;
 }) {
 	return (
 		<button
 			type="button"
 			title={title}
+			aria-label={title}
 			onClick={onClick}
-			className={`flex flex-1 cursor-pointer items-center justify-center rounded border border-border py-1.5 transition-all hover:border-muted-foreground ${
+			disabled={disabled}
+			className={`flex flex-1 items-center justify-center rounded border border-border py-1.5 transition-all ${
+				disabled
+					? "cursor-not-allowed opacity-40"
+					: "cursor-pointer hover:border-muted-foreground"
+			} ${
 				danger
 					? "text-destructive hover:bg-destructive/10"
 					: "text-card-foreground hover:bg-accent"
@@ -1692,8 +1974,42 @@ function SelectionFooter({
 	view: CanvasEditorClassicPropertiesView;
 	t: CanvasEditorPropertiesTranslate;
 }) {
+	const layoutItemCount = getCanvasLayoutItemCount(view.selected);
 	return (
 		<>
+			{layoutItemCount >= 2 && (
+				<Section label={t("canvas.properties.arrange", "Arrange")}>
+					<div className="grid grid-cols-3 gap-1">
+						{ALIGNMENT_ACTIONS.map(({ value, Icon, fallback }) => {
+							const title = t(`canvas.properties.align.${value}`, fallback);
+							return (
+								<ActionButton
+									key={value}
+									title={title}
+									onClick={() => view.onAlign(value)}
+								>
+									<Icon className="h-3.5 w-3.5" />
+								</ActionButton>
+							);
+						})}
+					</div>
+					<div className="mt-1 flex gap-1">
+						{DISTRIBUTION_ACTIONS.map(({ value, Icon, labelKey, fallback }) => {
+							const title = t(labelKey, fallback);
+							return (
+								<ActionButton
+									key={value}
+									title={title}
+									disabled={layoutItemCount < 3}
+									onClick={() => view.onDistribute(value)}
+								>
+									<Icon className="h-3.5 w-3.5" />
+								</ActionButton>
+							);
+						})}
+					</div>
+				</Section>
+			)}
 			{view.hasSelection && (
 				<Section label={t("canvas.properties.layers", "Layers")}>
 					<div className="flex gap-1">

@@ -15,6 +15,7 @@ import { useThemeStore } from "@/stores/theme";
 import {
 	type FlowchartConnectorRoute,
 	type FlowchartNodeKind,
+	type FrameSizePreset,
 	buildFlowchartNodeKindChanges,
 } from "@skedra/canvas-core";
 import type {
@@ -342,6 +343,54 @@ export function usePropertiesPanel({
 		[d.flowchartNode, onUpdateElement],
 	);
 
+	/* Frame-Optionen: Name, Groesse und Presets fuer einfache Frames. */
+	const setFrameLabel = useCallback(
+		(label: string) => {
+			if (!d.frameElement) return;
+			onUpdateElement(d.frameElement.id, { frameLabel: label.trim() });
+		},
+		[d.frameElement, onUpdateElement],
+	);
+
+	/* Inline-Umbenennen des Labels direkt auf dem Canvas starten. */
+	const startFrameRename = useCallback(() => {
+		if (!d.frameElement) return;
+		store.setEditingTextId(d.frameElement.id);
+	}, [d.frameElement, store]);
+
+	/* Groesse setzen; die linke obere Ecke bleibt verankert (Figma-Verhalten). */
+	const setFrameSize = useCallback(
+		(size: { width: number; height: number }) => {
+			if (!d.frameElement) return;
+			onUpdateElement(d.frameElement.id, {
+				width: Math.max(1, Math.round(size.width)),
+				height: Math.max(1, Math.round(size.height)),
+			});
+		},
+		[d.frameElement, onUpdateElement],
+	);
+
+	const applyFramePreset = useCallback(
+		(preset: FrameSizePreset) => {
+			setFrameSize({ width: preset.width, height: preset.height });
+		},
+		[setFrameSize],
+	);
+
+	/* Frame-Werkzeug: Preset waehlen und per Klick auf dem Canvas platzieren. */
+	const startFramePresetPlacement = useCallback(
+		(preset: FrameSizePreset) => {
+			store.setActiveTool("frame");
+			store.setShapePlacementDraft({
+				type: "frame",
+				width: preset.width,
+				height: preset.height,
+				label: preset.name,
+			});
+		},
+		[store],
+	);
+
 	const setArrowTextSide = useCallback(
 		(side: ArrowTextSide) => {
 			if (d.inspectedPathTextElements.length === 0) return;
@@ -413,6 +462,11 @@ export function usePropertiesPanel({
 		editFlowchartNodeText,
 		setFlowchartNodeKind,
 		addFlowchartNodeOnSide,
+		setFrameLabel,
+		startFrameRename,
+		setFrameSize,
+		applyFramePreset,
+		startFramePresetPlacement,
 		setFlowchartConnectorLabel,
 		editFlowchartConnectorLabel,
 		currentShapeWidth: geometry.currentShapeWidth,

@@ -5,6 +5,7 @@ import {
 	CANVAS_PATH_MODE_OPTIONS,
 	CanvasPathEditorController,
 	resolveCanvasEditorPathMode,
+	shouldFinishCanvasMultiPathOnContextMenu,
 } from "./path-editor-controller";
 import { buildCanvasSinglePathElement } from "./single-path";
 
@@ -56,6 +57,44 @@ test("arrows remain open and use the same preview/commit state machine", () => {
 	assert.equal(completed.element.closed, undefined);
 	assert.equal(completed.element.fill, "transparent");
 	assert.equal(completed.element.arrowHeadEnd, "arrow");
+});
+
+test("context menu completion is limited to active multi-line paths", () => {
+	for (const tool of ["line", "arrow"]) {
+		assert.equal(
+			shouldFinishCanvasMultiPathOnContextMenu(tool, "multi", true),
+			true,
+		);
+		assert.equal(
+			shouldFinishCanvasMultiPathOnContextMenu(tool, "normal", true),
+			false,
+		);
+		assert.equal(
+			shouldFinishCanvasMultiPathOnContextMenu(tool, "multi", false),
+			false,
+		);
+	}
+	assert.equal(
+		shouldFinishCanvasMultiPathOnContextMenu("rectangle", "multi", true),
+		false,
+	);
+});
+
+test("finishing a multi-line discards the uncommitted hover point", () => {
+	const editor = new CanvasPathEditorController();
+	editor.begin("line", [0, 0], style);
+	editor.release(pointer([0, 0]), style);
+	editor.begin("line", [100, 0], style);
+	editor.release(pointer([100, 0]), style);
+	editor.move(pointer([160, 80]), style);
+
+	const completed = editor.finish(style);
+	assert.equal(completed.kind, "complete");
+	if (completed.kind !== "complete") return;
+	assert.deepEqual(completed.element.points, [
+		[0, 0],
+		[100, 0],
+	]);
 });
 
 test("the editor offers only corners and curves while normalizing legacy elbow", () => {

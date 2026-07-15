@@ -47,9 +47,11 @@ import { useEffect, useRef } from "react";
 import { create } from "zustand";
 
 interface ShapePlacementDraft {
-	type: "rectangle" | "ellipse" | "diamond";
+	type: "rectangle" | "ellipse" | "diamond" | "frame";
 	width: number;
 	height: number;
+	/** Frame-Label beim Platzieren (z. B. Preset-Name wie "iPhone 15 Pro"). */
+	label?: string;
 }
 
 interface KanbanCardPlacementDraft {
@@ -202,6 +204,9 @@ export interface CanvasStoreState {
 	/** Befehlspalette */
 	commandPaletteOpen: boolean;
 	setCommandPaletteOpen: (open: boolean) => void;
+	/** Suche nach Text und Rahmen auf der Zeichenflaeche */
+	canvasSearchOpen: boolean;
+	setCanvasSearchOpen: (open: boolean) => void;
 
 	/** Bild-Zuschneiden */
 	croppingImageId: string | null;
@@ -425,7 +430,18 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 		set((s) => ({ zenMode: !s.zenMode, contextMenu: null, activePanel: null })),
 
 	commandPaletteOpen: false,
-	setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+	setCommandPaletteOpen: (open) =>
+		set({
+			commandPaletteOpen: open,
+			...(open ? { canvasSearchOpen: false } : {}),
+		}),
+
+	canvasSearchOpen: false,
+	setCanvasSearchOpen: (open) =>
+		set({
+			canvasSearchOpen: open,
+			...(open ? { commandPaletteOpen: false } : {}),
+		}),
 
 	croppingImageId: null,
 	setCroppingImageId: (id) => set({ croppingImageId: id }),

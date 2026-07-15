@@ -14,7 +14,8 @@ export type SkedraSdkTemplateId =
 	| "mindmap"
 	| "flowchart"
 	| "retrospective"
-	| "swot";
+	| "swot"
+	| "wireframe";
 
 export type SkedraSdkResolvedTheme = "light" | "dark";
 
@@ -317,6 +318,13 @@ export const SKEDRA_TEMPLATES: SkedraTemplateDefinition[] = [
 		description: "A small process and decision chain",
 		create: (x, y, options) =>
 			createSkedraTemplateElements("flowchart", { ...options, x, y }),
+	},
+	{
+		id: "wireframe",
+		name: "Low-fidelity wireframe",
+		description: "Editable responsive desktop and mobile landing-page layout",
+		create: (x, y, options) =>
+			createSkedraTemplateElements("wireframe", { ...options, x, y }),
 	},
 	{
 		id: "retrospective",

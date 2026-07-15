@@ -1,4 +1,5 @@
 import type { CanvasEditorCommandId, ToolType } from "@skedra/canvas-core";
+import { matchesCanvasEditorUiShortcut } from "./command-shortcuts";
 
 export type CanvasEditorToolId =
 	| ToolType
@@ -172,6 +173,7 @@ export type CanvasEditorKeyboardAction =
 	| { type: "insert-image" }
 	| { type: "open-help" }
 	| { type: "open-command-palette" }
+	| { type: "open-canvas-search" }
 	| { type: "focus-property"; property: "stroke" | "fill" | "font" }
 	| { type: "eyedropper"; target: "stroke" | "fill" }
 	| { type: "paste-plain-text" }
@@ -260,8 +262,6 @@ const EXACT_KEYBOARD_ACTION_BY_SHORTCUT: Readonly<
 	"2:s": { type: "toggle-object-snap" },
 	"0:?": { type: "open-help" },
 	"1:?": { type: "open-help" },
-	"5:p": { type: "open-command-palette" },
-	"7:p": { type: "open-command-palette" },
 	"0: ": { type: "temporary-pan" },
 	"1: ": { type: "temporary-pan" },
 };
@@ -307,7 +307,6 @@ const CONTROL_KEYBOARD_ACTION_BY_KEY: Readonly<
 	"-": { type: "zoom", factor: 0.8 },
 	"0": { type: "reset-zoom" },
 	"'": { type: "toggle-grid" },
-	"/": { type: "open-command-palette" },
 };
 
 const SHIFTED_SHORTCUT_KEY_BY_CODE: Readonly<Partial<Record<string, string>>> =
@@ -379,6 +378,18 @@ function getCanvasEditorShortcutKey(event: CanvasEditorKeyboardEvent) {
 	return SHIFTED_SHORTCUT_KEY_BY_CODE[event.code] ?? key;
 }
 
+function resolveCanvasEditorUiShortcut(
+	event: CanvasEditorKeyboardEvent,
+): CanvasEditorKeyboardAction | null {
+	if (matchesCanvasEditorUiShortcut(event, "find-on-canvas")) {
+		return { type: "open-canvas-search" };
+	}
+	if (matchesCanvasEditorUiShortcut(event, "command-browser")) {
+		return { type: "open-command-palette" };
+	}
+	return null;
+}
+
 function resolveViewportPanKeyboardAction(
 	event: CanvasEditorKeyboardEvent,
 ): CanvasEditorKeyboardAction | null {
@@ -420,6 +431,7 @@ export function resolveCanvasEditorKeyboardAction(
 ): CanvasEditorKeyboardAction | null {
 	const key = getCanvasEditorShortcutKey(event);
 	return (
+		resolveCanvasEditorUiShortcut(event) ??
 		resolveExactKeyboardAction(event, key) ??
 		resolveDirectionalKeyboardAction(event) ??
 		resolveControlKeyboardAction(event) ??

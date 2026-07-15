@@ -32,6 +32,14 @@ export function isCanvasMultiPathTool(
 	return drawMode === "multi" && (tool === "line" || tool === "arrow");
 }
 
+export function shouldFinishCanvasMultiPathOnContextMenu(
+	tool: string,
+	drawMode: CanvasPathDrawMode,
+	pathActive: boolean,
+): boolean {
+	return pathActive && isCanvasMultiPathTool(tool, drawMode);
+}
+
 export interface CanvasPathPointerPosition {
 	raw: CanvasPathPoint;
 	snapped: CanvasPathPoint;

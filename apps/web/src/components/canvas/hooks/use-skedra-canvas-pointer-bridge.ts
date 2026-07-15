@@ -12,6 +12,7 @@ interface PointerGestureHandlers {
 	onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerCancel: (e?: React.PointerEvent<SVGSVGElement>) => void;
 	onLostPointerCapture: (e?: React.PointerEvent<SVGSVGElement>) => boolean;
+	onContextMenu: (e: React.MouseEvent) => boolean;
 	beginAuxiliaryPointerGesture: CanvasEditorBeginAuxiliaryPointerGesture;
 	isMultiTouchGesture: () => boolean;
 }
@@ -97,6 +98,7 @@ export function useSkedraCanvasPointerBridge({
 
 	const handleContextMenu = useCallback(
 		(e: React.MouseEvent) => {
+			if (pointerHandlers.onContextMenu(e)) return;
 			if (presentationMode) {
 				e.preventDefault();
 				return;
@@ -105,7 +107,7 @@ export function useSkedraCanvasPointerBridge({
 			e.stopPropagation();
 			store.setContextMenu({ x: e.clientX, y: e.clientY });
 		},
-		[presentationMode, store],
+		[pointerHandlers, presentationMode, store],
 	);
 
 	const handlePointerDown = useCallback(

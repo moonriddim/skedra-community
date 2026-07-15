@@ -3,9 +3,12 @@ import {
 	type ArrowTextSide,
 	type CanvasElement,
 	DEFAULT_FONT_FAMILY,
+	FRAME_LABEL_FONT_SIZE,
+	FRAME_LABEL_OFFSET_X,
 	STICKY_NOTE_TEXT_PADDING,
 	getArrowTextMetrics,
 	isMindmapNode,
+	isPlainCanvasFrame,
 	resolveArrowTextOffset,
 	resolveArrowTextRotationDeg,
 } from "@skedra/canvas-core";
@@ -92,6 +95,34 @@ export function buildCanvasEditorEditingSession({
 				fontFamily,
 				textAlign: "left",
 				fontWeight: "bold",
+				fontStyle: "normal",
+				textDecoration: "none",
+				variant: "frame-label",
+				placeholder: textPlaceholder,
+			},
+		};
+	}
+
+	/*
+	 * Einfache Frames (kein Kanban, keine Template-Sektion): Der Inline-Editor
+	 * bearbeitet den Frame-Namen und sitzt am Label oberhalb der Frame-Kante,
+	 * nicht ueber der gesamten Frame-Flaeche.
+	 */
+	if (isPlainCanvasFrame(element)) {
+		return {
+			editingText: {
+				id: element.id,
+				x: element.x + FRAME_LABEL_OFFSET_X,
+				y: element.y - FRAME_LABEL_FONT_SIZE - 10,
+				width: Math.max(160, Math.min(element.width, 320)),
+				height: FRAME_LABEL_FONT_SIZE + 10,
+				text: element.frameLabel ?? "",
+				stroke: element.stroke,
+				textColor: element.textColor ?? element.stroke,
+				fontSize: FRAME_LABEL_FONT_SIZE,
+				fontFamily: "system-ui, sans-serif",
+				textAlign: "left",
+				fontWeight: "normal",
 				fontStyle: "normal",
 				textDecoration: "none",
 				variant: "frame-label",

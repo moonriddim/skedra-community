@@ -1,3 +1,4 @@
+import { isPlainCanvasFrame } from "./element-capabilities";
 import { createBaseCanvasElement } from "./element-factory";
 import {
 	FLOWCHART_BRANCH_GAP,
@@ -926,6 +927,8 @@ export function buildCanvasTextUpdate(options: {
 	const fontFamily =
 		options.fontFamily ?? element.fontFamily ?? DEFAULT_FONT_FAMILY;
 	if (isKanbanList(element)) return { frameLabel: text };
+	/* Einfache Frames: Inline-Editor bearbeitet den Frame-Namen, nicht den Text. */
+	if (isPlainCanvasFrame(element)) return { frameLabel: text };
 	if (element.type === "arrow" || element.type === "line") {
 		return {
 			text,

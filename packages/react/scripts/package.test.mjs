@@ -66,7 +66,7 @@ test("factories subpath creates full canvas SDK elements", async () => {
 
 	assert.deepEqual(
 		factories.SKEDRA_TEMPLATES.map((template) => template.id).sort(),
-		["flowchart", "kanban", "mindmap", "retrospective", "swot"],
+		["flowchart", "kanban", "mindmap", "retrospective", "swot", "wireframe"],
 	);
 });
 

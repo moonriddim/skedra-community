@@ -5,6 +5,7 @@ import { CanvasScene } from "@skedra/canvas-core";
 import type {
 	CanvasElement,
 	CanvasPathStartSnapState,
+	CanvasSearchMatch,
 	HandlePosition,
 	LaserTrail,
 	SavedCanvasView,
@@ -29,6 +30,7 @@ import type { RefObject } from "react";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { useCanvasCommands } from "./canvas-commands";
 import { CanvasRenderer } from "./canvas-renderer";
+import { CanvasSearchOverlay } from "./canvas-search-overlay";
 import { LaserOverlay } from "./laser-overlay";
 import { RemoteSelectionOverlays } from "./presence-overlays";
 
@@ -39,6 +41,8 @@ interface CanvasStageProps {
 	scene: CanvasScene;
 	elements: Map<string, CanvasElement>;
 	selectedIds: Set<string>;
+	searchMatches?: readonly CanvasSearchMatch[];
+	searchActiveIndex?: number | null;
 	readOnly?: boolean;
 	gridEnabled: boolean;
 	editingTextId: string | null;
@@ -94,6 +98,8 @@ export function CanvasStage({
 	scene,
 	elements,
 	selectedIds,
+	searchMatches = [],
+	searchActiveIndex = null,
 	readOnly = false,
 	gridEnabled,
 	editingTextId,
@@ -179,6 +185,12 @@ export function CanvasStage({
 				viewport={viewport}
 				svgSize={svgSize}
 				resolveAssetUrl={resolveAssetUrl}
+			/>
+			<CanvasSearchOverlay
+				matches={searchMatches}
+				activeIndex={searchActiveIndex}
+				elements={elements}
+				zoom={viewport.zoom}
 			/>
 			<RemoteSelectionOverlays
 				peers={remotePresence}
