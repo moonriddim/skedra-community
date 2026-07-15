@@ -1761,69 +1761,76 @@ app.all("/api/trpc/*", (c) =>
 	}),
 );
 
-const migratedProfileImages = await migrateStoredProfileImages(db);
-if (migratedProfileImages > 0) {
-	console.log(
-		`[Skedra API] Encrypted ${migratedProfileImages} stored profile image(s).`,
-	);
-}
-
-const server = serve({ fetch: app.fetch, port: 3001 }, () => {
-	console.log("[Skedra API] http://localhost:3001");
-});
-
-// WebSocket-Upgrades (Presence) an den Node-Server anhängen.
-injectWebSocket(server);
-
-let shutdownStarted = false;
-
-async function shutdown(signal: NodeJS.Signals) {
-	if (shutdownStarted) return;
-	shutdownStarted = true;
-	console.log(`[Skedra API] ${signal} received, shutting down.`);
-
-	for (const client of wss.clients) {
-		client.close(1001, "Server shutting down");
+async function startServer() {
+	const migratedProfileImages = await migrateStoredProfileImages(db);
+	if (migratedProfileImages > 0) {
+		console.log(
+			`[Skedra API] Encrypted ${migratedProfileImages} stored profile image(s).`,
+		);
 	}
 
-	const closeTransports = Promise.all([
-		new Promise<void>((resolve) => {
-			server.close(() => resolve());
-		}),
-		new Promise<void>((resolve) => {
-			wss.close(() => resolve());
-		}),
-	]);
-	await Promise.race([
-		closeTransports,
-		new Promise<void>((resolve) => {
-			const timeout = setTimeout(() => {
-				for (const client of wss.clients) client.terminate();
-				if ("closeAllConnections" in server) server.closeAllConnections();
-				resolve();
-			}, 8_000);
-			timeout.unref();
-		}),
-	]);
-
-	clearScheduledPresentationAudienceCounts();
-	clearScheduledPresentationEnds();
-	await Promise.allSettled([
-		closeBoardLiveBus(),
-		closeBoardPresence(),
-		closePresentationLiveBus(),
-		closeRegistrationLocks(),
-		closeDatabase(),
-	]);
-}
-
-for (const signal of ["SIGTERM", "SIGINT"] as const) {
-	process.once(signal, () => {
-		void shutdown(signal)
-			.then(() => process.exit(0))
-			.catch((error) => {
-				console.error("[Skedra API] Shutdown failed.", error);
-				process.exit(1);
-			});
+	const server = serve({ fetch: app.fetch, port: 3001 }, () => {
+		console.log("[Skedra API] http://localhost:3001");
 	});
+
+	// WebSocket-Upgrades (Presence) an den Node-Server anhängen.
+	injectWebSocket(server);
+
+	let shutdownStarted = false;
+
+	async function shutdown(signal: NodeJS.Signals) {
+		if (shutdownStarted) return;
+		shutdownStarted = true;
+		console.log(`[Skedra API] ${signal} received, shutting down.`);
+
+		for (const client of wss.clients) {
+			client.close(1001, "Server shutting down");
+		}
+
+		const closeTransports = Promise.all([
+			new Promise<void>((resolve) => {
+				server.close(() => resolve());
+			}),
+			new Promise<void>((resolve) => {
+				wss.close(() => resolve());
+			}),
+		]);
+		await Promise.race([
+			closeTransports,
+			new Promise<void>((resolve) => {
+				const timeout = setTimeout(() => {
+					for (const client of wss.clients) client.terminate();
+					if ("closeAllConnections" in server) server.closeAllConnections();
+					resolve();
+				}, 8_000);
+				timeout.unref();
+			}),
+		]);
+
+		clearScheduledPresentationAudienceCounts();
+		clearScheduledPresentationEnds();
+		await Promise.allSettled([
+			closeBoardLiveBus(),
+			closeBoardPresence(),
+			closePresentationLiveBus(),
+			closeRegistrationLocks(),
+			closeDatabase(),
+		]);
+	}
+
+	for (const signal of ["SIGTERM", "SIGINT"] as const) {
+		process.once(signal, () => {
+			void shutdown(signal)
+				.then(() => process.exit(0))
+				.catch((error) => {
+					console.error("[Skedra API] Shutdown failed.", error);
+					process.exit(1);
+				});
+		});
+	}
 }
+
+void startServer().catch((error) => {
+	console.error("[Skedra API] Startup failed.", error);
+	process.exit(1);
+});
