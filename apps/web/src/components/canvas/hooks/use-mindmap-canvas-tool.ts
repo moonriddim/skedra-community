@@ -104,7 +104,7 @@ export function useMindmapCanvasTool({
 				setEditingTextId: store.setEditingTextId,
 			});
 		},
-		[resolvedTheme, store, sync, t],
+		[resolvedTheme, store.setEditingTextId, store.setSelectedIds, sync, t],
 	);
 
 	const createMindmapSibling = useCallback(
@@ -126,7 +126,7 @@ export function useMindmapCanvasTool({
 				setEditingTextId: store.setEditingTextId,
 			});
 		},
-		[resolvedTheme, store, sync, t],
+		[resolvedTheme, store.setEditingTextId, store.setSelectedIds, sync, t],
 	);
 
 	useEffect(() => {

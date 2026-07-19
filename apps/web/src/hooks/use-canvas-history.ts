@@ -39,6 +39,7 @@ export function useCanvasHistory({
 	const redoStackRef = useRef<CanvasHistoryEntry[]>([]);
 	const pendingEntriesRef = useRef<CanvasHistoryEntry[]>([]);
 	const isRestoringRef = useRef(false);
+	const isCapturingRef = useRef(false);
 	const debounceRef = useRef<number | null>(null);
 	const scopeKeyRef = useRef(scopeKey);
 	const getYDocRef = useRef(getYDoc);
@@ -102,6 +103,7 @@ export function useCanvasHistory({
 	);
 
 	const schedulePendingPush = useCallback(() => {
+		if (isCapturingRef.current) return;
 		if (debounceRef.current != null) {
 			window.clearTimeout(debounceRef.current);
 		}
@@ -123,6 +125,7 @@ export function useCanvasHistory({
 			persistHistory();
 		}
 		pendingEntriesRef.current = [];
+		isCapturingRef.current = false;
 		syncUndoRedoState();
 	}, [persistHistory, syncUndoRedoState, trimHistoryMemory]);
 
@@ -131,6 +134,7 @@ export function useCanvasHistory({
 			undoStackRef.current = [];
 			redoStackRef.current = [];
 			pendingEntriesRef.current = [];
+			isCapturingRef.current = false;
 			setCanUndo(false);
 			setCanRedo(false);
 			return;
@@ -226,7 +230,20 @@ export function useCanvasHistory({
 			window.clearTimeout(debounceRef.current);
 			debounceRef.current = null;
 		}
+		isCapturingRef.current = false;
 		pushPendingEntry(true);
+	}, [pushPendingEntry]);
+
+	const startCapturing = useCallback(() => {
+		if (debounceRef.current != null) {
+			window.clearTimeout(debounceRef.current);
+			debounceRef.current = null;
+		}
+		// Close the previous action before holding all following mutations until
+		// the gesture explicitly finishes. This keeps long drags atomic even when
+		// they exceed the normal history debounce window.
+		pushPendingEntry(true);
+		isCapturingRef.current = true;
 	}, [pushPendingEntry]);
 
 	const cancelCapturing = useCallback(() => {
@@ -234,6 +251,7 @@ export function useCanvasHistory({
 			window.clearTimeout(debounceRef.current);
 			debounceRef.current = null;
 		}
+		isCapturingRef.current = false;
 
 		const entries = pendingEntriesRef.current;
 		pendingEntriesRef.current = [];
@@ -261,6 +279,7 @@ export function useCanvasHistory({
 		undoStackRef.current = [];
 		redoStackRef.current = [];
 		pendingEntriesRef.current = [];
+		isCapturingRef.current = false;
 		clearPersistedCanvasHistory(scopeKeyRef.current);
 		persistHistory();
 		syncUndoRedoState();
@@ -271,6 +290,7 @@ export function useCanvasHistory({
 		redo,
 		canUndo,
 		canRedo,
+		startCapturing,
 		stopCapturing,
 		cancelCapturing,
 		clearHistory,

@@ -3,9 +3,13 @@ import {
 	type HandlePosition,
 	getCanvasElementCenter,
 	getCombinedBBox,
+	getGanttCanvasScrollbarThumbMeta,
+	getGanttChartId,
 	getHandlePosition,
+	getSequenceDiagramId,
 	getUntransformedBBox,
 	isCanvasPointPathElement,
+	isGanttChart,
 } from "@skedra/canvas-core";
 import type {
 	KeyboardEvent as ReactKeyboardEvent,
@@ -124,7 +128,33 @@ export function CanvasEditorSelectionOverlay({
 }: CanvasEditorSelectionOverlayProps) {
 	const services = useOptionalCanvasEditorServices();
 	if (selected.length === 0) return null;
-	const single = selected.length === 1 ? selected[0] : null;
+	const selectedGanttFrame = selected.find(isGanttChart) ?? null;
+	const selectedGanttChartId = getGanttChartId(selectedGanttFrame);
+	const isAtomicGanttSelection = Boolean(
+		selectedGanttChartId &&
+			selected.every(
+				(element) =>
+					getGanttChartId(element) === selectedGanttChartId ||
+					getGanttCanvasScrollbarThumbMeta(element)?.ganttChartId ===
+						selectedGanttChartId,
+			),
+	);
+	const selectedSequenceDiagramId = getSequenceDiagramId(selected[0]);
+	const isAtomicSequenceSelection = Boolean(
+		selectedSequenceDiagramId &&
+			selected.every(
+				(element) =>
+					getSequenceDiagramId(element) === selectedSequenceDiagramId,
+			),
+	);
+	const isAtomicStructuredSelection =
+		isAtomicGanttSelection || isAtomicSequenceSelection;
+	const single =
+		selected.length === 1 && !isAtomicSequenceSelection
+			? selected[0]
+			: isAtomicGanttSelection
+				? selectedGanttFrame
+				: null;
 	const editingPathPoints = Boolean(
 		!readOnly && single && !single.locked && isCanvasPointPathElement(single),
 	);
@@ -202,6 +232,7 @@ export function CanvasEditorSelectionOverlay({
 				{!readOnly &&
 					onRotateStart &&
 					!usesDirectPathSelection &&
+					!isAtomicStructuredSelection &&
 					!selected.every((item) => item.locked) && (
 						<>
 							<line

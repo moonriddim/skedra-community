@@ -1,5 +1,6 @@
 import { getStickyColors } from "@/lib/canvas/sticky-note-utils";
 import { useI18n } from "@/lib/i18n";
+import { useCanvasEditorFloatingPanel } from "@skedra/canvas-editor";
 import { X } from "lucide-react";
 
 interface StickyNoteToolProps {
@@ -14,6 +15,7 @@ export function StickyNoteTool({
 	onPlaceStickyNote,
 	onClose,
 }: StickyNoteToolProps) {
+	const floatingPanel = useCanvasEditorFloatingPanel<HTMLDivElement>();
 	const { t } = useI18n();
 	const stickyColors = getStickyColors();
 
@@ -28,8 +30,15 @@ export function StickyNoteTool({
 	};
 
 	return (
-		<div className="absolute top-14 right-4 z-40 w-56 rounded-xl border border-border bg-card/95 p-3 text-card-foreground shadow-xl backdrop-blur max-lg:top-auto max-lg:right-1/2 max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))] max-lg:max-h-[min(42dvh,22rem)] max-lg:w-[min(22rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:translate-x-1/2 max-lg:overflow-y-auto">
-			<div className="mb-2 flex items-center justify-between">
+		<div
+			ref={floatingPanel.panelRef}
+			className="absolute top-14 right-4 z-40 w-56 rounded-xl border border-border bg-card/95 p-3 text-card-foreground shadow-xl backdrop-blur max-lg:top-auto max-lg:right-1/2 max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))] max-lg:max-h-[min(42dvh,22rem)] max-lg:w-[min(22rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:translate-x-1/2 max-lg:overflow-y-auto"
+			style={floatingPanel.panelStyle}
+		>
+			<div
+				className="mb-2 flex items-center justify-between"
+				{...floatingPanel.dragHandleProps}
+			>
 				<h3 className="text-sm font-semibold text-card-foreground">
 					{t("stickyNotes.title")}
 				</h3>

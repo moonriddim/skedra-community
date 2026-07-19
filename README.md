@@ -46,7 +46,7 @@ own infrastructure.
 ## Features
 
 - **Infinite canvas** with shapes, text, arrows, freehand drawing, images, and frames
-- **Visual workflows** for flowcharts, mind maps, kanban boards, and reusable templates
+- **Visual workflows** for flowcharts, mind maps, graphical sequence diagrams with optional Mermaid import, Gantt charts, kanban boards, and reusable templates
 - **Local-first whiteboard** that works without creating an account
 - **Real-time collaboration** with encrypted canvas updates and assets
 - **Team workspaces** with roles, permissions, comments, mentions, and activity

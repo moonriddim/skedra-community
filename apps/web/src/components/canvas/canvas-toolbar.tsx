@@ -7,11 +7,17 @@ import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { pickAndBuildImageElements } from "@/lib/canvas/insert-image";
 import { useI18n } from "@/lib/i18n";
 import { createFlowchartTemplate } from "@/lib/templates/flowchart";
+import { createGanttTemplate } from "@/lib/templates/gantt";
 import { createMindmapTemplate } from "@/lib/templates/mindmap";
 import { createRetrospectiveTemplate } from "@/lib/templates/retrospective";
 import { createSwotTemplate } from "@/lib/templates/swot";
 import { useThemeStore } from "@/stores/theme";
-import type { CanvasElement } from "@skedra/canvas-core";
+import {
+	type CanvasElement,
+	findGanttChartElement,
+	getGanttChartMeta,
+	getGanttChartSize,
+} from "@skedra/canvas-core";
 import {
 	type CanvasEditorToolId,
 	CanvasEditorToolbar,
@@ -20,7 +26,7 @@ import {
 } from "@skedra/canvas-editor";
 import {
 	ArrowUpRight,
-	BookOpen,
+	ChartGantt,
 	Circle,
 	Cloud,
 	Diamond,
@@ -52,12 +58,14 @@ import {
 	Triangle,
 	Type,
 	Unlock,
+	Workflow,
 	Zap,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 interface CanvasToolbarProps {
 	workspaceSlug?: string;
+	elements: Map<string, CanvasElement>;
 	addElements: (elements: CanvasElement[]) => void;
 	getViewportCenter: () => { x: number; y: number };
 	onExportSkedra?: () => void;
@@ -90,6 +98,7 @@ const TOOL_ICONS: Record<CanvasEditorToolId, React.ReactNode> = {
 };
 
 export function CanvasToolbar({
+	elements,
 	addElements,
 	getViewportCenter,
 	onExportSkedra,
@@ -103,10 +112,12 @@ export function CanvasToolbar({
 			activePanel: state.activePanel,
 			activeTool: state.activeTool,
 			strokeColor: state.strokeColor,
+			selectedIds: state.selectedIds,
 			toolLocked: state.toolLocked,
 			activateEyedropper: state.activateEyedropper,
 			setActivePanel: state.setActivePanel,
 			setActiveTool: state.setActiveTool,
+			setSelectedIds: state.setSelectedIds,
 			toggleToolLocked: state.toggleToolLocked,
 		})),
 	);
@@ -134,6 +145,41 @@ export function CanvasToolbar({
 			imageUploadOptions,
 		);
 		if (elements.length > 0) addElements(elements);
+	};
+	const createNewGantt = () => {
+		const existingCount = Array.from(elements.values()).filter(
+			(element) => getGanttChartMeta(element) !== null,
+		).length;
+		const selectedElement = Array.from(store.selectedIds)
+			.map((id) => elements.get(id))
+			.find((element): element is CanvasElement => element !== undefined);
+		const selectedChart = selectedElement
+			? findGanttChartElement(elements.values(), selectedElement)
+			: null;
+		const size = getGanttChartSize();
+		const center = selectedChart
+			? {
+					x: selectedChart.x + selectedChart.width + 80 + size.width / 2,
+					y: selectedChart.y + size.height / 2,
+				}
+			: getViewportCenter();
+		const defaultTitle = t("canvas.toolbar.insertGantt");
+		const created = createGanttTemplate(center.x, center.y, {
+			resolvedTheme,
+		}).map((element, index) =>
+			index === 0
+				? {
+						...element,
+						frameLabel:
+							existingCount === 0
+								? defaultTitle
+								: `${defaultTitle} ${existingCount + 1}`,
+					}
+				: element,
+		);
+		addElements(created);
+		if (created[0]) store.setSelectedIds(new Set([created[0].id]));
+		if (store.activePanel !== "gantt") store.setActivePanel("gantt");
 	};
 	const insertMenuItems: CanvasEditorToolbarMenuItem[] = [
 		{
@@ -187,6 +233,48 @@ export function CanvasToolbar({
 					}),
 				);
 			},
+		},
+		{
+			id: "sequence-diagram",
+			label: t("canvas.toolbar.insertSequenceDiagram"),
+			icon: <Workflow className="h-4 w-4" />,
+			onSelect: () => store.setActivePanel("sequence-diagram"),
+		},
+		{
+			id: "gantt",
+			label: t("canvas.toolbar.insertGantt"),
+			icon: <ChartGantt className="h-4 w-4" />,
+			secondaryActions: [
+				{
+					id: "gantt-new",
+					label: t("ganttStudio.newChart"),
+					onSelect: createNewGantt,
+				},
+			],
+			onSelect: () => {
+				const selected = Array.from(store.selectedIds)
+					.map((id) => elements.get(id))
+					.find((element): element is CanvasElement => element !== undefined);
+				const chart = selected
+					? findGanttChartElement(elements.values(), selected)
+					: null;
+				if (chart) {
+					store.setSelectedIds(new Set([chart.id]));
+					store.setActivePanel("gantt");
+					return;
+				}
+				createNewGantt();
+			},
+		},
+		{
+			type: "separator",
+			id: "diagrams-separator",
+			label: "",
+		},
+		{
+			type: "label",
+			id: "workshops-label",
+			label: t("canvas.toolbar.insertMenuWorkshops"),
 		},
 		{
 			id: "wireframe",
@@ -273,14 +361,6 @@ export function CanvasToolbar({
 		},
 		{
 			type: "action",
-			id: "shape-library",
-			label: t("canvas.toolbar.shapeLibrary"),
-			icon: <BookOpen className="h-3.5 w-3.5" />,
-			active: store.activePanel === "library",
-			onSelect: () => store.setActivePanel("library"),
-		},
-		{
-			type: "action",
 			id: "layers",
 			label: t("canvas.toolbar.layers"),
 			icon: <Layers className="h-3.5 w-3.5" />,
@@ -294,11 +374,14 @@ export function CanvasToolbar({
 			id: "insert-menu",
 			label: t("canvas.toolbar.insertMenu"),
 			icon: <LayoutTemplate className="h-3.5 w-3.5" />,
+			popoverClassName:
+				"canvas-editor__toolbar-popover--insert-menu min-w-64 max-w-[calc(100vw-2rem)]",
 			active:
 				store.activePanel === "sticky" ||
 				store.activePanel === "kanban" ||
-				store.activePanel === "library" ||
-				store.activePanel === "wireframe",
+				store.activePanel === "wireframe" ||
+				store.activePanel === "sequence-diagram" ||
+				store.activePanel === "gantt",
 			items: insertMenuItems,
 		},
 		{
@@ -354,11 +437,12 @@ export function CanvasToolbar({
 				actionActive: "bg-primary/20 text-primary",
 				separator: "mx-0.5 h-4 w-px bg-border",
 				popover:
-					"w-52 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md",
+					"w-52 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl",
 				menuItem:
-					"flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent disabled:pointer-events-none disabled:opacity-50",
-				menuLabel: "px-2 py-1.5 text-sm font-semibold",
-				menuSeparator: "-mx-1 my-1 h-px border-0 bg-border",
+					"group flex min-h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground group-hover:[&>svg]:text-primary",
+				menuLabel:
+					"px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground",
+				menuSeparator: "mx-1 my-1 h-px border-0 bg-border/80",
 			}}
 		/>
 	);

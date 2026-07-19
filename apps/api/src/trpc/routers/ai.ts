@@ -3,7 +3,11 @@
  */
 
 import { userAiSettings } from "@skedra/db";
-import { formatAssistantContent } from "@skedra/shared/ai-generation";
+import {
+	aiGanttChartContextSchema,
+	aiSequenceDiagramContextSchema,
+	formatAssistantContent,
+} from "@skedra/shared/ai-generation";
 import {
 	isLocalAiProvider,
 	skedraAiProviders,
@@ -249,6 +253,8 @@ export const aiRouter = router({
 			z.object({
 				whiteboardId: z.string().uuid(),
 				prompt: z.string().min(3).max(4000),
+				sequenceDiagramContext: aiSequenceDiagramContextSchema.optional(),
+				ganttContext: aiGanttChartContextSchema.optional(),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -293,6 +299,8 @@ export const aiRouter = router({
 					baseUrl: credentials.baseUrl,
 					prompt,
 					history: toAiChatHistory(priorMessages),
+					sequenceDiagramContext: input.sequenceDiagramContext,
+					ganttContext: input.ganttContext,
 				});
 
 				await appendWhiteboardAiMessage(ctx.db, {
@@ -309,6 +317,8 @@ export const aiRouter = router({
 					source: credentials.source,
 					resultKind: generation.resultKind,
 					summary: generation.summary,
+					sequenceDiagramEdit: generation.sequenceDiagramEdit,
+					ganttEdit: generation.ganttEdit,
 				};
 			} catch (error) {
 				if (error instanceof ZodError) {

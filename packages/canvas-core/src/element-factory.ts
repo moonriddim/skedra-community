@@ -113,10 +113,19 @@ export type CanvasElementBoundsInput = Pick<
 			| "fill"
 			| "stroke"
 			| "strokeWidth"
+			| "strokeStyle"
 			| "opacity"
+			| "locked"
+			| "groupId"
+			| "flipX"
+			| "flipY"
+			| "link"
 			| "text"
 			| "fontSize"
+			| "fontFamily"
 			| "fontWeight"
+			| "fontStyle"
+			| "textDecoration"
 			| "textAlign"
 			| "textColor"
 			| "frameId"
@@ -126,8 +135,14 @@ export type CanvasElementBoundsInput = Pick<
 			| "cloudArcRadius"
 			| "pyramidSections"
 			| "closed"
+			| "arrowMode"
+			| "arrowHeadStart"
+			| "arrowHeadEnd"
 			| "arrowHeadScale"
 			| "arrowHeadFilled"
+			| "roughness"
+			| "roughFillStyle"
+			| "roughFillScale"
 			| "stackIndex"
 			| "customData"
 			| "points"
@@ -167,11 +182,24 @@ export function createCanvasElementFromBoundsInput(
 			fill: input.fill ?? DEFAULT_FILL,
 			stroke: input.stroke ?? defaults.stroke,
 			strokeWidth: input.strokeWidth ?? 2,
+			strokeStyle: input.strokeStyle ?? "solid",
 			opacity: input.opacity ?? 100,
+			locked: input.locked ?? false,
+			groupId: input.groupId ?? null,
+			flipX: input.flipX ?? false,
+			flipY: input.flipY ?? false,
+			...(input.link !== undefined ? { link: input.link } : {}),
 			...(input.text !== undefined ? { text: input.text } : {}),
 			...(input.fontSize !== undefined ? { fontSize: input.fontSize } : {}),
+			...(input.fontFamily !== undefined
+				? { fontFamily: input.fontFamily }
+				: {}),
 			...(input.fontWeight !== undefined
 				? { fontWeight: input.fontWeight }
+				: {}),
+			...(input.fontStyle !== undefined ? { fontStyle: input.fontStyle } : {}),
+			...(input.textDecoration !== undefined
+				? { textDecoration: input.textDecoration }
 				: {}),
 			...(input.textAlign !== undefined ? { textAlign: input.textAlign } : {}),
 			...(input.textColor !== undefined ? { textColor: input.textColor } : {}),
@@ -192,11 +220,25 @@ export function createCanvasElementFromBoundsInput(
 				? { pyramidSections: input.pyramidSections }
 				: {}),
 			...(input.closed !== undefined ? { closed: input.closed } : {}),
+			...(input.arrowMode !== undefined ? { arrowMode: input.arrowMode } : {}),
+			...(input.arrowHeadStart !== undefined
+				? { arrowHeadStart: input.arrowHeadStart }
+				: {}),
+			...(input.arrowHeadEnd !== undefined
+				? { arrowHeadEnd: input.arrowHeadEnd }
+				: {}),
 			...(input.arrowHeadScale !== undefined
 				? { arrowHeadScale: input.arrowHeadScale }
 				: {}),
 			...(input.arrowHeadFilled !== undefined
 				? { arrowHeadFilled: input.arrowHeadFilled }
+				: {}),
+			...(input.roughness !== undefined ? { roughness: input.roughness } : {}),
+			...(input.roughFillStyle !== undefined
+				? { roughFillStyle: input.roughFillStyle }
+				: {}),
+			...(input.roughFillScale !== undefined
+				? { roughFillScale: input.roughFillScale }
 				: {}),
 			...(input.stackIndex !== undefined
 				? { stackIndex: input.stackIndex }

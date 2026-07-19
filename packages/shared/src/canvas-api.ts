@@ -20,12 +20,28 @@ export const addCanvasElementSchema = z
 		fill: z.string().optional(),
 		stroke: z.string().optional(),
 		strokeWidth: z.number().optional(),
+		strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
 		opacity: z.number().min(0).max(100).optional(),
+		locked: z.boolean().optional(),
+		groupId: z.string().nullable().optional(),
+		flipX: z.boolean().optional(),
+		flipY: z.boolean().optional(),
+		link: z.string().optional(),
 		text: z.string().optional(),
 		fontSize: z.number().optional(),
+		fontFamily: z.string().optional(),
 		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		textDecoration: z.enum(["none", "underline"]).optional(),
 		textAlign: z.enum(["left", "center", "right"]).optional(),
 		textColor: z.string().optional(),
+		points: z
+			.array(z.tuple([z.number(), z.number()]))
+			.min(2)
+			.optional(),
+		arrowMode: z.enum(["straight", "curve", "elbow"]).optional(),
+		arrowHeadStart: z.enum(["none", "arrow", "triangle", "dot"]).optional(),
+		arrowHeadEnd: z.enum(["none", "arrow", "triangle", "dot"]).optional(),
 		frameId: z.string().optional(),
 		frameLabel: z.string().optional(),
 		cornerRadius: z.number().optional(),
@@ -35,6 +51,11 @@ export const addCanvasElementSchema = z
 		closed: z.boolean().optional(),
 		arrowHeadScale: z.number().min(0.25).max(4).optional(),
 		arrowHeadFilled: z.boolean().optional(),
+		roughness: z.number().optional(),
+		roughFillStyle: z
+			.enum(["solid", "hachure", "cross-hatch", "dots", "dashed"])
+			.optional(),
+		roughFillScale: z.number().optional(),
 		stackIndex: z.string().min(1).optional(),
 		customData: z.record(z.unknown()).optional(),
 	})

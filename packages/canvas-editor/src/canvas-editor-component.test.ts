@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { type CanvasElement, CanvasScene } from "@skedra/canvas-core";
+import {
+	type CanvasElement,
+	CanvasScene,
+	createGanttChartElements,
+	createVisualSequenceDiagramElements,
+} from "@skedra/canvas-core";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
 	CanvasEditor,
 	CanvasEditorContextMenu,
+	CanvasEditorGanttStudio,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
 	CanvasEditorLayerPanel,
@@ -15,6 +21,7 @@ import {
 	CanvasEditorSavedViewsBar,
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
+	CanvasEditorSequenceDiagramPanel,
 	CanvasEditorSnapMenu,
 	CanvasEditorSnapOverlay,
 	CanvasEditorStickyNoteOverlay,
@@ -45,6 +52,187 @@ const element: CanvasElement = {
 };
 
 const noop = () => undefined;
+
+test("sequence diagram panel validates source through canvas-core", () => {
+	const validMarkup = renderToStaticMarkup(
+		createElement(CanvasEditorSequenceDiagramPanel, {
+			defaultTab: "mermaid",
+			defaultSource: `sequenceDiagram
+    participant A
+    participant B
+    A->>B: Request`,
+			onInsert: noop,
+		}),
+	);
+	const invalidMarkup = renderToStaticMarkup(
+		createElement(CanvasEditorSequenceDiagramPanel, {
+			defaultTab: "mermaid",
+			defaultSource: "sequenceDiagram\nA => B: invalid",
+			onInsert: noop,
+		}),
+	);
+
+	assert.match(validMarkup, /canvas-editor__sequence-panel/u);
+	assert.match(validMarkup, /Diagramm ist bereit/u);
+	assert.match(validMarkup, /2 · 1/u);
+	assert.match(invalidMarkup, /Korrigiere vor dem Einfügen die Syntax/u);
+	assert.match(invalidMarkup, /disabled=""/u);
+});
+
+test("sequence diagram panel defaults to the plain-language builder", () => {
+	let id = 0;
+	const visualElements = createVisualSequenceDiagramElements({
+		preset: "blank",
+		x: 0,
+		y: 0,
+		defaults: {
+			createId: () => `visual-${++id}`,
+			stroke: "#111827",
+			fontFamily: "system-ui",
+		},
+	});
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorSequenceDiagramPanel, {
+			elements: new Map(
+				visualElements.map((visualElement) => [
+					visualElement.id,
+					visualElement,
+				]),
+			),
+			onCreateVisualDiagram: noop,
+			onAddParticipant: noop,
+			onAddMessage: noop,
+			onAddActivation: noop,
+			onAddFragment: noop,
+			onInsert: noop,
+		}),
+	);
+
+	assert.match(markup, /Ablauf erstellen/u);
+	assert.match(markup, /Nächster Schritt/u);
+	assert.match(markup, /Schritte erkennen/u);
+});
+
+test("Gantt studio renders the interactive grid and timeline", () => {
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorGanttStudio, {
+			document: {
+				title: "Launch plan",
+				startDate: "2026-07-13",
+				dayCount: 28,
+				dayWidth: 28,
+				labelWidth: 260,
+				rowHeight: 58,
+				headerHeight: 56,
+				showToday: true,
+				tasks: [
+					{
+						id: "phase",
+						title: "Discovery",
+						startDay: 0,
+						durationDays: 5,
+						progress: 0,
+						status: "planned",
+						milestone: false,
+						critical: false,
+						group: true,
+						collapsed: false,
+					},
+					{
+						id: "design",
+						title: "Design",
+						startDay: 0,
+						durationDays: 5,
+						progress: 50,
+						status: "active",
+						milestone: false,
+						critical: true,
+						group: false,
+						parentId: "phase",
+						collapsed: false,
+					},
+					{
+						id: "implementation",
+						title: "Implementation",
+						category: "home-office",
+						startDay: 3,
+						durationDays: 5,
+						progress: 20,
+						status: "active",
+						milestone: false,
+						critical: false,
+						group: false,
+						collapsed: false,
+					},
+					{
+						id: "training",
+						title: "Safety training",
+						category: "custom:training",
+						categoryLabel: "Training",
+						color: "#0F766E",
+						startDay: 10,
+						durationDays: 1,
+						progress: 0,
+						status: "planned",
+						milestone: false,
+						critical: false,
+						group: false,
+						collapsed: false,
+					},
+				],
+				dependencies: [
+					{
+						fromTaskId: "design",
+						toTaskId: "implementation",
+						type: "finish-to-start",
+					},
+				],
+				appearance: {
+					background: "#fff",
+					headerFill: "#eee",
+					rowFill: "#fff",
+					alternateRowFill: "#fafafa",
+					gridStroke: "#ddd",
+					textColor: "#111",
+					mutedTextColor: "#666",
+					dependencyStroke: "#777",
+				},
+			},
+			charts: [
+				{ id: "launch", title: "Launch plan" },
+				{ id: "availability", title: "Team availability" },
+			],
+			activeChartId: "launch",
+			onSelectChart: noop,
+			onCreate: noop,
+			onChange: noop,
+		}),
+	);
+	assert.match(markup, /canvas-editor__gantt-studio/u);
+	// Grid renders the task name and the phase summary row.
+	assert.match(markup, /Design/u);
+	assert.match(markup, /Discovery/u);
+	// The interactive controls are present (add task, collapse, critical).
+	assert.match(markup, /canvas-editor__gantt-studio-bar/u);
+	assert.match(markup, /canvas-editor__gantt-studio-weeks/u);
+	assert.match(markup, />CW 29</u);
+	assert.match(markup, /canvas-editor__gantt-studio-chart-picker/u);
+	assert.match(markup, /Team availability/u);
+	assert.match(markup, />HO</u);
+	assert.match(markup, />TRAI</u);
+	assert.match(markup, /Create custom type/u);
+	assert.match(markup, /aria-label="End"/u);
+	assert.match(markup, /Add previous year/u);
+	assert.match(markup, /Add next year/u);
+	assert.match(markup, /Remove earliest year/u);
+	assert.match(markup, /Remove latest year/u);
+	assert.match(markup, /Jump to today/u);
+	assert.match(markup, /More row options/u);
+	assert.doesNotMatch(markup, /canvas-editor__gantt-studio-row-actions/u);
+	assert.match(markup, /New plan/u);
+	// The dependency remains rendered after rebasing the rolling input to 2026.
+	assert.match(markup, /canvas-editor__gantt-studio-link/u);
+});
 
 test("CanvasEditor is the shared host root", () => {
 	const markup = renderToStaticMarkup(
@@ -320,6 +508,27 @@ test("surface transform and selection handles share one renderer", () => {
 		(selection.match(/canvas-editor__coarse-pointer-target/gu) ?? []).length,
 		8,
 	);
+
+	let ganttId = 0;
+	const ganttSelection = renderToStaticMarkup(
+		createElement(CanvasEditorSelectionOverlay, {
+			selected: createGanttChartElements(
+				{
+					createId: () => `selection-gantt-${ganttId++}`,
+					stroke: "#111111",
+					fontFamily: "Inter",
+				},
+				{ x: 0, y: 0, startDate: "2026-07-13" },
+			),
+			zoom: 1,
+			onResizeStart: noop,
+			onRotateStart: noop,
+			onPathPointDragStart: noop,
+			onInsertPathPoint: noop,
+		}),
+	);
+	assert.match(ganttSelection, /aria-label="Resize nw"/u);
+	assert.doesNotMatch(ganttSelection, /Rotate selection/u);
 
 	for (const directPathType of ["line", "arrow"] as const) {
 		const directPathSelection = renderToStaticMarkup(

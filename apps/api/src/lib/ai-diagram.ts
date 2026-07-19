@@ -6,7 +6,9 @@ import type { AddCanvasElementInput } from "@skedra/shared";
 import {
 	AI_SHOWCASE_APPENDIX,
 	AI_SYSTEM_PROMPT,
+	type AiGanttChartContext,
 	type AiGenerationResult,
+	type AiSequenceDiagramContext,
 	buildIntegrationShowcaseFallback,
 	detectMultiToolShowcaseIntent,
 	enrichPromptWithIntent,
@@ -137,11 +139,29 @@ export async function generateDiagramElements(input: {
 	baseUrl?: string | null;
 	prompt: string;
 	history?: Array<{ role: "user" | "assistant"; content: string }>;
+	sequenceDiagramContext?: AiSequenceDiagramContext;
+	ganttContext?: AiGanttChartContext;
 }): Promise<AiGenerationResult> {
 	const config = getApiConfig(input);
 	const priorTurns = (input.history ?? []).slice(-8);
 	const isShowcase = detectMultiToolShowcaseIntent(input.prompt);
-	const userMessage = enrichPromptWithIntent(input.prompt);
+	const sequenceContext = input.sequenceDiagramContext;
+	const ganttContext = input.ganttContext;
+	const contextSections: string[] = [];
+	if (sequenceContext?.diagrams.length) {
+		contextSections.push(
+			`[EXISTING_SEQUENCE_DIAGRAM_CONTEXT]\n${JSON.stringify(sequenceContext)}\n[/EXISTING_SEQUENCE_DIAGRAM_CONTEXT]\nWenn die Anfrage ein vorhandenes Sequenzdiagramm veraendert, antworte mit sequenceDiagramEdit und verwende ausschliesslich die IDs und eventIndex-Werte aus diesem Kontext.`,
+		);
+	}
+	if (ganttContext?.charts.length) {
+		contextSections.push(
+			`[EXISTING_GANTT_CONTEXT]\n${JSON.stringify(ganttContext)}\n[/EXISTING_GANTT_CONTEXT]\nWenn die Anfrage einen vorhandenen Projektplan veraendert, antworte mit ganttEdit und verwende ausschliesslich chartId, taskId und dependencyIndex aus diesem Kontext.`,
+		);
+	}
+	const userMessage = [
+		enrichPromptWithIntent(input.prompt),
+		...contextSections,
+	].join("\n\n");
 
 	const body: Record<string, unknown> = {
 		model: config.model,

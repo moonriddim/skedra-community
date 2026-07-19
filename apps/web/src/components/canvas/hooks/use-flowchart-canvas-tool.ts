@@ -75,7 +75,16 @@ export function useFlowchartCanvasTool({
 				setEditingTextId: store.setEditingTextId,
 			});
 		},
-		[store, sync, t],
+		[
+			store.setEditingTextId,
+			store.setSelectedIds,
+			store.strokeColor,
+			sync.createElement,
+			sync.deleteElements,
+			sync.elements,
+			sync.updateElements,
+			t,
+		],
 	);
 
 	return { addFlowchartStep: addStep };

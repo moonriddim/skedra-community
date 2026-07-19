@@ -16,6 +16,12 @@ import {
 	CANVAS_EDITOR_TOOL_DEFINITIONS,
 	type CanvasEditorToolId,
 } from "./editor-contract";
+import {
+	handleCanvasEditorToolbarKeyDown,
+	handleCanvasEditorToolbarPointerDown,
+	handleCanvasEditorToolbarPointerLeave,
+	handleCanvasEditorToolbarPointerMove,
+} from "./toolbar-feedback";
 
 export interface CanvasEditorToolbarAction {
 	type: "action";
@@ -546,6 +552,10 @@ export function CanvasEditorToolbar({
 			data-menu-open={activeMenu ? "true" : undefined}
 			data-compact={compact || undefined}
 			role="toolbar"
+			onPointerMove={handleCanvasEditorToolbarPointerMove}
+			onPointerLeave={handleCanvasEditorToolbarPointerLeave}
+			onPointerDownCapture={handleCanvasEditorToolbarPointerDown}
+			onKeyDownCapture={handleCanvasEditorToolbarKeyDown}
 		>
 			<div
 				className={mergeClassNames(
@@ -619,10 +629,11 @@ export function CanvasEditorToolbar({
 								title={item.label}
 								aria-label={item.label}
 								data-active={item.active || undefined}
+								data-canvas-toolbar-interactive="true"
 								disabled={item.disabled}
 								onClick={() => runAndClose(item.onSelect)}
 							>
-								{item.icon}
+								<span className="canvas-editor__toolbar-icon">{item.icon}</span>
 							</button>
 						);
 					}
@@ -655,6 +666,7 @@ export function CanvasEditorToolbar({
 								aria-expanded={open}
 								aria-controls={menuId}
 								data-active={open || undefined}
+								data-canvas-toolbar-interactive="true"
 								disabled={item.disabled}
 								onClick={() => {
 									if (open) closeMenu(false);
@@ -668,7 +680,7 @@ export function CanvasEditorToolbar({
 									openMenu(item, event.key === "ArrowDown" ? "first" : "last");
 								}}
 							>
-								{item.icon}
+								<span className="canvas-editor__toolbar-icon">{item.icon}</span>
 							</button>
 						</div>
 					);

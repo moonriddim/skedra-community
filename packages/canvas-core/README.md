@@ -4,7 +4,9 @@ MIT-licensed canvas domain package for Skedra Core.
 
 This package contains the reusable whiteboard/editor primitives: element
 types, geometry, hit testing, ordering, selection, snapping, scene helpers,
-path rendering, and import utilities.
+path rendering, structured Gantt/Kanban/Mindmap/Flowchart generators, visual
+sequence-diagram presets and mutation planners, a Mermaid-compatible parser and
+layout engine, and import utilities.
 
 It is part of the open-source Skedra Core surface. Workspace features such as
 accounts, teams, comments, collaboration transports, AI backends, voice/screen-share

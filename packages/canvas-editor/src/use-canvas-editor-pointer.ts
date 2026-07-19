@@ -28,6 +28,7 @@ import {
 	type RefObject,
 	type SetStateAction,
 	useCallback,
+	useEffect,
 	useRef,
 	useState,
 } from "react";
@@ -53,7 +54,10 @@ import {
 	shouldCancelCanvasEditorLostPointerCapture,
 	shouldDeferCanvasEditorTouchAction,
 } from "./pointer-contract";
-import { resolveCanvasEditorSelectPointerDown } from "./selection-pointer-controller";
+import {
+	expandCanvasEditorAtomicSelectionIds,
+	resolveCanvasEditorSelectPointerDown,
+} from "./selection-pointer-controller";
 import { resolveCanvasEditorRectSnap } from "./snap-controller";
 import { useCanvasPathEditor } from "./use-canvas-path-editor";
 
@@ -187,6 +191,11 @@ export interface UseCanvasEditorPointerOptions {
 	isTentativeSnapActive?: () => boolean;
 	/** Fires when the next primary data point consumes the middle-click base point. */
 	onTentativeSnapConsumed?: () => void;
+	/** Lets a host turn a raw resize into a semantic tool resize. */
+	onElementResizeFinished?: (context: {
+		start: CanvasElement;
+		resized: CanvasElement;
+	}) => boolean | undefined;
 	onGestureFinished?: (action: CanvasEditorPointerGestureAction) => void;
 }
 
@@ -279,6 +288,7 @@ export function useCanvasEditorPointer({
 	onTentativeSnap,
 	isTentativeSnapActive,
 	onTentativeSnapConsumed,
+	onElementResizeFinished,
 	onGestureFinished,
 }: UseCanvasEditorPointerOptions) {
 	const stateRef = useRef<PointerState>({ ...INITIAL_POINTER_STATE });
@@ -550,7 +560,7 @@ export function useCanvasEditorPointer({
 			}
 			const ui = uiAdapter.getState();
 			const middle =
-				event.button === 1
+				event.button === 1 && onTentativeSnap
 					? resolvePoint(event.clientX, event.clientY, { forceAnchor: true })
 					: null;
 			if (
@@ -805,6 +815,18 @@ export function useCanvasEditorPointer({
 			}
 			const ui = uiAdapter.getState();
 			const state = stateRef.current;
+			const activeMultiPath =
+				isCanvasMultiPathTool(ui.activeTool, ui.pathDrawMode) &&
+				pathEditorRef.current.isActive();
+			if (state.action === "pan" && !activeMultiPath) {
+				uiAdapter.pan(
+					event.clientX - state.startScreenX,
+					event.clientY - state.startScreenY,
+				);
+				state.startScreenX = event.clientX;
+				state.startScreenY = event.clientY;
+				return;
+			}
 			const point =
 				state.action === "none" && tentativeSnapRef.current
 					? tentativeSnapRef.current
@@ -815,20 +837,13 @@ export function useCanvasEditorPointer({
 								? { objectSnap: ui.snapToObjects, excludeIds: ui.selectedIds }
 								: undefined,
 						);
-			if (
-				isCanvasMultiPathTool(ui.activeTool, ui.pathDrawMode) &&
-				pathEditorRef.current.isActive()
-			) {
+			if (activeMultiPath) {
 				movePath({
 					raw: [point.raw.x, point.raw.y],
 					snapped: [point.snapped.x, point.snapped.y],
 					zoom: ui.viewport.zoom,
 				});
 				if (state.action !== "pan") return;
-			}
-			if (state.action === "none") {
-				onIdlePointerMove?.(point, event);
-				return;
 			}
 			if (state.action === "pan") {
 				uiAdapter.pan(
@@ -837,6 +852,10 @@ export function useCanvasEditorPointer({
 				);
 				state.startScreenX = event.clientX;
 				state.startScreenY = event.clientY;
+				return;
+			}
+			if (state.action === "none") {
+				onIdlePointerMove?.(point, event);
 				return;
 			}
 			if (state.action === "erase") {
@@ -1104,30 +1123,42 @@ export function useCanvasEditorPointer({
 					endX: point.raw.x,
 					endY: point.raw.y,
 				};
-				const ids = collectCanvasSelectionRectIds(
-					documentAdapter.getScene().getElementsMap().values(),
-					{ x: box.startX, y: box.startY },
-					{ x: box.endX, y: box.endY },
+				const ids = expandCanvasEditorAtomicSelectionIds(
+					collectCanvasSelectionRectIds(
+						documentAdapter.getScene().getElementsMap().values(),
+						{ x: box.startX, y: box.startY },
+						{ x: box.endX, y: box.endY },
+					),
+					documentAdapter.getElements(),
 				);
 				if (ids.size > 0) {
-					const next = isMultiSelectModifier(event)
-						? new Set([...ui.selectedIds, ...ids])
-						: ids;
+					const next = expandCanvasEditorAtomicSelectionIds(
+						isMultiSelectModifier(event)
+							? new Set([...ui.selectedIds, ...ids])
+							: ids,
+						documentAdapter.getElements(),
+					);
 					uiAdapter.setSelectedIds(next);
 				}
 			}
 			if (state.action === "select-lasso" && state.lassoPath.length > 0) {
 				if (isLassoPathLargeEnough(state.lassoPath)) {
-					const ids = new Set(
-						documentAdapter
-							.getScene()
-							.getElementsInLassoPath(state.lassoPath)
-							.map((element) => element.id),
+					const ids = expandCanvasEditorAtomicSelectionIds(
+						new Set(
+							documentAdapter
+								.getScene()
+								.getElementsInLassoPath(state.lassoPath)
+								.map((element) => element.id),
+						),
+						documentAdapter.getElements(),
 					);
 					uiAdapter.setSelectedIds(
-						isMultiSelectModifier(event)
-							? new Set([...ui.selectedIds, ...ids])
-							: ids,
+						expandCanvasEditorAtomicSelectionIds(
+							isMultiSelectModifier(event)
+								? new Set([...ui.selectedIds, ...ids])
+								: ids,
+							documentAdapter.getElements(),
+						),
 					);
 				}
 			}
@@ -1191,10 +1222,31 @@ export function useCanvasEditorPointer({
 				documentAdapter.finishMove?.(state.moveStart);
 			}
 			if (state.action === "resize" && state.resizeStart) {
-				/* Frame-Resize: Kinder gemaess Constraints nachfuehren. */
+				/* Structured tools may consume the resize before generic frame rules. */
 				const start = state.resizeStart;
-				const resized = documentAdapter.getElements().get(start.id);
-				if (resized && resized.type === "frame") {
+				/*
+				 * A host may publish document changes through a deferred render. Reading
+				 * the adapter immediately on pointer-up can then return the pre-resize
+				 * element. Resolve the definitive bounds from the release point itself.
+				 */
+				const finalBounds = resizeCanvasElement(
+					{
+						x: start.x,
+						y: start.y,
+						width: start.width,
+						height: start.height,
+					},
+					state.resizeHandle ?? "se",
+					point.snapped.x - state.startCanvasX,
+					point.snapped.y - state.startCanvasY,
+				);
+				documentAdapter.updateElement(start.id, finalBounds);
+				const current = documentAdapter.getElements().get(start.id) ?? start;
+				const resized: CanvasElement = { ...current, ...finalBounds };
+				const handled = resized
+					? onElementResizeFinished?.({ start, resized }) === true
+					: false;
+				if (!handled && resized && resized.type === "frame") {
 					const childUpdates = buildFrameResizeChildUpdates(
 						documentAdapter.getElements(),
 						resized.id,
@@ -1232,6 +1284,7 @@ export function useCanvasEditorPointer({
 			finishHistory,
 			finishGesture,
 			onBeforePointerDown,
+			onElementResizeFinished,
 			onPlacement,
 			pathEditorRef,
 			releasePath,
@@ -1287,20 +1340,59 @@ export function useCanvasEditorPointer({
 		[onPointerCancel],
 	);
 
+	const pendingWheelEventsRef = useRef<
+		Array<{ pointer: { x: number; y: number }; deltaY: number }>
+	>([]);
+	const wheelAnimationFrameRef = useRef<number | null>(null);
+	const flushWheelEvents = useCallback(() => {
+		wheelAnimationFrameRef.current = null;
+		const pending = pendingWheelEventsRef.current.splice(0);
+		if (pending.length === 0) return;
+		const startViewport = uiAdapter.getState().viewport;
+		let viewport = startViewport;
+		for (const wheelEvent of pending) {
+			viewport = resolveCanvasEditorWheelViewport(
+				viewport,
+				wheelEvent.pointer,
+				wheelEvent.deltaY,
+			);
+		}
+		if (
+			viewport.x !== startViewport.x ||
+			viewport.y !== startViewport.y ||
+			viewport.zoom !== startViewport.zoom
+		) {
+			uiAdapter.setViewport(viewport);
+		}
+	}, [uiAdapter]);
+
+	useEffect(
+		() => () => {
+			if (wheelAnimationFrameRef.current != null) {
+				window.cancelAnimationFrame(wheelAnimationFrameRef.current);
+			}
+			pendingWheelEventsRef.current.length = 0;
+		},
+		[],
+	);
+
 	const onWheel = useCallback(
 		(event: ReactWheelEvent<SVGSVGElement>) => {
 			event.preventDefault();
-			const ui = uiAdapter.getState();
 			const rect = event.currentTarget.getBoundingClientRect();
-			uiAdapter.setViewport(
-				resolveCanvasEditorWheelViewport(
-					ui.viewport,
-					{ x: event.clientX - rect.left, y: event.clientY - rect.top },
-					event.deltaY,
-				),
-			);
+			pendingWheelEventsRef.current.push({
+				pointer: {
+					x: event.clientX - rect.left,
+					y: event.clientY - rect.top,
+				},
+				deltaY: event.deltaY,
+			});
+			if (wheelAnimationFrameRef.current == null) {
+				wheelAnimationFrameRef.current =
+					window.requestAnimationFrame(flushWheelEvents);
+			}
 		},
-		[uiAdapter],
+		[flushWheelEvents],
 	);
 
 	const onDoubleClick = useCallback(() => {
@@ -1423,6 +1515,7 @@ export function useCanvasEditorPointer({
 		beginAuxiliaryPointerGesture,
 		runPointerUpAction,
 		isMultiTouchGesture: () => touchSessionRef.current?.isMultiTouch() ?? false,
+		isPointerGestureActive: () => stateRef.current.action !== "none",
 		isPathActive: () => pathEditorRef.current.isActive(),
 		finishPath,
 		cancelPath,

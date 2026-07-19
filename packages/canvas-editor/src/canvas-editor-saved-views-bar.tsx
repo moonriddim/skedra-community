@@ -16,6 +16,12 @@ import {
 	type CanvasEditorSavedViewPreviewRenderer,
 	CanvasEditorSavedViewTile,
 } from "./canvas-editor-saved-view-tile";
+import {
+	handleCanvasEditorToolbarKeyDown,
+	handleCanvasEditorToolbarPointerDown,
+	handleCanvasEditorToolbarPointerLeave,
+	handleCanvasEditorToolbarPointerMove,
+} from "./toolbar-feedback";
 
 export interface CanvasEditorSavedViewsBarProps {
 	canUndo: boolean;
@@ -24,6 +30,7 @@ export interface CanvasEditorSavedViewsBarProps {
 	presentationMode?: boolean;
 	presenterMode?: boolean;
 	presentationPreparationMode?: boolean;
+	showViews?: boolean;
 	onUndo: () => void;
 	onRedo: () => void;
 	onFitViewport: () => void;
@@ -88,6 +95,7 @@ export function CanvasEditorSavedViewsBar({
 	presentationMode = false,
 	presenterMode = false,
 	presentationPreparationMode = false,
+	showViews = true,
 	onUndo,
 	onRedo,
 	onFitViewport,
@@ -119,9 +127,13 @@ export function CanvasEditorSavedViewsBar({
 	const zoomPercent = Math.round(zoom * 100);
 	const splitIndex = Math.ceil(views.length / 2);
 	const leftViews =
-		presentationMode && !presenterMode ? [] : views.slice(0, splitIndex);
+		!showViews || (presentationMode && !presenterMode)
+			? []
+			: views.slice(0, splitIndex);
 	const rightViews =
-		presentationMode && !presenterMode ? [] : views.slice(splitIndex);
+		!showViews || (presentationMode && !presenterMode)
+			? []
+			: views.slice(splitIndex);
 	const canManageViews = !presentationMode && !readOnly;
 	const labels = presentationPreparationMode
 		? {
@@ -190,7 +202,7 @@ export function CanvasEditorSavedViewsBar({
 			<SavedViewsRail
 				align="end"
 				views={leftViews}
-				showCapturingHint={isCapturingView}
+				showCapturingHint={showViews && isCapturingView}
 				capturingLabel={t(
 					presentationPreparationMode
 						? "canvas.bottomBar.capturingSlide"
@@ -206,6 +218,10 @@ export function CanvasEditorSavedViewsBar({
 				className="canvas-editor__saved-views-controls"
 				role="toolbar"
 				aria-label={t("canvas.bottomBar.controls", FALLBACKS.controls)}
+				onPointerMove={handleCanvasEditorToolbarPointerMove}
+				onPointerLeave={handleCanvasEditorToolbarPointerLeave}
+				onPointerDownCapture={handleCanvasEditorToolbarPointerDown}
+				onKeyDownCapture={handleCanvasEditorToolbarKeyDown}
 			>
 				<BarButton
 					control="zoom-out"
@@ -219,6 +235,7 @@ export function CanvasEditorSavedViewsBar({
 					onClick={onFitViewport}
 					className="canvas-editor__saved-views-zoom"
 					data-control="fit-viewport"
+					data-canvas-toolbar-interactive="true"
 					title={t("canvas.bottomBar.resetZoom", FALLBACKS.resetZoom)}
 				>
 					{zoomPercent}%
@@ -261,59 +278,67 @@ export function CanvasEditorSavedViewsBar({
 						>
 							<Redo2 size={16} />
 						</BarButton>
-						<span className="canvas-editor__saved-views-divider" />
-						<span className="canvas-editor__saved-views-label">
-							<PanelsTopLeft size={14} />
-							{t(
-								presentationPreparationMode
-									? "canvas.bottomBar.slides"
-									: "canvas.bottomBar.views",
-								presentationPreparationMode
-									? FALLBACKS.slides
-									: FALLBACKS.views,
-							)}
-						</span>
-						{!readOnly && (
-							<BarButton
-								control="save-view"
-								label={t(
-									isCapturingView
-										? presentationPreparationMode
-											? "canvas.bottomBar.cancelSlideCapture"
-											: "canvas.bottomBar.cancelViewCapture"
-										: presentationPreparationMode
-											? "canvas.bottomBar.createSlide"
-											: "canvas.bottomBar.saveView",
-									isCapturingView
-										? presentationPreparationMode
-											? FALLBACKS.cancelSlideCapture
-											: FALLBACKS.cancelViewCapture
-										: presentationPreparationMode
-											? FALLBACKS.createSlide
-											: FALLBACKS.saveView,
-								)}
-								onClick={
-									isCapturingView ? onCancelCaptureView : onStartCaptureView
-								}
-							>
-								{isCapturingView ? <X size={16} /> : <BookmarkPlus size={16} />}
-							</BarButton>
-						)}
-						{presentationPreparationMode &&
-							canUsePresenterNotes &&
-							onOpenPresenterNotes && (
-								<BarButton
-									control="presenter-notes"
-									label={t(
-										"canvas.bottomBar.presenterNotes",
-										FALLBACKS.presenterNotes,
+						{showViews && (
+							<>
+								<span className="canvas-editor__saved-views-divider" />
+								<span className="canvas-editor__saved-views-label">
+									<PanelsTopLeft size={14} />
+									{t(
+										presentationPreparationMode
+											? "canvas.bottomBar.slides"
+											: "canvas.bottomBar.views",
+										presentationPreparationMode
+											? FALLBACKS.slides
+											: FALLBACKS.views,
 									)}
-									onClick={onOpenPresenterNotes}
-									disabled={!activeViewId}
-								>
-									<StickyNote size={16} />
-								</BarButton>
-							)}
+								</span>
+								{!readOnly && (
+									<BarButton
+										control="save-view"
+										label={t(
+											isCapturingView
+												? presentationPreparationMode
+													? "canvas.bottomBar.cancelSlideCapture"
+													: "canvas.bottomBar.cancelViewCapture"
+												: presentationPreparationMode
+													? "canvas.bottomBar.createSlide"
+													: "canvas.bottomBar.saveView",
+											isCapturingView
+												? presentationPreparationMode
+													? FALLBACKS.cancelSlideCapture
+													: FALLBACKS.cancelViewCapture
+												: presentationPreparationMode
+													? FALLBACKS.createSlide
+													: FALLBACKS.saveView,
+										)}
+										onClick={
+											isCapturingView ? onCancelCaptureView : onStartCaptureView
+										}
+									>
+										{isCapturingView ? (
+											<X size={16} />
+										) : (
+											<BookmarkPlus size={16} />
+										)}
+									</BarButton>
+								)}
+								{presentationPreparationMode &&
+									canUsePresenterNotes &&
+									onOpenPresenterNotes && (
+										<BarButton
+											control="presenter-notes"
+											label={t(
+												"canvas.bottomBar.presenterNotes",
+												FALLBACKS.presenterNotes,
+											)}
+											onClick={onOpenPresenterNotes}
+											disabled={!activeViewId}
+										>
+											<StickyNote size={16} />
+										</BarButton>
+									)}
+							</>
+						)}
 					</>
 				)}
 			</div>
@@ -442,11 +467,12 @@ function BarButton({
 			className="canvas-editor__saved-views-button"
 			data-control={control}
 			data-active={pressed || undefined}
+			data-canvas-toolbar-interactive="true"
 			title={label}
 			aria-label={label}
 			aria-pressed={pressed}
 		>
-			{children}
+			<span className="canvas-editor__toolbar-icon">{children}</span>
 		</button>
 	);
 }

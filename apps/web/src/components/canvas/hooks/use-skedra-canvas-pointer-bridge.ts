@@ -3,6 +3,7 @@
  */
 
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
+import { getGanttCanvasScrollbarThumbMeta } from "@skedra/canvas-core";
 import {
 	type CanvasEditorBeginAuxiliaryPointerGesture,
 	canvasEditorToolSupportsSnapOverride,
@@ -19,6 +20,10 @@ interface PointerGestureHandlers {
 	onContextMenu: (e: React.MouseEvent) => boolean;
 	beginAuxiliaryPointerGesture: CanvasEditorBeginAuxiliaryPointerGesture;
 	isMultiTouchGesture: () => boolean;
+	isPointerGestureActive: () => boolean;
+	beginGanttCanvasScroll: (chartId: string, canvasX: number) => boolean;
+	updateGanttCanvasScroll: (chartId: string, canvasX: number) => boolean;
+	endGanttCanvasScroll: (chartId: string) => boolean;
 }
 
 interface UseSkedraCanvasPointerBridgeOptions {
@@ -100,6 +105,13 @@ export function useSkedraCanvasPointerBridge({
 		lastKanbanClickTargetId: null as string | null,
 		lastKanbanClickAt: 0,
 	});
+	const ganttCanvasScrollRef = useRef<{
+		pointerId: number;
+		chartId: string;
+		canvasLeft: number;
+		viewportX: number;
+		viewportZoom: number;
+	} | null>(null);
 
 	const handleContextMenu = useCallback(
 		(e: React.MouseEvent) => {
@@ -174,6 +186,46 @@ export function useSkedraCanvasPointerBridge({
 				return;
 			}
 
+			if (!textEditorOpen && e.button === 0 && store.activeTool === "select") {
+				const rect = svgRef.current?.getBoundingClientRect();
+				if (rect) {
+					const canvasX =
+						(e.clientX - rect.left - store.viewport.x) / store.viewport.zoom;
+					const canvasY =
+						(e.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
+					const targetElement =
+						getEventElement(e.target) ?? getElementAtPosition(canvasX, canvasY);
+					const scrollbarThumb =
+						getGanttCanvasScrollbarThumbMeta(targetElement);
+					if (
+						scrollbarThumb &&
+						pointerHandlers.beginGanttCanvasScroll(
+							scrollbarThumb.ganttChartId,
+							canvasX,
+						)
+					) {
+						e.preventDefault();
+						e.stopPropagation();
+						store.setContextMenu(null);
+						store.setSnapMenu(null);
+						ganttCanvasScrollRef.current = {
+							pointerId: e.pointerId,
+							chartId: scrollbarThumb.ganttChartId,
+							canvasLeft: rect.left,
+							viewportX: store.viewport.x,
+							viewportZoom: store.viewport.zoom,
+						};
+						pointerGestureRef.current.dragged = true;
+						try {
+							e.currentTarget.setPointerCapture(e.pointerId);
+						} catch {
+							// The browser may already have cancelled the pointer.
+						}
+						return;
+					}
+				}
+			}
+
 			pointerGestureRef.current.downX = e.clientX;
 			pointerGestureRef.current.downY = e.clientY;
 			pointerGestureRef.current.dragged = pointerHandlers.isMultiTouchGesture();
@@ -226,9 +278,23 @@ export function useSkedraCanvasPointerBridge({
 
 	const handlePointerMove = useCallback(
 		(e: React.PointerEvent<SVGSVGElement>) => {
+			const ganttScroll = ganttCanvasScrollRef.current;
+			if (ganttScroll?.pointerId === e.pointerId) {
+				const canvasX =
+					(e.clientX - ganttScroll.canvasLeft - ganttScroll.viewportX) /
+					ganttScroll.viewportZoom;
+				e.preventDefault();
+				pointerHandlers.updateGanttCanvasScroll(ganttScroll.chartId, canvasX);
+				pointerGestureRef.current.dragged = true;
+				return true;
+			}
 			pointerHandlers.onPointerMove(e);
 			if (pointerHandlers.isMultiTouchGesture()) {
 				pointerGestureRef.current.dragged = true;
+			}
+			if (pointerHandlers.isPointerGestureActive()) {
+				pointerGestureRef.current.dragged = true;
+				return true;
 			}
 
 			const rect = svgRef.current?.getBoundingClientRect();
@@ -237,7 +303,7 @@ export function useSkedraCanvasPointerBridge({
 					(e.clientX - rect.left - store.viewport.x) / store.viewport.zoom;
 				const canvasY =
 					(e.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
-				if (handleViewPointerMove(canvasX, canvasY, e.pointerId)) return;
+				if (handleViewPointerMove(canvasX, canvasY, e.pointerId)) return true;
 			}
 
 			const dx = e.clientX - pointerGestureRef.current.downX;
@@ -245,12 +311,29 @@ export function useSkedraCanvasPointerBridge({
 			if (!pointerGestureRef.current.dragged && Math.hypot(dx, dy) > 5) {
 				pointerGestureRef.current.dragged = true;
 			}
+			return false;
 		},
 		[pointerHandlers, store.viewport, handleViewPointerMove, svgRef],
 	);
 
 	const handlePointerUp = useCallback(
 		(e: React.PointerEvent<SVGSVGElement>) => {
+			const ganttScroll = ganttCanvasScrollRef.current;
+			if (ganttScroll?.pointerId === e.pointerId) {
+				e.preventDefault();
+				e.stopPropagation();
+				pointerHandlers.endGanttCanvasScroll(ganttScroll.chartId);
+				ganttCanvasScrollRef.current = null;
+				pointerGestureRef.current.suppressClickUntil = performance.now() + 250;
+				pointerGestureRef.current.clickTargetId = null;
+				pointerGestureRef.current.clickTargetWasSelected = false;
+				pointerGestureRef.current.kanbanClickTargetId = null;
+				pointerGestureRef.current.kanbanClickTargetKind = null;
+				if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+					e.currentTarget.releasePointerCapture(e.pointerId);
+				}
+				return;
+			}
 			const wasMultiTouch = pointerHandlers.isMultiTouchGesture();
 			pointerHandlers.onPointerUp(e);
 			if (handleViewPointerUp(e.pointerId)) {
@@ -304,7 +387,7 @@ export function useSkedraCanvasPointerBridge({
 
 	const handleCanvasPointerMove = useCallback(
 		(event: React.PointerEvent<SVGSVGElement>) => {
-			handlePointerMove(event);
+			if (handlePointerMove(event)) return;
 
 			const rect = svgRef.current?.getBoundingClientRect();
 			if (!rect) return;
@@ -355,6 +438,13 @@ export function useSkedraCanvasPointerBridge({
 
 	const handlePointerCancel = useCallback(
 		(event: React.PointerEvent<SVGSVGElement>) => {
+			const ganttScroll = ganttCanvasScrollRef.current;
+			if (ganttScroll?.pointerId === event.pointerId) {
+				pointerHandlers.endGanttCanvasScroll(ganttScroll.chartId);
+				ganttCanvasScrollRef.current = null;
+				clearPointerGestureState();
+				return;
+			}
 			pointerHandlers.onPointerCancel(event);
 			clearPointerGestureState();
 		},
@@ -363,6 +453,13 @@ export function useSkedraCanvasPointerBridge({
 
 	const handleLostPointerCapture = useCallback(
 		(event: React.PointerEvent<SVGSVGElement>) => {
+			const ganttScroll = ganttCanvasScrollRef.current;
+			if (ganttScroll?.pointerId === event.pointerId) {
+				pointerHandlers.endGanttCanvasScroll(ganttScroll.chartId);
+				ganttCanvasScrollRef.current = null;
+				clearPointerGestureState();
+				return;
+			}
 			const gestureCancelled = pointerHandlers.onLostPointerCapture(event);
 			if (gestureCancelled) {
 				clearPointerGestureState();

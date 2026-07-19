@@ -1,4 +1,5 @@
 import {
+	type CanvasMutationPlan,
 	CanvasScene,
 	DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
 	DEFAULT_CLOUD_ARC_RADIUS,
@@ -17,6 +18,7 @@ import {
 	buildCloudArcRadiusChanges,
 	buildFlowchartNodeKindChanges,
 	buildFrameResizeChildUpdates,
+	buildGanttChartMutationPlan,
 	buildKanbanDropUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
@@ -29,6 +31,7 @@ import {
 	createCanvasTemplateStickyNote,
 	createSelectionFrame,
 	createStackIndexAfter,
+	findGanttChartElement,
 	getAlignmentUpdates,
 	getCanvasElementFormat,
 	getCanvasKeyboardResizeChanges,
@@ -38,9 +41,14 @@ import {
 	getDistributionUpdates,
 	getFlipUpdates,
 	getFlowchartRouteForDirection,
+	getGanttChartDocument,
+	getGanttChartId,
+	getGanttChartMeta,
+	getGanttChartSize,
 	getGroupUpdates,
 	getLockUpdates,
 	getRotateUpdates,
+	getSequenceDiagramId,
 	isCanvasTextEditableElement,
 	isFlowchartNode,
 	isKanbanCard,
@@ -55,6 +63,10 @@ import {
 	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
+	planSequenceDiagramActivationInsertion,
+	planSequenceDiagramFragmentInsertion,
+	planSequenceDiagramMessageInsertion,
+	planSequenceDiagramParticipantInsertion,
 	snapCanvasPointToGrid,
 	toCanvasElementMap,
 	zoomCanvasViewportAtPoint,
@@ -67,6 +79,7 @@ import {
 	CANVAS_EDITOR_TOOL_IDS,
 	CanvasEditor,
 	CanvasEditorContextMenu,
+	CanvasEditorGanttStudio,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
 	CanvasEditorSavedViewDraft,
@@ -74,6 +87,7 @@ import {
 	CanvasEditorSavedViewsBar,
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
+	CanvasEditorSequenceDiagramPanel,
 	CanvasEditorSnapOverlay,
 	CanvasEditorStickyNoteOverlay,
 	CanvasEditorSurface,
@@ -83,6 +97,7 @@ import {
 	buildCanvasEditorDefaultsElement,
 	buildCanvasEditorEditingSession,
 	canvasEditorToolSupportsSnapOverride,
+	expandCanvasEditorAtomicSelectionIds,
 	getCanvasEditorSnapModeOptions,
 	isCanvasEditorToolAvailableReadOnly,
 	normalizeCanvasEditorStickyChecklist,
@@ -145,6 +160,7 @@ import {
 	Triangle,
 	Undo2,
 	Unlock,
+	Workflow,
 	Zap,
 } from "lucide-react";
 import {
@@ -183,15 +199,21 @@ import {
 } from "./exporters.js";
 import {
 	SKEDRA_TEMPLATES,
+	type SkedraGanttChartDocument,
 	type SkedraSdkTemplateId,
+	type SkedraSequenceVisualPreset,
 	createSkedraFrameElement,
+	createSkedraGanttChartElements,
 	createSkedraKanbanBoardElements,
 	createSkedraKanbanCardElement,
 	createSkedraMindmapElements,
+	createSkedraSequenceDiagramElements,
 	createSkedraStickyNoteElement,
 	createSkedraTemplateElements,
+	createSkedraVisualSequenceDiagramElements,
 	getSkedraElementFactoryDefaults,
 	getSkedraMindmapAppearance,
+	getSkedraSequenceDiagramAppearance,
 	withSkedraStackIndexes,
 } from "./factories.js";
 import {
@@ -294,6 +316,14 @@ export interface SkedraCanvasApi extends SkedraCanvasExtendedApi {
 		listId: string,
 		options?: Partial<Parameters<typeof createSkedraKanbanCardElement>[0]>,
 	) => CanvasElement | null;
+	insertGanttChart: (
+		options?: Partial<Parameters<typeof createSkedraGanttChartElements>[0]>,
+	) => CanvasElement[];
+	getGanttChartDocument: (chartId?: string) => SkedraGanttChartDocument | null;
+	updateGanttChart: (
+		chartId: string,
+		document: SkedraGanttChartDocument,
+	) => CanvasElement[];
 	insertMindmap: (
 		options?: Partial<Parameters<typeof createSkedraMindmapElements>[0]>,
 	) => CanvasElement[];
@@ -305,6 +335,14 @@ export interface SkedraCanvasApi extends SkedraCanvasExtendedApi {
 		nodeId: string,
 		options?: { position?: "before" | "after"; text?: string },
 	) => CanvasElement | null;
+	insertSequenceDiagram: (
+		source: string,
+		options?: { x?: number; y?: number; participantGap?: number },
+	) => CanvasElement[];
+	insertVisualSequenceDiagram: (
+		preset: SkedraSequenceVisualPreset,
+		options?: { x?: number; y?: number },
+	) => CanvasElement[];
 	insertTemplate: (
 		templateId: SkedraSdkTemplateId,
 		options?: { x?: number; y?: number },
@@ -613,6 +651,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			null,
 		);
 		const [tool, setTool] = useState<SkedraSdkTool>(initialTool);
+		const [sequenceDiagramOpen, setSequenceDiagramOpen] = useState(false);
+		const [ganttPanelOpen, setGanttPanelOpen] = useState(false);
+		const [activeGanttChartId, setActiveGanttChartId] = useState<string | null>(
+			null,
+		);
 		const [toolLocked, setToolLocked] = useState(false);
 		const [pathDrawMode, setPathDrawMode] =
 			useState<SkedraPathDrawMode>(initialPathDrawMode);
@@ -691,6 +734,46 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const selectedElements = useMemo(
 			() => scene.getSelectedElements(selectedIds),
 			[scene, selectedIds],
+		);
+		const selectionGanttFrame = useMemo(
+			() =>
+				selectedElements[0]
+					? findGanttChartElement(currentElements, selectedElements[0])
+					: null,
+			[currentElements, selectedElements],
+		);
+		const ganttCharts = useMemo(
+			() =>
+				currentElements
+					.filter((element) => getGanttChartMeta(element) !== null)
+					.map((element) => ({
+						id: element.id,
+						title: element.frameLabel?.trim() || "Project timeline",
+					})),
+			[currentElements],
+		);
+		useEffect(() => {
+			if (selectionGanttFrame) setActiveGanttChartId(selectionGanttFrame.id);
+		}, [selectionGanttFrame]);
+		const resolvedActiveGanttChartId = ganttCharts.some(
+			(chart) => chart.id === activeGanttChartId,
+		)
+			? activeGanttChartId
+			: (ganttCharts[0]?.id ?? null);
+		const selectedGanttFrame = useMemo(
+			() =>
+				selectionGanttFrame ??
+				(resolvedActiveGanttChartId
+					? findGanttChartElement(currentElements, resolvedActiveGanttChartId)
+					: null),
+			[currentElements, resolvedActiveGanttChartId, selectionGanttFrame],
+		);
+		const selectedGanttDocument = useMemo(
+			() =>
+				selectedGanttFrame
+					? getGanttChartDocument(currentElements, selectedGanttFrame)
+					: null,
+			[currentElements, selectedGanttFrame],
 		);
 		const visibleSnapPointIndicators = useMemo(() => {
 			const selectedOptions =
@@ -1016,6 +1099,105 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[commitCanvasElements, currentElements, theme],
 		);
 
+		const insertGanttChart = useCallback(
+			(
+				options: Partial<
+					Parameters<typeof createSkedraGanttChartElements>[0]
+				> = {},
+			) => {
+				const size = getGanttChartSize({
+					dayCount: options.dayCount,
+					dayWidth: options.dayWidth,
+					labelWidth: options.labelWidth,
+					rowHeight: options.rowHeight,
+					headerHeight: options.headerHeight,
+					tasks: options.tasks,
+				});
+				const point =
+					options.x != null && options.y != null
+						? { x: options.x, y: options.y }
+						: selectedGanttFrame
+							? {
+									x:
+										selectedGanttFrame.x +
+										selectedGanttFrame.width +
+										80 +
+										size.width / 2,
+									y: selectedGanttFrame.y + size.height / 2,
+								}
+							: getViewportCenter();
+				const created = addSdkElements(
+					createSkedraGanttChartElements({
+						x: point.x - size.width / 2,
+						y: point.y - size.height / 2,
+						title:
+							options.title ??
+							(ganttCharts.length === 0
+								? "Project timeline"
+								: `Project timeline ${ganttCharts.length + 1}`),
+						startDate: options.startDate,
+						dayCount: options.dayCount,
+						dayWidth: options.dayWidth,
+						labelWidth: options.labelWidth,
+						rowHeight: options.rowHeight,
+						headerHeight: options.headerHeight,
+						tasks: options.tasks,
+						dependencies: options.dependencies,
+						dateLabel: options.dateLabel,
+						appearance: options.appearance,
+						theme,
+						createId,
+					}),
+				);
+				if (created[0]) setSelectedIds(new Set([created[0].id]));
+				if (created[0]) setActiveGanttChartId(created[0].id);
+				setTool("select");
+				setGanttPanelOpen(true);
+				return created;
+			},
+			[
+				addSdkElements,
+				ganttCharts.length,
+				getViewportCenter,
+				selectedGanttFrame,
+				theme,
+			],
+		);
+
+		const readGanttChartDocument = useCallback(
+			(chartId?: string): SkedraGanttChartDocument | null =>
+				getGanttChartDocument(currentElements, chartId ?? selectedGanttFrame),
+			[currentElements, selectedGanttFrame],
+		);
+
+		const updateGanttChart = useCallback(
+			(chartId: string, document: SkedraGanttChartDocument) => {
+				const frame = findGanttChartElement(currentElements, chartId);
+				if (!frame) return [];
+				const plan = buildGanttChartMutationPlan(
+					getSkedraElementFactoryDefaults({ theme, createId }),
+					currentElements,
+					frame,
+					document,
+				);
+				const retained = currentElements.filter(
+					(element) => !plan.deleteIds.includes(element.id),
+				);
+				const create = withSkedraStackIndexes(plan.create, retained);
+				const next = applyCanvasMutationPlan(currentElements, {
+					...plan,
+					create,
+				});
+				commitCanvasElements(next);
+				setSelectedIds(new Set(plan.selectedIds));
+				return next.filter(
+					(element) =>
+						element.id === frame.id || getGanttChartId(element) === frame.id,
+				);
+			},
+			[commitCanvasElements, currentElements, theme],
+		);
+
 		const insertMindmap = useCallback(
 			(
 				options: Partial<
@@ -1089,6 +1271,70 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return node;
 			},
 			[commitCanvasElements, currentElements, theme],
+		);
+
+		const insertSequenceDiagram = useCallback(
+			(
+				source: string,
+				options: { x?: number; y?: number; participantGap?: number } = {},
+			) => {
+				const point =
+					options.x != null && options.y != null
+						? { x: options.x, y: options.y }
+						: getViewportCenter();
+				return addSdkElements(
+					createSkedraSequenceDiagramElements({
+						source,
+						x: point.x,
+						y: point.y,
+						participantGap: options.participantGap,
+						theme,
+						createId,
+					}),
+				);
+			},
+			[addSdkElements, getViewportCenter, theme],
+		);
+
+		const insertVisualSequenceDiagram = useCallback(
+			(
+				preset: SkedraSequenceVisualPreset,
+				options: { x?: number; y?: number } = {},
+			) => {
+				const point =
+					options.x != null && options.y != null
+						? { x: options.x, y: options.y }
+						: getViewportCenter();
+				return addSdkElements(
+					createSkedraVisualSequenceDiagramElements({
+						preset,
+						x: point.x,
+						y: point.y,
+						theme,
+						createId,
+					}),
+				);
+			},
+			[addSdkElements, getViewportCenter, theme],
+		);
+
+		const applySequenceDiagramMutation = useCallback(
+			(plan: CanvasMutationPlan | null) => {
+				if (!plan) return;
+				const create = withSkedraStackIndexes(plan.create, currentElements);
+				const next = applyCanvasMutationPlan(currentElements, {
+					...plan,
+					create,
+				});
+				commitCanvasElements(next);
+				setSelectedIds(
+					expandCanvasEditorAtomicSelectionIds(
+						new Set(plan.selectedIds ?? create.map((element) => element.id)),
+						new Map(next.map((element) => [element.id, element])),
+					),
+				);
+			},
+			[commitCanvasElements, currentElements],
 		);
 
 		const insertTemplate = useCallback(
@@ -1692,6 +1938,13 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				: defaultPropertiesElement
 					? [defaultPropertiesElement]
 					: [];
+		const hasOnlyStructuredDiagramSelection =
+			selectedElements.length > 0 &&
+			selectedElements.every(
+				(element) =>
+					getGanttChartId(element) != null ||
+					getSequenceDiagramId(element) != null,
+			);
 
 		const setGrid = useCallback(
 			(enabled: boolean) => setGridEnabled(enabled),
@@ -2056,9 +2309,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				insertStickyNote,
 				insertKanbanBoard,
 				insertKanbanCard,
+				insertGanttChart,
+				getGanttChartDocument: readGanttChartDocument,
+				updateGanttChart,
 				insertMindmap,
 				insertMindmapChild,
 				insertMindmapSibling,
+				insertSequenceDiagram,
+				insertVisualSequenceDiagram,
 				insertTemplate,
 				clear: () => {
 					commitElements([]);
@@ -2169,9 +2427,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				insertFrame,
 				insertKanbanBoard,
 				insertKanbanCard,
+				insertGanttChart,
+				readGanttChartDocument,
+				updateGanttChart,
 				insertMindmap,
 				insertMindmapChild,
 				insertMindmapSibling,
+				insertSequenceDiagram,
+				insertVisualSequenceDiagram,
 				insertStickyNote,
 				insertTemplate,
 				insertLibraryItem,
@@ -3150,6 +3413,17 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const toolbarItems: CanvasEditorToolbarItem[] = [
 			{
+				type: "action",
+				id: "sequence-diagram",
+				label: "Sequence diagram",
+				icon: <Workflow size={17} strokeWidth={2} />,
+				disabled: readOnly,
+				onSelect: () => {
+					setTool("select");
+					setSequenceDiagramOpen(true);
+				},
+			},
+			{
 				type: "menu",
 				id: "templates",
 				label: "Templates",
@@ -3160,7 +3434,29 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					id: template.id,
 					label: template.name,
 					trailingIcon: <Plus size={14} strokeWidth={2} />,
+					secondaryActions:
+						template.id === "gantt"
+							? [
+									{
+										id: "gantt-new",
+										label: "New plan",
+										onSelect: () => {
+											insertGanttChart();
+										},
+									},
+								]
+							: undefined,
 					onSelect: () => {
+						if (template.id === "gantt") {
+							if (selectedGanttFrame) {
+								setSelectedIds(new Set([selectedGanttFrame.id]));
+								setActiveGanttChartId(selectedGanttFrame.id);
+								setGanttPanelOpen(true);
+							} else {
+								insertGanttChart();
+							}
+							return;
+						}
 						insertTemplate(template.id);
 					},
 				})),
@@ -3565,6 +3861,115 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							) : null,
 						)}
 				</CanvasEditorSurface>
+				{ganttPanelOpen && !readOnly && !presentationViewId && (
+					<CanvasEditorGanttStudio
+						document={selectedGanttDocument}
+						charts={ganttCharts}
+						activeChartId={selectedGanttFrame?.id ?? null}
+						onSelectChart={(chartId) => {
+							const chart = findGanttChartElement(currentElements, chartId);
+							if (!chart) return;
+							setActiveGanttChartId(chart.id);
+							setSelectedIds(new Set([chart.id]));
+						}}
+						onCreate={() => insertGanttChart()}
+						onChange={(document) => {
+							if (selectedGanttFrame) {
+								updateGanttChart(selectedGanttFrame.id, document);
+							}
+						}}
+						onDelete={
+							selectedGanttFrame
+								? () => {
+										const chartId = selectedGanttFrame.id;
+										commitCanvasElements(
+											currentElements.filter(
+												(element) =>
+													element.id !== chartId &&
+													getGanttChartId(element) !== chartId &&
+													element.frameId !== chartId,
+											),
+										);
+										setSelectedIds(new Set());
+										setActiveGanttChartId(null);
+										setGanttPanelOpen(false);
+									}
+								: undefined
+						}
+						onClose={() => setGanttPanelOpen(false)}
+					/>
+				)}
+				{sequenceDiagramOpen && !readOnly && !presentationViewId && (
+					<CanvasEditorSequenceDiagramPanel
+						elements={elementMap}
+						selectedElements={selectedElements}
+						onCreateVisualDiagram={(preset) =>
+							insertVisualSequenceDiagram(preset)
+						}
+						onAddParticipant={(diagramId, input) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramParticipantInsertion({
+									...input,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+								}),
+							)
+						}
+						onAddMessage={(diagramId, input) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramMessageInsertion({
+									...input,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+								}),
+							)
+						}
+						onAddActivation={(diagramId, participantId) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramActivationInsertion({
+									participantId,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+								}),
+							)
+						}
+						onAddFragment={(diagramId, input) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramFragmentInsertion({
+									...input,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+									wrapCurrentFlow: true,
+								}),
+							)
+						}
+						onInsert={(source) => {
+							insertSequenceDiagram(source);
+							setSequenceDiagramOpen(false);
+						}}
+						onClose={() => setSequenceDiagramOpen(false)}
+					/>
+				)}
 				{contextMenu && !zenMode && !presentationViewId && (
 					<CanvasEditorContextMenu
 						x={contextMenu.x}
@@ -3669,69 +4074,75 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							onClose={closeInlineTextEditor}
 						/>
 					))}
-				{showProperties && !zenMode && !presentationViewId && (
-					<SkedraPropertiesPanel
-						selected={propertiesSelection}
-						mode={selectedElements.length > 0 ? "selection" : "defaults"}
-						readOnly={readOnly}
-						canvasBackground={{
-							value: canvasBackground,
-							options: canvasBackgroundOptions,
-							onChange: setCanvasBackground,
-						}}
-						pathDrawMode={pathDrawMode}
-						onPathDrawModeChange={setPathDrawMode}
-						onSetProperties={
-							selectedElements.length > 0
-								? setSelectionProperties
-								: setDrawingDefaultProperties
-						}
-						onSetGeometryWidth={
-							selectedElements.length === 0
-								? (width) => setDrawingDefaultProperties({ width })
-								: undefined
-						}
-						onSetGeometryHeight={
-							selectedElements.length === 0
-								? (height) => setDrawingDefaultProperties({ height })
-								: undefined
-						}
-						onSetEllipseDiameter={(diameter) =>
-							selectedElements.length === 0
-								? setDrawingDefaultProperties({
-										width: diameter,
-										height: diameter,
-									})
-								: setSelectionProperties({ width: diameter, height: diameter })
-						}
-						onDelete={deleteSelection}
-						onGroup={groupSelection}
-						onUngroup={ungroupSelection}
-						onAlign={alignSelection}
-						onDistribute={distributeSelection}
-						onLayer={layerSelection}
-						onFlip={flipSelection}
-						onLock={lockSelection}
-						onCropImage={(id, crop) => {
-							cropImage(id, crop);
-						}}
-						onStartImageCrop={setCroppingImageId}
-						onExportFrame={
-							selectedElements.length === 1 &&
-							selectedElements[0]?.type === "frame"
-								? (format) => {
-										void downloadFrame(selectedElements[0], format);
-									}
-								: undefined
-						}
-						onAddFlowchartStep={(nodeId, options) => {
-							addFlowchartStep(nodeId, options);
-						}}
-						onSetFlowchartNodeKind={setFlowchartNodeKind}
-						onUpdateKanbanCard={updateKanbanCard}
-						onUpdateKanbanList={updateKanbanList}
-					/>
-				)}
+				{showProperties &&
+					!hasOnlyStructuredDiagramSelection &&
+					!zenMode &&
+					!presentationViewId && (
+						<SkedraPropertiesPanel
+							selected={propertiesSelection}
+							mode={selectedElements.length > 0 ? "selection" : "defaults"}
+							readOnly={readOnly}
+							canvasBackground={{
+								value: canvasBackground,
+								options: canvasBackgroundOptions,
+								onChange: setCanvasBackground,
+							}}
+							pathDrawMode={pathDrawMode}
+							onPathDrawModeChange={setPathDrawMode}
+							onSetProperties={
+								selectedElements.length > 0
+									? setSelectionProperties
+									: setDrawingDefaultProperties
+							}
+							onSetGeometryWidth={
+								selectedElements.length === 0
+									? (width) => setDrawingDefaultProperties({ width })
+									: undefined
+							}
+							onSetGeometryHeight={
+								selectedElements.length === 0
+									? (height) => setDrawingDefaultProperties({ height })
+									: undefined
+							}
+							onSetEllipseDiameter={(diameter) =>
+								selectedElements.length === 0
+									? setDrawingDefaultProperties({
+											width: diameter,
+											height: diameter,
+										})
+									: setSelectionProperties({
+											width: diameter,
+											height: diameter,
+										})
+							}
+							onDelete={deleteSelection}
+							onGroup={groupSelection}
+							onUngroup={ungroupSelection}
+							onAlign={alignSelection}
+							onDistribute={distributeSelection}
+							onLayer={layerSelection}
+							onFlip={flipSelection}
+							onLock={lockSelection}
+							onCropImage={(id, crop) => {
+								cropImage(id, crop);
+							}}
+							onStartImageCrop={setCroppingImageId}
+							onExportFrame={
+								selectedElements.length === 1 &&
+								selectedElements[0]?.type === "frame"
+									? (format) => {
+											void downloadFrame(selectedElements[0], format);
+										}
+									: undefined
+							}
+							onAddFlowchartStep={(nodeId, options) => {
+								addFlowchartStep(nodeId, options);
+							}}
+							onSetFlowchartNodeKind={setFlowchartNodeKind}
+							onUpdateKanbanCard={updateKanbanCard}
+							onUpdateKanbanList={updateKanbanList}
+						/>
+					)}
 				{!zenMode && (
 					<CanvasEditorSavedViewsBar
 						canUndo={undoStackRef.current.length > 0}

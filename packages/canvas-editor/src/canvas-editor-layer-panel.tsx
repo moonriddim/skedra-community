@@ -36,6 +36,7 @@ import {
 	useState,
 } from "react";
 import type { CanvasEditorPropertiesTranslate } from "./canvas-editor-classic-properties-panel";
+import { useCanvasEditorFloatingPanel } from "./use-canvas-editor-floating-panel";
 
 export type CanvasEditorLayerReorderPosition = "above" | "below";
 
@@ -194,6 +195,7 @@ export function CanvasEditorLayerPanel({
 	onRenameFrame,
 	onClose,
 }: CanvasEditorLayerPanelProps) {
+	const floatingPanel = useCanvasEditorFloatingPanel<HTMLDivElement>();
 	const rows = useMemo(() => buildLayerRows(elements), [elements]);
 	const [renamingId, setRenamingId] = useState<string | null>(null);
 	const [dragId, setDragId] = useState<string | null>(null);
@@ -212,6 +214,7 @@ export function CanvasEditorLayerPanel({
 
 	return (
 		<div
+			ref={floatingPanel.panelRef}
 			data-text-editor-safe="true"
 			className={[
 				"canvas-editor__layers skedra-sdk__layers flex flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md",
@@ -219,11 +222,14 @@ export function CanvasEditorLayerPanel({
 			]
 				.filter(Boolean)
 				.join(" ")}
-			style={style}
+			style={{ ...style, ...floatingPanel.panelStyle }}
 			aria-label={t("canvas.layers.ariaLabel", "Layers")}
 			onWheel={(event) => event.stopPropagation()}
 		>
-			<div className="canvas-editor__panel-header flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5">
+			<div
+				className="canvas-editor__panel-header flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5"
+				{...floatingPanel.dragHandleProps}
+			>
 				<Layers className="canvas-editor__panel-title-icon h-4 w-4 shrink-0 text-primary" />
 				<h3 className="canvas-editor__panel-title min-w-0 flex-1 truncate text-sm font-semibold">
 					{t("canvas.layers.title", "Layers")}

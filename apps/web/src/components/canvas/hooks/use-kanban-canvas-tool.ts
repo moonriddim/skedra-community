@@ -137,7 +137,7 @@ export function useKanbanCanvasTool({
 			});
 			setKanbanDetailId(card.id);
 		},
-		[resolvedTheme, store, sync],
+		[resolvedTheme, store.setSelectedIds, sync],
 	);
 
 	return {

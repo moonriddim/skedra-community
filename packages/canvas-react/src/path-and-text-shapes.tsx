@@ -2,13 +2,16 @@ import {
 	type ArrowHeadData,
 	type ArrowTextOrientation,
 	type ArrowTextSide,
-	STICKY_NOTE_TEXT_PADDING,
 	arrowHeadLengthForType,
 	getArrowPath,
 	getArrowTextMetrics,
+	isCanvasCenteredTextShape,
 	renderArrowHead,
 	resolveArrowTextOffset,
 	resolveArrowTextRotationDeg,
+	resolveCanvasElementTextLineHeight,
+	resolveCanvasRectTextLayout,
+	resolveCanvasTextRenderedHeight,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import { useMemo } from "react";
@@ -18,19 +21,24 @@ import { RoughSvgMarkup } from "./rough-svg-markup";
 
 export function TextBlock({ el }: { el: CanvasElement }) {
 	const { defaultFontFamily } = useCanvasRendererConfig();
+	const fontSize = el.fontSize ?? 16;
+	const lineHeight = resolveCanvasElementTextLineHeight(el, fontSize);
+	const isWireframeNode = el.customData?.skedraType === "wireframe-node";
+	const renderedHeight = resolveCanvasTextRenderedHeight(el);
 	return (
 		<foreignObject
 			x={el.x}
-			y={el.y}
+			y={el.y - (renderedHeight - el.height) / 2}
 			width={Math.max(20, el.width)}
-			height={Math.max(20, el.height)}
+			height={renderedHeight}
 			pointerEvents="none"
 		>
 			<div
 				style={{
 					width: "100%",
 					height: "100%",
-					fontSize: el.fontSize ?? 16,
+					boxSizing: isWireframeNode ? "border-box" : undefined,
+					fontSize,
 					fontFamily: el.fontFamily ?? defaultFontFamily,
 					fontWeight: el.fontWeight ?? "normal",
 					fontStyle: el.fontStyle ?? "normal",
@@ -39,9 +47,10 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 					textAlign: el.textAlign ?? "left",
 					whiteSpace: "pre-wrap",
 					wordBreak: "break-word",
+					overflowWrap: isWireframeNode ? "anywhere" : undefined,
 					overflow: "hidden",
-					lineHeight: 1.4,
-					padding: "2px 4px",
+					lineHeight,
+					padding: isWireframeNode ? "0 4px" : "2px 4px",
 				}}
 			>
 				{el.text || ""}
@@ -360,17 +369,10 @@ export function RectText({ el }: { el: CanvasElement }) {
 	const { defaultFontFamily, translate } = useCanvasRendererConfig();
 	const stickyPlaceholder = translate("canvas.sticky.notePlaceholder");
 	const isStickyNote = el.customData?.skedraType === "sticky-note";
-	const isCenteredShape =
-		el.type === "rectangle" ||
-		el.type === "diamond" ||
-		el.type === "ellipse" ||
-		el.type === "triangle" ||
-		el.type === "cloud";
-	const padding = isStickyNote
-		? STICKY_NOTE_TEXT_PADDING
-		: isCenteredShape
-			? 12
-			: 8;
+	const isCenteredShape = isCanvasCenteredTextShape(el);
+	const isWireframeNode = el.customData?.skedraType === "wireframe-node";
+	const { fontSize, lineHeight, horizontalPadding, verticalPadding } =
+		resolveCanvasRectTextLayout(el);
 	const textAlign = isStickyNote
 		? "left"
 		: (el.textAlign ?? (isCenteredShape ? "center" : "left"));
@@ -388,10 +390,10 @@ export function RectText({ el }: { el: CanvasElement }) {
 
 	return (
 		<foreignObject
-			x={el.x + padding}
-			y={el.y + padding}
-			width={Math.max(1, el.width - padding * 2)}
-			height={Math.max(1, el.height - padding * 2)}
+			x={el.x + horizontalPadding}
+			y={el.y + verticalPadding}
+			width={Math.max(1, el.width - horizontalPadding * 2)}
+			height={Math.max(1, el.height - verticalPadding * 2)}
 			pointerEvents="none"
 		>
 			<div
@@ -407,7 +409,7 @@ export function RectText({ el }: { el: CanvasElement }) {
 				<div
 					style={{
 						width: "100%",
-						fontSize: el.fontSize ?? 16,
+						fontSize,
 						fontFamily: el.fontFamily ?? defaultFontFamily,
 						fontWeight: el.fontWeight ?? "normal",
 						fontStyle: el.fontStyle ?? "normal",
@@ -418,8 +420,9 @@ export function RectText({ el }: { el: CanvasElement }) {
 						textAlign,
 						whiteSpace: "pre-wrap",
 						wordBreak: "break-word",
+						overflowWrap: isWireframeNode ? "anywhere" : undefined,
 						overflow: "hidden",
-						lineHeight: 1.4,
+						lineHeight,
 						opacity: text === stickyPlaceholder ? 0.45 : 1,
 					}}
 				>

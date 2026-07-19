@@ -4,7 +4,7 @@ React SDK for embedding the Skedra canvas without the Skedra app shell.
 
 The package includes the full client-side canvas tooling layer: drawing tools,
 images and cropping, sticky notes, frames, Kanban boards, flowcharts, mindmaps,
-templates, shape libraries, grid snapping, history, clipboard, properties,
+graphical sequence diagrams with optional Mermaid import, templates, shape libraries, grid snapping, history, clipboard, properties,
 saved views, presentations, portable files, visual exports, local state,
 controlled state, and an imperative API. Auth, roles, comments, and
 collaboration transport are intentionally left to the host app or optional
@@ -75,8 +75,24 @@ export function Board() {
 
 	return (
 		<>
-			<button onClick={() => apiRef.current?.insertMindmap()}>
-				Add mindmap
+			<button onClick={() => apiRef.current?.insertGanttChart()}>
+				Add Gantt chart
+			</button>
+			<button
+				onClick={() =>
+					apiRef.current?.insertVisualSequenceDiagram("checkout")
+				}
+			>
+				Add visual sequence diagram
+			</button>
+			<button
+				onClick={() =>
+					apiRef.current?.insertSequenceDiagram(
+						"sequenceDiagram\nUser->>API: Request\nAPI-->>User: Response",
+					)
+				}
+			>
+				Add sequence diagram
 			</button>
 			<div style={{ height: 600 }}>
 				<SkedraCanvas ref={apiRef} />
@@ -94,6 +110,9 @@ The ref exposes the complete editor command surface, including:
 - path draw mode and path style control through `setPathDrawMode` / `setPathMode`;
 - image insertion and normalized cropping;
 - Kanban card/list details and Flowchart step editing;
+- dynamic Gantt editing through `insertGanttChart`, `getGanttChartDocument`, and
+  `updateGanttChart` (tasks, milestones, progress, critical path, scale, and all
+  four dependency types);
 - shape library insertion and management;
 - saved-view CRUD and presentation navigation;
 - `.skedra` import/export state and all element/template insertion helpers.
@@ -104,8 +123,13 @@ the `@skedra/react/commands` subpath.
 The built-in toolbar covers the complete shared `ToolType` contract: select,
 lasso, pan, shapes, line/arrow, freehand, text, frame, eraser, laser, and
 eyedropper. SDK-specific insertion tools add sticky notes, Kanban boards,
-mindmaps, and all shared templates. `SKEDRA_SDK_TOOL_IDS` exposes the supported
+mindmaps, a visual sequence-diagram builder with Mermaid import, and all shared
+templates, including structured Gantt charts.
+`SKEDRA_SDK_TOOL_IDS` exposes the supported
 tool IDs to host applications.
+
+Choosing the Gantt template opens the same dynamic editor used by the Web app.
+Hosts can also embed that surface directly with `SkedraGanttPanel`.
 
 ## Files, libraries, images, and exports
 
@@ -147,9 +171,39 @@ Factory helpers are exported from the package root and the `@skedra/react/factor
 
 ```tsx
 import {
+	createSkedraGanttChartElements,
 	createSkedraKanbanBoardElements,
+	createSkedraSequenceDiagramElements,
+	createSkedraVisualSequenceDiagramElements,
 	createSkedraTemplateElements,
 } from "@skedra/react/factories";
+
+const gantt = createSkedraGanttChartElements({
+	x: 100,
+	y: 100,
+	startDate: "2026-07-13",
+	tasks: [
+		{ id: "design", title: "Design", startDay: 0, durationDays: 5 },
+		{ id: "build", title: "Build", startDay: 5, durationDays: 8 },
+	],
+	dependencies: [{ fromTaskId: "design", toTaskId: "build" }],
+});
+
+const sequence = createSkedraSequenceDiagramElements({
+	x: 500,
+	y: 400,
+	source: `sequenceDiagram
+    actor User
+    participant API
+    User->>API: Request
+    API-->>User: Response`,
+});
+
+const visualSequence = createSkedraVisualSequenceDiagramElements({
+	preset: "checkout",
+	x: 500,
+	y: 400,
+});
 ```
 
 For collaboration, keep this package as the rendering and tooling layer and pass synced `elements` in controlled mode.

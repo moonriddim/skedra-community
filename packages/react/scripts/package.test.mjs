@@ -12,6 +12,12 @@ test("package root exports the canvas component and SDK factories", async () => 
 		"the public SDK must expose the shared editor entry point",
 	);
 	assert.equal(typeof sdk.createSkedraTemplateElements, "function");
+	assert.equal(typeof sdk.createSkedraGanttChartElements, "function");
+	assert.equal(typeof sdk.createSkedraSequenceDiagramElements, "function");
+	assert.equal(
+		typeof sdk.createSkedraVisualSequenceDiagramElements,
+		"function",
+	);
 	assert.equal(typeof sdk.createSkedraStickyNoteElement, "function");
 	assert.equal(typeof sdk.createSkedraWireframeComponentElements, "function");
 	assert.equal(typeof sdk.createSkedraWireframePresetElements, "function");
@@ -26,6 +32,7 @@ test("package root exports the canvas component and SDK factories", async () => 
 	assert.equal(typeof sdk.SkedraContextMenu, "function");
 	assert.equal(typeof sdk.SkedraSnapMenu, "function");
 	assert.equal(typeof sdk.SkedraWireframePanel, "function");
+	assert.equal(typeof sdk.SkedraGanttPanel, "function");
 	assert.deepEqual(
 		Object.values(sdk.SKEDRA_WIREFRAME_COMPONENT_CATEGORIES).flat().toSorted(),
 		[...sdk.SKEDRA_WIREFRAME_COMPONENT_IDS].toSorted(),
@@ -83,9 +90,76 @@ test("factories subpath creates full canvas SDK elements", async () => {
 		),
 	);
 
+	const gantt = factories.createSkedraGanttChartElements({
+		x: 0,
+		y: 0,
+		startDate: "2026-07-13",
+		tasks: [
+			{ id: "build", title: "Build", startDay: 0, durationDays: 5 },
+			{
+				id: "ship",
+				title: "Ship",
+				startDay: 6,
+				durationDays: 1,
+				milestone: true,
+			},
+		],
+		dependencies: [{ fromTaskId: "build", toTaskId: "ship" }],
+	});
+	assert.equal(
+		gantt.filter((element) => element.customData?.skedraType === "gantt-task")
+			.length,
+		2,
+	);
+	assert.ok(
+		gantt.some(
+			(element) => element.customData?.skedraType === "gantt-dependency",
+		),
+	);
+
+	const sequence = factories.createSkedraSequenceDiagramElements({
+		x: 0,
+		y: 0,
+		source: `sequenceDiagram
+    actor User
+    participant API
+    User->>API: Request
+    API-->>User: Response`,
+	});
+	assert.equal(
+		sequence.filter(
+			(element) => element.customData?.sequenceRole === "lifeline",
+		).length,
+		2,
+	);
+	assert.equal(
+		sequence.filter((element) => element.customData?.sequenceRole === "message")
+			.length,
+		2,
+	);
+	const visualSequence = factories.createSkedraVisualSequenceDiagramElements({
+		x: 0,
+		y: 0,
+		preset: "blank",
+	});
+	assert.equal(
+		visualSequence.filter(
+			(element) => element.customData?.sequenceRole === "lifeline",
+		).length,
+		3,
+	);
+
 	assert.deepEqual(
 		factories.SKEDRA_TEMPLATES.map((template) => template.id).sort(),
-		["flowchart", "kanban", "mindmap", "retrospective", "swot", "wireframe"],
+		[
+			"flowchart",
+			"gantt",
+			"kanban",
+			"mindmap",
+			"retrospective",
+			"swot",
+			"wireframe",
+		],
 	);
 
 	const wireframeButton = factories.createSkedraWireframeComponentElements({
@@ -137,10 +211,51 @@ test("shared productivity panels are available from the public SDK", async () =>
 			onInsertComponent: noop,
 		}),
 	);
+	const gantt = renderToStaticMarkup(
+		React.createElement(panels.SkedraGanttPanel, {
+			document: {
+				title: "Launch plan",
+				startDate: "2026-07-13",
+				dayCount: 28,
+				dayWidth: 28,
+				labelWidth: 260,
+				rowHeight: 58,
+				headerHeight: 56,
+				showToday: true,
+				tasks: [
+					{
+						id: "build",
+						title: "Build",
+						startDay: 0,
+						durationDays: 5,
+						progress: 40,
+						status: "active",
+						milestone: false,
+						critical: true,
+					},
+				],
+				dependencies: [],
+				appearance: {
+					background: "#fff",
+					headerFill: "#eee",
+					rowFill: "#fff",
+					alternateRowFill: "#fafafa",
+					gridStroke: "#ddd",
+					textColor: "#111",
+					mutedTextColor: "#666",
+					dependencyStroke: "#777",
+				},
+			},
+			onApply: noop,
+		}),
+	);
 
 	assert.match(layers, /Layers/u);
 	assert.match(wireframes, /Wireframes/u);
 	assert.match(wireframes, /Blank Desktop/u);
+	assert.match(gantt, /Build/u);
+	assert.match(gantt, /More row options/u);
+	assert.doesNotMatch(gantt, /Critical path/u);
 	const otherFrame = factories.createSkedraFrameElement({
 		x: 300,
 		y: 0,
@@ -259,6 +374,7 @@ test("canvas chrome renders tools, grid, and command menus on the server", async
 	assert.match(markup, /aria-label="Arrow"/u);
 	assert.match(markup, /aria-label="Grid"/u);
 	assert.match(markup, /aria-label="Import and export"/u);
+	assert.match(markup, /aria-label="Sequence diagram"/u);
 	assert.match(markup, /aria-label="Path draw mode"/u);
 	assert.match(markup, /aria-label="Path style"/u);
 	assert.match(markup, /<option value="multi" selected="">Multi-line/u);
@@ -326,5 +442,6 @@ test("published runtime and declarations are self-contained", () => {
 	assert.match(css, /\.canvas-editor__layers/u);
 	assert.match(css, /\.canvas-editor__snap-menu/u);
 	assert.match(css, /\.canvas-editor__wireframe-panel/u);
+	assert.match(css, /\.canvas-editor__sequence-panel/u);
 	assert.match(css, /\.skedra-sdk__properties/u);
 });

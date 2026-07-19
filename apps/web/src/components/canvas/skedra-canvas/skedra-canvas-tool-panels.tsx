@@ -9,8 +9,12 @@ import { useCanvasStore } from "@/hooks/use-canvas-store";
 import type { useCommunityCanvasKeyboardAdapter as useCanvasKeyboard } from "@/hooks/use-community-canvas-keyboard-adapter";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { useI18n } from "@/lib/i18n";
-import type { KanbanAssignmentOptions } from "@skedra/canvas-core";
-import type { CanvasElement } from "@skedra/canvas-core";
+import {
+	type CanvasElement,
+	type CanvasMutationPlan,
+	type KanbanAssignmentOptions,
+	getSequenceDiagramElementMeta,
+} from "@skedra/canvas-core";
 import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
 import { PaintBucket, Pencil, SlidersHorizontal } from "lucide-react";
 import {
@@ -19,15 +23,11 @@ import {
 	lazy,
 	memo,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-const LibraryPanel = lazy(() =>
-	import("@/components/canvas/library-panel").then((m) => ({
-		default: m.LibraryPanel,
-	})),
-);
 const LayersPanel = lazy(() =>
 	import("@/components/canvas/layers-panel").then((m) => ({
 		default: m.LayersPanel,
@@ -36,6 +36,16 @@ const LayersPanel = lazy(() =>
 const WireframePanel = lazy(() =>
 	import("@/components/canvas/wireframe-panel").then((m) => ({
 		default: m.WireframePanel,
+	})),
+);
+const SequenceDiagramPanel = lazy(() =>
+	import("@/components/canvas/sequence-diagram-panel").then((m) => ({
+		default: m.SequenceDiagramPanel,
+	})),
+);
+const GanttPanel = lazy(() =>
+	import("@/components/canvas/gantt-panel").then((m) => ({
+		default: m.GanttPanel,
 	})),
 );
 const StickyNoteTool = lazy(() =>
@@ -82,11 +92,15 @@ interface SkedraCanvasToolPanelsProps {
 	workspaceSlug?: string;
 	sync: {
 		elements: Map<string, CanvasElement>;
+		createElement: (element: CanvasElement) => void;
 		updateElement: (id: string, changes: Partial<CanvasElement>) => void;
 		updateElements: (
 			updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 		) => void;
+		deleteElements: (ids: string[]) => void;
+		applyMutationPlan: (plan: CanvasMutationPlan) => void;
 	};
+	stopUndoCapture: () => void;
 	selectedIds: Set<string>;
 	pendingText: PendingText | null;
 	editingTextId: string | null;
@@ -143,6 +157,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	showProperties,
 	workspaceSlug,
 	sync,
+	stopUndoCapture,
 	selectedIds,
 	pendingText,
 	editingTextId,
@@ -181,6 +196,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 			strokeColor: state.strokeColor,
 			clearSelection: state.clearSelection,
 			clearStickyNotePlacementDraft: state.clearStickyNotePlacementDraft,
+			setSelectedIds: state.setSelectedIds,
 			setActivePanel: state.setActivePanel,
 			setFillColor: state.setFillColor,
 			setKanbanCardPlacementDraft: state.setKanbanCardPlacementDraft,
@@ -189,16 +205,37 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 		})),
 	);
 	const activeTool = panelStore.activeTool;
+	const elementsRef = useRef(sync.elements);
+	useEffect(() => {
+		elementsRef.current = sync.elements;
+	}, [sync.elements]);
 
 	useEffect(() => {
 		if (activeTool) setMobilePropertiesOpen(false);
 	}, [activeTool]);
+
+	useEffect(() => {
+		if (!showEditorChrome || activeTool !== "select") return;
+		const elements = elementsRef.current;
+		for (const id of selectedIds) {
+			const element = elements.get(id);
+			// Gantt charts intentionally do NOT auto-open their studio on plain
+			// selection: bars stay directly draggable on the canvas. The studio
+			// opens via toolbar or double-click (see use-canvas-double-click).
+			if (!getSequenceDiagramElementMeta(element)) continue;
+			if (useCanvasStore.getState().activePanel !== "sequence-diagram") {
+				panelStore.setActivePanel("sequence-diagram");
+			}
+			break;
+		}
+	}, [activeTool, panelStore.setActivePanel, selectedIds, showEditorChrome]);
 
 	return (
 		<>
 			{showEditorChrome && (
 				<CanvasToolbar
 					workspaceSlug={workspaceSlug}
+					elements={sync.elements}
 					addElements={addElements}
 					getViewportCenter={getViewportCenter}
 					onExportSkedra={onExportSkedra}
@@ -349,18 +386,6 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					/>
 				</Suspense>
 			)}
-			{showEditorChrome && panelStore.activePanel === "library" && (
-				<Suspense fallback={null}>
-					<LibraryPanel
-						selectedElements={Array.from(selectedIds)
-							.map((id) => sync.elements.get(id))
-							.filter((el): el is NonNullable<typeof el> => !!el)}
-						onInsertElements={addElements}
-						getViewportCenter={getViewportCenter}
-						onClose={() => panelStore.setActivePanel(null)}
-					/>
-				</Suspense>
-			)}
 			{showEditorChrome && panelStore.activePanel === "wireframe" && (
 				<Suspense fallback={null}>
 					<WireframePanel
@@ -369,6 +394,38 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 							.map((id) => sync.elements.get(id))
 							.filter((el): el is NonNullable<typeof el> => !!el)}
 						onInsertElements={addElements}
+						onFitElements={fitElementsToViewport}
+						getViewportCenter={getViewportCenter}
+						onClose={() => panelStore.setActivePanel(null)}
+					/>
+				</Suspense>
+			)}
+			{showEditorChrome && panelStore.activePanel === "sequence-diagram" && (
+				<Suspense fallback={null}>
+					<SequenceDiagramPanel
+						elements={sync.elements}
+						selectedElements={Array.from(selectedIds)
+							.map((id) => sync.elements.get(id))
+							.filter((el): el is NonNullable<typeof el> => !!el)}
+						onApplyMutationPlan={sync.applyMutationPlan}
+						onHistoryBoundary={stopUndoCapture}
+						onSelectIds={panelStore.setSelectedIds}
+						onFitElements={fitElementsToViewport}
+						getViewportCenter={getViewportCenter}
+						onClose={() => panelStore.setActivePanel(null)}
+					/>
+				</Suspense>
+			)}
+			{showEditorChrome && panelStore.activePanel === "gantt" && (
+				<Suspense fallback={null}>
+					<GanttPanel
+						elements={sync.elements}
+						selectedIds={selectedIds}
+						onInsertElements={addElements}
+						onApplyMutationPlan={sync.applyMutationPlan}
+						onDeleteElements={sync.deleteElements}
+						onHistoryBoundary={stopUndoCapture}
+						onSelectIds={panelStore.setSelectedIds}
 						onFitElements={fitElementsToViewport}
 						getViewportCenter={getViewportCenter}
 						onClose={() => panelStore.setActivePanel(null)}

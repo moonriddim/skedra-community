@@ -24,3 +24,21 @@ const TOOLS_WITH_PROPERTIES = new Set<ToolType>([
 export function hasCanvasToolProperties(tool: ToolType): boolean {
 	return TOOLS_WITH_PROPERTIES.has(tool);
 }
+
+export function shouldShowCanvasProperties({
+	showEditorChrome,
+	localMode,
+	hasPropertyContext,
+	hasOnlyStructuredDiagramSelection,
+}: {
+	showEditorChrome: boolean;
+	localMode: boolean;
+	hasPropertyContext: boolean;
+	hasOnlyStructuredDiagramSelection: boolean;
+}): boolean {
+	return (
+		showEditorChrome &&
+		!hasOnlyStructuredDiagramSelection &&
+		(!localMode || hasPropertyContext)
+	);
+}

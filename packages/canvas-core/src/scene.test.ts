@@ -56,6 +56,37 @@ test("scene keeps selected elements visible outside viewport", () => {
 	);
 });
 
+test("scene patches geometry without replacing untouched elements", () => {
+	const scene = CanvasScene.from([element("a", 0), element("b", 20)]);
+	const previousA = scene.getElement("a");
+	const previousB = scene.getElement("b");
+	assert.ok(previousA);
+	assert.ok(previousB);
+	const nextA = { ...previousA, x: 40 };
+
+	const patched = scene.withElementChanges(new Map([["a", nextA]]));
+
+	assert.equal(patched.getElement("a"), nextA);
+	assert.equal(patched.getElement("b"), previousB);
+	assert.deepEqual(
+		patched.getSortedElements().map((item) => item.id),
+		["a", "b"],
+	);
+});
+
+test("scene bounds the exact-viewport visibility cache", () => {
+	const scene = CanvasScene.from([element("a", 0)]);
+	for (let x = 0; x < 100; x++) {
+		scene.getVisibleElements({ x, y: 0, width: 100, height: 100 }, new Set());
+	}
+	const cache = (
+		scene as unknown as {
+			visibleElementsCache: Map<string, CanvasElement[]>;
+		}
+	).visibleElementsCache;
+	assert.equal(cache.size, 32);
+});
+
 test("scene exposes cached rect, lasso and eraser selections", () => {
 	const scene = CanvasScene.from([
 		element("outside", 200),

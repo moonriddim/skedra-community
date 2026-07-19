@@ -3,6 +3,7 @@
  * Fuer den Gastmodus — zeichnen ohne Login, Speichern in der Cloud erst nach Anmeldung.
  */
 
+import { createCanvasYjsFrameSync } from "@/hooks/canvas-yjs-frame-sync";
 import {
 	buildReplaceAllHistoryEntry,
 	transactLocalUndo,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/canvas/local-canvas-storage";
 import { applySkedraFileToYDoc } from "@/lib/canvas/skedra-file-utils";
 import {
+	yjsApplyCanvasMutationPlan,
 	yjsCreateElement,
 	yjsCreateView,
 	yjsDeleteElement,
@@ -27,18 +29,18 @@ import {
 import {
 	applyYDocStateBase64,
 	encodeYDocStateBase64,
-	readCanvasMapsFromYDoc,
 	setCanvasBackgroundInYDoc,
 } from "@/lib/canvas/yjs-document-helpers";
 import type {
 	CanvasElement,
+	CanvasMutationPlan,
 	SavedCanvasView,
 	Viewport,
 } from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
 import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
 import type { CanvasRole } from "@skedra/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import type {
 	LocalCanvasPresence,
@@ -50,7 +52,6 @@ const LOCAL_SAVE_DEBOUNCE_MS = 400;
 export function useLocalCanvasSync(enabled = true) {
 	const ydocRef = useRef<Y.Doc | null>(null);
 	const saveTimerRef = useRef<number | null>(null);
-	const syncFrameRef = useRef<number | null>(null);
 	const [isConnected, setIsConnected] = useState(false);
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
@@ -89,44 +90,42 @@ export function useLocalCanvasSync(enabled = true) {
 		const yViews = ydoc.getMap<Y.Map<unknown>>("viewsMap");
 		const yAppState = ydoc.getMap<unknown>("appStateMap");
 
-		const syncFromYjs = () => {
-			const next = readCanvasMapsFromYDoc(ydoc);
-			setScene(CanvasScene.from(next.elements));
-			setViews(next.views);
-			setCanvasBgState(next.canvasBg);
+		const frameSync = createCanvasYjsFrameSync({
+			ydoc,
+			setScene,
+			setViews,
+			setCanvasBg: setCanvasBgState,
+		});
+		const elementsObserver: Parameters<typeof yElements.observeDeep>[0] = (
+			events,
+		) => {
+			frameSync.elementsObserver(events);
+			schedulePersist();
 		};
-
-		const scheduleSyncFromYjs = () => {
-			if (syncFrameRef.current != null) return;
-			syncFrameRef.current = window.requestAnimationFrame(() => {
-				syncFrameRef.current = null;
-				syncFromYjs();
-			});
+		const viewsObserver = () => {
+			frameSync.viewsObserver();
+			schedulePersist();
 		};
-
-		const observer = () => {
-			scheduleSyncFromYjs();
+		const appStateObserver = () => {
+			frameSync.appStateObserver();
 			schedulePersist();
 		};
 
-		yElements.observeDeep(observer);
-		yViews.observeDeep(observer);
-		yAppState.observeDeep(observer);
+		yElements.observeDeep(elementsObserver);
+		yViews.observeDeep(viewsObserver);
+		yAppState.observeDeep(appStateObserver);
 		ydoc.on("update", schedulePersist);
-		syncFromYjs();
+		frameSync.syncAll();
 		setIsConnected(true);
 
 		return () => {
 			if (saveTimerRef.current != null) {
 				window.clearTimeout(saveTimerRef.current);
 			}
-			if (syncFrameRef.current != null) {
-				window.cancelAnimationFrame(syncFrameRef.current);
-				syncFrameRef.current = null;
-			}
-			yElements.unobserveDeep(observer);
-			yViews.unobserveDeep(observer);
-			yAppState.unobserveDeep(observer);
+			frameSync.dispose();
+			yElements.unobserveDeep(elementsObserver);
+			yViews.unobserveDeep(viewsObserver);
+			yAppState.unobserveDeep(appStateObserver);
 			ydoc.destroy();
 			ydocRef.current = null;
 			setIsConnected(false);
@@ -169,6 +168,12 @@ export function useLocalCanvasSync(enabled = true) {
 		const ydoc = ydocRef.current;
 		if (!ydoc) return;
 		yjsDeleteElements(ydoc, ids);
+	}, []);
+
+	const applyMutationPlan = useCallback((plan: CanvasMutationPlan) => {
+		const ydoc = ydocRef.current;
+		if (!ydoc) return;
+		yjsApplyCanvasMutationPlan(ydoc, plan);
 	}, []);
 
 	const createView = useCallback((view: SavedCanvasView) => {
@@ -229,37 +234,63 @@ export function useLocalCanvasSync(enabled = true) {
 
 	const noopPresence = useCallback((_value?: unknown) => {}, []);
 
-	return {
-		isConnected: enabled ? isConnected : false,
-		isReadonly: false,
-		role: "editor" as CanvasRole,
-		scene,
-		elements,
-		views,
-		canvasBg,
-		connectionError: null,
-		remotePresence: [] as RemoteCanvasPresence[],
-		localPresence: null as LocalCanvasPresence | null,
-		createElement,
-		updateElement,
-		updateElements,
-		deleteElement,
-		deleteElements,
-		createView,
-		updateView,
-		deleteView,
-		setCanvasBg,
-		setPresenceSelection: noopPresence as (selection: string[]) => void,
-		setPresenceCursor: noopPresence as (
-			cursor: { x: number; y: number } | null,
-		) => void,
-		setPresenceViewport: noopPresence as (viewport: Viewport) => void,
-		setPresenceActiveView: noopPresence as (
-			activeViewId: string | null,
-		) => void,
-		getYDoc,
-		getStateBase64,
-		clearCanvas,
-		loadSkedraFile,
-	};
+	return useMemo(
+		() => ({
+			isConnected: enabled ? isConnected : false,
+			isReadonly: false,
+			role: "editor" as CanvasRole,
+			scene,
+			elements,
+			views,
+			canvasBg,
+			connectionError: null,
+			remotePresence: [] as RemoteCanvasPresence[],
+			localPresence: null as LocalCanvasPresence | null,
+			createElement,
+			updateElement,
+			updateElements,
+			deleteElement,
+			deleteElements,
+			applyMutationPlan,
+			createView,
+			updateView,
+			deleteView,
+			setCanvasBg,
+			setPresenceSelection: noopPresence as (selection: string[]) => void,
+			setPresenceCursor: noopPresence as (
+				cursor: { x: number; y: number } | null,
+			) => void,
+			setPresenceViewport: noopPresence as (viewport: Viewport) => void,
+			setPresenceActiveView: noopPresence as (
+				activeViewId: string | null,
+			) => void,
+			getYDoc,
+			getStateBase64,
+			clearCanvas,
+			loadSkedraFile,
+		}),
+		[
+			applyMutationPlan,
+			canvasBg,
+			clearCanvas,
+			createElement,
+			createView,
+			deleteElement,
+			deleteElements,
+			deleteView,
+			elements,
+			enabled,
+			getStateBase64,
+			getYDoc,
+			isConnected,
+			loadSkedraFile,
+			noopPresence,
+			scene,
+			setCanvasBg,
+			updateElement,
+			updateElements,
+			updateView,
+			views,
+		],
+	);
 }

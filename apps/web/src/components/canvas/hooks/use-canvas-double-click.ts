@@ -5,8 +5,12 @@
 import { readElementCustomData } from "@/lib/canvas/custom-data-utils";
 import {
 	type ArrowTextSide,
+	findGanttChartElement,
 	frameLabelHitTest,
 	getArrowTextSideFromPoint,
+	getGanttCanvasScrollbarThumbMeta,
+	getGanttChartId,
+	getSequenceDiagramElementMeta,
 	hitTest,
 	isCanvasFrameLabelEditable,
 	pathTextLabelHitTest,
@@ -14,16 +18,47 @@ import {
 import { getBBox } from "@skedra/canvas-core";
 import { isKanbanCard, isKanbanList } from "@skedra/canvas-core";
 import type { CanvasElement, CanvasScene } from "@skedra/canvas-core";
+import { expandCanvasEditorAtomicSelectionIds } from "@skedra/canvas-editor";
 import { type RefObject, useCallback } from "react";
 import { isTextEditableElement } from "./use-canvas-text-editing";
 
 interface CanvasStoreSlice {
 	activeTool: string;
+	activePanel: string | null;
 	selectedIds: Set<string>;
 	viewport: { x: number; y: number; zoom: number };
 	setSelectedIds: (ids: Set<string>) => void;
 	setEditingTextId: (id: string | null) => void;
 	setCroppingImageId: (id: string | null) => void;
+	setActivePanel: (panel: "gantt" | "sequence-diagram") => void;
+}
+
+type StructuredToolPanel = "gantt" | "sequence-diagram";
+
+function getStructuredToolPanel(
+	element: CanvasElement | null | undefined,
+): StructuredToolPanel | null {
+	if (getGanttChartId(element) || getGanttCanvasScrollbarThumbMeta(element)) {
+		return "gantt";
+	}
+	if (getSequenceDiagramElementMeta(element)) return "sequence-diagram";
+	return null;
+}
+
+function getStructuredToolAtPosition(
+	scene: CanvasScene,
+	canvasX: number,
+	canvasY: number,
+): { element: CanvasElement; panel: StructuredToolPanel } | null {
+	for (const element of scene.getHitTestOrderedElements()) {
+		const hit =
+			frameLabelHitTest(element, canvasX, canvasY) ||
+			hitTest(element, canvasX, canvasY, { pathTextLabelHitTest });
+		if (!hit) continue;
+		const panel = getStructuredToolPanel(element);
+		return panel ? { element, panel } : null;
+	}
+	return null;
 }
 
 interface UseCanvasDoubleClickOptions {
@@ -275,6 +310,39 @@ export function useCanvasDoubleClick({
 			const canvasY =
 				(e.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
 
+			/* Structured diagrams reopen their editor instead of a shape text field. */
+			const eventElement = getEventElement(e.target);
+			const eventPanel = getStructuredToolPanel(eventElement);
+			const structuredTool = eventPanel
+				? { element: eventElement as CanvasElement, panel: eventPanel }
+				: getStructuredToolAtPosition(scene, canvasX, canvasY);
+			if (structuredTool) {
+				const selectionTarget =
+					structuredTool.panel === "gantt"
+						? (findGanttChartElement(
+								scene.getSortedElements(),
+								structuredTool.element,
+							) ?? structuredTool.element)
+						: structuredTool.element;
+				const diagramElements = new Map(
+					scene
+						.getSortedElements()
+						.map((element) => [element.id, element] as const),
+				);
+				store.setSelectedIds(
+					expandCanvasEditorAtomicSelectionIds(
+						new Set([selectionTarget.id]),
+						diagramElements,
+					),
+				);
+				if (store.activePanel !== structuredTool.panel) {
+					store.setActivePanel(structuredTool.panel);
+				}
+				e.preventDefault();
+				e.stopPropagation();
+				return;
+			}
+
 			/* Selektierte Kanban-Karten zuerst: Griffe/Rand koennen sonst die Liste treffen. */
 			if (
 				openSelectedKanbanAtPosition(
@@ -323,7 +391,7 @@ export function useCanvasDoubleClick({
 				return;
 			}
 
-			const targetElement = getEventElement(e.target);
+			const targetElement = eventElement;
 			if (
 				targetElement &&
 				openKanbanFromElement(

@@ -34,11 +34,11 @@ export function usePointerSnapPlacement({
 
 	const clearSnapVisuals = useCallback(() => {
 		const snapState = useCanvasStore.getState();
-		if (snapState.snapGuides.length > 0) {
-			snapState.setSnapGuides([]);
-		}
-		if (snapState.snapPointIndicators.length > 0) {
-			snapState.setSnapPointIndicators([]);
+		if (
+			snapState.snapGuides.length > 0 ||
+			snapState.snapPointIndicators.length > 0
+		) {
+			snapState.setSnapVisuals([], []);
 		}
 	}, []);
 
@@ -76,8 +76,7 @@ export function usePointerSnapPlacement({
 				y = snap.rect.y;
 				centerX = x + width / 2;
 				centerY = y + height / 2;
-				snapState.setSnapGuides(snap.guides);
-				snapState.setSnapPointIndicators(snap.indicators);
+				snapState.setSnapVisuals(snap.guides, snap.indicators);
 			} else {
 				clearSnapVisuals();
 			}
@@ -150,12 +149,12 @@ export function usePointerSnapPlacement({
 					includeInsertions:
 						overrideOptions?.includeInsertions ?? store.snapToInsertions,
 					showInactivePoints: store.showSnapPoints,
+					alignWithoutAnchor: false,
 					threshold: 12 / Math.max(store.viewport.zoom, 0.01),
 				},
 				forceAnchor: options?.forceAnchor,
 			});
-			store.setSnapPointIndicators(snap.indicators);
-			store.setSnapGuides(snap.anchor ? snap.guides : []);
+			store.setSnapVisuals(snap.anchor ? snap.guides : [], snap.indicators);
 			const resolvedPoint = resolveCanvasEditorPlacementPoint(snap, {
 				x: gridX,
 				y: gridY,

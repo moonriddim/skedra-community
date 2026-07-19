@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { CanvasSearchMatch } from "@skedra/canvas-core";
 import { ChevronDown, ChevronUp, Frame, Search, Type, X } from "lucide-react";
 import {
@@ -12,6 +13,7 @@ import {
 
 interface CanvasFindOnCanvasProps {
 	open: boolean;
+	embedded?: boolean;
 	query: string;
 	matches: readonly CanvasSearchMatch[];
 	activeIndex: number | null;
@@ -41,6 +43,7 @@ function MatchPreview({ match }: { match: CanvasSearchMatch }) {
 
 export function CanvasFindOnCanvas({
 	open,
+	embedded = false,
 	query,
 	matches,
 	activeIndex,
@@ -144,25 +147,37 @@ export function CanvasFindOnCanvas({
 
 	return (
 		<aside
-			className="absolute right-3 top-14 z-50 flex max-h-[min(34rem,calc(100%-5rem))] w-[min(22rem,calc(100%-1.5rem))] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-2xl backdrop-blur-md max-sm:left-3 max-sm:right-3 max-sm:w-auto"
+			className={cn(
+				"flex min-h-0 flex-col overflow-hidden text-card-foreground",
+				embedded
+					? "h-full bg-card"
+					: "absolute right-3 top-14 z-50 max-h-[min(34rem,calc(100%-5rem))] w-[min(22rem,calc(100%-1.5rem))] rounded-xl border border-border bg-card/95 shadow-2xl backdrop-blur-md max-sm:left-3 max-sm:right-3 max-sm:w-auto",
+			)}
 			aria-label={t("canvas.findOnCanvas.title")}
 			onKeyDownCapture={handleSearchKeyDown}
 		>
-			<header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-				<Search className="h-4 w-4 text-muted-foreground" />
-				<h2 className="flex-1 text-sm font-semibold">
-					{t("canvas.findOnCanvas.title")}
-				</h2>
-				<button
-					type="button"
-					className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-					onClick={() => onOpenChange(false)}
-					aria-label={t("canvas.findOnCanvas.close")}
-				>
-					<X className="h-4 w-4" />
-				</button>
-			</header>
-			<div className="p-3">
+			{!embedded && (
+				<header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+					<Search className="h-4 w-4 text-muted-foreground" />
+					<h2 className="flex-1 text-sm font-semibold">
+						{t("canvas.findOnCanvas.title")}
+					</h2>
+					<button
+						type="button"
+						className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+						onClick={() => onOpenChange(false)}
+						aria-label={t("canvas.findOnCanvas.close")}
+					>
+						<X className="h-4 w-4" />
+					</button>
+				</header>
+			)}
+			<div className={cn("p-3", embedded && "px-4 py-4")}>
+				{embedded && (
+					<h2 className="mb-3 text-base font-semibold text-foreground">
+						{t("canvas.findOnCanvas.title")}
+					</h2>
+				)}
 				<Input
 					ref={inputRef}
 					value={query}

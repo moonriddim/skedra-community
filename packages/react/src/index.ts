@@ -43,6 +43,7 @@ export {
 export { SkedraPropertiesPanel } from "./properties-panel.js";
 export {
 	SkedraContextMenu,
+	SkedraGanttPanel,
 	SkedraLayerPanel,
 	SkedraSnapMenu,
 	SkedraWireframePanel,
@@ -54,6 +55,7 @@ export {
 } from "./workspace-hooks.js";
 export {
 	SKEDRA_TEMPLATES,
+	SKEDRA_SEQUENCE_DIAGRAM_EXAMPLE,
 	SKEDRA_WIREFRAME_BLANK_PRESET_IDS,
 	SKEDRA_WIREFRAME_COMPONENT_CATEGORIES,
 	SKEDRA_WIREFRAME_COMPONENT_IDS,
@@ -61,9 +63,12 @@ export {
 	SKEDRA_WIREFRAME_STARTER_PRESET_IDS,
 	createSkedraElementId,
 	createSkedraFrameElement,
+	createSkedraGanttChartElements,
 	createSkedraKanbanBoardElements,
 	createSkedraKanbanCardElement,
 	createSkedraMindmapElements,
+	createSkedraSequenceDiagramElements,
+	createSkedraVisualSequenceDiagramElements,
 	createSkedraStickyNoteElement,
 	createSkedraTemplateElements,
 	createSkedraTemplateSectionFrame,
@@ -71,6 +76,7 @@ export {
 	createSkedraWireframePresetElements,
 	createSkedraWireframeScreenElements,
 	getSkedraElementFactoryDefaults,
+	getSkedraSequenceDiagramAppearance,
 	withSkedraStackIndexes,
 } from "./factories.js";
 export type {
@@ -116,6 +122,8 @@ export type {
 	SkedraCanvasElementUpdate,
 	SkedraContextMenuProps,
 	SkedraEditorTranslate,
+	SkedraGanttChartOption,
+	SkedraGanttPanelProps,
 	SkedraLayerPanelProps,
 	SkedraLayerReorderPosition,
 	SkedraObjectSnapModeState,
@@ -139,9 +147,12 @@ export type {
 
 export type {
 	CreateSkedraFrameOptions,
+	CreateSkedraGanttChartOptions,
 	CreateSkedraKanbanBoardOptions,
 	CreateSkedraKanbanCardOptions,
 	CreateSkedraMindmapOptions,
+	CreateSkedraSequenceDiagramOptions,
+	CreateSkedraVisualSequenceDiagramOptions,
 	CreateSkedraStickyNoteOptions,
 	CreateSkedraTemplateElementsOptions,
 	CreateSkedraTemplateSectionFrameOptions,
@@ -150,9 +161,19 @@ export type {
 	CreateSkedraWireframeScreenOptions,
 	SkedraElementFactoryDefaults,
 	SkedraFactoryOptions,
+	SkedraGanttAppearance,
+	SkedraGanttChartDocument,
+	SkedraGanttDependency,
+	SkedraGanttDependencyKind,
+	SkedraGanttTask,
+	SkedraGanttBuiltInTaskCategory,
+	SkedraGanttTaskCategory,
+	SkedraGanttTaskStatus,
 	SkedraSdkResolvedTheme,
 	SkedraSdkTemplateId,
 	SkedraSdkThemeState,
+	SkedraSequenceDiagramAppearance,
+	SkedraSequenceVisualPreset,
 	SkedraTemplateDefinition,
 	SkedraWireframeChrome,
 	SkedraWireframeComponentId,

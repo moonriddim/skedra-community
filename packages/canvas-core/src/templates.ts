@@ -9,6 +9,11 @@ import {
 	createFlowchartConnector,
 	createFlowchartNode,
 } from "./flowchart";
+import {
+	type CreateGanttChartOptions,
+	createGanttChartElements,
+	getGanttChartSize,
+} from "./gantt";
 import { createMindmapTemplateElements } from "./mindmap";
 import { sortCanvasElements } from "./ordering";
 import type { CanvasElement } from "./types";
@@ -16,6 +21,7 @@ import { createWireframeTemplateElements } from "./wireframe";
 
 export type CanvasTemplateId =
 	| "kanban"
+	| "gantt"
 	| "mindmap"
 	| "flowchart"
 	| "retrospective"
@@ -88,6 +94,7 @@ export interface CanvasTemplateOptions {
 		rootTextColor?: string;
 		childTextColor?: string;
 	};
+	gantt?: Omit<CreateGanttChartOptions, "x" | "y">;
 }
 
 const ENGLISH_TEMPLATE_TEXT: Record<string, string> = {
@@ -104,6 +111,13 @@ const ENGLISH_TEMPLATE_TEXT: Record<string, string> = {
 	"flowchart.openPoints": "Open points",
 	"flowchart.yes": "Yes",
 	"flowchart.no": "No",
+	"gantt.title": "Project timeline",
+	"gantt.taskColumn": "Task",
+	"gantt.discovery": "Discovery",
+	"gantt.design": "Design",
+	"gantt.implementation": "Implementation",
+	"gantt.quality": "Quality assurance",
+	"gantt.launch": "Launch",
 	"retrospective.celebrateTitle": "Celebrate",
 	"retrospective.frictionTitle": "Friction",
 	"retrospective.commitmentTitle": "Commitments",
@@ -188,6 +202,8 @@ export function createCanvasTemplateElements(
 				],
 				defaultCardTitle: options.defaultKanbanCardTitle ?? "New card",
 			});
+		case "gantt":
+			return createGanttTemplate(options);
 		case "mindmap":
 			return createMindmapTemplate(options);
 		case "flowchart":
@@ -199,6 +215,25 @@ export function createCanvasTemplateElements(
 		case "wireframe":
 			return createWireframeTemplateElements(options);
 	}
+}
+
+function createGanttTemplate(options: CanvasTemplateOptions) {
+	const gantt = options.gantt ?? {};
+	const size = getGanttChartSize({
+		dayCount: gantt.dayCount,
+		dayWidth: gantt.dayWidth,
+		labelWidth: gantt.labelWidth,
+		rowHeight: gantt.rowHeight,
+		headerHeight: gantt.headerHeight,
+		tasks: gantt.tasks,
+	});
+	return createGanttChartElements(options.defaults, {
+		...gantt,
+		x: options.x - size.width / 2,
+		y: options.y - size.height / 2,
+		fontFamily: gantt.fontFamily ?? options.fontFamily,
+		text: gantt.text ?? options.text,
+	});
 }
 
 function resolveTemplateText(options: CanvasTemplateOptions, key: string) {

@@ -255,6 +255,7 @@ export function usePresentationCanvasSync(options: {
 			updateElements: noOp,
 			deleteElement: noOp,
 			deleteElements: noOp,
+			applyMutationPlan: noOp,
 			createView: noOp,
 			updateView: noOp,
 			deleteView: noOp,

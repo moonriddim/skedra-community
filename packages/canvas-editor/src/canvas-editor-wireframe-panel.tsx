@@ -34,6 +34,7 @@ import {
 	X,
 } from "lucide-react";
 import { type CSSProperties, useMemo, useState } from "react";
+import { useCanvasEditorFloatingPanel } from "./use-canvas-editor-floating-panel";
 
 export type CanvasEditorWireframeTranslate = (
 	key: string,
@@ -121,6 +122,7 @@ export function CanvasEditorWireframePanel({
 	onInsertComponent,
 	onClose,
 }: CanvasEditorWireframePanelProps) {
+	const floatingPanel = useCanvasEditorFloatingPanel();
 	const [activeTab, setActiveTab] = useState<WireframePanelTab>("screens");
 	const [query, setQuery] = useState("");
 	const [pinned, setPinned] = useState(false);
@@ -147,6 +149,7 @@ export function CanvasEditorWireframePanel({
 
 	return (
 		<aside
+			ref={floatingPanel.panelRef}
 			data-pinned={pinned}
 			className={joinClasses(
 				"canvas-editor__wireframe-panel absolute left-4 top-14 z-40 flex w-[min(100vw-2rem,360px)] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:top-[calc(8rem+env(safe-area-inset-top))] max-lg:max-h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right),360px)]",
@@ -155,10 +158,13 @@ export function CanvasEditorWireframePanel({
 					: "h-[min(72vh,700px)]",
 				className,
 			)}
-			style={style}
+			style={{ ...style, ...floatingPanel.panelStyle }}
 			aria-label={t("wireframePanel.title", "Wireframes")}
 		>
-			<header className="canvas-editor__panel-header flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5">
+			<header
+				className="canvas-editor__panel-header flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5"
+				{...floatingPanel.dragHandleProps}
+			>
 				<PanelsTopLeft className="canvas-editor__panel-title-icon h-4 w-4 shrink-0 text-primary" />
 				<div className="canvas-editor__panel-heading min-w-0 flex-1">
 					<h3 className="canvas-editor__panel-title truncate text-sm font-semibold">

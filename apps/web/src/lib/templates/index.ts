@@ -14,6 +14,7 @@ import {
 } from "@skedra/canvas-core";
 import * as Y from "yjs";
 import { createFlowchartTemplate } from "./flowchart";
+import { createGanttTemplate } from "./gantt";
 import { createMindmapTemplate } from "./mindmap";
 import { createRetrospectiveTemplate } from "./retrospective";
 import { createSwotTemplate } from "./swot";
@@ -61,6 +62,14 @@ export const TEMPLATES: WhiteboardTemplate[] = [
 		description: "Klare Prozesskette mit Entscheidungspfaden",
 		icon: "📊",
 		create: (cx, cy, theme) => createFlowchartTemplate(cx, cy, { theme }),
+	},
+	{
+		id: "gantt",
+		name: "Gantt-Diagramm",
+		description:
+			"Projektzeitplan mit Aufgaben, Fortschritt, Meilensteinen und Abhängigkeiten",
+		icon: "▥",
+		create: (cx, cy, theme) => createGanttTemplate(cx, cy, theme),
 	},
 	{
 		id: "wireframe",

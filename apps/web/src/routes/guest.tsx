@@ -55,6 +55,7 @@ export function GuestCanvasPage() {
 	const canvasCommandRef = useRef<CanvasCommands | null>(null);
 	const [elementCount, setElementCount] = useState(0);
 	const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+	const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
 	const [liveCollabDialogOpen, setLiveCollabDialogOpen] = useState(false);
 	const [clearDialogOpen, setClearDialogOpen] = useState(false);
 	const [boardName, setBoardName] = useState("");
@@ -224,6 +225,8 @@ export function GuestCanvasPage() {
 					onClearCanvas={() => setClearDialogOpen(true)}
 					onOpenHelp={openHelp}
 					onOpenLiveCollaboration={handleLiveCollaborationClick}
+					workspacePanelOpen={workspacePanelOpen}
+					onToggleWorkspacePanel={() => setWorkspacePanelOpen((open) => !open)}
 				/>
 			)}
 
@@ -241,6 +244,9 @@ export function GuestCanvasPage() {
 					canvasFileRef={canvasFileRef}
 					canvasCommandRef={canvasCommandRef}
 					helpGuestMode
+					workspacePanelOpen={workspacePanelOpen}
+					onWorkspacePanelOpenChange={setWorkspacePanelOpen}
+					onOpenShare={handleSaveClick}
 					onRequestClearCanvas={() => setClearDialogOpen(true)}
 					onElementCountChange={setElementCount}
 					presenceEnabled={false}

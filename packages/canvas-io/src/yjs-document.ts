@@ -69,24 +69,32 @@ export function normalizeCanvasElementsForRead(
 	return normalizeCanvasElementStackIndexes(elements);
 }
 
-export function readCanvasMapsFromYDoc(ydoc: Y.Doc) {
-	const yElements = ydoc.getMap<Y.Map<unknown>>(CANVAS_ELEMENTS_MAP_KEY);
-	const yViews = ydoc.getMap<Y.Map<unknown>>(CANVAS_VIEWS_MAP_KEY);
-	const yAppState = ydoc.getMap<unknown>(CANVAS_APP_STATE_MAP_KEY);
+export function readCanvasElementFromYMap(
+	id: string,
+	yElement: Y.Map<unknown>,
+): CanvasElement | null {
+	return decodeCanvasElement({
+		...yMapToObject<Record<string, unknown>>(yElement),
+		id,
+	});
+}
 
+export function readCanvasElementsFromYDoc(ydoc: Y.Doc) {
+	const yElements = ydoc.getMap<Y.Map<unknown>>(CANVAS_ELEMENTS_MAP_KEY);
 	const elements = new Map<string, CanvasElement>();
 	const rawElements: CanvasElement[] = [];
-	yElements.forEach((yEl, id) => {
-		const element = decodeCanvasElement({
-			...yMapToObject<Record<string, unknown>>(yEl),
-			id,
-		});
+	yElements.forEach((yElement, id) => {
+		const element = readCanvasElementFromYMap(id, yElement);
 		if (element) rawElements.push(element);
 	});
 	for (const element of normalizeCanvasElementsForRead(rawElements)) {
 		elements.set(element.id, element);
 	}
+	return elements;
+}
 
+export function readCanvasViewsFromYDoc(ydoc: Y.Doc) {
+	const yViews = ydoc.getMap<Y.Map<unknown>>(CANVAS_VIEWS_MAP_KEY);
 	const views = new Map<string, SavedCanvasView>();
 	yViews.forEach((yView, id) => {
 		const view = decodeSavedCanvasView({
@@ -95,9 +103,19 @@ export function readCanvasMapsFromYDoc(ydoc: Y.Doc) {
 		});
 		if (view) views.set(id, view);
 	});
+	return views;
+}
 
+export function readCanvasBackgroundFromYDoc(ydoc: Y.Doc) {
+	const yAppState = ydoc.getMap<unknown>(CANVAS_APP_STATE_MAP_KEY);
 	const storedCanvasBg = yAppState.get("canvasBg");
-	const canvasBg = typeof storedCanvasBg === "string" ? storedCanvasBg : "";
+	return typeof storedCanvasBg === "string" ? storedCanvasBg : "";
+}
+
+export function readCanvasMapsFromYDoc(ydoc: Y.Doc) {
+	const elements = readCanvasElementsFromYDoc(ydoc);
+	const views = readCanvasViewsFromYDoc(ydoc);
+	const canvasBg = readCanvasBackgroundFromYDoc(ydoc);
 	return { elements, views, canvasBg };
 }
 

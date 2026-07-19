@@ -4,12 +4,11 @@
 
 import { CanvasCommandPalette } from "@/components/canvas/canvas-command-palette";
 import type { CanvasCommand } from "@/components/canvas/canvas-command-registry";
-import { CanvasFindOnCanvas } from "@/components/canvas/canvas-find-on-canvas";
 import { CanvasFooter } from "@/components/canvas/canvas-footer";
 import { useI18n } from "@/lib/i18n";
 import type {
 	CanvasElement,
-	CanvasSearchMatch,
+	CanvasMutationPlan,
 	SavedCanvasView,
 } from "@skedra/canvas-core";
 import { Sparkles } from "lucide-react";
@@ -55,18 +54,12 @@ interface SkedraCanvasChromeProps {
 	commandPaletteOpen: boolean;
 	onCommandPaletteOpenChange: (open: boolean) => void;
 	commandPaletteCommands: CanvasCommand[];
-	canvasSearchOpen: boolean;
-	canvasSearchQuery: string;
-	canvasSearchMatches: readonly CanvasSearchMatch[];
-	canvasSearchActiveIndex: number | null;
-	onCanvasSearchOpenChange: (open: boolean) => void;
-	onCanvasSearchQueryChange: (query: string) => void;
-	onCanvasSearchActiveIndexChange: (index: number) => void;
-	onCanvasSearchNext: () => void;
-	onCanvasSearchPrevious: () => void;
 	aiPanelOpen: boolean;
 	onAiPanelOpenChange: (open: boolean) => void;
 	onAddElements: (elements: CanvasElement[]) => void;
+	elements: Map<string, CanvasElement>;
+	selectedElements: CanvasElement[];
+	onApplyMutationPlan: (plan: CanvasMutationPlan) => void;
 	onToggleZenMode: () => void;
 	presenterNotesOpen: boolean;
 	onPresenterNotesOpenChange: (open: boolean) => void;
@@ -108,18 +101,12 @@ export function SkedraCanvasChrome({
 	commandPaletteOpen,
 	onCommandPaletteOpenChange,
 	commandPaletteCommands,
-	canvasSearchOpen,
-	canvasSearchQuery,
-	canvasSearchMatches,
-	canvasSearchActiveIndex,
-	onCanvasSearchOpenChange,
-	onCanvasSearchQueryChange,
-	onCanvasSearchActiveIndexChange,
-	onCanvasSearchNext,
-	onCanvasSearchPrevious,
 	aiPanelOpen,
 	onAiPanelOpenChange,
 	onAddElements,
+	elements,
+	selectedElements,
+	onApplyMutationPlan,
 	onToggleZenMode,
 	presenterNotesOpen,
 	onPresenterNotesOpenChange,
@@ -164,18 +151,6 @@ export function SkedraCanvasChrome({
 				open={commandPaletteOpen}
 				onOpenChange={onCommandPaletteOpenChange}
 				commands={commandPaletteCommands}
-			/>
-
-			<CanvasFindOnCanvas
-				open={canvasSearchOpen}
-				query={canvasSearchQuery}
-				matches={canvasSearchMatches}
-				activeIndex={canvasSearchActiveIndex}
-				onOpenChange={onCanvasSearchOpenChange}
-				onQueryChange={onCanvasSearchQueryChange}
-				onActiveIndexChange={onCanvasSearchActiveIndexChange}
-				onNext={onCanvasSearchNext}
-				onPrevious={onCanvasSearchPrevious}
 			/>
 
 			{!presentationMode && !presenterMode && !zenMode && !localMode && (
@@ -269,7 +244,8 @@ export function SkedraCanvasChrome({
 					<>
 						<button
 							type="button"
-							onClick={() => onAiPanelOpenChange(true)}
+							onClick={() => onAiPanelOpenChange(!aiPanelOpen)}
+							aria-expanded={aiPanelOpen}
 							className="absolute bottom-3 left-3 z-40 flex items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-1.5 text-sm font-medium shadow-xl backdrop-blur-md hover:bg-card max-lg:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:min-h-11"
 						>
 							<Sparkles className="h-4 w-4 text-primary" />
@@ -282,6 +258,9 @@ export function SkedraCanvasChrome({
 									whiteboardId={whiteboardId}
 									onClose={() => onAiPanelOpenChange(false)}
 									onAddElements={onAddElements}
+									elements={elements}
+									selectedElements={selectedElements}
+									onApplyMutationPlan={onApplyMutationPlan}
 								/>
 							</Suspense>
 						)}

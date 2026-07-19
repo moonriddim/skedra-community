@@ -1,4 +1,3 @@
-import { BoardActivityOverlay } from "@/components/board";
 import { BoardAppearanceMenu } from "@/components/board/board-appearance-menu";
 import { RoleBadge } from "@/components/team/role-badge";
 import { RolePermissionsSummary } from "@/components/team/role-permissions-editor";
@@ -21,7 +20,6 @@ import {
 import { BoardShareMembersList } from "@/components/whiteboard/board-share-members-list";
 import type { PendingCommentPlacement } from "@/components/whiteboard/canvas-comment-layer";
 import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard-comment-types";
-import { WhiteboardCommentsPanel } from "@/components/whiteboard/whiteboard-comments-panel";
 import { getApiUrl } from "@/lib/api-url";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -45,12 +43,10 @@ import {
 	Code2,
 	Copy,
 	ExternalLink,
-	History,
 	Loader2,
-	MessageSquare,
 	MonitorPlay,
+	PanelRightOpen,
 	RefreshCcw,
-	Share2,
 	ShieldCheck,
 } from "lucide-react";
 import {
@@ -101,13 +97,12 @@ export function BoardPage() {
 	};
 	const normalBoardHref = buildBoardModeHref();
 	const preparationBoardHref = buildBoardModeHref("prepare");
-	const presenterBoardHref = buildBoardModeHref("present");
 	const { t } = useI18n();
 	const { data: session } = authClient.useSession();
 	const utils = trpc.useUtils();
 	const [copied, setCopied] = useState(false);
-	const [commentsOpen, setCommentsOpen] = useState(false);
-	const [activityOpen, setActivityOpen] = useState(false);
+	const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
+	const [shareDialogOpen, setShareDialogOpen] = useState(false);
 	const [inviteEmail, setInviteEmail] = useState("");
 	const [inviteRoleId, setInviteRoleId] = useState("");
 	const [inviteLink, setInviteLink] = useState("");
@@ -930,60 +925,24 @@ export function BoardPage() {
 				<div className="absolute right-4 top-4 z-50 flex items-center gap-2 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))] max-lg:gap-1">
 					<BoardAppearanceMenu />
 
-					{canViewActivity ? (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon"
-									className={`h-9 w-9 backdrop-blur-md max-lg:h-11 max-lg:w-11 ${
-										activityOpen
-											? "border-primary bg-primary/10 text-primary"
-											: "bg-card/90"
-									}`}
-									aria-label={t("whiteboardPage.activity.open")}
-									aria-pressed={activityOpen}
-									onClick={() => {
-										setActivityOpen((open) => {
-											if (!open) setCommentsOpen(false);
-											return !open;
-										});
-									}}
-								>
-									<History className="h-4 w-4" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								{t("whiteboardPage.activity.open")}
-							</TooltipContent>
-						</Tooltip>
-					) : null}
-
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								variant="outline"
 								size="icon"
 								className={`h-9 w-9 backdrop-blur-md max-lg:h-11 max-lg:w-11 ${
-									commentsOpen
+									workspacePanelOpen
 										? "border-primary bg-primary/10 text-primary"
 										: "bg-card/90"
 								}`}
-								aria-label={t("whiteboardPage.comments.label")}
-								aria-pressed={commentsOpen}
-								onClick={() => {
-									setCommentsOpen((open) => {
-										if (!open) setActivityOpen(false);
-										return !open;
-									});
-								}}
+								aria-label={t("canvas.workspace.open")}
+								aria-pressed={workspacePanelOpen}
+								onClick={() => setWorkspacePanelOpen((open) => !open)}
 							>
-								<MessageSquare className="h-4 w-4" />
+								<PanelRightOpen className="h-4 w-4" />
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>
-							{t("whiteboardPage.comments.label")}
-						</TooltipContent>
+						<TooltipContent>{t("canvas.workspace.open")}</TooltipContent>
 					</Tooltip>
 
 					{callsConfig?.enabled ? (
@@ -1029,19 +988,7 @@ export function BoardPage() {
 						</Dialog>
 					) : null}
 
-					<Dialog>
-						<DialogTrigger asChild>
-							<Button
-								variant="outline"
-								size="sm"
-								className="bg-card/90 backdrop-blur-md max-lg:h-11 max-lg:w-11 max-lg:p-0"
-							>
-								<Share2 className="mr-2 h-4 w-4 max-lg:mr-0" />
-								<span className="max-lg:sr-only">
-									{t("whiteboardPage.share.title")}
-								</span>
-							</Button>
-						</DialogTrigger>
+					<Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
 						<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
 							<DialogHeader>
 								<DialogTitle>{t("whiteboardPage.share.title")}</DialogTitle>
@@ -1642,46 +1589,17 @@ export function BoardPage() {
 							</Link>
 						</Button>
 					) : presentationPreparationMode ? (
-						<>
-							<Button
-								asChild
-								variant="outline"
-								size="sm"
-								className="bg-card/90 backdrop-blur-md"
-							>
-								<Link to={normalBoardHref}>
-									{t("whiteboardPage.presenter.exitPreparation")}
-								</Link>
-							</Button>
-							{isOwner && (
-								<Button
-									variant="outline"
-									size="sm"
-									className="bg-card/90 backdrop-blur-md"
-									asChild
-								>
-									<Link to={presenterBoardHref}>
-										<MonitorPlay className="mr-2 h-4 w-4" />
-										{t("whiteboardPage.presenter.title")}
-									</Link>
-								</Button>
-							)}
-						</>
-					) : (
-						isOwner && (
-							<Button
-								variant="outline"
-								size="sm"
-								className="bg-card/90 backdrop-blur-md"
-								asChild
-							>
-								<Link to={preparationBoardHref}>
-									<MonitorPlay className="mr-2 h-4 w-4" />
-									{t("whiteboardPage.presenter.prepare")}
-								</Link>
-							</Button>
-						)
-					)}
+						<Button
+							asChild
+							variant="outline"
+							size="sm"
+							className="bg-card/90 backdrop-blur-md"
+						>
+							<Link to={normalBoardHref}>
+								{t("whiteboardPage.presenter.exitPreparation")}
+							</Link>
+						</Button>
+					) : null}
 				</div>
 			</TooltipProvider>
 
@@ -1816,6 +1734,7 @@ export function BoardPage() {
 					}
 					onStartPresentation={handleStartPresentation}
 					onEndPresentation={handleEndPresentation}
+					onOpenPresentationPreparation={() => navigate(preparationBoardHref)}
 					onCancelPresentationPreparation={() =>
 						navigate(normalBoardHref, { replace: true })
 					}
@@ -1823,8 +1742,18 @@ export function BoardPage() {
 						setPresenterSessionId(null);
 						setPresenterStartedAt(null);
 					}}
+					workspacePanelOpen={workspacePanelOpen}
+					onWorkspacePanelOpenChange={setWorkspacePanelOpen}
+					onOpenShare={() => setShareDialogOpen(true)}
+					activity={
+						canViewActivity
+							? { whiteboardId: boardId, whiteboardName: board.name }
+							: undefined
+					}
 					focusCanvasPointRef={focusCanvasPointRef}
 					comments={{
+						whiteboardName: board.name,
+						isLoading: commentsLoading,
 						threads,
 						selectedThreadId,
 						pendingPlacement: pendingCommentPlacement,
@@ -1836,7 +1765,10 @@ export function BoardPage() {
 						canComment,
 						isSending: commentMutationPending,
 						deletingMessageId,
-						onSelectThread: setSelectedThreadId,
+						onSelectThread: (threadId) => {
+							if (threadId) handleSelectThreadFromPanel(threadId);
+							else setSelectedThreadId(null);
+						},
 						onCanvasClick: handleCanvasCommentClick,
 						onCreateThread: handleCreateThread,
 						onReply: (threadId, body) =>
@@ -1857,40 +1789,22 @@ export function BoardPage() {
 							setPendingCommentPlacement(null);
 							setCommentPlacementActive(false);
 						},
+						onPanelOpenChange: (open) => {
+							if (!open) {
+								setCommentPlacementActive(false);
+								setPendingCommentPlacement(null);
+							}
+						},
+						onToggleShowResolved: () =>
+							setShowResolvedComments((current) => !current),
+						onStartPlacement: () => {
+							setCommentPlacementActive(true);
+							setPendingCommentPlacement(null);
+							setSelectedThreadId(null);
+						},
 					}}
 				/>
 			</Suspense>
-
-			<WhiteboardCommentsPanel
-				open={commentsOpen}
-				whiteboardName={board.name}
-				threads={threads}
-				selectedThreadId={selectedThreadId}
-				showResolved={showResolvedComments}
-				placementActive={commentPlacementActive}
-				isLoading={commentsLoading}
-				onClose={() => {
-					setCommentsOpen(false);
-					setCommentPlacementActive(false);
-					setPendingCommentPlacement(null);
-				}}
-				onSelectThread={handleSelectThreadFromPanel}
-				onToggleShowResolved={() =>
-					setShowResolvedComments((current) => !current)
-				}
-				onStartPlacement={() => {
-					setCommentPlacementActive(true);
-					setPendingCommentPlacement(null);
-					setSelectedThreadId(null);
-				}}
-			/>
-
-			<BoardActivityOverlay
-				open={activityOpen}
-				whiteboardId={boardId}
-				whiteboardName={board.name}
-				onClose={() => setActivityOpen(false)}
-			/>
 		</div>
 	);
 }

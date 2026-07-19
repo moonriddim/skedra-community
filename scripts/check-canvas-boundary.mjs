@@ -190,6 +190,11 @@ const sharedInteractionConsumers = [
 	],
 	["packages/react/src/editor-panels.tsx", "CanvasEditorWireframePanel"],
 	[
+		"apps/web/src/components/canvas/sequence-diagram-panel.tsx",
+		"CanvasEditorSequenceDiagramPanel",
+	],
+	["packages/react/src/skedra-canvas.tsx", "CanvasEditorSequenceDiagramPanel"],
+	[
 		"apps/web/src/components/canvas/context-menu.tsx",
 		"CanvasEditorContextMenu",
 	],

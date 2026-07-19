@@ -5,11 +5,25 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiElementsToCanvasElements } from "@/lib/canvas/api-elements";
+import { TOOL_FONT_FAMILY } from "@/lib/canvas/canvas-defaults";
+import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-defaults";
 import { useI18n } from "@/lib/i18n";
+import { ganttDateLabel } from "@/lib/templates/gantt";
+import { templateText } from "@/lib/templates/shared";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/stores/theme";
-import type { CanvasElement } from "@skedra/canvas-core";
+import {
+	type CanvasElement,
+	type CanvasMutationPlan,
+	findGanttChartElement,
+	getGanttChartSummaries,
+	getSequenceDiagramSummaries,
+	planGanttChartEdit,
+	planSequenceDiagramEdit,
+	resolveActiveSequenceDiagram,
+} from "@skedra/canvas-core";
+import { useCanvasEditorFloatingPanel } from "@skedra/canvas-editor";
 import { Loader2, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -65,6 +79,26 @@ function formatAssistantMessage(
 			frames: Number(frames) || 0,
 		});
 	}
+	if (content.startsWith("sequenceDiagram:")) {
+		const [, participants = "0", messages = "0"] = content.split(":");
+		return t("whiteboardPage.ai.generatedSequenceDiagram", {
+			participants: Number(participants) || 0,
+			messages: Number(messages) || 0,
+		});
+	}
+	if (content.startsWith("sequenceDiagramEdit:")) {
+		return t("whiteboardPage.ai.updatedSequenceDiagram");
+	}
+	if (content.startsWith("gantt:")) {
+		const [, tasks = "0", milestones = "0"] = content.split(":");
+		return t("whiteboardPage.ai.generatedGantt", {
+			tasks: Number(tasks) || 0,
+			milestones: Number(milestones) || 0,
+		});
+	}
+	if (content.startsWith("ganttEdit:")) {
+		return t("whiteboardPage.ai.updatedGantt");
+	}
 	if (content.startsWith("showcase:")) {
 		return t("whiteboardPage.ai.generatedShowcase");
 	}
@@ -79,6 +113,9 @@ interface AiDiagramPanelProps {
 	whiteboardId: string;
 	onClose: () => void;
 	onAddElements: (elements: CanvasElement[]) => void;
+	elements: Map<string, CanvasElement>;
+	selectedElements: CanvasElement[];
+	onApplyMutationPlan: (plan: CanvasMutationPlan) => void;
 	className?: string;
 }
 
@@ -87,8 +124,12 @@ export function AiDiagramPanel({
 	whiteboardId,
 	onClose,
 	onAddElements,
+	elements,
+	selectedElements,
+	onApplyMutationPlan,
 	className,
 }: AiDiagramPanelProps) {
+	const floatingPanel = useCanvasEditorFloatingPanel<HTMLDivElement>();
 	const { t } = useI18n();
 	const [prompt, setPrompt] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -118,10 +159,52 @@ export function AiDiagramPanel({
 
 	const generate = trpc.ai.generateDiagram.useMutation({
 		onSuccess: async (result) => {
-			const elements = apiElementsToCanvasElements(result.elements, {
-				resolvedTheme,
-			});
-			onAddElements(elements);
+			if (result.sequenceDiagramEdit) {
+				const dark = resolvedTheme === "dark";
+				const plan = planSequenceDiagramEdit({
+					elements,
+					diagramId: result.sequenceDiagramEdit.diagramId,
+					action: result.sequenceDiagramEdit.action,
+					defaults: getCanvasElementFactoryDefaults({ resolvedTheme }),
+					appearance: {
+						fontFamily: TOOL_FONT_FAMILY,
+						participantFill: dark ? "#151d19" : "#ffffff",
+						activationFill: dark ? "#1d2823" : "#ffffff",
+						lifelineStroke: dark ? "#64748b" : "#94a3b8",
+						fragmentStroke: dark ? "#94a3b8" : "#64748b",
+						fragmentFill: dark ? "#164e6340" : "#cffafe55",
+					},
+				});
+				if (!plan) {
+					setError(t("whiteboardPage.ai.sequenceDiagramEditFailed"));
+					await utils.ai.listMessages.invalidate({ whiteboardId });
+					return;
+				}
+				onApplyMutationPlan(plan);
+			} else if (result.ganttEdit) {
+				const planned = planGanttChartEdit({
+					defaults: getCanvasElementFactoryDefaults({ resolvedTheme }),
+					elements: elements.values(),
+					chartId: result.ganttEdit.chartId,
+					action: result.ganttEdit.action,
+					buildOptions: {
+						dateLabel: ganttDateLabel,
+						text: templateText,
+						today: new Date().toISOString().slice(0, 10),
+					},
+				});
+				if (!planned) {
+					setError(t("whiteboardPage.ai.ganttEditFailed"));
+					await utils.ai.listMessages.invalidate({ whiteboardId });
+					return;
+				}
+				onApplyMutationPlan(planned.plan);
+			} else {
+				const elements = apiElementsToCanvasElements(result.elements, {
+					resolvedTheme,
+				});
+				onAddElements(elements);
+			}
 			setPrompt("");
 			setError(null);
 			await utils.ai.listMessages.invalidate({ whiteboardId });
@@ -144,7 +227,64 @@ export function AiDiagramPanel({
 		const trimmed = prompt.trim();
 		if (!trimmed || generate.isPending) return;
 		setError(null);
-		generate.mutate({ whiteboardId, prompt: trimmed });
+		const diagrams = getSequenceDiagramSummaries(elements.values());
+		const activeDiagram = resolveActiveSequenceDiagram(
+			elements.values(),
+			selectedElements,
+		);
+		const ganttCharts = getGanttChartSummaries(elements.values());
+		const activeGanttFrame = selectedElements
+			.map((element) => findGanttChartElement(elements.values(), element))
+			.find((element) => element !== null);
+		generate.mutate({
+			whiteboardId,
+			prompt: trimmed,
+			...(diagrams.length > 0
+				? {
+						sequenceDiagramContext: {
+							activeDiagramId: activeDiagram?.id,
+							diagrams: diagrams.map((diagram) => ({
+								id: diagram.id,
+								title: diagram.title,
+								participants: diagram.participants.map((participant) => ({
+									id: participant.id,
+									label: participant.label,
+									kind: participant.kind,
+								})),
+								messages: diagram.messages.map((message) => ({
+									eventIndex: message.eventIndex,
+									fromParticipantId: message.fromParticipantId,
+									toParticipantId: message.toParticipantId,
+									label: message.label,
+									kind: message.kind,
+								})),
+							})),
+						},
+					}
+				: {}),
+			...(ganttCharts.length > 0
+				? {
+						ganttContext: {
+							activeChartId: activeGanttFrame?.id ?? ganttCharts.at(-1)?.id,
+							charts: ganttCharts.map((chart) => ({
+								id: chart.id,
+								title: chart.title,
+								startDate: chart.startDate,
+								dayCount: chart.dayCount,
+								showToday: chart.showToday,
+								tasks: chart.tasks.map((task) => ({
+									...task,
+									category: task.category ?? "project",
+								})),
+								dependencies: chart.dependencies.map((dependency, index) => ({
+									index,
+									...dependency,
+								})),
+							})),
+						},
+					}
+				: {}),
+		});
 	};
 
 	return (
@@ -157,12 +297,17 @@ export function AiDiagramPanel({
 			aria-hidden={!open}
 		>
 			<div
+				ref={floatingPanel.panelRef}
 				className={cn(
 					"pointer-events-auto flex h-[min(78vh,620px)] w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-border bg-card/95 shadow-2xl backdrop-blur-md max-lg:max-h-[calc(100dvh-15.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100%,420px)] max-lg:rounded-2xl",
 					!open && "pointer-events-none",
 				)}
+				style={floatingPanel.panelStyle}
 			>
-				<div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
+				<div
+					className="flex items-start justify-between gap-3 border-b border-border px-4 py-4"
+					{...floatingPanel.dragHandleProps}
+				>
 					<div>
 						<p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
 							{t("whiteboardPage.ai.label")}

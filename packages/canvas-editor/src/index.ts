@@ -103,6 +103,27 @@ export type {
 	CanvasEditorWireframePanelProps,
 	CanvasEditorWireframeTranslate,
 } from "./canvas-editor-wireframe-panel";
+export { CanvasEditorSequenceDiagramPanel } from "./canvas-editor-sequence-diagram-panel";
+export type {
+	CanvasEditorSequenceDiagramPanelProps,
+	CanvasEditorSequenceDiagramTranslate,
+} from "./canvas-editor-sequence-diagram-panel";
+export { CanvasEditorGanttStudio } from "./canvas-editor-gantt-studio";
+export type {
+	CanvasEditorGanttChartOption,
+	CanvasEditorGanttStudioProps,
+	CanvasEditorGanttStudioTranslate,
+} from "./canvas-editor-gantt-studio";
+export {
+	clampCanvasEditorFloatingPanelOffset,
+	useCanvasEditorFloatingPanel,
+} from "./use-canvas-editor-floating-panel";
+export type {
+	CanvasEditorFloatingPanelOffset,
+	CanvasEditorFloatingPanelRect,
+	CanvasEditorFloatingPanelDragHandleProps,
+	UseCanvasEditorFloatingPanelOptions,
+} from "./use-canvas-editor-floating-panel";
 export { CanvasEditorImageCropOverlay } from "./canvas-editor-image-crop-overlay";
 export type { CanvasEditorImageCropOverlayProps } from "./canvas-editor-image-crop-overlay";
 export { CanvasEditorTextOverlay } from "./canvas-editor-text-overlay";
@@ -164,6 +185,7 @@ export type {
 	CanvasEditorContextMenuTranslate,
 } from "./canvas-editor-context-menu";
 export {
+	expandCanvasEditorAtomicSelectionIds,
 	getCanvasEditorContextSelectionIds,
 	resolveCanvasEditorContextSelectionIds,
 	resolveCanvasEditorSelectPointerDown,

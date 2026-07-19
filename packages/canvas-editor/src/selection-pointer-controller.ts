@@ -3,6 +3,9 @@
  */
 
 import { createStackIndexAfter } from "@skedra/canvas-core";
+import { getGanttCanvasScrollbarThumbMeta } from "@skedra/canvas-core";
+import { getGanttChartId } from "@skedra/canvas-core";
+import { getSequenceDiagramId } from "@skedra/canvas-core";
 import { isKanbanCard, isKanbanList } from "@skedra/canvas-core";
 import { isMultiSelectModifier } from "@skedra/canvas-core";
 import type { CanvasElement, CanvasScene } from "@skedra/canvas-core";
@@ -47,6 +50,39 @@ export type CanvasEditorSelectPointerDownResult =
 	| { handled: false };
 
 /**
+ * Structured diagrams are atomic canvas objects. Selecting any generated part
+ * expands to the complete diagram so lines, labels and shapes cannot drift
+ * apart during move, duplicate, delete, or context-menu operations.
+ */
+export function expandCanvasEditorAtomicSelectionIds(
+	selectedIds: ReadonlySet<string>,
+	elements: ReadonlyMap<string, CanvasElement>,
+) {
+	const expanded = new Set(selectedIds);
+	const ganttChartIds = new Set<string>();
+	const sequenceDiagramIds = new Set<string>();
+	for (const id of selectedIds) {
+		const chartId = getGanttChartId(elements.get(id));
+		if (chartId) ganttChartIds.add(chartId);
+		const diagramId = getSequenceDiagramId(elements.get(id));
+		if (diagramId) sequenceDiagramIds.add(diagramId);
+	}
+	if (ganttChartIds.size === 0 && sequenceDiagramIds.size === 0)
+		return expanded;
+	for (const [id, element] of elements) {
+		const chartId = getGanttChartId(element);
+		if (chartId && ganttChartIds.has(chartId)) expanded.add(id);
+		const scrollbarThumb = getGanttCanvasScrollbarThumbMeta(element);
+		if (scrollbarThumb && ganttChartIds.has(scrollbarThumb.ganttChartId)) {
+			expanded.add(id);
+		}
+		const diagramId = getSequenceDiagramId(element);
+		if (diagramId && sequenceDiagramIds.has(diagramId)) expanded.add(id);
+	}
+	return expanded;
+}
+
+/**
  * Expands a context-click target to the canonical selection a host should
  * mutate: its group, or its complete frame relationship.
  */
@@ -54,7 +90,11 @@ export function getCanvasEditorContextSelectionIds(
 	target: CanvasElement,
 	elements: ReadonlyMap<string, CanvasElement>,
 ) {
-	const ids = new Set([target.id]);
+	const ids = expandCanvasEditorAtomicSelectionIds(
+		new Set([target.id]),
+		elements,
+	);
+	if (getGanttChartId(target) || getSequenceDiagramId(target)) return ids;
 	if (target.groupId) {
 		for (const [id, element] of elements) {
 			if (element.groupId === target.groupId) ids.add(id);
@@ -83,7 +123,9 @@ export function resolveCanvasEditorContextSelectionIds(
 	selectedIds: ReadonlySet<string>,
 ) {
 	if (!target) return new Set<string>();
-	if (selectedIds.has(target.id)) return new Set(selectedIds);
+	if (selectedIds.has(target.id)) {
+		return expandCanvasEditorAtomicSelectionIds(selectedIds, elements);
+	}
 	return getCanvasEditorContextSelectionIds(target, elements);
 }
 
@@ -108,18 +150,44 @@ export function resolveCanvasEditorSelectPointerDown(
 
 	const hit = scene.getElementAtPosition(canvas.x, canvas.y);
 	if (hit) {
-		if (e.altKey && hit.groupId && !isMultiSelectModifier(e)) {
+		const ganttChartId = getGanttChartId(hit);
+		const sequenceDiagramId = getSequenceDiagramId(hit);
+		const isAtomicDiagramHit = Boolean(ganttChartId || sequenceDiagramId);
+		const atomicHitIds = expandCanvasEditorAtomicSelectionIds(
+			new Set([hit.id]),
+			elements,
+		);
+		if (
+			e.altKey &&
+			!isAtomicDiagramHit &&
+			hit.groupId &&
+			!isMultiSelectModifier(e)
+		) {
 			setSelectedIds(new Set([hit.id]));
 			return { handled: true, earlyExit: true };
 		}
 
 		let selectionForMove = new Set(selectedIds);
 		if (isMultiSelectModifier(e)) {
-			if (selectionForMove.has(hit.id)) selectionForMove.delete(hit.id);
-			else selectionForMove.add(hit.id);
+			if (selectionForMove.has(hit.id)) {
+				for (const id of atomicHitIds) selectionForMove.delete(id);
+			} else {
+				for (const id of atomicHitIds) selectionForMove.add(id);
+			}
+			selectionForMove = expandCanvasEditorAtomicSelectionIds(
+				selectionForMove,
+				elements,
+			);
 			setSelectedIds(selectionForMove);
 		} else if (selectedIds.has(hit.id)) {
-			selectionForMove = new Set(selectedIds);
+			selectionForMove = expandCanvasEditorAtomicSelectionIds(
+				selectedIds,
+				elements,
+			);
+			setSelectedIds(selectionForMove);
+		} else if (isAtomicDiagramHit) {
+			selectionForMove = atomicHitIds;
+			setSelectedIds(selectionForMove);
 		} else if (hit.groupId) {
 			selectionForMove = new Set([hit.id]);
 			for (const [cId, cEl] of elements) {
@@ -150,13 +218,16 @@ export function resolveCanvasEditorSelectPointerDown(
 			setSelectedIds(selectionForMove);
 		}
 
-		if (readOnly || hit.locked) {
+		if (readOnly || (hit.locked && !isAtomicDiagramHit)) {
 			return { handled: true, earlyExit: true };
 		}
 
 		if (e.altKey && duplicateSelection) {
 			duplicateSelection();
-			selectionForMove = new Set(getSelectedIds());
+			selectionForMove = expandCanvasEditorAtomicSelectionIds(
+				getSelectedIds(),
+				elements,
+			);
 		}
 
 		if (isKanbanCard(hit)) {

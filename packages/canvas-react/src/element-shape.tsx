@@ -61,6 +61,8 @@ export const ElementShape = memo(function ElementShape({
 
 	switch (el.type) {
 		case "rectangle": {
+			const isGanttScrollThumb =
+				el.customData?.ganttRole === "canvas-scroll-thumb";
 			if (el.customData?.skedraType === "kanban-card") {
 				return (
 					<KanbanCardShape
@@ -82,7 +84,12 @@ export const ElementShape = memo(function ElementShape({
 				);
 			}
 			return (
-				<g transform={transform} {...commonProps}>
+				<g
+					transform={transform}
+					{...commonProps}
+					data-gantt-scroll-thumb={isGanttScrollThumb ? "true" : undefined}
+					style={isGanttScrollThumb ? { cursor: "grab" } : undefined}
+				>
 					{roughLayers ? (
 						roughLayers.fillHtml ? (
 							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />

@@ -4,11 +4,14 @@ import {
 	type CanvasElement,
 	CanvasScene,
 	createBaseCanvasElement,
+	createGanttChartElements,
+	createVisualSequenceDiagramElements,
 } from "@skedra/canvas-core";
 import {
 	buildCanvasEditorDefaultsElement,
 	buildCanvasEditorEditingSession,
 	canvasEditorToolSupportsSnapOverride,
+	expandCanvasEditorAtomicSelectionIds,
 	getCanvasEditorContextSelectionIds,
 	getCanvasEditorSnapModeOptions,
 	resolveCanvasEditorContextSelectionIds,
@@ -126,6 +129,133 @@ test("context selection expands groups and complete frame relationships", () => 
 	);
 });
 
+test("Gantt selection is atomic even from a locked child or partial selection", () => {
+	let index = 0;
+	const chart = createGanttChartElements(
+		{
+			createId: () => `gantt-selection-${index++}`,
+			stroke: "#111111",
+			fontFamily: "Inter",
+		},
+		{ x: 100, y: 200, startDate: "2026-07-13" },
+	);
+	const elements = new Map(chart.map((element) => [element.id, element]));
+	const lockedHeader = chart.find(
+		(element) => element.customData?.ganttRole === "task-header",
+	);
+	assert.ok(lockedHeader?.locked);
+
+	assert.equal(
+		expandCanvasEditorAtomicSelectionIds(new Set([lockedHeader.id]), elements)
+			.size,
+		chart.length,
+	);
+
+	let selected = new Set<string>([lockedHeader.id]);
+	const result = resolveCanvasEditorSelectPointerDown({
+		e: { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
+		tool: "select",
+		canvas: { x: lockedHeader.x + 5, y: lockedHeader.y + 5 },
+		elements,
+		scene: CanvasScene.from(chart),
+		selectedIds: selected,
+		getSelectedIds: () => selected,
+		updateElement: () => undefined,
+		setSelectedIds: (ids) => {
+			selected = ids;
+		},
+		setSelectionBox: () => undefined,
+		setLassoPath: () => undefined,
+	});
+
+	assert.equal("action" in result ? result.action : null, "move");
+	assert.equal(selected.size, chart.length);
+	assert.equal(
+		"patch" in result ? result.patch.moveStart?.size : 0,
+		chart.length,
+	);
+});
+
+test("the Gantt canvas scrollbar stays outside normal element selection", () => {
+	let index = 0;
+	const chart = createGanttChartElements(
+		{
+			createId: () => `gantt-scroll-${index++}`,
+			stroke: "#111111",
+			fontFamily: "Inter",
+		},
+		{ x: 100, y: 200, startDate: "2026-01-01", dayCount: 120 },
+	);
+	const elements = new Map(chart.map((element) => [element.id, element]));
+	const thumb = chart.find(
+		(element) => element.customData?.ganttRole === "canvas-scroll-thumb",
+	);
+	const header = chart.find(
+		(element) => element.customData?.ganttRole === "task-header",
+	);
+	assert.ok(thumb);
+	assert.ok(header);
+	assert.equal(
+		expandCanvasEditorAtomicSelectionIds(new Set([header.id]), elements).size,
+		chart.length,
+	);
+	assert.equal(thumb.locked, true);
+	assert.notEqual(
+		CanvasScene.from(chart).getElementAtPosition(
+			thumb.x + thumb.width / 2,
+			thumb.y + thumb.height / 2,
+		)?.id,
+		thumb.id,
+	);
+});
+
+test("sequence diagram selection moves every generated part as one object", () => {
+	let index = 0;
+	const diagram = createVisualSequenceDiagramElements({
+		preset: "checkout",
+		x: 500,
+		y: 350,
+		defaults: {
+			createId: () => `sequence-selection-${index++}`,
+			stroke: "#111111",
+			fontFamily: "Inter",
+		},
+	});
+	const elements = new Map(diagram.map((element) => [element.id, element]));
+	const message = diagram.find(
+		(element) => element.customData?.sequenceRole === "message",
+	);
+	assert.ok(message);
+	assert.equal(
+		expandCanvasEditorAtomicSelectionIds(new Set([message.id]), elements).size,
+		diagram.length,
+	);
+
+	let selected = new Set<string>();
+	const result = resolveCanvasEditorSelectPointerDown({
+		e: { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
+		tool: "select",
+		canvas: { x: message.x + 2, y: message.y + 2 },
+		elements,
+		scene: CanvasScene.from(diagram),
+		selectedIds: selected,
+		getSelectedIds: () => selected,
+		updateElement: () => undefined,
+		setSelectedIds: (ids) => {
+			selected = ids;
+		},
+		setSelectionBox: () => undefined,
+		setLassoPath: () => undefined,
+	});
+
+	assert.equal("action" in result ? result.action : null, "move");
+	assert.equal(selected.size, diagram.length);
+	assert.equal(
+		"patch" in result ? result.patch.moveStart?.size : 0,
+		diagram.length,
+	);
+});
+
 test("read-only selection never starts a move gesture", () => {
 	const element = rectangle("read-only", 0, 0);
 	let selected = new Set<string>();
@@ -232,6 +362,53 @@ test("sticky and arrow inline editing sessions are host independent", () => {
 		buildCanvasEditorEditingSession({ element: arrow }).editingText.variant,
 		"arrow",
 	);
+});
+
+test("small wireframe text editors reuse the rendered text bounds", () => {
+	const compactButton = rectangle("button", 10, 20, {
+		width: 74,
+		height: 28,
+		fontSize: 14,
+		text: "MARKE",
+		textAlign: "center",
+		customData: { skedraType: "wireframe-node" },
+	});
+	const buttonEditor = buildCanvasEditorEditingSession({
+		element: compactButton,
+	}).editingText;
+	assert.equal(buttonEditor.variant, "shape");
+	assert.equal(buttonEditor.paddingX, 5.92);
+	assert.ok(Math.abs((buttonEditor.paddingY ?? 0) - 6.3) < 0.0001);
+	assert.equal(buttonEditor.lineHeight, 1.1);
+	assert.equal(buttonEditor.width, compactButton.width);
+	assert.equal(buttonEditor.height, compactButton.height);
+
+	const compactLabel = createBaseCanvasElement(
+		{ createId: () => "label", stroke: "#111111" },
+		{
+			id: "label",
+			type: "text",
+			x: 40,
+			y: 80,
+			width: 60,
+			height: 8,
+			fontSize: 14,
+			text: "Preise",
+			customData: { skedraType: "wireframe-node" },
+		},
+	);
+	const labelEditor = buildCanvasEditorEditingSession({
+		element: compactLabel,
+	}).editingText;
+	assert.equal(labelEditor.variant, "canvas-text");
+	assert.equal(labelEditor.lineHeight, 1);
+	assert.equal(labelEditor.paddingX, 4);
+	assert.equal(labelEditor.paddingY, 0);
+	assert.equal(labelEditor.preserveBounds, true);
+	assert.equal(labelEditor.sourceWidth, compactLabel.width);
+	assert.equal(labelEditor.sourceHeight, compactLabel.height);
+	assert.equal(labelEditor.height, 20);
+	assert.equal(labelEditor.y, 74);
 });
 
 test("plain frame editing session targets the label above the frame", () => {

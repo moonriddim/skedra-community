@@ -17,6 +17,10 @@ import {
 	getLockUpdates,
 	getRotateUpdates,
 } from "./selection-operations";
+import {
+	createVisualSequenceDiagramElements,
+	getSequenceDiagramId,
+} from "./sequence-diagram";
 
 function rectangle(id: string, x: number, width = 20) {
 	return createBaseCanvasElement(
@@ -284,4 +288,28 @@ test("clipboard cloning remaps flowchart element and logical references", () => 
 		cloned.elements[0].customData?.flowchartId,
 		clonedEdge.customData?.flowchartId,
 	);
+});
+
+test("clipboard cloning gives a sequence diagram its own logical identity", () => {
+	let sourceId = 0;
+	const source = createVisualSequenceDiagramElements({
+		preset: "blank",
+		x: 300,
+		y: 200,
+		defaults: {
+			createId: () => `sequence-source-${sourceId++}`,
+			stroke: "#111",
+		},
+	});
+	const sourceDiagramId = getSequenceDiagramId(source[0]);
+	assert.ok(sourceDiagramId);
+	let cloneId = 0;
+	const cloned = cloneCanvasSelection({
+		elements: source,
+		createId: () => `sequence-clone-${cloneId++}`,
+	});
+	const clonedDiagramIds = new Set(cloned.elements.map(getSequenceDiagramId));
+
+	assert.equal(clonedDiagramIds.size, 1);
+	assert.notEqual([...clonedDiagramIds][0], sourceDiagramId);
 });

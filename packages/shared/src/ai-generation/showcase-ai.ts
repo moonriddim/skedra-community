@@ -20,6 +20,12 @@ import {
 	buildStickyNoteElementsFromAi,
 } from "./sticky-notes-ai";
 import {
+	aiGanttChartSchema,
+	aiSequenceDiagramSchema,
+	buildGanttChartElementsFromAi,
+	buildSequenceDiagramElementsFromAi,
+} from "./structured-diagrams-ai";
+import {
 	aiRetrospectiveSchema,
 	aiSwotSchema,
 	buildRetrospectiveElementsFromAi,
@@ -51,6 +57,8 @@ const SHOWCASE_ROWS: Array<Array<keyof ShowcasePayload>> = [
 	["mindmap", "flowchart"],
 	["stickyNotes", "retrospective"],
 	["swot", "frames"],
+	["sequenceDiagram"],
+	["gantt"],
 	["diagram"],
 ];
 
@@ -62,6 +70,8 @@ type ShowcasePayload = {
 	retrospective?: unknown;
 	swot?: unknown;
 	frames?: unknown;
+	sequenceDiagram?: unknown;
+	gantt?: unknown;
 	diagram?: unknown;
 	elements?: unknown;
 };
@@ -74,6 +84,8 @@ const SHOWCASE_TOOL_KEYS = [
 	"retrospective",
 	"swot",
 	"frames",
+	"sequenceDiagram",
+	"gantt",
 	"diagram",
 ] as const;
 
@@ -199,6 +211,26 @@ function buildSection(
 					y: 0,
 				});
 				return { kind: "frames", elements, summary: { frames: frameCount } };
+			}
+			case "sequenceDiagram": {
+				const diagram = aiSequenceDiagramSchema.parse(raw);
+				const { elements, participantCount, messageCount } =
+					buildSequenceDiagramElementsFromAi(diagram, { x: 0, y: 0 });
+				return {
+					kind: "sequenceDiagram",
+					elements,
+					summary: { participants: participantCount, messages: messageCount },
+				};
+			}
+			case "gantt": {
+				const chart = aiGanttChartSchema.parse(raw);
+				const { elements, taskCount, milestoneCount } =
+					buildGanttChartElementsFromAi(chart, { x: 0, y: 0 });
+				return {
+					kind: "gantt",
+					elements,
+					summary: { tasks: taskCount, milestones: milestoneCount },
+				};
 			}
 			case "diagram": {
 				const diagramPayload =
@@ -396,6 +428,43 @@ export function buildIntegrationShowcaseFallback(): AiGenerationResult {
 			frames: [
 				{ label: "Phase 1 — Discovery", width: 360, height: 220 },
 				{ label: "Phase 2 — Delivery", width: 360, height: 220 },
+			],
+		},
+		sequenceDiagram: {
+			source:
+				"sequenceDiagram\nparticipant U as Nutzer\nparticipant A as App\nparticipant S as Service\nU->>A: Anfrage\nA->>S: Daten laden\nS-->>A: Ergebnis\nA-->>U: Ansicht aktualisieren",
+		},
+		gantt: {
+			title: "Produkt-Launch",
+			startDate: "2026-07-20",
+			tasks: [
+				{
+					id: "discovery",
+					title: "Discovery",
+					startDay: 0,
+					durationDays: 4,
+					progress: 50,
+					status: "active",
+				},
+				{
+					id: "implementation",
+					title: "Umsetzung",
+					startDay: 4,
+					durationDays: 8,
+					progress: 10,
+					status: "planned",
+				},
+				{
+					id: "launch",
+					title: "Launch",
+					startDay: 12,
+					durationDays: 1,
+					milestone: true,
+				},
+			],
+			dependencies: [
+				{ fromTaskId: "discovery", toTaskId: "implementation" },
+				{ fromTaskId: "implementation", toTaskId: "launch" },
 			],
 		},
 		diagram: {

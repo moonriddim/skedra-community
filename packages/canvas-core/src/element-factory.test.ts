@@ -81,6 +81,32 @@ test("creates API and MCP bounds elements through one canonical mapper", () => {
 		[0, 0],
 		[80, 40],
 	]);
+
+	const structuredArrow = createCanvasElementFromBoundsInput(defaults, {
+		type: "arrow",
+		x: 0,
+		y: 0,
+		width: 120,
+		height: 40,
+		points: [
+			[0, 0],
+			[60, 0],
+			[120, 40],
+		],
+		strokeStyle: "dashed",
+		arrowMode: "elbow",
+		arrowHeadEnd: "triangle",
+		fontFamily: "system-ui",
+		customData: { skedraType: "sequence-diagram-element" },
+	});
+	assert.equal(structuredArrow.strokeStyle, "dashed");
+	assert.equal(structuredArrow.arrowMode, "elbow");
+	assert.equal(structuredArrow.arrowHeadEnd, "triangle");
+	assert.equal(structuredArrow.fontFamily, "system-ui");
+	assert.equal(
+		structuredArrow.customData?.skedraType,
+		"sequence-diagram-element",
+	);
 });
 
 test("creates kanban lists and cards without numeric layer ordering", () => {

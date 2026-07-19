@@ -46,6 +46,12 @@ export interface CanvasEditorEditingText {
 	fontStyle: "normal" | "italic";
 	textDecoration: "none" | "underline";
 	padding?: number;
+	paddingX?: number;
+	paddingY?: number;
+	lineHeight?: number;
+	sourceWidth?: number;
+	sourceHeight?: number;
+	preserveBounds?: boolean;
 	placeholder?: string;
 	rotationDeg?: number;
 	variant?:
@@ -122,11 +128,19 @@ export function CanvasEditorTextOverlay({
 	const rotationDeg = editingState?.rotationDeg ?? 0;
 	const editorVariant = editingState?.variant ?? "default";
 	const editorPadding = editingState?.padding ?? 0;
+	const editorPaddingX = editingState?.paddingX ?? editorPadding;
+	const editorPaddingY = editingState?.paddingY ?? editorPadding;
 	const isStickyNote = editorVariant === "sticky-note";
 	const isShapeEditor = editorVariant === "shape";
 	const isMindmapNodeEditor = editorVariant === "mindmap-node";
 	const isCanvasTextEditor = editorVariant === "canvas-text";
 	const isArrowEditor = editorVariant === "arrow";
+	const hasExactTextWidth =
+		isShapeEditor || isMindmapNodeEditor || isCanvasTextEditor;
+	const hasFixedTextBounds =
+		isShapeEditor ||
+		isMindmapNodeEditor ||
+		editingState?.preserveBounds === true;
 	const isInlineEditor =
 		isStickyNote ||
 		isShapeEditor ||
@@ -140,14 +154,65 @@ export function CanvasEditorTextOverlay({
 	const svgRect = svgRef.current?.getBoundingClientRect();
 
 	const screenX = svgRect
-		? svgRect.left + viewport.x + (posX + editorPadding) * viewport.zoom
+		? svgRect.left + viewport.x + (posX + editorPaddingX) * viewport.zoom
 		: 100;
 	const screenY = svgRect
-		? svgRect.top + viewport.y + (posY + editorPadding) * viewport.zoom
+		? svgRect.top + viewport.y + (posY + editorPaddingY) * viewport.zoom
 		: 100;
-	const innerWidth = Math.max(40, elWidth - editorPadding * 2);
-	const screenW = Math.max(isStickyNote ? 40 : 140, innerWidth * viewport.zoom);
+	const innerWidth = Math.max(
+		hasExactTextWidth ? 1 : 40,
+		elWidth - editorPaddingX * 2,
+	);
+	const screenW = hasExactTextWidth
+		? Math.max(1, innerWidth * viewport.zoom)
+		: Math.max(isStickyNote ? 40 : 140, innerWidth * viewport.zoom);
 	const fontSize = elFontSize * viewport.zoom;
+	const textLineHeight =
+		editingState?.lineHeight ?? (isStickyNote ? 1.4 : 1.35);
+	const innerHeight = editingState
+		? Math.max(1, editingState.height - editorPaddingY * 2)
+		: (pending?.height ?? 44);
+	const screenH = hasExactTextWidth
+		? Math.max(1, innerHeight * viewport.zoom)
+		: pending?.height
+			? Math.max(44, pending.height * viewport.zoom)
+			: editingState
+				? Math.max(
+						isStickyNote ? 40 : 44,
+						Math.max(40, innerHeight) * viewport.zoom,
+					)
+				: 44;
+	const verticallyCentered = isShapeEditor || isMindmapNodeEditor;
+
+	const syncTextareaLayout = useCallback(
+		(ta: HTMLTextAreaElement) => {
+			if (!verticallyCentered) {
+				if (hasFixedTextBounds) {
+					ta.style.height = `${screenH}px`;
+				} else {
+					ta.style.height = "auto";
+					ta.style.height = `${Math.max(screenH, ta.scrollHeight)}px`;
+				}
+				return;
+			}
+
+			/* Match the renderer's flex-centered text block, including wrapped lines. */
+			ta.style.paddingTop = "0px";
+			ta.style.paddingBottom = "0px";
+			ta.style.minHeight = "0px";
+			ta.style.height = "0px";
+			const contentHeight = Math.max(
+				fontSize * textLineHeight,
+				ta.scrollHeight,
+			);
+			const verticalPadding = Math.max(0, (screenH - contentHeight) / 2);
+			ta.style.height = `${screenH}px`;
+			ta.style.minHeight = `${screenH}px`;
+			ta.style.paddingTop = `${verticalPadding}px`;
+			ta.style.paddingBottom = `${verticalPadding}px`;
+		},
+		[fontSize, hasFixedTextBounds, screenH, textLineHeight, verticallyCentered],
+	);
 
 	const doSave = useCallback(() => {
 		if (savedRef.current) return;
@@ -155,11 +220,18 @@ export function CanvasEditorTextOverlay({
 
 		const ta = textareaRef.current;
 		const text = ta?.value ?? "";
-		const naturalW = Math.max(
-			elWidth,
-			(ta?.scrollWidth ?? 140) / viewport.zoom,
-		);
-		const naturalH = Math.max(30, (ta?.scrollHeight ?? 40) / viewport.zoom);
+		const naturalW = hasFixedTextBounds
+			? (editingState?.sourceWidth ?? editingState?.width ?? elWidth)
+			: Math.max(
+					elWidth,
+					(ta?.scrollWidth ?? 140) / viewport.zoom + editorPaddingX * 2,
+				);
+		const naturalH = hasFixedTextBounds
+			? (editingState?.sourceHeight ?? editingState?.height ?? innerHeight)
+			: Math.max(
+					30,
+					(ta?.scrollHeight ?? 40) / viewport.zoom + editorPaddingY * 2,
+				);
 		const size = { width: naturalW, height: naturalH };
 
 		if (editingState) {
@@ -172,6 +244,10 @@ export function CanvasEditorTextOverlay({
 		editingState,
 		pending,
 		elWidth,
+		editorPaddingX,
+		editorPaddingY,
+		hasFixedTextBounds,
+		innerHeight,
 		viewport.zoom,
 		onCreateText,
 		onUpdateText,
@@ -190,6 +266,7 @@ export function CanvasEditorTextOverlay({
 
 	/* Focus bei Mount */
 	useLayoutEffect(() => {
+		if (editSessionKey === null) return;
 		const ta = textareaRef.current;
 		if (!ta) return;
 		ta.focus();
@@ -197,10 +274,14 @@ export function CanvasEditorTextOverlay({
 			const len = ta.value.length;
 			ta.setSelectionRange(len, len);
 		}
-		/* Auto-resize initial */
-		ta.style.height = "auto";
-		ta.style.height = `${Math.max(40, ta.scrollHeight)}px`;
-	}, [isEditing]);
+	}, [editSessionKey, isEditing]);
+
+	/* Editor-Groesse an die gerenderte Textflaeche angleichen. */
+	useLayoutEffect(() => {
+		const ta = textareaRef.current;
+		if (!ta) return;
+		syncTextareaLayout(ta);
+	}, [syncTextareaLayout]);
 
 	/* Klick ausserhalb = speichern */
 	useEffect(() => {
@@ -286,37 +367,30 @@ export function CanvasEditorTextOverlay({
 	const handleInput = () => {
 		const ta = textareaRef.current;
 		if (!ta) return;
-		ta.style.height = "auto";
-		ta.style.height = `${ta.scrollHeight}px`;
+		syncTextareaLayout(ta);
 		if (!editingState) return;
 		onUpdateText(editingState.id, ta.value, {
-			width: Math.max(elWidth, ta.scrollWidth / viewport.zoom),
-			height: Math.max(30, ta.scrollHeight / viewport.zoom),
+			width: hasFixedTextBounds
+				? (editingState.sourceWidth ?? editingState.width)
+				: Math.max(
+						elWidth,
+						ta.scrollWidth / viewport.zoom + editorPaddingX * 2,
+					),
+			height: hasFixedTextBounds
+				? (editingState.sourceHeight ?? editingState.height)
+				: Math.max(30, ta.scrollHeight / viewport.zoom + editorPaddingY * 2),
 		});
 	};
-
-	const screenH = pending?.height
-		? Math.max(44, pending.height * viewport.zoom)
-		: editingState
-			? Math.max(
-					isStickyNote ? 40 : 44,
-					Math.max(40, editingState.height - editorPadding * 2) * viewport.zoom,
-				)
-			: 44;
 
 	const overlayVariant = isStickyNote
 		? "sticky-note"
 		: isInlineEditor
 			? "inline"
 			: "dialog";
-	const centeredVerticalPadding =
-		isShapeEditor || isMindmapNodeEditor
-			? Math.max(0, (screenH - fontSize * 1.35) / 2)
-			: 0;
-
 	return (
 		<textarea
 			ref={textareaRef}
+			rows={1}
 			inputMode="text"
 			defaultValue={initialText}
 			onKeyDown={handleKeyDown}
@@ -328,6 +402,7 @@ export function CanvasEditorTextOverlay({
 				left: screenX,
 				top: screenY,
 				width: screenW,
+				height: hasFixedTextBounds ? screenH : undefined,
 				minHeight: screenH,
 				fontSize,
 				fontFamily: elFontFamily,
@@ -335,20 +410,14 @@ export function CanvasEditorTextOverlay({
 				fontStyle: elFontStyle,
 				textDecoration: elTextDecoration,
 				textAlign: elTextAlign,
-				lineHeight: isStickyNote ? 1.4 : 1.35,
+				lineHeight: textLineHeight,
 				overflow: "hidden",
 				color: elTextColor,
-				padding: isStickyNote ? 0 : undefined,
-				paddingLeft: isArrowEditor ? 0 : undefined,
-				paddingRight: isArrowEditor ? 0 : undefined,
-				paddingTop:
-					isShapeEditor || isMindmapNodeEditor
-						? centeredVerticalPadding
-						: undefined,
-				paddingBottom:
-					isShapeEditor || isMindmapNodeEditor
-						? centeredVerticalPadding
-						: undefined,
+				padding: isStickyNote || hasExactTextWidth ? 0 : undefined,
+				paddingLeft: isArrowEditor || hasExactTextWidth ? 0 : undefined,
+				paddingRight: isArrowEditor || hasExactTextWidth ? 0 : undefined,
+				paddingTop: isShapeEditor || isMindmapNodeEditor ? 0 : undefined,
+				paddingBottom: isShapeEditor || isMindmapNodeEditor ? 0 : undefined,
 				caretColor: elTextColor,
 				transform:
 					isArrowEditor && rotationDeg !== 0

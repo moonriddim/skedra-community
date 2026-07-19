@@ -20,6 +20,8 @@ import {
 import { elementMatchesLasso } from "./selection";
 import type { CanvasElement } from "./types";
 
+const VISIBLE_ELEMENTS_CACHE_LIMIT = 32;
+
 export class CanvasScene {
 	private readonly elements: Map<string, CanvasElement>;
 	private readonly sortedElements: CanvasElement[];
@@ -31,10 +33,26 @@ export class CanvasScene {
 	private kanbanLists: CanvasElement[] | null = null;
 	private kanbanCardsByList: Map<string, CanvasElement[]> | null = null;
 
-	private constructor(elements: Iterable<CanvasElement>) {
-		const normalized = normalizeCanvasElementStackIndexes(elements);
+	private constructor(
+		elements: Iterable<CanvasElement> | Map<string, CanvasElement>,
+		preparedSortedElements?: CanvasElement[],
+	) {
+		if (preparedSortedElements) {
+			this.elements =
+				elements instanceof Map
+					? elements
+					: new Map(
+							Array.from(elements, (element) => [element.id, element] as const),
+						);
+			this.sortedElements = preparedSortedElements;
+			return;
+		}
+		const normalized = normalizeCanvasElementStackIndexes(
+			elements instanceof Map ? elements.values() : elements,
+		);
 		this.elements = new Map(normalized.map((element) => [element.id, element]));
-		this.sortedElements = sortCanvasElements(normalized);
+		// normalizeCanvasElementStackIndexes already returns stack-sorted elements.
+		this.sortedElements = normalized;
 	}
 
 	static empty() {
@@ -42,9 +60,40 @@ export class CanvasScene {
 	}
 
 	static from(elements: Iterable<CanvasElement> | Map<string, CanvasElement>) {
-		return new CanvasScene(
-			elements instanceof Map ? elements.values() : elements,
+		return new CanvasScene(elements);
+	}
+
+	/**
+	 * Applies a small Y.js change set while preserving references for untouched
+	 * elements. Geometry-only updates keep the existing stack order and avoid a
+	 * full scene normalize/sort pass.
+	 */
+	withElementChanges(
+		changes: ReadonlyMap<string, CanvasElement | null>,
+	): CanvasScene {
+		if (changes.size === 0) return this;
+
+		const nextElements = new Map(this.elements);
+		let requiresResort = false;
+		let changed = false;
+		for (const [id, next] of changes) {
+			const previous = this.elements.get(id) ?? null;
+			if (previous === next) continue;
+			if (!previous && !next) continue;
+			changed = true;
+			if (!previous || !next || previous.stackIndex !== next.stackIndex) {
+				requiresResort = true;
+			}
+			if (next) nextElements.set(id, next);
+			else nextElements.delete(id);
+		}
+		if (!changed) return this;
+		if (requiresResort) return new CanvasScene(nextElements);
+
+		const nextSortedElements = this.sortedElements.map(
+			(element) => changes.get(element.id) ?? element,
 		);
+		return new CanvasScene(nextElements, nextSortedElements);
 	}
 
 	get size() {
@@ -93,6 +142,10 @@ export class CanvasScene {
 		const visible = this.sortedElements.filter((element) =>
 			isElementVisibleInViewport(element, visibleBounds, selectedIds),
 		);
+		if (this.visibleElementsCache.size >= VISIBLE_ELEMENTS_CACHE_LIMIT) {
+			const oldestKey = this.visibleElementsCache.keys().next().value;
+			if (oldestKey !== undefined) this.visibleElementsCache.delete(oldestKey);
+		}
 		this.visibleElementsCache.set(key, visible);
 		return visible;
 	}

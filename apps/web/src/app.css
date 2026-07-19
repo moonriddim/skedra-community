@@ -7,6 +7,52 @@
 	font-family: "Outfit", system-ui, sans-serif;
 }
 
+/* Excalidraw-inspired unified canvas workspace panel. */
+.skedra-workspace__views-list .canvas-editor__saved-view-tile-group {
+	width: 100%;
+	justify-content: stretch;
+}
+
+.skedra-workspace__views-list .canvas-editor__saved-view-tile {
+	width: 100%;
+	gap: 0.5rem;
+	transform: none;
+}
+
+.skedra-workspace__views-list
+	.canvas-editor__saved-view-tile-group:hover
+	.canvas-editor__saved-view-tile,
+.skedra-workspace__views-list
+	.canvas-editor__saved-view-tile-group:focus-within
+	.canvas-editor__saved-view-tile {
+	transform: none;
+}
+
+.skedra-workspace__views-list .canvas-editor__saved-view-name,
+.skedra-workspace__views-list .canvas-editor__saved-view-name-input {
+	order: 2;
+	min-height: 1.5rem;
+	padding: 0 0.125rem;
+	font-size: 0.8125rem;
+}
+
+.skedra-workspace__views-list .canvas-editor__saved-view-preview {
+	order: 1;
+	aspect-ratio: 16 / 9;
+	border-radius: 0.75rem;
+}
+
+.skedra-workspace__views-list .canvas-editor__saved-view-actions {
+	order: 3;
+	justify-content: flex-end;
+}
+
+@media (pointer: coarse) {
+	.skedra-workspace__views-list .canvas-editor__saved-view-actions {
+		opacity: 1;
+	}
+}
+
 /* Comic-Hinweise fuer Pfeil-Annotationen (passend zum skizzenhaften Look) */
 .font-comic-note {
 	font-family: "Kalam", "Architects Daughter", "Segoe Print", cursive;

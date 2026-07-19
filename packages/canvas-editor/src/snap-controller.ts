@@ -76,6 +76,8 @@ export interface CanvasEditorSnapOptions {
 	includeExtensions?: boolean;
 	includeInsertions?: boolean;
 	showInactivePoints?: boolean;
+	/** Keep legacy bbox-alignment fallback when no semantic anchor was found. */
+	alignWithoutAnchor?: boolean;
 	threshold?: number;
 }
 
@@ -141,6 +143,9 @@ export function resolveCanvasEditorPointSnap(options: {
 			guides: [],
 			indicators,
 		};
+	}
+	if (snap.alignWithoutAnchor === false) {
+		return { point, anchor: null, guides: [], indicators };
 	}
 	const aligned = calcSnap(
 		{ x: point.x - 1, y: point.y - 1, width: 2, height: 2 },

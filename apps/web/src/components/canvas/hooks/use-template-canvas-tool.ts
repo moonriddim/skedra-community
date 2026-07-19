@@ -44,7 +44,14 @@ export function useTemplateCanvasTool({
 			store.setSelectedIds(new Set([note.id]));
 			store.setEditingTextId(note.id);
 		},
-		[resolvedTheme, store, sync],
+		[
+			resolvedTheme,
+			store.setEditingTextId,
+			store.setSelectedIds,
+			sync.createElement,
+			sync.elements,
+			sync.updateElement,
+		],
 	);
 
 	return { addTemplateStickyNote };

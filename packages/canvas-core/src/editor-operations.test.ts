@@ -26,6 +26,7 @@ import {
 	createKanbanListElements,
 } from "./element-factory";
 import { createFlowchartNode, getFlowchartConnectorMeta } from "./flowchart";
+import { createGanttChartElements } from "./gantt";
 import { createMindmapEdge, createMindmapNode } from "./mindmap";
 import type { CanvasElement } from "./types";
 
@@ -116,6 +117,25 @@ test("multiple updates for one element are merged in mutation order", () => {
 	assert.deepEqual(
 		expected.map(({ x, y, width, height }) => ({ x, y, width, height })),
 		[{ x: 80, y: 90, width: 160, height: 124 }],
+	);
+});
+
+test("editing shape text preserves its chosen alignment", () => {
+	const shape = createBaseCanvasElement(
+		{ createId: () => "shape", stroke: "#111" },
+		{
+			type: "rectangle",
+			x: 10,
+			y: 20,
+			width: 160,
+			height: 80,
+			text: "Left aligned",
+			textAlign: "left",
+		},
+	);
+	assert.equal(
+		buildCanvasTextUpdate({ element: shape, text: "Still left" }).textAlign,
+		"left",
 	);
 });
 
@@ -390,6 +410,34 @@ test("shared movement expands frame children and mindmap descendants", () => {
 		{ x: lockedFrameChild.x, y: lockedFrameChild.y },
 	);
 	assert.ok(updates.some((update) => update.id === edge.id));
+});
+
+test("moving a Gantt frame keeps every locked chart part attached", () => {
+	const createId = idFactory("gantt-move");
+	const elements = createGanttChartElements(
+		{ createId, stroke: "#111", fontFamily: "Inter" },
+		{ x: 100, y: 200, startDate: "2026-07-13" },
+	);
+	const frame = elements[0];
+	assert.ok(frame);
+	const moveStart = new Map([[frame.id, { x: frame.x, y: frame.y }]]);
+	const dx = 75;
+	const dy = -35;
+	const moved = toCanvasElementMap(
+		applyCanvasElementUpdates(
+			elements,
+			buildCanvasMoveUpdates(toCanvasElementMap(elements), moveStart, dx, dy),
+		),
+	);
+
+	assert.equal(moveStart.size, elements.length);
+	for (const element of elements) {
+		assert.deepEqual(
+			{ x: moved.get(element.id)?.x, y: moved.get(element.id)?.y },
+			{ x: element.x + dx, y: element.y + dy },
+			`Gantt child ${element.id} must follow its frame`,
+		);
+	}
 });
 
 test("keyboard resize rejects locked elements", () => {

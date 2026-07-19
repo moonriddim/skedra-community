@@ -15,6 +15,12 @@ import {
 	getFlowchartNodePreset,
 	getFlowchartOutgoingNodes,
 } from "./flowchart";
+import {
+	buildGanttDependencySyncUpdates,
+	getGanttDependencyMeta,
+	getGanttTaskMeta,
+	isGanttChart,
+} from "./gantt";
 import { getBBox } from "./geometry";
 import {
 	buildKanbanDeletionReflowUpdates,
@@ -43,6 +49,7 @@ import {
 	createStackIndexBeforeElement,
 } from "./ordering";
 import type { ArrowTextOrientation, ArrowTextSide } from "./path-rendering";
+import { getSequenceDiagramId } from "./sequence-diagram";
 import {
 	clampCloudArcRadius,
 	getFreeformRevisionCloudScallopDepth,
@@ -246,6 +253,11 @@ export function planCanvasNormalization(
 	elements: Map<string, CanvasElement>,
 ): CanvasMutationPlan {
 	const orphanEdges: string[] = [];
+	const ganttTasks = new Set<string>();
+	for (const element of elements.values()) {
+		const task = getGanttTaskMeta(element);
+		if (task) ganttTasks.add(`${task.ganttChartId}:${task.ganttTaskId}`);
+	}
 	for (const element of elements.values()) {
 		const edge = getMindmapEdgeMeta(element);
 		if (
@@ -263,6 +275,18 @@ export function planCanvasNormalization(
 		) {
 			orphanEdges.push(element.id);
 		}
+		const dependency = getGanttDependencyMeta(element);
+		if (
+			dependency &&
+			(!ganttTasks.has(
+				`${dependency.ganttChartId}:${dependency.ganttSourceTaskId}`,
+			) ||
+				!ganttTasks.has(
+					`${dependency.ganttChartId}:${dependency.ganttTargetTaskId}`,
+				))
+		) {
+			orphanEdges.push(element.id);
+		}
 	}
 	return {
 		create: [],
@@ -274,6 +298,9 @@ export function planCanvasNormalization(
 				excludeIds: orphanEdges,
 			}),
 			...buildFlowchartConnectorSyncUpdates(elements).filter(
+				(update) => !orphanEdges.includes(update.id),
+			),
+			...buildGanttDependencySyncUpdates(elements).filter(
 				(update) => !orphanEdges.includes(update.id),
 			),
 		],
@@ -487,9 +514,19 @@ export function buildCanvasMoveUpdates(
 	dx: number,
 	dy: number,
 ): CanvasElementUpdate[] {
+	const movingGanttFrameIds = new Set(
+		Array.from(moveStart.keys()).filter((id) => {
+			const element = elements.get(id);
+			return element != null && !element.locked && isGanttChart(element);
+		}),
+	);
 	for (const id of moveStart.keys()) {
 		const element = elements.get(id);
-		if (!element || element.locked) moveStart.delete(id);
+		const followsMovingGanttFrame =
+			element?.frameId != null && movingGanttFrameIds.has(element.frameId);
+		if (!element || (element.locked && !followsMovingGanttFrame)) {
+			moveStart.delete(id);
+		}
 	}
 	const pendingIds = Array.from(moveStart.keys());
 	for (let index = 0; index < pendingIds.length; index++) {
@@ -508,8 +545,13 @@ export function buildCanvasMoveUpdates(
 		}
 
 		if (element.type === "frame") {
+			const moveLockedChildren = movingGanttFrameIds.has(id);
 			for (const [childId, child] of elements) {
-				if (child.frameId !== id || child.locked || moveStart.has(childId)) {
+				if (
+					child.frameId !== id ||
+					(child.locked && !moveLockedChildren) ||
+					moveStart.has(childId)
+				) {
 					continue;
 				}
 				moveStart.set(childId, { x: child.x, y: child.y });
@@ -765,8 +807,30 @@ export function planCanvasDeletion(
 	const deletedListIds = new Set(
 		Array.from(deleteIds).filter((id) => isKanbanList(elements.get(id))),
 	);
+	const deletedGanttChartIds = new Set(
+		Array.from(deleteIds).filter((id) => isGanttChart(elements.get(id))),
+	);
+	const deletedGanttTasks = new Set(
+		Array.from(deleteIds).flatMap((id) => {
+			const meta = getGanttTaskMeta(elements.get(id));
+			return meta ? [`${meta.ganttChartId}:${meta.ganttTaskId}`] : [];
+		}),
+	);
+	const deletedSequenceDiagramIds = new Set(
+		Array.from(deleteIds).flatMap((id) => {
+			const diagramId = getSequenceDiagramId(elements.get(id));
+			return diagramId ? [diagramId] : [];
+		}),
+	);
 	for (const element of elements.values()) {
 		if (element.frameId && deletedListIds.has(element.frameId)) {
+			deleteIds.add(element.id);
+		}
+		if (element.frameId && deletedGanttChartIds.has(element.frameId)) {
+			deleteIds.add(element.id);
+		}
+		const sequenceDiagramId = getSequenceDiagramId(element);
+		if (sequenceDiagramId && deletedSequenceDiagramIds.has(sequenceDiagramId)) {
 			deleteIds.add(element.id);
 		}
 		const edge = getMindmapEdgeMeta(element);
@@ -782,6 +846,18 @@ export function planCanvasDeletion(
 			connector &&
 			(deleteIds.has(connector.flowchartSourceId) ||
 				deleteIds.has(connector.flowchartTargetId))
+		) {
+			deleteIds.add(element.id);
+		}
+		const dependency = getGanttDependencyMeta(element);
+		if (
+			dependency &&
+			(deletedGanttTasks.has(
+				`${dependency.ganttChartId}:${dependency.ganttSourceTaskId}`,
+			) ||
+				deletedGanttTasks.has(
+					`${dependency.ganttChartId}:${dependency.ganttTargetTaskId}`,
+				))
 		) {
 			deleteIds.add(element.id);
 		}
@@ -1011,7 +1087,9 @@ export function buildCanvasTextUpdate(options: {
 			text,
 			textColor: element.textColor ?? element.stroke,
 			fontFamily,
-			...(isCenteredShape ? { textAlign: "center" as const } : {}),
+			...(isCenteredShape
+				? { textAlign: element.textAlign ?? ("center" as const) }
+				: {}),
 		};
 	}
 	return {

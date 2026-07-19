@@ -212,7 +212,10 @@ export function cloneCanvasSelection(options: {
 	for (const element of options.elements) {
 		for (const key of [
 			"flowchartId",
+			"ganttChartId",
+			"ganttTaskId",
 			"mindmapTreeId",
+			"sequenceDiagramId",
 			"templateSectionId",
 		] as const) {
 			const value = element.customData?.[key];
@@ -396,7 +399,16 @@ function remapCustomDataReferences(
 			remapped[key] = idMap.get(current);
 		}
 	}
-	for (const key of ["flowchartId", "mindmapTreeId", "templateSectionId"]) {
+	for (const key of [
+		"flowchartId",
+		"ganttChartId",
+		"ganttTaskId",
+		"ganttSourceTaskId",
+		"ganttTargetTaskId",
+		"mindmapTreeId",
+		"sequenceDiagramId",
+		"templateSectionId",
+	]) {
 		const current = remapped[key];
 		if (typeof current === "string" && logicalIdMap.has(current)) {
 			remapped[key] = logicalIdMap.get(current);

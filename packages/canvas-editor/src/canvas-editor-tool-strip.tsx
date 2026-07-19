@@ -91,11 +91,14 @@ export function CanvasEditorToolStrip({
 							getButtonClassName?.(activeTool, toolLocked) ?? classes?.button,
 						)}
 						data-active={toolLocked}
+						data-canvas-toolbar-interactive="true"
 						title={toolLockTitle}
 						aria-label={toolLockTitle}
 						onClick={() => onToolLockChange(!toolLocked)}
 					>
-						{renderToolLockIcon(toolLocked)}
+						<span className="canvas-editor__toolbar-icon">
+							{renderToolLockIcon(toolLocked)}
+						</span>
 					</button>
 					<span
 						aria-hidden="true"
@@ -134,12 +137,15 @@ export function CanvasEditorToolStrip({
 									) ?? classes?.button,
 								)}
 								data-active={activeTool === definition.id}
+								data-canvas-toolbar-interactive="true"
 								title={title}
 								aria-label={label}
 								disabled={isToolDisabled(definition.id)}
 								onClick={() => onToolSelect(definition.id)}
 							>
-								{renderIcon(definition.id)}
+								<span className="canvas-editor__toolbar-icon">
+									{renderIcon(definition.id)}
+								</span>
 							</button>
 						);
 					})}

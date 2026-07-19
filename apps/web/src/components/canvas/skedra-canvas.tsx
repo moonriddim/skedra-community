@@ -20,6 +20,7 @@ import { usePresentationPublisher } from "@/hooks/use-presentation-publisher";
 import { usePresenterNotes } from "@/hooks/use-presenter-notes";
 import { useServerCanvasSync } from "@/hooks/use-server-canvas-sync";
 import type { AssetAccessTokens } from "@/lib/canvas/asset-urls";
+import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-defaults";
 import { mergeElementCustomData } from "@/lib/canvas/custom-data-utils";
 import {
 	exportFramePNG,
@@ -45,10 +46,20 @@ import {
 	mergePresentationFrameElements,
 	viewportFromPresentationCamera,
 } from "@/lib/presentation-frame";
+import { ganttDateLabel } from "@/lib/templates/gantt";
+import { templateText } from "@/lib/templates/shared";
 import { trpc } from "@/lib/trpc";
+import { useThemeStore } from "@/stores/theme";
 import {
 	buildCanvasPathInsertPointChanges,
+	buildGanttChartMutationPlan,
+	findGanttChartElement,
+	focusGanttChartOnDate,
 	getFlowchartNodeMeta,
+	getGanttChartDocument,
+	getGanttChartMeta,
+	getGanttChartRepairDocument,
+	getSequenceDiagramId,
 	isFlowchartNode,
 	isMindmapNode,
 } from "@skedra/canvas-core";
@@ -64,15 +75,34 @@ import {
 	useCanvasEditorSavedViews,
 } from "@skedra/canvas-editor";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	Suspense,
+	lazy,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import * as Y from "yjs";
 import { useShallow } from "zustand/react/shallow";
+import { BoardActivityOverlay } from "../board/board-activity-overlay";
 import type { PendingCommentPlacement } from "../whiteboard/canvas-comment-layer";
 import type { WhiteboardCommentThread } from "../whiteboard/whiteboard-comment-types";
+import { WhiteboardCommentsPanel } from "../whiteboard/whiteboard-comments-panel";
 import { type CanvasCommands, CanvasCommandsProvider } from "./canvas-commands";
+import { CanvasFindOnCanvas } from "./canvas-find-on-canvas";
+import { CanvasPresentationPanel } from "./canvas-presentation-panel";
 import { CanvasRenderer } from "./canvas-renderer";
 import { CanvasStage } from "./canvas-stage";
-import { hasCanvasToolProperties } from "./canvas-tool-types";
+import {
+	hasCanvasToolProperties,
+	shouldShowCanvasProperties,
+} from "./canvas-tool-types";
+import {
+	CanvasWorkspacePanel,
+	type CanvasWorkspaceTab,
+} from "./canvas-workspace-panel";
 import { useCanvasAddElements } from "./hooks/use-canvas-add-elements";
 import { useCanvasDoubleClick } from "./hooks/use-canvas-double-click";
 import { useCanvasSearch } from "./hooks/use-canvas-search";
@@ -91,6 +121,12 @@ import { SkedraCanvasEditLayer } from "./skedra-canvas/skedra-canvas-edit-layer"
 import { SkedraCanvasFileDialogs } from "./skedra-canvas/skedra-canvas-file-dialogs";
 import { SkedraCanvasOverlays } from "./skedra-canvas/skedra-canvas-overlays";
 import { SkedraCanvasToolPanels } from "./skedra-canvas/skedra-canvas-tool-panels";
+
+const WorkspaceLibraryPanel = lazy(() =>
+	import("./library-panel").then((module) => ({
+		default: module.LibraryPanel,
+	})),
+);
 
 interface SkedraCanvasProps {
 	whiteboardId?: string;
@@ -133,12 +169,22 @@ interface SkedraCanvasProps {
 	presenterStartError?: string | null;
 	onStartPresentation?: () => void;
 	onEndPresentation?: () => void;
+	onOpenPresentationPreparation?: () => void;
 	onCancelPresentationPreparation?: () => void;
 	onPresentationSessionEnded?: () => void;
+	workspacePanelOpen?: boolean;
+	onWorkspacePanelOpenChange?: (open: boolean) => void;
+	onOpenShare?: () => void;
+	activity?: {
+		whiteboardId: string;
+		whiteboardName: string;
+	};
 	/** Audience-View (/present/:token) */
 	audienceBoardName?: string;
 	/** Excalidraw-ähnliche Board-Kommentare (nur wenn gesetzt). */
 	comments?: {
+		whiteboardName: string;
+		isLoading: boolean;
 		threads: WhiteboardCommentThread[];
 		selectedThreadId: string | null;
 		pendingPlacement: PendingCommentPlacement | null;
@@ -158,6 +204,9 @@ interface SkedraCanvasProps {
 		onDeleteThread: (threadId: string) => void;
 		onDeleteMessage: (messageId: string) => void;
 		onCancelPlacement: () => void;
+		onPanelOpenChange: (open: boolean) => void;
+		onToggleShowResolved: () => void;
+		onStartPlacement: () => void;
 	};
 	/** Springt im Canvas zu einer Welt-Position (z. B. aus der Kommentar-Sidebar). */
 	focusCanvasPointRef?: React.MutableRefObject<
@@ -217,8 +266,13 @@ export function SkedraCanvas({
 	presenterStartError,
 	onStartPresentation,
 	onEndPresentation,
+	onOpenPresentationPreparation,
 	onCancelPresentationPreparation,
 	onPresentationSessionEnded,
+	workspacePanelOpen,
+	onWorkspacePanelOpenChange,
+	onOpenShare,
+	activity,
 	audienceBoardName,
 	comments,
 	focusCanvasPointRef,
@@ -234,6 +288,17 @@ export function SkedraCanvas({
 	const [aiPanelOpen, setAiPanelOpen] = useState(false);
 	const [presenterNotesOpen, setPresenterNotesOpen] = useState(presenterMode);
 	const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+	const [workspacePanelTab, setWorkspacePanelTab] =
+		useState<CanvasWorkspaceTab | null>(null);
+	const lastWorkspacePanelTabRef = useRef<CanvasWorkspaceTab>(
+		comments ? "comments" : "search",
+	);
+	const onWorkspacePanelOpenChangeRef = useRef(onWorkspacePanelOpenChange);
+	onWorkspacePanelOpenChangeRef.current = onWorkspacePanelOpenChange;
+	const onCommentPanelOpenChangeRef = useRef(comments?.onPanelOpenChange);
+	onCommentPanelOpenChangeRef.current = comments?.onPanelOpenChange;
+	const previousWorkspacePanelOpenRef = useRef(false);
+	const previousCommentPanelOpenRef = useRef(false);
 	const [audienceFollowPresenter, setAudienceFollowPresenter] = useState(true);
 	const [presentationElementPreviews, setPresentationElementPreviews] =
 		useState<CanvasElement[]>([]);
@@ -243,6 +308,7 @@ export function SkedraCanvas({
 		width: 0,
 		height: 0,
 	});
+	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
 
 	useEffect(() => {
 		const canvas = svgRef.current;
@@ -378,8 +444,79 @@ export function SkedraCanvas({
 		e2eeKey,
 		tokens: assetAccessTokens,
 	});
+	const canvasEditorTranslations = useMemo(
+		() => ({
+			translate: (
+				key: string,
+				fallback: string,
+				params?: Record<string, string | number>,
+			) => {
+				const translated = t(key as `canvas.${string}`, params);
+				return translated === key ? fallback : translated;
+			},
+		}),
+		[t],
+	);
+	const canvasEditorAssetAdapter = useMemo(
+		() => ({ resolveAssetUrl }),
+		[resolveAssetUrl],
+	);
+	const canvasEditorCollaboration = useMemo(
+		() => ({ enabled: !localMode }),
+		[localMode],
+	);
 	const syncRef = useRef(sync);
 	syncRef.current = sync;
+	const ganttAutoFocusedIdsRef = useRef(new Set<string>());
+	const ganttAutoFocusScopeRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		const scope = `${localMode ? "local" : "remote"}:${whiteboardId ?? "guest"}:${audienceFrameMode ? "audience" : "editor"}`;
+		if (ganttAutoFocusScopeRef.current !== scope) {
+			ganttAutoFocusScopeRef.current = scope;
+			ganttAutoFocusedIdsRef.current.clear();
+		}
+		if (!sync.isConnected || sync.isReadonly || audienceFrameMode) return;
+		const source = Array.from(sync.elements.values());
+		const today = new Date().toISOString().slice(0, 10);
+		for (const element of source) {
+			if (!getGanttChartMeta(element)) continue;
+			const shouldFocusToday = !ganttAutoFocusedIdsRef.current.has(element.id);
+			let nextDocument = getGanttChartRepairDocument(source, element);
+			if (shouldFocusToday) {
+				ganttAutoFocusedIdsRef.current.add(element.id);
+				const currentDocument =
+					nextDocument ?? getGanttChartDocument(source, element);
+				if (currentDocument) {
+					nextDocument = focusGanttChartOnDate(currentDocument, today);
+				}
+			}
+			if (!nextDocument) continue;
+			const plan = buildGanttChartMutationPlan(
+				getCanvasElementFactoryDefaults({ resolvedTheme }),
+				source,
+				element,
+				nextDocument,
+				{
+					dateLabel: ganttDateLabel,
+					text: templateText,
+					today,
+				},
+			);
+			// Generated Gantt children are repaired as document maintenance. This
+			// must not change the user's current selection or create an Undo step.
+			sync.applyMutationPlan({ ...plan, selectedIds: [] });
+		}
+	}, [
+		audienceFrameMode,
+		localMode,
+		resolvedTheme,
+		sync.applyMutationPlan,
+		sync.elements,
+		sync.isConnected,
+		sync.isReadonly,
+		whiteboardId,
+	]);
 
 	useEffect(() => {
 		if (
@@ -480,6 +617,70 @@ export function SkedraCanvas({
 		canvasSearchOpen,
 	} = store;
 	const setStoreCanvasBg = store.setCanvasBg;
+
+	useEffect(() => {
+		if (store.activePanel === "library") {
+			setWorkspacePanelTab("library");
+			return;
+		}
+		setWorkspacePanelTab((current) => (current === "library" ? null : current));
+	}, [store.activePanel]);
+
+	useEffect(() => {
+		if (canvasSearchOpen) {
+			setWorkspacePanelTab("search");
+			return;
+		}
+		setWorkspacePanelTab((current) => (current === "search" ? null : current));
+	}, [canvasSearchOpen]);
+
+	useEffect(() => {
+		if (workspacePanelOpen === undefined) return;
+		setWorkspacePanelTab((current) =>
+			workspacePanelOpen ? (current ?? lastWorkspacePanelTabRef.current) : null,
+		);
+	}, [workspacePanelOpen]);
+
+	useEffect(() => {
+		if (workspacePanelTab) lastWorkspacePanelTabRef.current = workspacePanelTab;
+		const panelOpen = workspacePanelTab !== null;
+		if (previousWorkspacePanelOpenRef.current !== panelOpen) {
+			previousWorkspacePanelOpenRef.current = panelOpen;
+			onWorkspacePanelOpenChangeRef.current?.(panelOpen);
+		}
+
+		const commentPanelOpen = workspacePanelTab === "comments";
+		if (previousCommentPanelOpenRef.current !== commentPanelOpen) {
+			previousCommentPanelOpenRef.current = commentPanelOpen;
+			onCommentPanelOpenChangeRef.current?.(commentPanelOpen);
+		}
+	}, [workspacePanelTab]);
+
+	useEffect(() => {
+		if (!effectivePresentationPreparationMode || presentationMode) return;
+		setWorkspacePanelTab("presentation");
+	}, [effectivePresentationPreparationMode, presentationMode]);
+
+	const handleWorkspaceTabChange = useCallback(
+		(tab: CanvasWorkspaceTab) => {
+			setWorkspacePanelTab(tab);
+			store.setCanvasSearchOpen(tab === "search");
+
+			if (tab === "library") {
+				if (store.activePanel !== "library") store.setActivePanel("library");
+			} else if (store.activePanel === "library") {
+				store.setActivePanel(null);
+			}
+		},
+		[store],
+	);
+
+	const handleCloseWorkspacePanel = useCallback(() => {
+		setWorkspacePanelTab(null);
+		store.setCanvasSearchOpen(false);
+		if (store.activePanel === "library") store.setActivePanel(null);
+	}, [store]);
+
 	const canvasBackgroundSyncRef = useRef<{
 		scope: string;
 		value: string;
@@ -959,6 +1160,9 @@ export function SkedraCanvas({
 		updateElements: sync.updateElements,
 		duplicateSelection: keyboard.duplicateSelection,
 		deleteElements: deleteElementsWithKanbanReflow,
+		deleteElementsDirect: sync.deleteElements,
+		applyMutationPlan: sync.applyMutationPlan,
+		startUndoCapture: history.startCapturing,
 		stopUndoCapture: history.stopCapturing,
 		cancelUndoCapture: history.cancelCapturing,
 		startTextPlacement,
@@ -1145,7 +1349,7 @@ export function SkedraCanvas({
 			sync.updateElement(element.id, changes);
 			store.setSelectedIds(new Set([element.id]));
 		},
-		[store, sync.elements, sync.updateElement],
+		[store.setSelectedIds, sync.elements, sync.updateElement],
 	);
 
 	const exportVisual = useCallback<CanvasCommands["exportVisual"]>(
@@ -1272,26 +1476,37 @@ export function SkedraCanvas({
 	});
 
 	const showEditorChrome = !presentationMode && !sync.isReadonly && !zenMode;
+	const selectedExistingElements = Array.from(selectedIds).flatMap((id) => {
+		const selected = sync.elements.get(id);
+		return selected ? [selected] : [];
+	});
+	const hasOnlyStructuredDiagramSelection =
+		selectedExistingElements.length > 0 &&
+		selectedExistingElements.every(
+			(selected) =>
+				findGanttChartElement(sync.elements.values(), selected) != null ||
+				getSequenceDiagramId(selected) != null,
+		);
 	const hasPropertyContext =
 		selectedIds.size > 0 ||
 		pendingText != null ||
 		store.editingTextId != null ||
 		hasCanvasToolProperties(store.activeTool);
-	const showProperties = showEditorChrome && (!localMode || hasPropertyContext);
+	const showProperties = shouldShowCanvasProperties({
+		showEditorChrome,
+		localMode,
+		hasPropertyContext,
+		hasOnlyStructuredDiagramSelection,
+	});
 
 	return (
 		<CanvasCommandsProvider value={canvasCommands}>
 			<CanvasEditor
 				rootRef={containerRef}
 				documentAdapter={pointerHandlers.documentAdapter}
-				translations={{
-					translate: (key, fallback, params) => {
-						const translated = t(key as `canvas.${string}`, params);
-						return translated === key ? fallback : translated;
-					},
-				}}
-				assetAdapter={{ resolveAssetUrl }}
-				collaboration={{ enabled: !localMode }}
+				translations={canvasEditorTranslations}
+				assetAdapter={canvasEditorAssetAdapter}
+				collaboration={canvasEditorCollaboration}
 				className={`skedra-canvas h-full w-full relative overflow-hidden select-none${store.isSpacePressed ? " cursor-grab" : ""}`}
 				style={{ backgroundColor: canvasBg || "var(--background)" }}
 				onContextMenu={handleContextMenu}
@@ -1315,6 +1530,7 @@ export function SkedraCanvas({
 					showProperties={showProperties}
 					workspaceSlug={workspaceSlug}
 					sync={sync}
+					stopUndoCapture={history.stopCapturing}
 					selectedIds={selectedIds}
 					pendingText={pendingText}
 					editingTextId={store.editingTextId}
@@ -1343,6 +1559,95 @@ export function SkedraCanvas({
 					onPresentationElementsPreview={setPresentationElementPreviews}
 					commands={canvasCommands}
 				/>
+
+				{showEditorChrome && workspacePanelTab && (
+					<CanvasWorkspacePanel
+						activeTab={workspacePanelTab}
+						showComments={!!comments}
+						showActivity={!!activity}
+						onTabChange={handleWorkspaceTabChange}
+						onShare={onOpenShare}
+						onClose={handleCloseWorkspacePanel}
+					>
+						{workspacePanelTab === "search" ? (
+							<CanvasFindOnCanvas
+								open
+								embedded
+								query={canvasSearch.query}
+								matches={canvasSearch.matches}
+								activeIndex={canvasSearch.activeIndex}
+								onOpenChange={(open) => {
+									if (!open) handleCloseWorkspacePanel();
+								}}
+								onQueryChange={canvasSearch.setQuery}
+								onActiveIndexChange={canvasSearch.setActiveIndex}
+								onNext={canvasSearch.goToNext}
+								onPrevious={canvasSearch.goToPrevious}
+							/>
+						) : workspacePanelTab === "library" ? (
+							<Suspense fallback={null}>
+								<WorkspaceLibraryPanel
+									embedded
+									selectedElements={Array.from(selectedIds)
+										.map((id) => sync.elements.get(id))
+										.filter((element): element is CanvasElement => !!element)}
+									onInsertElements={addElements}
+									getViewportCenter={getViewportCenter}
+									onClose={handleCloseWorkspacePanel}
+								/>
+							</Suspense>
+						) : workspacePanelTab === "comments" && comments ? (
+							<WhiteboardCommentsPanel
+								embedded
+								open
+								whiteboardName={comments.whiteboardName}
+								threads={comments.threads}
+								selectedThreadId={comments.selectedThreadId}
+								showResolved={comments.showResolved}
+								placementActive={comments.placementActive}
+								isLoading={comments.isLoading}
+								onClose={handleCloseWorkspacePanel}
+								onSelectThread={(threadId) => comments.onSelectThread(threadId)}
+								onToggleShowResolved={comments.onToggleShowResolved}
+								onStartPlacement={comments.onStartPlacement}
+							/>
+						) : workspacePanelTab === "activity" && activity ? (
+							<BoardActivityOverlay
+								embedded
+								open
+								whiteboardId={activity.whiteboardId}
+								whiteboardName={activity.whiteboardName}
+								onClose={handleCloseWorkspacePanel}
+							/>
+						) : (
+							<CanvasPresentationPanel
+								views={savedViewList}
+								elements={sync.elements}
+								activeViewId={activeViewId}
+								editingViewId={editingViewId}
+								isCapturingView={isCapturingView}
+								readOnly={sync.isReadonly}
+								presentationPreparationMode={
+									effectivePresentationPreparationMode
+								}
+								canUsePresenterNotes={canUsePresenterNotes}
+								onStartCaptureView={startCaptureView}
+								onCancelCaptureView={cancelCaptureView}
+								onSelectView={handleSelectView}
+								onStartEditView={handleStartEditView}
+								onStopEditView={handleStopEditView}
+								onDeleteView={handleDeleteView}
+								onDuplicateView={handleDuplicateView}
+								onMoveView={handleMoveView}
+								onRenameView={handleRenameView}
+								onOpenPresenterNotes={() => setPresenterNotesOpen(true)}
+								onPreparePresentation={onOpenPresentationPreparation}
+								onStartPresentation={onStartPresentation}
+								renderPreview={renderSavedViewPreview}
+							/>
+						)}
+					</CanvasWorkspacePanel>
+				)}
 
 				<SkedraCanvasStageSurface
 					svgRef={svgRef}
@@ -1446,6 +1751,7 @@ export function SkedraCanvas({
 									presenterMode,
 									presentationPreparationMode:
 										effectivePresentationPreparationMode,
+									showViews: !effectivePresentationPreparationMode,
 									onUndo: history.undo,
 									onRedo: history.redo,
 									onFitViewport: handleFitViewport,
@@ -1515,18 +1821,12 @@ export function SkedraCanvas({
 					commandPaletteOpen={commandPaletteOpen}
 					onCommandPaletteOpenChange={store.setCommandPaletteOpen}
 					commandPaletteCommands={commandPaletteCommands}
-					canvasSearchOpen={canvasSearchOpen}
-					canvasSearchQuery={canvasSearch.query}
-					canvasSearchMatches={canvasSearch.matches}
-					canvasSearchActiveIndex={canvasSearch.activeIndex}
-					onCanvasSearchOpenChange={store.setCanvasSearchOpen}
-					onCanvasSearchQueryChange={canvasSearch.setQuery}
-					onCanvasSearchActiveIndexChange={canvasSearch.setActiveIndex}
-					onCanvasSearchNext={canvasSearch.goToNext}
-					onCanvasSearchPrevious={canvasSearch.goToPrevious}
 					aiPanelOpen={aiPanelOpen}
 					onAiPanelOpenChange={setAiPanelOpen}
 					onAddElements={addElements}
+					elements={sync.elements}
+					selectedElements={selectedEls}
+					onApplyMutationPlan={sync.applyMutationPlan}
 					onToggleZenMode={() => store.toggleZenMode()}
 					presenterNotesOpen={presenterNotesOpen}
 					onPresenterNotesOpenChange={setPresenterNotesOpen}

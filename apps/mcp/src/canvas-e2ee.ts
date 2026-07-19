@@ -13,8 +13,15 @@ import {
 	createHash,
 	randomBytes,
 } from "node:crypto";
-import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import {
+	type CanvasElement,
+	type CanvasMutationPlan,
+	type SavedCanvasView,
+	applyCanvasMutationPlan,
+	createStackIndexAfter,
+} from "@skedra/canvas-core";
+import {
+	applyPartialUpdatesToYMap,
 	objectToYMap,
 	readCanvasMapsFromYDoc,
 } from "@skedra/canvas-io/yjs-document";
@@ -142,6 +149,105 @@ function encodeElementsDocument<T>(
 	}
 }
 
+function createTopLevelElementChanges(
+	before: CanvasElement,
+	after: CanvasElement,
+): Record<string, unknown> {
+	const beforeRecord = before as unknown as Record<string, unknown>;
+	const afterRecord = after as unknown as Record<string, unknown>;
+	const changes: Record<string, unknown> = {};
+	for (const key of new Set([
+		...Object.keys(beforeRecord),
+		...Object.keys(afterRecord),
+	])) {
+		if (
+			JSON.stringify(beforeRecord[key]) === JSON.stringify(afterRecord[key])
+		) {
+			continue;
+		}
+		changes[key] = Object.hasOwn(afterRecord, key)
+			? afterRecord[key]
+			: undefined;
+	}
+	return changes;
+}
+
+function encodeCanvasMutation<T>(
+	updates: Iterable<EncryptedBoardUpdate>,
+	decode: (update: string) => Uint8Array,
+	plan: CanvasMutationPlan,
+	encode: (update: Uint8Array) => T,
+): { update: T; changed: number } {
+	const doc = new Y.Doc();
+	try {
+		for (const update of updates) Y.applyUpdate(doc, decode(update.update));
+		const beforeVector = Y.encodeStateVector(doc);
+		const yElements = doc.getMap<Y.Map<unknown>>("elementsMap");
+		const current = readCanvasMapsFromYDoc(doc).elements;
+		const stackContext = new Map(current);
+		for (const id of plan.deleteIds) stackContext.delete(id);
+		const preparedPlan: CanvasMutationPlan = {
+			...plan,
+			create: plan.create.map((element) => {
+				const prepared = element.stackIndex
+					? element
+					: {
+							...element,
+							stackIndex: createStackIndexAfter(
+								stackContext.values(),
+								element.id,
+							),
+						};
+				stackContext.set(prepared.id, prepared);
+				return prepared;
+			}),
+		};
+		const next = new Map(
+			applyCanvasMutationPlan(Array.from(current.values()), preparedPlan).map(
+				(element) => [element.id, element] as const,
+			),
+		);
+		const changedIds = Array.from(
+			new Set([...current.keys(), ...next.keys()]),
+		).filter((id) => {
+			const before = current.get(id);
+			const after = next.get(id);
+			return JSON.stringify(before) !== JSON.stringify(after);
+		});
+
+		if (changedIds.length === 0) {
+			throw new Error("Die Canvas-Mutation hat keine Aenderung erzeugt.");
+		}
+
+		doc.transact(() => {
+			for (const id of changedIds) {
+				const before = current.get(id);
+				const after = next.get(id);
+				if (!after) {
+					yElements.delete(id);
+					continue;
+				}
+				const yElement = yElements.get(id);
+				if (!before || !yElement) {
+					yElements.set(id, objectToYMap(after));
+					continue;
+				}
+				applyPartialUpdatesToYMap(
+					yElement,
+					createTopLevelElementChanges(before, after),
+				);
+			}
+		});
+
+		return {
+			update: encode(Y.encodeStateAsUpdate(doc, beforeVector)),
+			changed: changedIds.length,
+		};
+	} finally {
+		doc.destroy();
+	}
+}
+
 function readBoardUpdates(
 	updates: Iterable<EncryptedBoardUpdate>,
 	decode: (update: string) => Uint8Array,
@@ -191,6 +297,34 @@ export function createPlainElementsUpdate(elements: CanvasElement[]): string {
 	return encodeElementsDocument(elements, (update) =>
 		Buffer.from(update).toString("base64"),
 	);
+}
+
+/** Applies an atomic semantic mutation to a server-managed board update log. */
+export function createPlainCanvasMutationUpdate(
+	updates: Iterable<EncryptedBoardUpdate>,
+	plan: CanvasMutationPlan,
+): { update: string; changed: number } {
+	return encodeCanvasMutation(
+		updates,
+		(update) => Buffer.from(update, "base64"),
+		plan,
+		(update) => Buffer.from(update).toString("base64"),
+	);
+}
+
+/** Applies and encrypts an atomic semantic mutation for an E2EE board. */
+export function encryptCanvasMutationUpdate(
+	updates: Iterable<EncryptedBoardUpdate>,
+	key: string,
+	plan: CanvasMutationPlan,
+): { update: string; keyHash: string; changed: number } {
+	const mutation = encodeCanvasMutation(
+		updates,
+		(update) => decryptYjsUpdate(update, key),
+		plan,
+		(update) => encryptYjsUpdate(update, key),
+	);
+	return { ...mutation, keyHash: createE2eeKeyHash(key) };
 }
 
 /**

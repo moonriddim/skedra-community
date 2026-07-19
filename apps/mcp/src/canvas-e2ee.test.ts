@@ -3,8 +3,10 @@ import { randomBytes } from "node:crypto";
 import test from "node:test";
 import { createBaseCanvasElement } from "@skedra/canvas-core";
 import {
+	createPlainCanvasMutationUpdate,
 	createPlainElementsUpdate,
 	decryptBoardState,
+	encryptCanvasMutationUpdate,
 	encryptElementsUpdate,
 	readPlainBoardState,
 } from "./canvas-e2ee.js";
@@ -65,4 +67,56 @@ test("readPlainBoardState reconstructs server-managed MCP updates", () => {
 	assert.equal(state.appliedUpdates, 1);
 	assert.equal(state.elements[0]?.id, "server-element-1");
 	assert.equal(state.elements[0]?.type, "ellipse");
+});
+
+test("createPlainCanvasMutationUpdate updates and deletes existing elements", () => {
+	const first = createBaseCanvasElement(
+		{ createId: () => "plain-update", stroke: "#111111" },
+		{ type: "text", x: 10, y: 20, width: 100, height: 40, text: "before" },
+	);
+	const removed = createBaseCanvasElement(
+		{ createId: () => "plain-delete", stroke: "#111111" },
+		{ type: "rectangle", x: 0, y: 0, width: 20, height: 20 },
+	);
+	const initial = createPlainElementsUpdate([first, removed]);
+	const mutation = createPlainCanvasMutationUpdate([{ update: initial }], {
+		create: [],
+		update: [{ id: first.id, changes: { text: "after", x: 30 } }],
+		deleteIds: [removed.id],
+	});
+	const state = readPlainBoardState([
+		{ update: initial },
+		{ update: mutation.update },
+	]);
+
+	assert.equal(mutation.changed, 2);
+	assert.equal(state.elements.length, 1);
+	assert.equal(state.elements[0]?.text, "after");
+	assert.equal(state.elements[0]?.x, 30);
+});
+
+test("encryptCanvasMutationUpdate creates an E2EE-compatible incremental edit", () => {
+	const key = createTestKey();
+	const element = createBaseCanvasElement(
+		{ createId: () => "encrypted-update", stroke: "#111111" },
+		{ type: "text", x: 10, y: 20, width: 100, height: 40, text: "before" },
+	);
+	const initial = encryptElementsUpdate([element], key);
+	const mutation = encryptCanvasMutationUpdate(
+		[{ update: initial.update }],
+		key,
+		{
+			create: [],
+			update: [{ id: element.id, changes: { text: "after" } }],
+			deleteIds: [],
+		},
+	);
+	const state = decryptBoardState(
+		[{ update: initial.update }, { update: mutation.update }],
+		key,
+	);
+
+	assert.equal(mutation.changed, 1);
+	assert.equal(mutation.keyHash, initial.keyHash);
+	assert.equal(state.elements[0]?.text, "after");
 });

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { decodeCanvasElements } from "@/lib/canvas/canvas-codecs";
+import { getLibrariesSiteUrl } from "@/lib/canvas/library-site-url";
 import {
 	buildSkedraLibraryFile,
 	downloadSkedraLibrary,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useCanvasLibraryStore } from "@/stores/canvas-library-store";
 import { useThemeStore } from "@/stores/theme";
 import type { CanvasElement } from "@skedra/canvas-core";
+import { useCanvasEditorFloatingPanel } from "@skedra/canvas-editor";
 import type { SkedraLibraryItem } from "@skedra/shared";
 import { normalizeLibrarySlug } from "@skedra/shared";
 import {
@@ -39,6 +41,7 @@ interface LibraryPanelProps {
 	onInsertElements: (elements: CanvasElement[]) => void;
 	getViewportCenter: () => { x: number; y: number };
 	onClose: () => void;
+	embedded?: boolean;
 }
 
 const SCROLL_AREA_CLASS =
@@ -51,7 +54,11 @@ export function LibraryPanel({
 	onInsertElements,
 	getViewportCenter,
 	onClose,
+	embedded = false,
 }: LibraryPanelProps) {
+	const floatingPanel = useCanvasEditorFloatingPanel<HTMLDivElement>({
+		disabled: embedded,
+	});
 	const { t } = useI18n();
 	const { data: session } = authClient.useSession();
 	const utils = trpc.useUtils();
@@ -240,42 +247,53 @@ export function LibraryPanel({
 
 	return (
 		<div
+			ref={floatingPanel.panelRef}
 			className={cn(
-				"absolute top-14 left-4 z-40 flex w-[min(100vw-2rem,320px)] flex-col overflow-hidden rounded-xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md max-lg:top-auto max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))] max-lg:left-1/2 max-lg:max-h-[min(48dvh,32rem)] max-lg:w-[min(22rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:-translate-x-1/2",
-				pinned
-					? "bottom-20 max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))]"
-					: activeTab === "libraries"
-						? "h-[min(72vh,680px)]"
-						: "max-h-[min(72vh,680px)]",
+				"flex flex-col overflow-hidden bg-card text-card-foreground",
+				embedded
+					? "h-full min-h-0 w-full"
+					: "absolute top-14 left-4 z-40 w-[min(100vw-2rem,320px)] rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur-md max-lg:top-auto max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))] max-lg:left-1/2 max-lg:max-h-[min(48dvh,32rem)] max-lg:w-[min(22rem,calc(100vw-1.5rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] max-lg:-translate-x-1/2",
+				!embedded &&
+					(pinned
+						? "bottom-20 max-lg:bottom-[calc(8.5rem+env(safe-area-inset-bottom))]"
+						: activeTab === "libraries"
+							? "h-[min(72vh,680px)]"
+							: "max-h-[min(72vh,680px)]"),
 			)}
+			style={embedded ? undefined : floatingPanel.panelStyle}
 		>
-			<div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5">
-				<BookOpen className="h-4 w-4 shrink-0 text-primary" />
-				<h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
-					{t("shapeLibrary.title")}
-				</h3>
-				<button
-					type="button"
-					onClick={() => setPinned((v) => !v)}
-					className={cn(
-						"cursor-pointer rounded-md p-1 transition-colors max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center",
-						pinned
-							? "bg-primary/15 text-primary"
-							: "text-muted-foreground hover:bg-accent hover:text-foreground",
-					)}
-					aria-label={t("shapeLibrary.pin")}
+			{!embedded && (
+				<div
+					className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5"
+					{...floatingPanel.dragHandleProps}
 				>
-					<Pin className="h-3.5 w-3.5" />
-				</button>
-				<button
-					type="button"
-					onClick={onClose}
-					className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
-					aria-label={t("common.close")}
-				>
-					<X className="h-4 w-4" />
-				</button>
-			</div>
+					<BookOpen className="h-4 w-4 shrink-0 text-primary" />
+					<h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
+						{t("shapeLibrary.title")}
+					</h3>
+					<button
+						type="button"
+						onClick={() => setPinned((v) => !v)}
+						className={cn(
+							"cursor-pointer rounded-md p-1 transition-colors max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center",
+							pinned
+								? "bg-primary/15 text-primary"
+								: "text-muted-foreground hover:bg-accent hover:text-foreground",
+						)}
+						aria-label={t("shapeLibrary.pin")}
+					>
+						<Pin className="h-3.5 w-3.5" />
+					</button>
+					<button
+						type="button"
+						onClick={onClose}
+						className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
+						aria-label={t("common.close")}
+					>
+						<X className="h-4 w-4" />
+					</button>
+				</div>
+			)}
 
 			<div className="shrink-0 border-b border-border/60 px-3 py-2.5">
 				<div
@@ -626,6 +644,29 @@ export function LibraryPanel({
 						aria-labelledby="shape-library-libraries-tab"
 						className="space-y-3"
 					>
+						{installedLibraries.length === 0 &&
+							installableLibraries.length === 0 && (
+								<div className="flex min-h-72 flex-col items-center justify-center px-5 text-center">
+									<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+										<BookOpen className="h-6 w-6" aria-hidden="true" />
+									</div>
+									<h4 className="mt-4 text-sm font-semibold text-foreground">
+										{t("shapeLibrary.emptyTitle")}
+									</h4>
+									<p className="mt-1.5 max-w-64 text-xs leading-5 text-muted-foreground">
+										{t("shapeLibrary.emptyDescription")}
+									</p>
+									<Button asChild size="sm" className="mt-4 w-full">
+										<a
+											href={getLibrariesSiteUrl()}
+											target="_blank"
+											rel="noreferrer"
+										>
+											{t("shapeLibrary.browseCatalog")}
+										</a>
+									</Button>
+								</div>
+							)}
 						{installedLibraries.map((library) => {
 							return (
 								<section

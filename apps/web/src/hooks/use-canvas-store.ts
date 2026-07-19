@@ -165,9 +165,25 @@ export interface CanvasStoreState {
 	setLassoPath: (path: [number, number][] | null) => void;
 
 	/* Feature-Panel (Sticky Notes, Kanban, Ebenen) */
-	activePanel: "sticky" | "kanban" | "library" | "wireframe" | "layers" | null;
+	activePanel:
+		| "sticky"
+		| "kanban"
+		| "library"
+		| "wireframe"
+		| "sequence-diagram"
+		| "gantt"
+		| "layers"
+		| null;
 	setActivePanel: (
-		panel: "sticky" | "kanban" | "library" | "wireframe" | "layers" | null,
+		panel:
+			| "sticky"
+			| "kanban"
+			| "library"
+			| "wireframe"
+			| "sequence-diagram"
+			| "gantt"
+			| "layers"
+			| null,
 	) => void;
 
 	/* Text-Editing */
@@ -217,6 +233,7 @@ export interface CanvasStoreState {
 	setSnapGuides: (guides: SnapGuide[]) => void;
 	snapPointIndicators: SnapPointIndicator[];
 	setSnapPointIndicators: (points: SnapPointIndicator[]) => void;
+	setSnapVisuals: (guides: SnapGuide[], points?: SnapPointIndicator[]) => void;
 
 	/* Canvas-Hintergrundfarbe */
 	canvasBg: string;
@@ -307,26 +324,47 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
 	viewport: { x: 0, y: 0, zoom: 1 },
 	pan: (dx, dy) =>
-		set((s) => ({
-			viewport: { ...s.viewport, x: s.viewport.x + dx, y: s.viewport.y + dy },
-		})),
+		set((s) =>
+			dx === 0 && dy === 0
+				? s
+				: {
+						viewport: {
+							...s.viewport,
+							x: s.viewport.x + dx,
+							y: s.viewport.y + dy,
+						},
+					},
+		),
 	zoomTo: (zoom, centerX, centerY) =>
 		set((s) => {
+			const viewport = zoomCanvasViewportAtPoint(
+				s.viewport,
+				{ x: centerX, y: centerY },
+				zoom,
+			);
+			if (
+				viewport.x === s.viewport.x &&
+				viewport.y === s.viewport.y &&
+				viewport.zoom === s.viewport.zoom
+			) {
+				return s;
+			}
 			return {
-				viewport: zoomCanvasViewportAtPoint(
-					s.viewport,
-					{ x: centerX, y: centerY },
-					zoom,
-				),
+				viewport,
 			};
 		}),
 	setViewport: (viewport) =>
-		set({
-			viewport: {
+		set((state) => {
+			const next = {
 				x: viewport.x,
 				y: viewport.y,
 				zoom: clampCanvasZoom(viewport.zoom),
-			},
+			};
+			return next.x === state.viewport.x &&
+				next.y === state.viewport.y &&
+				next.zoom === state.viewport.zoom
+				? state
+				: { viewport: next };
 		}),
 	resetViewport: () => set({ viewport: { x: 0, y: 0, zoom: 1 } }),
 
@@ -436,7 +474,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	contextMenu: null,
 	setContextMenu: (pos) => set({ contextMenu: pos }),
 
-	snapToObjects: true,
+	snapToObjects: false,
 	toggleSnapToObjects: () => set((s) => ({ snapToObjects: !s.snapToObjects })),
 	snapToEndpoints: true,
 	toggleSnapToEndpoints: () =>
@@ -482,6 +520,8 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	setSnapGuides: (guides) => set({ snapGuides: guides }),
 	snapPointIndicators: [],
 	setSnapPointIndicators: (points) => set({ snapPointIndicators: points }),
+	setSnapVisuals: (guides, points = []) =>
+		set({ snapGuides: guides, snapPointIndicators: points }),
 
 	canvasBg: "",
 	setCanvasBg: (bg) => set({ canvasBg: bg }),

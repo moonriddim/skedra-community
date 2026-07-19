@@ -27,6 +27,11 @@
 		var(--canvas-editor-safe-bottom)
 	);
 	--canvas-editor-properties-width: 20.625rem;
+	/* Keeps bottom-docked workspaces above the persistent zoom/undo bar. */
+	--canvas-editor-gantt-bottom-offset: calc(
+		4.25rem +
+		var(--canvas-editor-safe-bottom)
+	);
 }
 
 .canvas-editor {
@@ -41,7 +46,8 @@
 /* Shared panel skin. These selectors are intentionally independent of the
  * Community host's Tailwind utilities so the public SDK panels remain styled. */
 .canvas-editor__layers,
-.canvas-editor__wireframe-panel {
+.canvas-editor__wireframe-panel,
+.canvas-editor__sequence-panel {
 	--canvas-editor-panel-bg: var(--skedra-sdk-panel, var(--card, #fffef9));
 	--canvas-editor-panel-border: var(
 		--skedra-sdk-panel-border,
@@ -92,6 +98,16 @@
 	max-height: calc(100% - 5rem);
 }
 
+.canvas-editor__sequence-panel {
+	position: absolute;
+	top: 3.5rem;
+	left: 1rem;
+	z-index: var(--canvas-editor-panel-z-index, 40);
+	width: min(30rem, calc(100% - 2rem));
+	height: min(calc(100% - 7rem), 60rem);
+	max-height: calc(100% - 3.5rem - var(--canvas-editor-gantt-bottom-offset));
+}
+
 .canvas-editor__wireframe-panel[data-pinned="true"] {
 	bottom: 5rem;
 	height: auto;
@@ -100,7 +116,11 @@
 .canvas-editor__layers button,
 .canvas-editor__layers input,
 .canvas-editor__wireframe-panel button,
-.canvas-editor__wireframe-panel input {
+.canvas-editor__wireframe-panel input,
+.canvas-editor__sequence-panel button,
+.canvas-editor__sequence-panel input,
+.canvas-editor__sequence-panel select,
+.canvas-editor__sequence-panel textarea {
 	box-sizing: border-box;
 	color: inherit;
 	font: inherit;
@@ -185,6 +205,8 @@
 .canvas-editor__wireframe-tab:focus-visible,
 .canvas-editor__wireframe-search-input:focus-visible,
 .canvas-editor__wireframe-item:focus-visible,
+.canvas-editor__sequence-source:focus-visible,
+.canvas-editor__sequence-insert:focus-visible,
 .canvas-editor__layer-row:focus-visible,
 .canvas-editor__layer-name-input:focus-visible,
 .canvas-editor__layer-lock:focus-visible {
@@ -200,6 +222,1184 @@
 	overflow: auto;
 	overscroll-behavior: contain;
 	scrollbar-gutter: stable;
+}
+
+.canvas-editor__sequence-body {
+	min-height: 0;
+	flex: 1 1 auto;
+	overflow: auto;
+	padding: 0.75rem;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+
+.canvas-editor__sequence-tabs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	flex: 0 0 auto;
+	gap: 0.25rem;
+	padding: 0.5rem 0.75rem;
+	border-bottom: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 65%, transparent);
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-muted) 5%,
+		transparent
+	);
+}
+
+.canvas-editor__sequence-tabs button {
+	height: 2rem;
+	padding: 0 0.625rem;
+	border: 0;
+	border-radius: 0.375rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.75rem;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-tabs button:hover,
+.canvas-editor__sequence-tabs button[data-active="true"] {
+	background: var(--canvas-editor-panel-bg);
+	color: var(--canvas-editor-panel-text);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.canvas-editor__sequence-visual-body {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.canvas-editor__sequence-section {
+	display: grid;
+	gap: 0.625rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 55%, transparent);
+}
+
+.canvas-editor__sequence-section:last-child {
+	padding-bottom: 0;
+	border-bottom: 0;
+}
+
+.canvas-editor__sequence-section-heading {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-section-heading > svg {
+	width: 1rem;
+	height: 1rem;
+	flex: 0 0 auto;
+	margin-top: 0.125rem;
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-section-heading h4,
+.canvas-editor__sequence-section-heading p,
+.canvas-editor__sequence-empty p {
+	margin: 0;
+}
+
+.canvas-editor__sequence-section-heading h4 {
+	font-size: 0.75rem;
+	font-weight: 700;
+}
+
+.canvas-editor__sequence-section-heading p {
+	margin-top: 0.125rem;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.625rem;
+	line-height: 1.4;
+}
+
+.canvas-editor__sequence-preset-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-preset-grid > button {
+	display: flex;
+	min-height: 4.25rem;
+	align-items: center;
+	gap: 0.625rem;
+	padding: 0.625rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: var(--canvas-editor-panel-bg);
+	text-align: left;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-preset-grid > button:hover:not(:disabled) {
+	border-color: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 45%,
+		var(--canvas-editor-panel-border)
+	);
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__sequence-preset-grid > button > svg {
+	width: 1.25rem;
+	height: 1.25rem;
+	flex: 0 0 auto;
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-preset-grid span {
+	display: grid;
+	min-width: 0;
+	gap: 0.125rem;
+}
+
+.canvas-editor__sequence-preset-grid strong {
+	font-size: 0.75rem;
+}
+
+.canvas-editor__sequence-preset-grid small {
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.625rem;
+	line-height: 1.3;
+}
+
+.canvas-editor__sequence-field {
+	display: grid;
+	min-width: 0;
+	gap: 0.25rem;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.625rem;
+	font-weight: 650;
+}
+
+.canvas-editor__sequence-field input,
+.canvas-editor__sequence-field select,
+.canvas-editor__sequence-form-row input,
+.canvas-editor__sequence-form-row select,
+.canvas-editor__sequence-compose input,
+.canvas-editor__sequence-structure-card input,
+.canvas-editor__sequence-structure-card select {
+	width: 100%;
+	min-width: 0;
+	height: 2.25rem;
+	padding: 0.25rem 0.625rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.375rem;
+	background: var(--canvas-editor-panel-bg);
+	color: var(--canvas-editor-panel-text);
+	font-size: 0.75rem;
+	font-weight: 500;
+	outline: 0;
+}
+
+.canvas-editor__sequence-field input:focus-visible,
+.canvas-editor__sequence-field select:focus-visible,
+.canvas-editor__sequence-form-row input:focus-visible,
+.canvas-editor__sequence-form-row select:focus-visible,
+.canvas-editor__sequence-compose input:focus-visible,
+.canvas-editor__sequence-structure-card input:focus-visible,
+.canvas-editor__sequence-structure-card select:focus-visible,
+.canvas-editor__sequence-tabs button:focus-visible,
+.canvas-editor__sequence-preset-grid > button:focus-visible,
+.canvas-editor__sequence-compose button:focus-visible,
+.canvas-editor__sequence-structure-card button:focus-visible {
+	outline: 2px solid
+		color-mix(in srgb, var(--canvas-editor-panel-primary) 55%, transparent);
+	outline-offset: 1px;
+}
+
+.canvas-editor__sequence-form-row {
+	display: grid;
+	grid-template-columns: 8rem minmax(0, 1fr) 2.25rem;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-form-row > button,
+.canvas-editor__sequence-compose button,
+.canvas-editor__sequence-structure-card button {
+	display: inline-flex;
+	min-height: 2.25rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	padding: 0.375rem 0.625rem;
+	border: 1px solid transparent;
+	border-radius: 0.375rem;
+	background: var(--canvas-editor-panel-primary);
+	color: var(--primary-foreground, #fff) !important;
+	font-size: 0.6875rem !important;
+	font-weight: 700 !important;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-form-row > button:disabled,
+.canvas-editor__sequence-compose button:disabled,
+.canvas-editor__sequence-structure-card button:disabled,
+.canvas-editor__sequence-preset-grid > button:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.canvas-editor__sequence-form-row > button svg,
+.canvas-editor__sequence-compose button svg,
+.canvas-editor__sequence-structure-card button svg {
+	width: 0.875rem;
+	height: 0.875rem;
+}
+
+.canvas-editor__sequence-message-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-field--wide {
+	grid-column: 1 / -1;
+}
+
+.canvas-editor__sequence-compose {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-structure-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-structure-card {
+	display: grid;
+	align-content: start;
+	gap: 0.5rem;
+	padding: 0.625rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-bg) 94%,
+		var(--canvas-editor-panel-accent)
+	);
+}
+
+.canvas-editor__sequence-structure-card > svg {
+	width: 1rem;
+	height: 1rem;
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-structure-card > strong {
+	font-size: 0.6875rem;
+}
+
+.canvas-editor__sequence-inline-fields {
+	display: grid;
+	grid-template-columns: 4rem minmax(0, 1fr);
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-empty {
+	display: grid;
+	justify-items: center;
+	gap: 0.375rem;
+	padding: 2rem 1rem;
+	border: 1px dashed var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	color: var(--canvas-editor-panel-muted);
+	text-align: center;
+}
+
+.canvas-editor__sequence-empty > svg {
+	width: 1.5rem;
+	height: 1.5rem;
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-empty strong {
+	color: var(--canvas-editor-panel-text);
+	font-size: 0.75rem;
+}
+
+.canvas-editor__sequence-empty p {
+	max-width: 17rem;
+	font-size: 0.625rem;
+	line-height: 1.4;
+}
+
+.canvas-editor__sequence-source-label {
+	display: flex;
+	min-height: 0;
+	flex-direction: column;
+	gap: 0.375rem;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.6875rem;
+	font-weight: 650;
+}
+
+.canvas-editor__sequence-source {
+	width: 100%;
+	min-height: 20rem;
+	box-sizing: border-box;
+	resize: vertical;
+	padding: 0.75rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-bg) 90%,
+		var(--canvas-editor-panel-accent)
+	);
+	color: var(--canvas-editor-panel-text);
+	font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+	font-size: 0.75rem;
+	font-weight: 450;
+	line-height: 1.5;
+	outline: 0;
+	user-select: text;
+}
+
+.canvas-editor__sequence-hint {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+	margin-top: 0.625rem;
+}
+
+.canvas-editor__sequence-hint code {
+	padding: 0.1875rem 0.375rem;
+	border-radius: 0.25rem;
+	background: var(--canvas-editor-panel-accent);
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.625rem;
+}
+
+.canvas-editor__sequence-status {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	margin-top: 0.75rem;
+	padding: 0.5rem 0.625rem;
+	border: 1px solid color-mix(in srgb, #dc2626 38%, transparent);
+	border-radius: 0.5rem;
+	background: color-mix(in srgb, #dc2626 8%, transparent);
+	color: #b91c1c;
+	font-size: 0.6875rem;
+}
+
+.canvas-editor__sequence-status[data-valid="true"] {
+	border-color: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 38%,
+		transparent
+	);
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 8%,
+		transparent
+	);
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-status > svg {
+	width: 0.875rem;
+	height: 0.875rem;
+	flex: 0 0 auto;
+}
+
+.canvas-editor__sequence-counts {
+	margin-left: auto;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.625rem;
+}
+
+.canvas-editor__sequence-diagnostics {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0.5rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.canvas-editor__sequence-diagnostics li {
+	padding: 0.375rem 0.5rem;
+	border-radius: 0.375rem;
+	background: color-mix(in srgb, #dc2626 7%, transparent);
+	color: #b91c1c;
+	font-size: 0.625rem;
+	line-height: 1.4;
+}
+
+.canvas-editor__sequence-diagnostics li[data-severity="warning"] {
+	background: color-mix(in srgb, #d97706 8%, transparent);
+	color: #b45309;
+}
+
+.canvas-editor__sequence-footer {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem;
+	border-top: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 65%, transparent);
+}
+
+.canvas-editor__sequence-footer p {
+	flex: 1 1 auto;
+	margin: 0;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.625rem;
+	line-height: 1.4;
+}
+
+.canvas-editor__sequence-insert {
+	display: inline-flex;
+	min-height: 2.25rem;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid transparent;
+	border-radius: 0.5rem;
+	background: var(--canvas-editor-panel-primary);
+	color: var(--primary-foreground, #ffffff) !important;
+	font-size: 0.75rem !important;
+	font-weight: 650 !important;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-insert:hover:not(:disabled) {
+	filter: brightness(1.06);
+}
+
+.canvas-editor__sequence-insert:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.canvas-editor__sequence-insert > svg,
+.canvas-editor__panel-icon-button > svg {
+	width: 0.875rem;
+	height: 0.875rem;
+}
+
+/* Plain-language sequence builder */
+.canvas-editor__sequence-builder-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	padding: 0;
+}
+
+.canvas-editor__sequence-description,
+.canvas-editor__sequence-participants-section,
+.canvas-editor__sequence-steps-section {
+	padding: 0.875rem;
+	border-bottom: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 62%, transparent);
+}
+
+.canvas-editor__sequence-description {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-description > label {
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.75rem;
+	font-weight: 650;
+}
+
+.canvas-editor__sequence-description > textarea {
+	width: 100%;
+	min-height: 4.875rem;
+	resize: vertical;
+	padding: 0.625rem 0.75rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-bg) 92%,
+		var(--canvas-editor-panel-accent)
+	);
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	outline: 0;
+	user-select: text;
+}
+
+.canvas-editor__sequence-description > textarea:focus-visible,
+.canvas-editor__sequence-participant-form input:focus-visible,
+.canvas-editor__sequence-participant-form select:focus-visible,
+.canvas-editor__sequence-sentence-composer input:focus-visible,
+.canvas-editor__sequence-sentence-composer select:focus-visible,
+.canvas-editor__sequence-structure-disclosure input:focus-visible,
+.canvas-editor__sequence-structure-disclosure select:focus-visible {
+	border-color: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 72%,
+		var(--canvas-editor-panel-border)
+	);
+	outline: 2px solid
+		color-mix(in srgb, var(--canvas-editor-panel-primary) 22%, transparent);
+	outline-offset: 1px;
+}
+
+.canvas-editor__sequence-description-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+}
+
+.canvas-editor__sequence-description-actions > button,
+.canvas-editor__sequence-participant-chips > button,
+.canvas-editor__sequence-add-step,
+.canvas-editor__sequence-panel-composer-actions > button,
+.canvas-editor__sequence-structure-disclosure > button,
+.canvas-editor__sequence-structure-disclosure > div > button {
+	display: inline-flex;
+	min-height: 2.25rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	padding: 0.375rem 0.625rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.425rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-text);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-description-actions > button:hover:not(:disabled),
+.canvas-editor__sequence-participant-chips > button:hover,
+.canvas-editor__sequence-add-step:hover:not(:disabled),
+.canvas-editor__sequence-panel-composer-actions > button:hover,
+.canvas-editor__sequence-structure-disclosure > button:hover,
+.canvas-editor__sequence-structure-disclosure > div > button:hover {
+	border-color: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 48%,
+		var(--canvas-editor-panel-border)
+	);
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__sequence-description-actions > button:disabled,
+.canvas-editor__sequence-add-step:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.canvas-editor__sequence-description-actions svg,
+.canvas-editor__sequence-participant-chips svg,
+.canvas-editor__sequence-add-step svg,
+.canvas-editor__sequence-panel-composer-actions svg,
+.canvas-editor__sequence-structure-disclosure svg {
+	width: 0.875rem;
+	height: 0.875rem;
+	flex: 0 0 auto;
+}
+
+.canvas-editor__sequence-description-actions > span {
+	min-width: 0;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.75rem;
+	line-height: 1.35;
+}
+
+.canvas-editor__sequence-participants-section {
+	display: grid;
+	gap: 0.625rem;
+}
+
+.canvas-editor__sequence-participant-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-participant-chips > span {
+	display: inline-flex;
+	min-height: 2.25rem;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.375rem 0.625rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.425rem;
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-bg) 96%,
+		var(--canvas-editor-panel-accent)
+	);
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.canvas-editor__sequence-participant-chips > button {
+	border-style: dashed;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__sequence-participant-form {
+	display: grid;
+	grid-template-columns: 6.75rem minmax(0, 1fr) 2.25rem;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-participant-form input,
+.canvas-editor__sequence-participant-form select,
+.canvas-editor__sequence-sentence-composer input,
+.canvas-editor__sequence-sentence-composer select,
+.canvas-editor__sequence-structure-disclosure input,
+.canvas-editor__sequence-structure-disclosure select {
+	width: 100%;
+	min-width: 0;
+	height: 2.25rem;
+	padding: 0.25rem 0.5rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.375rem;
+	background: var(--canvas-editor-panel-bg);
+	color: var(--canvas-editor-panel-text);
+	font-size: 0.8125rem;
+	outline: 0;
+}
+
+.canvas-editor__sequence-participant-form > button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 0.375rem;
+	background: var(--canvas-editor-panel-primary);
+	color: var(--primary-foreground, #fff);
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-participant-form > button svg {
+	width: 0.875rem;
+	height: 0.875rem;
+}
+
+.canvas-editor__sequence-steps-section {
+	display: grid;
+	gap: 0.625rem;
+	border-bottom: 0;
+}
+
+.canvas-editor__sequence-steps-heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.canvas-editor__sequence-steps-heading h4,
+.canvas-editor__sequence-steps-heading span,
+.canvas-editor__sequence-steps-heading strong {
+	margin: 0;
+}
+
+.canvas-editor__sequence-steps-heading h4 {
+	font-size: 0.875rem;
+	font-weight: 750;
+}
+
+.canvas-editor__sequence-steps-heading span {
+	display: block;
+	margin-top: 0.125rem;
+	color: var(--canvas-editor-panel-primary);
+	font-size: 0.6875rem;
+	font-weight: 650;
+}
+
+.canvas-editor__sequence-steps-heading strong {
+	min-width: 1.5rem;
+	padding: 0.125rem 0.375rem;
+	border-radius: 999px;
+	background: var(--canvas-editor-panel-accent);
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.6875rem;
+	text-align: center;
+}
+
+.canvas-editor__sequence-builder-empty {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.75rem;
+	border: 1px dashed var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__sequence-builder-empty svg {
+	width: 1rem;
+	height: 1rem;
+	flex: 0 0 auto;
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-builder-empty p {
+	margin: 0;
+	font-size: 0.6875rem;
+	line-height: 1.4;
+}
+
+.canvas-editor__sequence-step-list {
+	margin: 0 -0.875rem;
+	padding: 0;
+	border-top: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 62%, transparent);
+	list-style: none;
+}
+
+.canvas-editor__sequence-step-list > li {
+	display: grid;
+	grid-template-columns: 1rem 1.25rem minmax(0, 1fr) auto;
+	min-height: 4.25rem;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.5rem 0.75rem;
+	border-bottom: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 62%, transparent);
+	transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.canvas-editor__sequence-step-list > li:hover,
+.canvas-editor__sequence-step-list > li[data-editing="true"] {
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-accent) 62%,
+		transparent
+	);
+}
+
+.canvas-editor__sequence-step-list > li[data-editing="true"] {
+	box-shadow: inset 2px 0 0 var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-step-list > li > svg {
+	width: 0.875rem;
+	height: 0.875rem;
+	color: var(--canvas-editor-panel-muted);
+	opacity: 0.48;
+}
+
+.canvas-editor__sequence-step-number {
+	font-size: 0.8125rem;
+	font-weight: 750;
+}
+
+.canvas-editor__sequence-step-sentence {
+	display: grid;
+	grid-template-columns: auto 0.875rem auto minmax(4rem, 1fr);
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+}
+
+.canvas-editor__sequence-step-sentence > span {
+	max-width: 6.75rem;
+	overflow: hidden;
+	padding: 0.25rem 0.425rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.35rem;
+	font-size: 0.75rem;
+	font-weight: 650;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.canvas-editor__sequence-step-sentence > svg {
+	width: 0.75rem;
+	height: 0.75rem;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__sequence-step-sentence > strong {
+	min-width: 0;
+	overflow: hidden;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.canvas-editor__sequence-step-actions,
+.canvas-editor__sequence-step-edit-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.125rem;
+}
+
+.canvas-editor__sequence-step-actions > button,
+.canvas-editor__sequence-step-edit-actions > button,
+.canvas-editor__sequence-quick-heading > button {
+	display: inline-flex;
+	width: 1.75rem;
+	height: 1.75rem;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 0;
+	border-radius: 0.35rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-step-actions > button:hover,
+.canvas-editor__sequence-step-edit-actions > button:hover,
+.canvas-editor__sequence-quick-heading > button:hover {
+	background: var(--canvas-editor-panel-accent);
+	color: var(--canvas-editor-panel-text);
+}
+
+.canvas-editor__sequence-step-actions svg,
+.canvas-editor__sequence-step-edit-actions svg,
+.canvas-editor__sequence-quick-heading svg {
+	width: 0.8125rem;
+	height: 0.8125rem;
+}
+
+.canvas-editor__sequence-step-edit {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.375rem;
+	grid-column: 3 / -1;
+}
+
+.canvas-editor__sequence-sentence-composer {
+	display: grid;
+	grid-template-columns: minmax(4.75rem, 0.8fr) 0.875rem minmax(4.75rem, 0.8fr) minmax(
+			6.5rem,
+			1.4fr
+		);
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+}
+
+.canvas-editor__sequence-sentence-composer > svg {
+	width: 0.75rem;
+	height: 0.75rem;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__sequence-panel-composer {
+	display: grid;
+	gap: 0.5rem;
+	padding: 0.625rem;
+	border: 1px solid
+		color-mix(
+			in srgb,
+			var(--canvas-editor-panel-primary) 35%,
+			var(--canvas-editor-panel-border)
+		);
+	border-radius: 0.5rem;
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__sequence-panel-composer-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-panel-composer-actions > button:first-child,
+.canvas-editor__sequence-structure-disclosure > div > button {
+	border-color: var(--canvas-editor-panel-primary);
+	background: var(--canvas-editor-panel-primary);
+	color: var(--primary-foreground, #fff);
+}
+
+.canvas-editor__sequence-add-step {
+	width: 100%;
+	border-color: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 55%,
+		var(--canvas-editor-panel-border)
+	);
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__sequence-structure-disclosure {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-structure-disclosure > button {
+	width: 100%;
+	min-height: 2.75rem;
+	justify-content: flex-start;
+	border-style: dashed;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__sequence-structure-disclosure > button > svg:last-child {
+	margin-left: auto;
+}
+
+.canvas-editor__sequence-structure-disclosure > div {
+	display: grid;
+	grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-builder-footer {
+	display: grid;
+	flex: 0 0 auto;
+	gap: 0.375rem;
+	padding: 0.75rem;
+	border-top: 1px solid
+		color-mix(in srgb, var(--canvas-editor-panel-border) 65%, transparent);
+}
+
+.canvas-editor__sequence-builder-footer > .canvas-editor__sequence-insert {
+	width: 100%;
+	min-height: 3rem;
+	font-size: 0.875rem !important;
+}
+
+.canvas-editor__sequence-advanced-link {
+	display: inline-flex;
+	min-height: 1.75rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.25rem;
+	padding: 0.25rem;
+	border: 0;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted) !important;
+	font-size: 0.6875rem !important;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-advanced-link:hover {
+	color: var(--canvas-editor-panel-text) !important;
+}
+
+.canvas-editor__sequence-advanced-link svg {
+	width: 0.75rem;
+	height: 0.75rem;
+}
+
+.canvas-editor__sequence-quick-builder {
+	--canvas-editor-panel-bg: var(--skedra-sdk-panel, var(--card, #fffef9));
+	--canvas-editor-panel-border: var(
+		--skedra-sdk-panel-border,
+		var(--border-color, #d8ded2)
+	);
+	--canvas-editor-panel-text: var(
+		--skedra-sdk-text,
+		var(--card-foreground, var(--foreground, #17211d))
+	);
+	--canvas-editor-panel-muted: var(
+		--skedra-sdk-muted,
+		var(--muted-foreground, #647067)
+	);
+	--canvas-editor-panel-primary: var(
+		--skedra-sdk-primary,
+		var(--primary, #0f766e)
+	);
+	--canvas-editor-panel-accent: var(
+		--skedra-sdk-primary-soft,
+		var(--accent, rgba(15, 118, 110, 0.1))
+	);
+	position: absolute;
+	right: max(1rem, calc((100% - 74rem) / 2));
+	bottom: calc(9rem + var(--canvas-editor-safe-bottom));
+	z-index: calc(var(--canvas-editor-panel-z-index, 40) + 1);
+	width: min(42rem, calc(100% - 34rem));
+	color: var(--canvas-editor-panel-text);
+	font-family: inherit;
+	pointer-events: none;
+}
+
+.canvas-editor__sequence-quick-trigger {
+	display: flex;
+	min-height: 2.75rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	margin: 0 auto;
+	padding: 0.625rem 1rem;
+	border: 1px dashed var(--canvas-editor-panel-primary);
+	border-radius: 0.625rem;
+	background: color-mix(in srgb, var(--canvas-editor-panel-bg) 92%, transparent);
+	color: var(--canvas-editor-panel-primary);
+	font-size: 0.75rem;
+	font-weight: 650;
+	box-shadow: 0 16px 38px -28px rgba(0, 0, 0, 0.65);
+	backdrop-filter: blur(10px);
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+.canvas-editor__sequence-quick-trigger svg {
+	width: 1rem;
+	height: 1rem;
+}
+
+.canvas-editor__sequence-quick-open-state {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-quick-context {
+	display: inline-flex;
+	min-height: 2.375rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	justify-self: center;
+	padding: 0.5rem 0.875rem;
+	border: 1px dashed var(--canvas-editor-panel-primary);
+	border-radius: 0.625rem;
+	background: color-mix(in srgb, var(--canvas-editor-panel-bg) 92%, transparent);
+	color: var(--canvas-editor-panel-primary);
+	font-size: 0.8125rem;
+	font-weight: 650;
+	box-shadow: 0 16px 38px -28px rgba(0, 0, 0, 0.65);
+	backdrop-filter: blur(10px);
+}
+
+.canvas-editor__sequence-quick-context svg {
+	width: 1rem;
+	height: 1rem;
+}
+
+.canvas-editor__sequence-quick-popover {
+	display: grid;
+	gap: 0.625rem;
+	padding: 0.75rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.75rem;
+	background: color-mix(in srgb, var(--canvas-editor-panel-bg) 96%, transparent);
+	box-shadow: 0 24px 60px -34px rgba(0, 0, 0, 0.7);
+	backdrop-filter: blur(14px);
+	pointer-events: auto;
+}
+
+.canvas-editor__sequence-quick-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.canvas-editor__sequence-quick-heading strong {
+	font-size: 0.875rem;
+	font-weight: 700;
+}
+
+.canvas-editor__sequence-quick-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.canvas-editor__sequence-sentence-composer--quick {
+	grid-template-columns: minmax(5.25rem, 0.8fr) 0.875rem minmax(5.25rem, 0.8fr) minmax(
+			7rem,
+			1.35fr
+		);
+}
+
+.canvas-editor__sequence-quick-add {
+	min-height: 2.125rem;
+	padding: 0.375rem 0.625rem;
+	border: 1px solid var(--canvas-editor-panel-primary);
+	border-radius: 0.425rem;
+	background: var(--canvas-editor-panel-primary);
+	color: var(--primary-foreground, #fff);
+	font-size: 0.8125rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-quick-add:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.canvas-editor__sequence-quick-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+}
+
+.canvas-editor__sequence-quick-options > button {
+	display: inline-flex;
+	min-height: 1.875rem;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.25rem 0.5rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.375rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	font-size: 0.75rem;
+	cursor: pointer;
+}
+
+.canvas-editor__sequence-quick-options > button:hover,
+.canvas-editor__sequence-quick-options > button[data-active="true"] {
+	border-color: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 55%,
+		var(--canvas-editor-panel-border)
+	);
+	background: var(--canvas-editor-panel-accent);
+	color: var(--canvas-editor-panel-text);
+}
+
+.canvas-editor__sequence-quick-options svg {
+	width: 0.8125rem;
+	height: 0.8125rem;
+}
+
+@container canvas-editor (max-width: 900px) {
+	.canvas-editor__sequence-quick-builder {
+		display: none;
+	}
+}
+
+@container canvas-editor (max-width: 560px) {
+	.canvas-editor__sequence-panel {
+		width: calc(100% - 1rem);
+		left: 0.5rem;
+	}
+
+	.canvas-editor__sequence-step-sentence {
+		grid-template-columns: auto 0.75rem auto;
+	}
+
+	.canvas-editor__sequence-step-sentence > strong {
+		grid-column: 1 / -1;
+	}
+
+	.canvas-editor__sequence-sentence-composer,
+	.canvas-editor__sequence-structure-disclosure > div {
+		grid-template-columns: 1fr;
+	}
+
+	.canvas-editor__sequence-sentence-composer > svg {
+		display: none;
+	}
 }
 
 .canvas-editor__layers-body {
@@ -861,6 +2061,38 @@
 	position: relative;
 }
 
+/* Pointer proximity gives both canvas toolbars a restrained macOS Dock feel.
+ * The icon moves inside its stable hit target, so the layout never jumps. */
+.canvas-editor__toolbar-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transform: translate3d(0, var(--canvas-editor-toolbar-lift, 0), 0)
+		scale(var(--canvas-editor-toolbar-scale, 1));
+	transform-origin: center;
+	transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+	will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	[data-canvas-toolbar-interactive="true"]:hover:not(:disabled) {
+		--canvas-editor-toolbar-scale: 1.12;
+		--canvas-editor-toolbar-lift: -1px;
+	}
+}
+
+[data-canvas-toolbar-interactive="true"]:focus-visible {
+	--canvas-editor-toolbar-scale: 1.1;
+	--canvas-editor-toolbar-lift: -1px;
+}
+
+[data-canvas-toolbar-interactive="true"]:active:not(:disabled)
+	> .canvas-editor__toolbar-icon {
+	--canvas-editor-toolbar-scale: 0.86;
+	--canvas-editor-toolbar-lift: 1px;
+	transition-duration: 65ms;
+}
+
 .canvas-editor .canvas-editor__toolbar-popover {
 	position: absolute;
 	top: calc(100% + 0.5rem);
@@ -1162,6 +2394,19 @@
 		var(--skedra-sdk-primary-soft, rgba(15, 118, 110, 0.12))
 	);
 	color: var(--foreground, var(--skedra-sdk-text, #17211d));
+}
+
+.canvas-editor__saved-views-zoom {
+	transform: translate3d(0, var(--canvas-editor-toolbar-lift, 0), 0)
+		scale(var(--canvas-editor-toolbar-scale, 1));
+	transition: color 150ms ease, background-color 150ms ease, transform 160ms
+		cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.canvas-editor__saved-views-zoom:active {
+	--canvas-editor-toolbar-scale: 0.94;
+	--canvas-editor-toolbar-lift: 1px;
+	transition-duration: 65ms;
 }
 
 .canvas-editor__saved-views-divider {
@@ -1594,6 +2839,20 @@
 		max-height: min(48cqh, 32rem);
 	}
 
+	.canvas-editor__sequence-panel {
+		top: auto;
+		right: calc(0.75rem + var(--canvas-editor-safe-right));
+		bottom: var(--canvas-editor-properties-mobile-bottom);
+		left: calc(0.75rem + var(--canvas-editor-safe-left));
+		width: auto;
+		height: min(64cqh, 39rem);
+		max-height: min(64cqh, 39rem);
+	}
+
+	.canvas-editor__sequence-source {
+		min-height: 15rem;
+	}
+
 	.canvas-editor__wireframe-panel[data-pinned="true"] {
 		bottom: var(--canvas-editor-properties-mobile-bottom);
 		height: min(48cqh, 32rem);
@@ -1627,6 +2886,15 @@
 
 	.canvas-editor__sticky-checkbox {
 		min-width: 2.75rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.canvas-editor__toolbar-icon,
+	.canvas-editor__saved-views-zoom {
+		transform: none;
+		transition: none;
+		will-change: auto;
 	}
 }
 
@@ -1723,4 +2991,1134 @@
 .canvas-editor__sticky-title-input::placeholder,
 .canvas-editor__sticky-item-input::placeholder {
 	color: color-mix(in srgb, currentColor 38%, transparent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Gantt studio: full interactive project-planning surface.           */
+/* ------------------------------------------------------------------ */
+
+.canvas-editor__gantt-studio {
+	--canvas-editor-panel-bg: var(--skedra-sdk-panel, var(--card, #fffef9));
+	--canvas-editor-panel-border: var(
+		--skedra-sdk-panel-border,
+		var(--border-color, #d8ded2)
+	);
+	--canvas-editor-panel-text: var(
+		--skedra-sdk-text,
+		var(--card-foreground, var(--foreground, #17211d))
+	);
+	--canvas-editor-panel-muted: var(
+		--skedra-sdk-muted,
+		var(--muted-foreground, #647067)
+	);
+	--canvas-editor-panel-primary: var(
+		--skedra-sdk-primary,
+		var(--primary, #0f766e)
+	);
+	--canvas-editor-panel-accent: var(
+		--skedra-sdk-primary-soft,
+		var(--accent, rgba(15, 118, 110, 0.1))
+	);
+	--gantt-studio-grid: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-border) 62%,
+		transparent
+	);
+	/* Bottom-docked drawer: it edits the canvas chart that stays visible
+	 * above it — deliberately NOT a full-screen takeover. Height is driven
+	 * inline; the top edge is a resize grabber. */
+	position: absolute;
+	left: 0.75rem;
+	right: 0.75rem;
+	bottom: var(--canvas-editor-gantt-bottom-offset);
+	height: 380px;
+	max-height: calc(100% - 6rem - var(--canvas-editor-gantt-bottom-offset));
+	/* The project workspace must cover saved-view thumbnails when their rails
+	 * reach into the docked panel area. */
+	z-index: var(--canvas-editor-gantt-z-index, 50);
+	display: flex;
+	box-sizing: border-box;
+	flex-direction: column;
+	overflow: hidden;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.85rem;
+	background: color-mix(in srgb, var(--canvas-editor-panel-bg) 98%, transparent);
+	color: var(--canvas-editor-panel-text);
+	font-family: inherit;
+	box-shadow: 0 28px 70px -38px rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+}
+
+/* Collapsed: only the title bar remains, canvas fully usable. */
+.canvas-editor__gantt-studio[data-collapsed="true"] {
+	height: auto !important;
+}
+
+.canvas-editor__gantt-studio[data-collapsed="true"]
+	.canvas-editor__gantt-studio-body,
+.canvas-editor__gantt-studio[data-collapsed="true"]
+	.canvas-editor__gantt-studio-footer,
+.canvas-editor__gantt-studio[data-collapsed="true"]
+	.canvas-editor__gantt-studio-resize {
+	display: none;
+}
+
+/* Top-edge resize grabber. */
+.canvas-editor__gantt-studio-resize {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 0.85rem;
+	flex: none;
+	padding: 0;
+	border: 0;
+	border-radius: 0.85rem 0.85rem 0 0;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	cursor: ns-resize;
+	touch-action: none;
+}
+
+.canvas-editor__gantt-studio-resize:hover {
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__gantt-studio-resize svg {
+	width: 1.1rem;
+	height: 0.9rem;
+	opacity: 0.6;
+}
+
+.canvas-editor__gantt-studio *,
+.canvas-editor__gantt-studio *::before,
+.canvas-editor__gantt-studio *::after {
+	box-sizing: border-box;
+}
+
+.canvas-editor__gantt-studio button,
+.canvas-editor__gantt-studio input,
+.canvas-editor__gantt-studio select {
+	color: inherit;
+	font: inherit;
+}
+
+/* ------------------------------ Header ----------------------------- */
+
+.canvas-editor__gantt-studio-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.55rem 0.75rem;
+	border-bottom: 1px solid var(--canvas-editor-panel-border);
+}
+
+.canvas-editor__gantt-studio-header h3 {
+	margin: 0;
+	font-size: 0.95rem;
+}
+
+.canvas-editor__gantt-studio-title {
+	min-width: 10rem;
+	max-width: 20rem;
+	flex: 0 1 auto;
+	padding: 0.3rem 0.45rem;
+	border: 1px solid transparent;
+	border-radius: 0.45rem;
+	background: transparent;
+	font-size: 0.95rem;
+	font-weight: 700;
+}
+
+.canvas-editor__gantt-studio-title:hover {
+	border-color: var(--canvas-editor-panel-border);
+}
+
+.canvas-editor__gantt-studio-title:focus-visible {
+	border-color: var(--canvas-editor-panel-primary);
+	outline: none;
+}
+
+.canvas-editor__gantt-studio-chart-picker {
+	max-width: 11rem;
+	padding: 0.3rem 1.7rem 0.3rem 0.45rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.45rem;
+	background: var(--canvas-editor-panel-bg);
+	font-size: 0.78rem;
+	font-weight: 600;
+}
+
+.canvas-editor__gantt-studio-spacer {
+	flex: 1;
+}
+
+.canvas-editor__gantt-studio-header-field {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.78rem;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__gantt-studio-header-field input {
+	padding: 0.28rem 0.4rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.45rem;
+	background: transparent;
+	font-size: 0.8rem;
+}
+
+.canvas-editor__gantt-studio-calendar-range output {
+	min-width: 4.4rem;
+	padding: 0.28rem 0.45rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.45rem;
+	color: var(--canvas-editor-panel-fg);
+	font-size: 0.8rem;
+	font-weight: 650;
+	text-align: center;
+}
+
+.canvas-editor__gantt-studio-today-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.3rem 0.5rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.45rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-fg);
+	font-size: 0.76rem;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-today-button:hover {
+	border-color: var(--canvas-editor-panel-primary);
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__gantt-studio-today-button svg {
+	width: 0.95rem;
+	height: 0.95rem;
+	color: #f43f5e;
+}
+
+.canvas-editor__gantt-studio-zoom {
+	display: inline-flex;
+	gap: 0.15rem;
+}
+
+.canvas-editor__gantt-studio-timeline-nav {
+	display: inline-flex;
+	gap: 0.15rem;
+	padding-left: 0.25rem;
+	border-left: 1px solid var(--canvas-editor-panel-border);
+}
+
+.canvas-editor__gantt-studio-icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.9rem;
+	height: 1.9rem;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 0.45rem;
+	background: transparent;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-icon-button:hover:not(:disabled) {
+	border-color: var(--canvas-editor-panel-border);
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__gantt-studio-icon-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.canvas-editor__gantt-studio-icon-button svg {
+	width: 1rem;
+	height: 1rem;
+}
+
+.canvas-editor__gantt-studio-add {
+	display: inline-flex;
+	gap: 0.3rem;
+}
+
+.canvas-editor__gantt-studio-add button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.32rem 0.6rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: transparent;
+	font-size: 0.78rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-add button:hover {
+	background: var(--canvas-editor-panel-accent);
+	border-color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__gantt-studio-add button svg {
+	width: 0.85rem;
+	height: 0.85rem;
+}
+
+.canvas-editor__gantt-studio-add select {
+	min-width: 12.5rem;
+	max-width: none;
+	padding: 0.32rem 1.4rem 0.32rem 0.5rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: var(--canvas-editor-panel-bg);
+	font-size: 0.78rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-custom-type {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+.canvas-editor__gantt-studio-custom-type input[type="text"],
+.canvas-editor__gantt-studio-custom-type input:not([type]) {
+	width: 8.5rem;
+	padding: 0.32rem 0.45rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: var(--canvas-editor-panel-bg);
+	font-size: 0.78rem;
+}
+
+.canvas-editor__gantt-studio-custom-type input[type="color"] {
+	width: 1.9rem;
+	height: 1.9rem;
+	padding: 0.15rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.45rem;
+	background: transparent;
+}
+
+.canvas-editor__gantt-studio-custom-type button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.canvas-editor__gantt-studio-new-chart {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.32rem 0.6rem;
+	border: 1px solid var(--canvas-editor-panel-primary);
+	border-radius: 0.5rem;
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 12%,
+		transparent
+	);
+	color: var(--canvas-editor-panel-primary) !important;
+	font-size: 0.78rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-new-chart:hover {
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-primary) 20%,
+		transparent
+	);
+}
+
+.canvas-editor__gantt-studio-new-chart svg {
+	width: 0.85rem;
+	height: 0.85rem;
+}
+
+.canvas-editor__gantt-studio-danger:hover {
+	border-color: #dc2626 !important;
+	background: rgba(220, 38, 38, 0.12) !important;
+	color: #dc2626;
+}
+
+/* ------------------------------- Body ------------------------------ */
+
+.canvas-editor__gantt-studio-body {
+	flex: 1;
+	overflow: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+
+.canvas-editor__gantt-studio-grid {
+	position: relative;
+	min-width: 100%;
+}
+
+/* Sticky header row (corner + timeline scale). */
+.canvas-editor__gantt-studio-head {
+	position: sticky;
+	top: 0;
+	z-index: 6;
+	display: flex;
+	border-bottom: 1px solid var(--canvas-editor-panel-border);
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-bg) 94%,
+		var(--canvas-editor-panel-primary)
+	);
+}
+
+.canvas-editor__gantt-studio-corner {
+	position: sticky;
+	left: 0;
+	z-index: 7;
+	display: flex;
+	flex: none;
+	align-items: center;
+	border-right: 1px solid var(--canvas-editor-panel-border);
+	background: inherit;
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: var(--canvas-editor-panel-muted);
+	text-transform: uppercase;
+}
+
+.canvas-editor__gantt-studio-scale {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+.canvas-editor__gantt-studio-scale:active {
+	cursor: grabbing;
+}
+
+.canvas-editor__gantt-studio-months {
+	display: flex;
+	height: 1.2rem;
+}
+
+.canvas-editor__gantt-studio-months span {
+	flex: none;
+	overflow: hidden;
+	padding-left: 0.35rem;
+	border-left: 1px solid var(--gantt-studio-grid);
+	font-size: 0.7rem;
+	font-weight: 700;
+	line-height: 1.2rem;
+	white-space: nowrap;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__gantt-studio-weeks {
+	display: flex;
+	height: 1.1rem;
+}
+
+.canvas-editor__gantt-studio-weeks span {
+	flex: none;
+	overflow: hidden;
+	padding-left: 0.25rem;
+	border-left: 1px solid var(--gantt-studio-grid);
+	font-size: 0.62rem;
+	font-weight: 700;
+	line-height: 1.1rem;
+	white-space: nowrap;
+	color: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__gantt-studio-days {
+	display: flex;
+	height: 1.45rem;
+}
+
+.canvas-editor__gantt-studio-days span {
+	flex: none;
+	overflow: hidden;
+	border-left: 1px solid var(--gantt-studio-grid);
+	font-size: 0.66rem;
+	line-height: 1.45rem;
+	text-align: center;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__gantt-studio-days span[data-weekend="true"] {
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-muted) 12%,
+		transparent
+	);
+}
+
+.canvas-editor__gantt-studio-days span[data-today="true"] {
+	color: #f43f5e;
+	font-weight: 800;
+}
+
+/* ------------------------------- Rows ------------------------------ */
+
+.canvas-editor__gantt-studio-rows {
+	position: relative;
+}
+
+.canvas-editor__gantt-studio-row {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	border-bottom: 1px solid var(--gantt-studio-grid);
+}
+
+.canvas-editor__gantt-studio-row[data-selected="true"]
+	.canvas-editor__gantt-studio-cells {
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-accent) 70%,
+		var(--canvas-editor-panel-bg)
+	);
+}
+
+.canvas-editor__gantt-studio-row[data-group="true"]
+	.canvas-editor__gantt-studio-cells {
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-muted) 10%,
+		var(--canvas-editor-panel-bg)
+	);
+	font-weight: 700;
+}
+
+.canvas-editor__gantt-studio-row[data-drop-target="true"] {
+	outline: 2px dashed var(--canvas-editor-panel-primary);
+	outline-offset: -2px;
+}
+
+.canvas-editor__gantt-studio-row[data-dragging="true"] {
+	opacity: 0.45;
+}
+
+.canvas-editor__gantt-studio-row[data-actions-open="true"] {
+	z-index: 12;
+}
+
+.canvas-editor__gantt-studio-cells {
+	position: sticky;
+	left: 0;
+	z-index: 4;
+	display: flex;
+	flex: none;
+	align-items: center;
+	border-right: 1px solid var(--canvas-editor-panel-border);
+	background: var(--canvas-editor-panel-bg);
+}
+
+.canvas-editor__gantt-studio-cells input,
+.canvas-editor__gantt-studio-cells select {
+	width: 100%;
+	min-width: 0;
+	padding: 0.22rem 0.3rem;
+	border: 1px solid transparent;
+	border-radius: 0.35rem;
+	background: transparent;
+	font-size: 0.78rem;
+}
+
+.canvas-editor__gantt-studio-cells input:hover:not(:disabled),
+.canvas-editor__gantt-studio-cells select:hover {
+	border-color: var(--canvas-editor-panel-border);
+}
+
+.canvas-editor__gantt-studio-cells input:focus-visible,
+.canvas-editor__gantt-studio-cells select:focus-visible {
+	border-color: var(--canvas-editor-panel-primary);
+	outline: none;
+	background: var(--canvas-editor-panel-bg);
+}
+
+.canvas-editor__gantt-studio-cells input:disabled {
+	opacity: 0.45;
+}
+
+/* Column widths shared by header corner and body cells. */
+.canvas-editor__gantt-studio-col-grip {
+	width: 1.7rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-col-name {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 0.2rem;
+	min-width: 0;
+	padding-right: 0.3rem;
+}
+
+.canvas-editor__gantt-studio-col-name[data-indent="true"] {
+	padding-left: 1.4rem;
+}
+
+.canvas-editor__gantt-studio-col-owner {
+	width: 6.4rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-col-start {
+	width: 8.2rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-col-end {
+	width: 8.2rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-col-progress {
+	width: 3.4rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-col-actions {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.4rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-more {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.65rem;
+	height: 1.65rem;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 0.4rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-more:hover,
+.canvas-editor__gantt-studio-more[aria-expanded="true"] {
+	border-color: var(--canvas-editor-panel-border);
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__gantt-studio-more svg {
+	width: 0.95rem;
+	height: 0.95rem;
+}
+
+.canvas-editor__gantt-studio-grip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.7rem;
+	height: 100%;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	opacity: 0;
+	cursor: grab;
+	touch-action: none;
+}
+
+.canvas-editor__gantt-studio-row:hover .canvas-editor__gantt-studio-grip {
+	opacity: 0.8;
+}
+
+.canvas-editor__gantt-studio-grip svg {
+	width: 0.85rem;
+	height: 0.85rem;
+}
+
+.canvas-editor__gantt-studio-collapse {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 1.2rem;
+	height: 1.2rem;
+	padding: 0;
+	border: 0;
+	border-radius: 0.3rem;
+	background: transparent;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-collapse:hover {
+	background: var(--canvas-editor-panel-accent);
+}
+
+.canvas-editor__gantt-studio-collapse svg {
+	width: 0.85rem;
+	height: 0.85rem;
+}
+
+.canvas-editor__gantt-studio-kind-icon {
+	width: 0.72rem;
+	height: 0.72rem;
+	flex: none;
+}
+
+.canvas-editor__gantt-studio-category-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.7rem;
+	height: 1rem;
+	flex: none;
+	padding: 0 0.22rem;
+	border-radius: 999px;
+	color: #fff;
+	font-size: 0.55rem;
+	font-weight: 800;
+	letter-spacing: 0.03em;
+}
+
+/* Explicit row actions opened by the per-row overflow button. */
+.canvas-editor__gantt-studio-row-actions {
+	position: absolute;
+	top: calc(100% - 0.25rem);
+	right: 0.35rem;
+	z-index: 20;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.15rem 0.25rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.45rem;
+	background: var(--canvas-editor-panel-bg);
+	box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.4);
+}
+
+.canvas-editor__gantt-studio-row-actions select {
+	width: auto;
+	font-size: 0.72rem;
+}
+
+.canvas-editor__gantt-studio-row-actions
+	.canvas-editor__gantt-studio-custom-type-name {
+	width: 5.5rem;
+	font-size: 0.72rem;
+}
+
+.canvas-editor__gantt-studio-row-actions input[type="color"] {
+	width: 1.5rem;
+	height: 1.5rem;
+	padding: 0.1rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.35rem;
+	background: transparent;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-row-actions button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 0.35rem;
+	background: transparent;
+	color: var(--canvas-editor-panel-muted);
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-row-actions button:hover {
+	border-color: var(--canvas-editor-panel-border);
+}
+
+.canvas-editor__gantt-studio-row-actions button[data-active="true"] {
+	color: #dc2626;
+}
+
+.canvas-editor__gantt-studio-row-actions button svg {
+	width: 0.8rem;
+	height: 0.8rem;
+}
+
+/* ----------------------------- Timeline ---------------------------- */
+
+.canvas-editor__gantt-studio-lane {
+	position: relative;
+	flex: none;
+	touch-action: none;
+}
+
+.canvas-editor__gantt-studio-underlay {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-weekend {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	background: color-mix(
+		in srgb,
+		var(--canvas-editor-panel-muted) 9%,
+		transparent
+	);
+}
+
+.canvas-editor__gantt-studio-gridlines {
+	position: absolute;
+	inset: 0;
+	background-image: linear-gradient(
+		to right,
+		var(--gantt-studio-grid) 1px,
+		transparent 1px
+	);
+	opacity: 0.6;
+}
+
+.canvas-editor__gantt-studio-today {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	background: #f43f5e;
+	box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.25);
+}
+
+.canvas-editor__gantt-studio-bar {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	overflow: hidden;
+	border-radius: 0.4rem;
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+	cursor: grab;
+	touch-action: none;
+}
+
+.canvas-editor__gantt-studio-bar:active {
+	cursor: grabbing;
+}
+
+.canvas-editor__gantt-studio-bar--group {
+	border-radius: 0.25rem;
+	cursor: grab;
+}
+
+.canvas-editor__gantt-studio-bar--critical {
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px
+		rgba(239, 68, 68, 0.65);
+}
+
+.canvas-editor__gantt-studio-bar-progress {
+	position: absolute;
+	inset: 0 auto 0 0;
+	background: rgba(255, 255, 255, 0.28);
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-bar-handle {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 8px;
+	cursor: ew-resize;
+	touch-action: none;
+}
+
+.canvas-editor__gantt-studio-bar-handle[data-edge="start"] {
+	left: 0;
+	border-radius: 0.4rem 0 0 0.4rem;
+}
+
+.canvas-editor__gantt-studio-bar-handle[data-edge="end"] {
+	right: 0;
+	border-radius: 0 0.4rem 0.4rem 0;
+}
+
+.canvas-editor__gantt-studio-bar:hover .canvas-editor__gantt-studio-bar-handle {
+	background: rgba(255, 255, 255, 0.35);
+}
+
+.canvas-editor__gantt-studio-bar-text {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	overflow: hidden;
+	font-size: 0.72rem;
+	font-weight: 600;
+	color: #fff;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-bar-label {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	max-width: 12rem;
+	overflow: hidden;
+	font-size: 0.72rem;
+	color: var(--canvas-editor-panel-muted);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-milestone {
+	position: absolute;
+	top: 50%;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: 0;
+	border-radius: 0.2rem;
+	transform: translateY(-50%) rotate(45deg);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+	cursor: grab;
+	touch-action: none;
+}
+
+.canvas-editor__gantt-studio-link-handle {
+	position: absolute;
+	top: 50%;
+	width: 11px;
+	height: 11px;
+	padding: 0;
+	border: 2px solid var(--canvas-editor-panel-primary);
+	border-radius: 50%;
+	background: var(--canvas-editor-panel-bg);
+	transform: translateY(-50%);
+	opacity: 0;
+	cursor: crosshair;
+	touch-action: none;
+	z-index: 3;
+}
+
+.canvas-editor__gantt-studio-lane:hover
+	.canvas-editor__gantt-studio-link-handle,
+.canvas-editor__gantt-studio-link-handle:focus-visible {
+	opacity: 1;
+}
+
+/* ------------------------ Dependency overlay ----------------------- */
+
+.canvas-editor__gantt-studio-overlay {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 2;
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-links {
+	position: absolute;
+	inset: 0;
+	overflow: visible;
+}
+
+.canvas-editor__gantt-studio-link path.hit {
+	fill: none;
+	stroke: transparent;
+	stroke-width: 12;
+	pointer-events: stroke;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-link path.line {
+	fill: none;
+	stroke: color-mix(in srgb, var(--canvas-editor-panel-muted) 80%, transparent);
+	stroke-width: 1.5;
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-link path.head {
+	fill: color-mix(in srgb, var(--canvas-editor-panel-muted) 80%, transparent);
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-link[data-selected="true"] path.line {
+	stroke: var(--canvas-editor-panel-primary);
+	stroke-width: 2.25;
+}
+
+.canvas-editor__gantt-studio-link[data-selected="true"] path.head {
+	fill: var(--canvas-editor-panel-primary);
+}
+
+.canvas-editor__gantt-studio-link-preview {
+	fill: none;
+	stroke: var(--canvas-editor-panel-primary);
+	stroke-width: 1.75;
+	stroke-dasharray: 5 4;
+	pointer-events: none;
+}
+
+.canvas-editor__gantt-studio-link-toolbar {
+	position: absolute;
+	z-index: 8;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.25rem 0.35rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.5rem;
+	background: var(--canvas-editor-panel-bg);
+	box-shadow: 0 10px 26px -14px rgba(0, 0, 0, 0.5);
+	transform: translateX(-50%);
+	pointer-events: auto;
+}
+
+.canvas-editor__gantt-studio-link-toolbar select {
+	padding: 0.2rem 0.3rem;
+	border: 1px solid var(--canvas-editor-panel-border);
+	border-radius: 0.35rem;
+	background: transparent;
+	font-size: 0.72rem;
+}
+
+.canvas-editor__gantt-studio-link-toolbar button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6rem;
+	height: 1.6rem;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 0.35rem;
+	background: transparent;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-link-toolbar button svg {
+	width: 0.8rem;
+	height: 0.8rem;
+}
+
+/* ------------------------- Drop indicator -------------------------- */
+
+.canvas-editor__gantt-studio-drop-line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	z-index: 5;
+	height: 2px;
+	background: var(--canvas-editor-panel-primary);
+	pointer-events: none;
+}
+
+/* ----------------------------- Footer ------------------------------ */
+
+.canvas-editor__gantt-studio-footer {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.4rem 0.75rem;
+	border-top: 1px solid var(--canvas-editor-panel-border);
+	font-size: 0.72rem;
+	color: var(--canvas-editor-panel-muted);
+}
+
+/* --------------------------- Empty state --------------------------- */
+
+.canvas-editor__gantt-studio-empty {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	padding: 2rem;
+	text-align: center;
+	color: var(--canvas-editor-panel-muted);
+}
+
+.canvas-editor__gantt-studio-empty svg {
+	width: 2rem;
+	height: 2rem;
+	opacity: 0.7;
+}
+
+.canvas-editor__gantt-studio-empty strong {
+	color: var(--canvas-editor-panel-text);
+}
+
+.canvas-editor__gantt-studio-empty p {
+	max-width: 26rem;
+	margin: 0;
+	font-size: 0.82rem;
+}
+
+.canvas-editor__gantt-studio-primary {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.45rem 0.9rem;
+	border: 1px solid var(--canvas-editor-panel-primary);
+	border-radius: 0.55rem;
+	background: var(--canvas-editor-panel-primary);
+	color: #fff;
+	font-size: 0.82rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.canvas-editor__gantt-studio-primary:hover {
+	filter: brightness(1.06);
+}
+
+.canvas-editor__gantt-studio-primary svg {
+	width: 0.9rem;
+	height: 0.9rem;
+}
+
+/* Small screens: keep the table usable by shrinking optional columns. */
+@media (max-width: 900px) {
+	.canvas-editor__gantt-studio {
+		left: 0.5rem;
+		right: 0.5rem;
+	}
+
+	.canvas-editor__gantt-studio-col-owner {
+		display: none;
+	}
+
+	.canvas-editor__gantt-studio-new-chart span {
+		display: none;
+	}
+}
+
+@container canvas-editor (max-width: 1023px) {
+	.canvas-editor__gantt-studio {
+		/* The compact bottom controls sit higher on narrow editors. */
+		--canvas-editor-gantt-bottom-offset: calc(
+			8.25rem +
+			var(--canvas-editor-safe-bottom)
+		);
+	}
 }

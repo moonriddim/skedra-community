@@ -25,6 +25,7 @@ import {
 	KeyRound,
 	Menu,
 	MonitorPlay,
+	PanelRightOpen,
 	Save,
 	Trash2,
 	UserPlus,
@@ -46,9 +47,11 @@ interface GuestCanvasChromeProps {
 	onClearCanvas: () => void;
 	onOpenHelp: () => void;
 	onOpenLiveCollaboration: () => void;
+	workspacePanelOpen: boolean;
+	onToggleWorkspacePanel: () => void;
 }
 
-/** Excalidraw-aehnliche Gast-UI: Hamburger links, Teilen rechts. */
+/** Excalidraw-aehnliche Gast-UI: Hamburger links, Canvas-Seitenpanel rechts. */
 export function GuestCanvasChrome({
 	isLoggedIn,
 	managedBilling,
@@ -63,6 +66,8 @@ export function GuestCanvasChrome({
 	onClearCanvas,
 	onOpenHelp,
 	onOpenLiveCollaboration,
+	workspacePanelOpen,
+	onToggleWorkspacePanel,
 }: GuestCanvasChromeProps) {
 	const { t, locale, setLocale } = useI18n();
 	const { pathname } = useLocation();
@@ -252,14 +257,22 @@ export function GuestCanvasChrome({
 				</DropdownMenu>
 			</div>
 
-			{/* Teilen / Speichern oben rechts — wie Excalidraw */}
+			{/* Ein gemeinsamer Einstieg für Suche, Library, Präsentation und Teilen. */}
 			<div className="pointer-events-none absolute right-3 top-3 z-50 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))]">
 				<Button
-					size="sm"
-					className="pointer-events-auto shadow-md max-lg:min-h-11"
-					onClick={onSave}
+					variant="outline"
+					size="icon"
+					className={`pointer-events-auto h-9 w-9 backdrop-blur-md max-lg:h-11 max-lg:w-11 ${
+						workspacePanelOpen
+							? "border-primary bg-primary/10 text-primary"
+							: "bg-card/90"
+					}`}
+					onClick={onToggleWorkspacePanel}
+					aria-label={t("canvas.workspace.open")}
+					aria-pressed={workspacePanelOpen}
+					title={t("canvas.workspace.open")}
 				>
-					{t("guestCanvas.share")}
+					<PanelRightOpen className="h-4 w-4" />
 				</Button>
 			</div>
 		</>

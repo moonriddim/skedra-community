@@ -1,6 +1,8 @@
+import { createCanvasYjsFrameSync } from "@/hooks/canvas-yjs-frame-sync";
 import { shouldCompactCanvasUpdateLog } from "@/lib/canvas-sync-policy";
 import { applySkedraFileToYDoc } from "@/lib/canvas/skedra-file-utils";
 import {
+	yjsApplyCanvasMutationPlan,
 	yjsCreateElement,
 	yjsCreateView,
 	yjsDeleteElement,
@@ -10,10 +12,7 @@ import {
 	yjsUpdateElements,
 	yjsUpdateView,
 } from "@/lib/canvas/yjs-canvas-mutations";
-import {
-	readCanvasMapsFromYDoc,
-	setCanvasBackgroundInYDoc,
-} from "@/lib/canvas/yjs-document-helpers";
+import { setCanvasBackgroundInYDoc } from "@/lib/canvas/yjs-document-helpers";
 import {
 	createE2eeKeyHash,
 	decryptYjsUpdate,
@@ -29,7 +28,11 @@ import {
 	listPendingE2eeUpdates,
 } from "@/lib/e2ee-update-queue";
 import { trpc } from "@/lib/trpc";
-import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
+import type {
+	CanvasElement,
+	CanvasMutationPlan,
+	SavedCanvasView,
+} from "@skedra/canvas-core";
 import { CanvasScene } from "@skedra/canvas-core";
 import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
 import type { CanvasRole } from "@skedra/shared";
@@ -87,7 +90,9 @@ export function useE2eeCanvasSync(
 		presence,
 	} = options;
 	const ydocRef = useRef<Y.Doc | null>(null);
-	const syncFrameRef = useRef<number | null>(null);
+	const frameSyncRef = useRef<ReturnType<
+		typeof createCanvasYjsFrameSync
+	> | null>(null);
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
 	const compactableUpdateBytesRef = useRef(0);
 	const appliedPendingUpdateIdsRef = useRef<Set<string>>(new Set());
@@ -196,23 +201,9 @@ export function useE2eeCanvasSync(
 		identity: presenceIdentity,
 		presentationShareToken,
 	});
-
 	const syncFromYjs = useCallback(() => {
-		const ydoc = ydocRef.current;
-		if (!ydoc) return;
-		const next = readCanvasMapsFromYDoc(ydoc);
-		setScene(CanvasScene.from(next.elements));
-		setViews(next.views);
-		setCanvasBgState(next.canvasBg);
+		frameSyncRef.current?.syncAll();
 	}, []);
-
-	const scheduleSyncFromYjs = useCallback(() => {
-		if (syncFrameRef.current != null) return;
-		syncFrameRef.current = window.requestAnimationFrame(() => {
-			syncFrameRef.current = null;
-			syncFromYjs();
-		});
-	}, [syncFromYjs]);
 
 	const flushPendingUpdates = useCallback(() => {
 		if (!enabled || readonly || !e2eeKey || !whiteboardId) {
@@ -316,10 +307,21 @@ export function useE2eeCanvasSync(
 		const yViews = ydoc.getMap<Y.Map<unknown>>("viewsMap");
 		const yAppState = ydoc.getMap<unknown>("appStateMap");
 
-		const deepObserver = scheduleSyncFromYjs;
-		yElements.observeDeep(deepObserver);
-		yViews.observeDeep(deepObserver);
-		yAppState.observeDeep(deepObserver);
+		const frameSync = createCanvasYjsFrameSync({
+			ydoc,
+			setScene,
+			setViews,
+			setCanvasBg: setCanvasBgState,
+		});
+		frameSyncRef.current = frameSync;
+		const elementsObserver: Parameters<typeof yElements.observeDeep>[0] = (
+			events,
+		) => frameSync.elementsObserver(events);
+		const viewsObserver = () => frameSync.viewsObserver();
+		const appStateObserver = () => frameSync.appStateObserver();
+		yElements.observeDeep(elementsObserver);
+		yViews.observeDeep(viewsObserver);
+		yAppState.observeDeep(appStateObserver);
 
 		const updateObserver = (update: Uint8Array, origin: unknown) => {
 			if (
@@ -374,14 +376,12 @@ export function useE2eeCanvasSync(
 				flushTimerRef.current = null;
 			}
 			void sendQueueRef.current.then(() => flushPendingUpdates());
-			if (syncFrameRef.current != null) {
-				window.cancelAnimationFrame(syncFrameRef.current);
-				syncFrameRef.current = null;
-			}
+			frameSync.dispose();
+			if (frameSyncRef.current === frameSync) frameSyncRef.current = null;
 			ydoc.off("update", updateObserver);
-			yElements.unobserveDeep(deepObserver);
-			yViews.unobserveDeep(deepObserver);
-			yAppState.unobserveDeep(deepObserver);
+			yElements.unobserveDeep(elementsObserver);
+			yViews.unobserveDeep(viewsObserver);
+			yAppState.unobserveDeep(appStateObserver);
 			ydoc.destroy();
 			ydocRef.current = null;
 			decryptionReadyRef.current = false;
@@ -397,7 +397,6 @@ export function useE2eeCanvasSync(
 		flushPendingUpdates,
 		readonly,
 		schedulePendingUpdateFlush,
-		scheduleSyncFromYjs,
 		whiteboardId,
 	]);
 
@@ -625,6 +624,15 @@ export function useE2eeCanvasSync(
 		[guardWrite],
 	);
 
+	const applyMutationPlan = useCallback(
+		(plan: CanvasMutationPlan) => {
+			const ydoc = guardWrite();
+			if (!ydoc) return;
+			yjsApplyCanvasMutationPlan(ydoc, plan);
+		},
+		[guardWrite],
+	);
+
 	const createView = useCallback(
 		(view: SavedCanvasView) => {
 			const ydoc = guardWrite();
@@ -669,32 +677,61 @@ export function useE2eeCanvasSync(
 	);
 	const getYDoc = useCallback(() => ydocRef.current, []);
 
-	return {
-		isConnected,
-		isReadonly: readonly || !isConnected,
-		role: (readonly || !isConnected ? "viewer" : "editor") as CanvasRole,
-		scene,
-		elements,
-		views,
-		canvasBg,
-		connectionError,
-		// Realtime-Presence (ersetzt den bisherigen No-op).
-		remotePresence: presenceApi.remotePresence,
-		localPresence: null as LocalCanvasPresence | null,
-		createElement,
-		updateElement,
-		updateElements,
-		deleteElement,
-		deleteElements,
-		createView,
-		updateView,
-		deleteView,
-		setCanvasBg,
-		loadSkedraFile,
-		setPresenceSelection: presenceApi.setPresenceSelection,
-		setPresenceCursor: presenceApi.setPresenceCursor,
-		setPresenceViewport: presenceApi.setPresenceViewport,
-		setPresenceActiveView: presenceApi.setPresenceActiveView,
-		getYDoc,
-	};
+	return useMemo(
+		() => ({
+			isConnected,
+			isReadonly: readonly || !isConnected,
+			role: (readonly || !isConnected ? "viewer" : "editor") as CanvasRole,
+			scene,
+			elements,
+			views,
+			canvasBg,
+			connectionError,
+			// Realtime-Presence (ersetzt den bisherigen No-op).
+			remotePresence: presenceApi.remotePresence,
+			localPresence: null as LocalCanvasPresence | null,
+			createElement,
+			updateElement,
+			updateElements,
+			deleteElement,
+			deleteElements,
+			applyMutationPlan,
+			createView,
+			updateView,
+			deleteView,
+			setCanvasBg,
+			loadSkedraFile,
+			setPresenceSelection: presenceApi.setPresenceSelection,
+			setPresenceCursor: presenceApi.setPresenceCursor,
+			setPresenceViewport: presenceApi.setPresenceViewport,
+			setPresenceActiveView: presenceApi.setPresenceActiveView,
+			getYDoc,
+		}),
+		[
+			applyMutationPlan,
+			canvasBg,
+			connectionError,
+			createElement,
+			createView,
+			deleteElement,
+			deleteElements,
+			deleteView,
+			elements,
+			getYDoc,
+			isConnected,
+			loadSkedraFile,
+			presenceApi.remotePresence,
+			presenceApi.setPresenceActiveView,
+			presenceApi.setPresenceCursor,
+			presenceApi.setPresenceSelection,
+			presenceApi.setPresenceViewport,
+			readonly,
+			scene,
+			setCanvasBg,
+			updateElement,
+			updateElements,
+			updateView,
+			views,
+		],
+	);
 }

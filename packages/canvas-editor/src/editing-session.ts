@@ -8,10 +8,14 @@ import {
 	STICKY_NOTE_TEXT_PADDING,
 	getArrowTextMetrics,
 	getStickyNoteContent,
+	isCanvasCenteredTextShape,
 	isCanvasFrameLabelEditable,
 	isMindmapNode,
 	resolveArrowTextOffset,
 	resolveArrowTextRotationDeg,
+	resolveCanvasElementTextLineHeight,
+	resolveCanvasRectTextLayout,
+	resolveCanvasTextRenderedHeight,
 } from "@skedra/canvas-core";
 import type { CanvasEditorEditingText } from "./canvas-editor-text-overlay";
 import {
@@ -47,12 +51,7 @@ export function buildCanvasEditorEditingSession({
 	textPlaceholder = "Text...",
 	arrowTextPlaceholder = "Label...",
 }: BuildCanvasEditorEditingSessionOptions): CanvasEditorEditingSession {
-	const isCenteredShape =
-		element.type === "rectangle" ||
-		element.type === "ellipse" ||
-		element.type === "diamond" ||
-		element.type === "triangle" ||
-		element.type === "cloud";
+	const isCenteredShape = isCanvasCenteredTextShape(element);
 	const isPath = element.type === "arrow" || element.type === "line";
 	const isKanbanCard = element.customData?.skedraType === "kanban-card";
 	const isKanbanList = element.customData?.skedraType === "kanban-list";
@@ -202,13 +201,25 @@ export function buildCanvasEditorEditingSession({
 		};
 	}
 
+	const shapeTextLayout = isCenteredShape
+		? resolveCanvasRectTextLayout(element)
+		: null;
+	const isCanvasText = element.type === "text";
+	const canvasTextHeight = isCanvasText
+		? resolveCanvasTextRenderedHeight(element)
+		: element.height;
+	const isWireframeText =
+		isCanvasText && element.customData?.skedraType === "wireframe-node";
+
 	return {
 		editingText: {
 			id: element.id,
 			x: element.x,
-			y: element.y,
-			width: element.width,
-			height: element.height,
+			y: isCanvasText
+				? element.y - (canvasTextHeight - element.height) / 2
+				: element.y,
+			width: isCanvasText ? Math.max(20, element.width) : element.width,
+			height: canvasTextHeight,
 			text: element.text ?? "",
 			stroke: element.stroke,
 			textColor: element.textColor ?? element.stroke,
@@ -220,10 +231,20 @@ export function buildCanvasEditorEditingSession({
 			fontWeight: element.fontWeight ?? (isKanbanCard ? "bold" : "normal"),
 			fontStyle: element.fontStyle ?? "normal",
 			textDecoration: element.textDecoration ?? "none",
+			sourceWidth: element.width,
+			sourceHeight: element.height,
+			preserveBounds: isWireframeText,
+			paddingX: shapeTextLayout?.horizontalPadding ?? (isCanvasText ? 4 : 0),
+			paddingY:
+				shapeTextLayout?.verticalPadding ??
+				(isCanvasText ? (isWireframeText ? 0 : 2) : 0),
+			lineHeight:
+				shapeTextLayout?.lineHeight ??
+				resolveCanvasElementTextLineHeight(element),
 			placeholder: textPlaceholder,
 			variant: isMindmapNode(element)
 				? "mindmap-node"
-				: element.type === "text"
+				: isCanvasText
 					? "canvas-text"
 					: isCenteredShape
 						? "shape"

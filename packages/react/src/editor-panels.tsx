@@ -2,6 +2,7 @@ import { buildLayerReorderUpdates } from "@skedra/canvas-core";
 import {
 	CanvasEditorContextMenu,
 	type CanvasEditorContextMenuProps,
+	CanvasEditorGanttStudio,
 	CanvasEditorLayerPanel,
 	CanvasEditorSnapMenu,
 	type CanvasEditorSnapMenuProps,
@@ -10,6 +11,7 @@ import {
 import type { CSSProperties } from "react";
 import type { SkedraObjectSnapMode } from "./commands.js";
 import type {
+	SkedraGanttChartDocument,
 	SkedraWireframeComponentId,
 	SkedraWireframePresetId,
 	SkedraWireframeViewport,
@@ -23,6 +25,11 @@ export type SkedraEditorTranslate = (
 ) => string;
 
 export type SkedraLayerReorderPosition = "above" | "below";
+
+export interface SkedraGanttChartOption {
+	id: string;
+	title: string;
+}
 
 export interface SkedraCanvasElementUpdate {
 	id: string;
@@ -65,6 +72,29 @@ export interface SkedraWireframePanelProps {
 		component: SkedraWireframeComponentId,
 		target: SkedraWireframeInsertionTarget | null,
 	) => void;
+	onClose?: () => void;
+}
+
+export interface SkedraGanttPanelProps {
+	document: SkedraGanttChartDocument | null;
+	translate?: SkedraEditorTranslate;
+	/** BCP-47 locale for the timeline's month/day header labels. */
+	locale?: string;
+	/** ISO date rendered as the "today" marker. Defaults to the system date. */
+	today?: string;
+	className?: string;
+	style?: CSSProperties;
+	charts?: readonly SkedraGanttChartOption[];
+	activeChartId?: string | null;
+	onSelectChart?: (chartId: string) => void;
+	/**
+	 * Called after every committed edit (drag, cell change, …). The interactive
+	 * studio applies changes live, so this fires continuously rather than on an
+	 * explicit apply button.
+	 */
+	onApply: (document: SkedraGanttChartDocument) => void;
+	onCreate?: () => void;
+	onDelete?: () => void;
 	onClose?: () => void;
 }
 
@@ -169,6 +199,23 @@ export function SkedraWireframePanel({
 	...props
 }: SkedraWireframePanelProps) {
 	return <CanvasEditorWireframePanel {...props} translate={translate} />;
+}
+
+/** Public interactive Gantt studio shared with the Community canvas. */
+export function SkedraGanttPanel({
+	translate = fallbackTranslate,
+	onApply,
+	...props
+}: SkedraGanttPanelProps) {
+	// The public `onApply` name is kept for SDK compatibility; internally it is
+	// the studio's live `onChange` callback.
+	return (
+		<CanvasEditorGanttStudio
+			{...props}
+			translate={translate}
+			onChange={onApply}
+		/>
+	);
 }
 
 /** Public object-snap menu backed by the shared editor interaction surface. */

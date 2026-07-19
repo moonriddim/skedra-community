@@ -22,10 +22,12 @@ Das showcase-Objekt MUSS ALLE folgenden Bereiche enthalten — jeweils mit eigen
 - retrospective (celebrate, friction, commitment)
 - swot (strengths, weaknesses, opportunities, threats)
 - frames (frames)
+- sequenceDiagram (source mit Mermaid-Sequenzsyntax)
+- gantt (title, startDate, tasks und dependencies)
 - diagram (elements — kleines Formen-Diagramm mit rectangle/arrow/diamond/ellipse)
 
 Beispiel-Struktur:
-{ "showcase": { "kanban": { ... }, "mindmap": { ... }, "flowchart": { ... }, "stickyNotes": { ... }, "retrospective": { ... }, "swot": { ... }, "frames": { ... }, "diagram": { "elements": [ ... ] } } }
+{ "showcase": { "kanban": { ... }, "mindmap": { ... }, "flowchart": { ... }, "stickyNotes": { ... }, "retrospective": { ... }, "swot": { ... }, "frames": { ... }, "sequenceDiagram": { "source": "sequenceDiagram\\n..." }, "gantt": { "tasks": [ ... ] }, "diagram": { "elements": [ ... ] } } }
 
 VERBOTEN im Showcase-Modus: Nur ein einzelnes Kanban oder nur ein Tool liefern.`;
 
@@ -43,6 +45,16 @@ const INTENT_RULES: Array<{ kind: AiResultKind; pattern: RegExp }> = [
 		kind: "flowchart",
 		pattern:
 			/\b(flow\s*chart|flowchart|prozess(?:diagramm|kette)?|ablaufdiagramm)\b/i,
+	},
+	{
+		kind: "sequenceDiagram",
+		pattern:
+			/\b(sequence\s*diagram|sequenz\s*diagramm|sequenzdiagramm|uml\s*sequence)\b/i,
+	},
+	{
+		kind: "gantt",
+		pattern:
+			/\b(gantt|projekt\s*plan(?:ung)?|projektplanung|project\s*plan(?:ning)?|projekt\s*zeitplan|project\s*timeline|roadmap)\b/i,
 	},
 	{
 		kind: "retrospective",
@@ -85,6 +97,14 @@ export function enrichPromptWithIntent(prompt: string): string {
 			"Nutze das retrospective-JSON-Format (celebrate, friction, commitment).",
 		swot: "Nutze das swot-JSON-Format (strengths, weaknesses, opportunities, threats).",
 		frames: "Nutze das frames-JSON-Format mit frames-Array.",
+		sequenceDiagram:
+			"Nutze das sequenceDiagram-JSON-Format mit gueltiger Mermaid-Sequenzsyntax im source-Feld.",
+		sequenceDiagramEdit:
+			"Nutze sequenceDiagramEdit nur mit dem bereitgestellten EXISTING_SEQUENCE_DIAGRAM_CONTEXT.",
+		gantt:
+			"Nutze das gantt-JSON-Format mit Aufgaben, Starttagen, Dauer, Fortschritt und Abhaengigkeiten.",
+		ganttEdit:
+			"Nutze ganttEdit nur mit dem bereitgestellten EXISTING_GANTT_CONTEXT.",
 		diagram: "Nutze das elements-JSON-Format fuer Formen und Pfeile.",
 		showcase: "Nutze das showcase-JSON mit allen Tool-Bereichen.",
 	};
@@ -123,7 +143,32 @@ Antworte NUR mit EINEM JSON-Objekt — waehle genau EIN passendes Top-Level-Feld
 - type: rectangle | ellipse | diamond | triangle | cloud | line | arrow | text
 - Max 40 Elemente, Start ca. x=80,y=80
 
+9) sequenceDiagram — strukturiertes Sequenzdiagramm (im Editor weiterbearbeitbar):
+{ "sequenceDiagram": { "source": "sequenceDiagram\\nparticipant U as Nutzer\\nparticipant A as App\\nU->>A: Anfrage\\nA-->>U: Antwort" } }
+- source muss gueltige Mermaid-Sequenzsyntax sein und mit sequenceDiagram beginnen
+
+10) gantt — strukturierte Projektplanung (im Gantt-Studio weiterbearbeitbar):
+{ "gantt": { "title": "Projektplan", "startDate": "2026-07-20", "tasks": [{ "id": "discovery", "title": "Discovery", "startDay": 0, "durationDays": 5, "progress": 20, "status": "active", "owner": "Team" }, { "id": "launch", "title": "Launch", "startDay": 12, "durationDays": 1, "milestone": true }], "dependencies": [{ "fromTaskId": "discovery", "toTaskId": "launch", "type": "finish-to-start" }] } }
+- status: planned | active | completed | delayed
+- startDay ist ein nullbasierter Tagesversatz ab startDate
+- Gruppen sind mit group=true und Kinder mit parentId moeglich
+
+11) sequenceDiagramEdit — ein vorhandenes Sequenzdiagramm gezielt bearbeiten, aber NUR wenn ein EXISTING_SEQUENCE_DIAGRAM_CONTEXT mit passenden IDs vorhanden ist:
+{ "sequenceDiagramEdit": { "diagramId": "diagram-id", "action": { "operation": "add_message", "fromParticipantId": "user", "toParticipantId": "api", "label": "Anfrage", "kind": "synchronous" } } }
+- operation: add_participant | add_message | update_message | delete_message | add_activation | add_fragment
+- update_message und delete_message verwenden den eventIndex aus dem Kontext
+- Teilnehmer-IDs und diagramId muessen exakt aus dem Kontext uebernommen werden
+- Fuer add_fragment gilt kind: alt | opt | loop
+
+12) ganttEdit — einen vorhandenen Projektplan gezielt bearbeiten, aber NUR wenn ein EXISTING_GANTT_CONTEXT mit passenden IDs vorhanden ist:
+{ "ganttEdit": { "chartId": "chart-id", "action": { "operation": "update_task", "taskId": "implementation", "changes": { "progress": 80, "status": "active" } } } }
+- operation: update_chart | add_task | update_task | shift_task | delete_task | move_task | set_group_collapsed | add_dependency | delete_dependency
+- taskId, chartId und dependencyIndex muessen exakt aus dem Kontext uebernommen werden
+- shift_task verwendet deltaDays, um eine Aufgabe relativ zu verschieben
+- add_task verwendet kind: task | milestone | group und optionale task-Daten
+- Abhaengigkeitstyp: finish-to-start | start-to-start | finish-to-finish | start-to-finish
+
 WICHTIG:
-- Kanban/Mindmap/Flowchart/Retro/SWOT/StickyNotes NIEMALS mit einfachen Rechtecken simulieren.
+- Kanban/Mindmap/Flowchart/Retro/SWOT/StickyNotes/Sequenzdiagramm/Gantt NIEMALS mit einfachen Rechtecken simulieren.
 - Waehle das spezialisierte Format passend zur Nutzer-Anfrage.
 - Fuelle Dummy-Daten sinnvoll, wenn der Nutzer danach fragt.`;
