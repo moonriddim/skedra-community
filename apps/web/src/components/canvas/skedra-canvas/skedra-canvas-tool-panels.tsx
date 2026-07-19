@@ -43,11 +43,7 @@ const SequenceDiagramPanel = lazy(() =>
 		default: m.SequenceDiagramPanel,
 	})),
 );
-const GanttPanel = lazy(() =>
-	import("@/components/canvas/gantt-panel").then((m) => ({
-		default: m.GanttPanel,
-	})),
-);
+const GanttPanel = lazy(() => import("@/components/canvas/gantt-panel"));
 const StickyNoteTool = lazy(() =>
 	import("@/components/whiteboard/sticky-note-tool").then((m) => ({
 		default: m.StickyNoteTool,

@@ -150,6 +150,20 @@ jobs:
       - name: Verify public health endpoint
         run: |
           curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 https://skedra.xyz/api/health
+
+          web_html="$(curl --fail --silent --show-error https://skedra.xyz/)"
+          printf '%s' "$web_html" | grep --quiet --fixed-strings 'Kostenlos online zeichnen ohne Konto'
+
+          libraries_html="$(curl --fail --silent --show-error https://libraries.skedra.xyz/)"
+          printf '%s' "$libraries_html" | grep --quiet --fixed-strings 'Shape Libraries für Skedra Whiteboard'
+
+          for origin in https://skedra.xyz https://libraries.skedra.xyz; do
+            missing_asset_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
+              "$origin/assets/skedra-deployment-cache-smoke-test.js")"
+            printf '%s' "$missing_asset_headers" | head -n 1 | grep --quiet ' 404 '
+            printf '%s' "$missing_asset_headers" | tr -d '\r' | grep --quiet --ignore-case '^cache-control: no-store$'
+          done
+
           curl --fail --silent --show-error https://skedra.xyz/two-factor >/dev/null
 
           websocket_status="$(curl --http1.1 --silent --show-error --max-time 10 \

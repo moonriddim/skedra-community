@@ -270,3 +270,5 @@ export function GanttPanel({
 		/>
 	);
 }
+
+export default GanttPanel;
