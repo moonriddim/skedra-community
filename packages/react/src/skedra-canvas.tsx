@@ -3,6 +3,7 @@ import {
 	CanvasScene,
 	DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
 	DEFAULT_CLOUD_ARC_RADIUS,
+	DEFAULT_POLYGON_SIDES,
 	GRID_SIZE,
 	type HandlePosition,
 	type SnapGuide,
@@ -11,6 +12,7 @@ import {
 	applyCanvasMutationPlan,
 	buildBringForwardUpdates,
 	buildBringToFrontUpdates,
+	buildCanvasBindingSyncUpdates,
 	buildCanvasElementFormatUpdates,
 	buildCanvasPathInsertPointChanges,
 	buildCanvasTextElement,
@@ -106,6 +108,7 @@ import {
 	resolveCanvasEditorPointSnap,
 	resolveCanvasEditorRotationKeyDelta,
 	toggleCanvasEditorStickyChecklistItem,
+	useCanvasEditorClipboard,
 	useCanvasEditorKeyboard,
 	useCanvasEditorPointer,
 	useCanvasEditorSavedViews,
@@ -122,6 +125,7 @@ import type {
 	CanvasEditorStickyChecklistItem,
 	CanvasEditorStickyNoteMode,
 } from "@skedra/canvas-editor";
+import { writeCanvasClipboardDataTransfer } from "@skedra/canvas-io/clipboard";
 import {
 	CanvasElementRenderer,
 	CanvasRenderer,
@@ -217,6 +221,7 @@ import {
 	withSkedraStackIndexes,
 } from "./factories.js";
 import {
+	createExcalidrawFile,
 	createSkedraFile,
 	createSkedraImageElement,
 	createSkedraLibraryFile,
@@ -226,9 +231,11 @@ import {
 	encryptSkedraFile,
 	instantiateSkedraLibraryItem,
 	parseSkedraClipboard,
+	parseSkedraClipboardDataTransfer,
 	parseSkedraFileContents,
 	parseSkedraLibrary,
-	serializeSkedraClipboard,
+	serializeExcalidrawClipboard,
+	serializeExcalidrawFile,
 	serializeSkedraFile,
 	serializeSkedraLibrary,
 } from "./io.js";
@@ -693,6 +700,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			roughFillScale: 1,
 			cloudArcRadius: DEFAULT_CLOUD_ARC_RADIUS,
 			pyramidSections: 1,
+			polygonSides: DEFAULT_POLYGON_SIDES,
 			arrowHeadStart: "none",
 			arrowHeadEnd: "arrow",
 			arrowHeadScale: 1,
@@ -1545,23 +1553,28 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			setHistoryRevision((value) => value + 1);
 		}, [commitElements, currentElements]);
 
-		const copySelection = useCallback(() => {
-			const copied = currentElements
-				.filter((element) => selectedIds.has(element.id))
-				.map((element) => structuredClone(element));
-			if (copied.length > 0) {
-				clipboardRef.current = copied;
-				if (
-					typeof navigator !== "undefined" &&
-					navigator.clipboard?.writeText
-				) {
-					void navigator.clipboard
-						.writeText(serializeSkedraClipboard(copied))
-						.catch(() => undefined);
+		const copySelection = useCallback(
+			(dataTransfer?: Pick<DataTransfer, "setData">) => {
+				const copied = currentElements
+					.filter((element) => selectedIds.has(element.id))
+					.map((element) => structuredClone(element));
+				if (copied.length > 0) {
+					clipboardRef.current = copied;
+					if (dataTransfer) {
+						writeCanvasClipboardDataTransfer(dataTransfer, copied);
+					} else if (
+						typeof navigator !== "undefined" &&
+						navigator.clipboard?.writeText
+					) {
+						void navigator.clipboard
+							.writeText(serializeExcalidrawClipboard(copied))
+							.catch(() => undefined);
+					}
 				}
-			}
-			return copied;
-		}, [currentElements, selectedIds]);
+				return copied;
+			},
+			[currentElements, selectedIds],
+		);
 
 		const pasteElements = useCallback(
 			(source: CanvasElement[]) => {
@@ -1598,11 +1611,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			return pasteElements(clipboardRef.current);
 		}, [pasteElements]);
 
-		const cutSelection = useCallback(() => {
-			const copied = copySelection();
-			if (copied.length > 0) deleteSelection();
-			return copied;
-		}, [copySelection, deleteSelection]);
+		const cutSelection = useCallback(
+			(dataTransfer?: Pick<DataTransfer, "setData">) => {
+				const copied = copySelection(dataTransfer);
+				if (copied.length > 0) deleteSelection();
+				return copied;
+			},
+			[copySelection, deleteSelection],
+		);
 
 		const duplicateSelection = useCallback(() => {
 			copySelection();
@@ -1612,8 +1628,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const applySelectedUpdates = useCallback(
 			(updates: Array<{ id: string; changes: Partial<CanvasElement> }>) => {
 				if (readOnly || updates.length === 0) return;
+				const allUpdates = [
+					...updates,
+					...buildCanvasBindingSyncUpdates(
+						toCanvasElementMap(currentElements),
+						updates,
+					),
+				];
 				commitCanvasElements(
-					applyCanvasElementUpdates(currentElements, updates),
+					applyCanvasElementUpdates(currentElements, allUpdates),
 				);
 			},
 			[commitCanvasElements, currentElements, readOnly],
@@ -1883,6 +1906,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						: {}),
 					...(properties.pyramidSections !== undefined
 						? { pyramidSections: properties.pyramidSections }
+						: {}),
+					...(properties.polygonSides !== undefined
+						? { polygonSides: properties.polygonSides }
 						: {}),
 					...(properties.arrowHeadStart !== undefined
 						? { arrowHeadStart: properties.arrowHeadStart }
@@ -2855,11 +2881,15 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			});
 			if (!changes) return;
 			event.preventDefault();
-			commitCanvasElements(
-				currentElements.map((current) =>
-					current.id === element.id ? { ...current, ...changes } : current,
+			const directUpdates = [{ id: element.id, changes }];
+			const updates = [
+				...directUpdates,
+				...buildCanvasBindingSyncUpdates(
+					toCanvasElementMap(currentElements),
+					directUpdates,
 				),
-			);
+			];
+			commitCanvasElements(applyCanvasElementUpdates(currentElements, updates));
 		};
 
 		const rotateWithKeyboard = (
@@ -3156,15 +3186,42 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			activateSelection,
 		};
 
+		const getClipboardState = () => ({
+			enabled: true,
+			readOnly,
+			editingText: editingTextId != null || pendingText != null,
+			hasSelection: selectedIds.size > 0,
+		});
+		useCanvasEditorClipboard({
+			getState: getClipboardState,
+			onCopy: (dataTransfer) => copySelection(dataTransfer).length > 0,
+			onCut: (dataTransfer) => cutSelection(dataTransfer).length > 0,
+			onPaste: (dataTransfer) => {
+				try {
+					const parsed = parseSkedraClipboardDataTransfer(dataTransfer);
+					clipboardRef.current = parsed;
+					if (parsed.length > 0) pasteElements(parsed);
+					return true;
+				} catch {
+					if (clipboardRef.current.length === 0) return false;
+					pasteElements(clipboardRef.current);
+					return true;
+				}
+			},
+		});
 		useCanvasEditorKeyboard({
-			getState: () => ({
-				enabled: true,
-				readOnly,
-				editingText: editingTextId != null || pendingText != null,
-				hasSelection: selectedIds.size > 0,
-			}),
-			onEditorAction: (action) =>
-				handleSkedraSdkKeyboardAction(action, keyboardActionHandlers),
+			getState: getClipboardState,
+			onEditorAction: (action) => {
+				if (
+					action.type === "command" &&
+					(action.command === "copy" ||
+						action.command === "cut" ||
+						action.command === "paste")
+				) {
+					return false;
+				}
+				return handleSkedraSdkKeyboardAction(action, keyboardActionHandlers);
+			},
 			onCommand: (command) => {
 				if (command === "escape" && editorPointer.isPathActive()) {
 					editorPointer.cancelPath();
@@ -3312,7 +3369,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const pickAndImportDocument = async () => {
 			const file = await pickBrowserFile(
-				".skedra,.skedra.enc,application/json,application/vnd.skedra+json",
+				".skedra,.skedra.enc,.excalidraw,application/json,application/vnd.skedra+json,application/vnd.excalidraw+json",
 			);
 			if (!file) return;
 			const raw = await file.text();
@@ -3321,6 +3378,20 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				? (window.prompt("Passphrase") ?? undefined)
 				: undefined;
 			importFile(await parseSkedraFileContents(raw, passphrase));
+		};
+
+		const downloadExcalidrawDocument = () => {
+			const file = createExcalidrawFile({
+				elements: currentElements,
+				viewport,
+				canvasBg: canvasBackground,
+			});
+			downloadSkedraBlob(
+				new Blob([serializeExcalidrawFile(file)], {
+					type: "application/vnd.excalidraw+json",
+				}),
+				"skedra-whiteboard.excalidraw",
+			);
 		};
 
 		const downloadDocument = async (encrypted: boolean) => {
@@ -3547,13 +3618,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				items: [
 					{
 						id: "import-skedra",
-						label: "Import .skedra",
+						label: "Import .skedra or .excalidraw",
 						onSelect: pickAndImportDocument,
 					},
 					{
 						id: "export-skedra",
 						label: "Export .skedra",
 						onSelect: () => downloadDocument(false),
+					},
+					{
+						id: "export-excalidraw",
+						label: "Export .excalidraw",
+						onSelect: downloadExcalidrawDocument,
 					},
 					{
 						id: "export-encrypted",

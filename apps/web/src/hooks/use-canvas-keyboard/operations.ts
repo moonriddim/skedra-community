@@ -4,6 +4,7 @@
 
 import { isTextEditableElement } from "@/components/canvas/hooks/use-canvas-text-editing";
 import { useCanvasStoreRef } from "@/hooks/use-canvas-store";
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import {
 	type AlignEdge,
 	type DistributionAxis,
@@ -14,6 +15,7 @@ import type { CanvasElement, CanvasElementFormat } from "@skedra/canvas-core";
 import {
 	buildBringForwardUpdates,
 	buildBringToFrontUpdates,
+	buildCanvasBindingSyncUpdates,
 	buildCanvasElementFormatUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
@@ -21,11 +23,18 @@ import {
 	cloneTransformedCanvasSelection,
 	createSelectionFrame,
 	getCanvasElementFormat,
+	getCombinedBBox,
 	getFlipUpdates,
 	getGroupUpdates,
 	getLockUpdates,
 	getRotateUpdates,
+	serializeExcalidrawClipboard,
 } from "@skedra/canvas-core";
+import {
+	parseCanvasClipboardDataTransfer,
+	parseCanvasClipboardText,
+	writeCanvasClipboardDataTransfer,
+} from "@skedra/canvas-io/clipboard";
 import { nanoid } from "nanoid";
 import { useCallback, useRef } from "react";
 
@@ -36,6 +45,7 @@ interface UseCanvasKeyboardOperationsOptions {
 	updateElements: (
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
+	getPastePoint?: () => { x: number; y: number };
 }
 
 export function useCanvasKeyboardOperations({
@@ -43,6 +53,7 @@ export function useCanvasKeyboardOperations({
 	createElement,
 	deleteElements,
 	updateElements,
+	getPastePoint,
 }: UseCanvasKeyboardOperationsOptions) {
 	const storeRef = useCanvasStoreRef();
 	const clipboardRef = useRef<CanvasElement[]>([]);
@@ -54,11 +65,35 @@ export function useCanvasKeyboardOperations({
 			.map((id) => elements.get(id))
 			.filter(Boolean) as CanvasElement[];
 	}, [storeRef, elements]);
+	const updateGeometryWithBindings = useCallback(
+		(updates: Array<{ id: string; changes: Partial<CanvasElement> }>) => {
+			updateElements([
+				...updates,
+				...buildCanvasBindingSyncUpdates(elements, updates),
+			]);
+		},
+		[elements, updateElements],
+	);
 
-	const copySelection = useCallback(() => {
-		const sel = getSelected();
-		if (sel.length > 0) clipboardRef.current = sel;
-	}, [getSelected]);
+	const copySelection = useCallback(
+		(dataTransfer?: Pick<DataTransfer, "setData">) => {
+			const sel = getSelected();
+			if (sel.length === 0) return [];
+			clipboardRef.current = sel;
+			if (dataTransfer) {
+				writeCanvasClipboardDataTransfer(dataTransfer, sel);
+			} else if (
+				typeof navigator !== "undefined" &&
+				navigator.clipboard?.writeText
+			) {
+				void navigator.clipboard
+					.writeText(serializeExcalidrawClipboard(sel))
+					.catch(() => undefined);
+			}
+			return sel;
+		},
+		[getSelected],
+	);
 
 	const pasteClipboard = useCallback(() => {
 		if (clipboardRef.current.length === 0) return;
@@ -74,14 +109,84 @@ export function useCanvasKeyboardOperations({
 		clipboardRef.current = cloned.elements;
 	}, [createElement, elements, storeRef]);
 
-	const cutSelection = useCallback(() => {
-		const store = storeRef.current;
-		copySelection();
-		if (store.selectedIds.size > 0) {
-			deleteElements(Array.from(store.selectedIds));
-			store.clearSelection();
+	const pasteImportedClipboard = useCallback(
+		(imported: CanvasElement[] | null) => {
+			if (imported === null) return false;
+			if (imported.length === 0) return true;
+
+			const bounds = getCombinedBBox(imported);
+			const target = getPastePoint?.();
+			const offset =
+				bounds && target
+					? {
+							x: target.x - (bounds.x + bounds.width / 2),
+							y: target.y - (bounds.y + bounds.height / 2),
+						}
+					: { x: 20, y: 20 };
+			const cloned = cloneCanvasSelection({
+				elements: imported,
+				existingElements: elements.values(),
+				createId: nanoid,
+				offset,
+			});
+			for (const element of cloned.elements) createElement(element);
+			storeRef.current.setSelectedIds(
+				new Set(cloned.elements.map((element) => element.id)),
+			);
+			clipboardRef.current = cloned.elements;
+			return true;
+		},
+		[createElement, elements, getPastePoint, storeRef],
+	);
+	const pasteTextFromClipboard = useCallback(
+		(text: string) =>
+			pasteImportedClipboard(
+				parseCanvasClipboardText(text, {
+					createId: nanoid,
+					defaultStroke: storeRef.current.strokeColor,
+					defaultFontFamily: CANVAS_DEFAULT_FONT,
+				}),
+			),
+		[pasteImportedClipboard, storeRef],
+	);
+	const pasteDataTransferFromClipboard = useCallback(
+		(dataTransfer: Pick<DataTransfer, "getData">) =>
+			pasteImportedClipboard(
+				parseCanvasClipboardDataTransfer(dataTransfer, {
+					createId: nanoid,
+					defaultStroke: storeRef.current.strokeColor,
+					defaultFontFamily: CANVAS_DEFAULT_FONT,
+				}),
+			),
+		[pasteImportedClipboard, storeRef],
+	);
+
+	const pasteFromClipboard = useCallback(async () => {
+		if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+			pasteClipboard();
+			return;
 		}
-	}, [copySelection, storeRef, deleteElements]);
+
+		try {
+			const text = await navigator.clipboard.readText();
+			if (!pasteTextFromClipboard(text)) pasteClipboard();
+		} catch {
+			pasteClipboard();
+		}
+	}, [pasteClipboard, pasteTextFromClipboard]);
+
+	const cutSelection = useCallback(
+		(dataTransfer?: Pick<DataTransfer, "setData">) => {
+			const store = storeRef.current;
+			const copied = copySelection(dataTransfer);
+			if (copied.length > 0) {
+				deleteElements(copied.map((element) => element.id));
+				store.clearSelection();
+			}
+			return copied;
+		},
+		[copySelection, storeRef, deleteElements],
+	);
 
 	const duplicateSelection = useCallback(() => {
 		copySelection();
@@ -138,27 +243,33 @@ export function useCanvasKeyboardOperations({
 		const sel = getSelected();
 		if (sel.length === 0) return;
 		const transformOrigin = storeRef.current.transformOrigin ?? undefined;
-		updateElements(getFlipUpdates(sel, "horizontal", transformOrigin));
+		updateGeometryWithBindings(
+			getFlipUpdates(sel, "horizontal", transformOrigin),
+		);
 		if (transformOrigin) storeRef.current.setTransformOrigin(null);
-	}, [getSelected, storeRef, updateElements]);
+	}, [getSelected, storeRef, updateGeometryWithBindings]);
 
 	const flipVertical = useCallback(() => {
 		const sel = getSelected();
 		if (sel.length === 0) return;
 		const transformOrigin = storeRef.current.transformOrigin ?? undefined;
-		updateElements(getFlipUpdates(sel, "vertical", transformOrigin));
+		updateGeometryWithBindings(
+			getFlipUpdates(sel, "vertical", transformOrigin),
+		);
 		if (transformOrigin) storeRef.current.setTransformOrigin(null);
-	}, [getSelected, storeRef, updateElements]);
+	}, [getSelected, storeRef, updateGeometryWithBindings]);
 
 	const rotateSelection = useCallback(
 		(angleDelta: number) => {
 			const sel = getSelected();
 			if (sel.length === 0) return;
 			const transformOrigin = storeRef.current.transformOrigin ?? undefined;
-			updateElements(getRotateUpdates(sel, angleDelta, transformOrigin));
+			updateGeometryWithBindings(
+				getRotateUpdates(sel, angleDelta, transformOrigin),
+			);
 			if (transformOrigin) storeRef.current.setTransformOrigin(null);
 		},
-		[getSelected, storeRef, updateElements],
+		[getSelected, storeRef, updateGeometryWithBindings],
 	);
 
 	const createTransformedCopy = useCallback(
@@ -259,18 +370,18 @@ export function useCanvasKeyboardOperations({
 		(edge: AlignEdge) => {
 			const sel = getSelected();
 			if (sel.length < 2) return;
-			updateElements(getAlignmentUpdates(sel, edge));
+			updateGeometryWithBindings(getAlignmentUpdates(sel, edge));
 		},
-		[getSelected, updateElements],
+		[getSelected, updateGeometryWithBindings],
 	);
 
 	const distributeSelection = useCallback(
 		(axis: DistributionAxis) => {
 			const sel = getSelected();
 			if (sel.length < 3) return;
-			updateElements(getDistributionUpdates(sel, axis));
+			updateGeometryWithBindings(getDistributionUpdates(sel, axis));
 		},
-		[getSelected, updateElements],
+		[getSelected, updateGeometryWithBindings],
 	);
 
 	const adjustFontSize = useCallback(
@@ -306,6 +417,9 @@ export function useCanvasKeyboardOperations({
 		getSelected,
 		copySelection,
 		pasteClipboard,
+		pasteTextFromClipboard,
+		pasteDataTransferFromClipboard,
+		pasteFromClipboard,
 		cutSelection,
 		duplicateSelection,
 		copyFormat,

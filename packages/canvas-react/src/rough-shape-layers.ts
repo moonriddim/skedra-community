@@ -1,9 +1,12 @@
 import {
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
+	getElementPolygonPoints,
 	getLinePath,
 	getPyramidDividerSegments,
 	getTrianglePoints,
+	isPolygonVariant,
+	roundedDiamondSvgPath,
 	roundedRectSvgPath,
 } from "@skedra/canvas-core";
 import type {
@@ -35,13 +38,6 @@ const EXACT_ROUGH: RoughPreset = {
 	maxRandomnessOffset: 0,
 };
 
-/** Excalidraw-Bibliothek: stabiler Seed + etwas dezenteres Rough-Preset. */
-const EXCALIDRAW_ROUGH: RoughPreset = {
-	roughness: 1,
-	bowing: 0.85,
-	maxRandomnessOffset: 1.2,
-};
-
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function getElementRoughSeed(el: CanvasElement): number {
@@ -54,7 +50,19 @@ function getElementRoughSeed(el: CanvasElement): number {
 
 function getRoughPreset(el: CanvasElement, level: number) {
 	if (el.customData?.excalidrawImport === true && level > 0) {
-		return EXCALIDRAW_ROUGH;
+		const maxSize = Math.max(el.width, el.height);
+		const minSize = Math.min(el.width, el.height);
+		const keepRoughness =
+			(minSize >= 20 && maxSize >= 50) ||
+			(minSize >= 15 && getEffectiveCornerRadius(el) > 0) ||
+			((el.type === "line" || el.type === "arrow") && maxSize >= 50);
+		return {
+			roughness: keepRoughness
+				? level
+				: Math.min(level / (maxSize < 10 ? 3 : 2), 2.5),
+			bowing: 1,
+			maxRandomnessOffset: 2,
+		};
 	}
 	const preset = ROUGH_PRESETS[level] ?? ROUGH_PRESETS[1];
 	if (el.type !== "triangle") return preset;
@@ -74,6 +82,36 @@ function isFillCapableShape(el: CanvasElement): boolean {
 		el.type === "cloud" ||
 		(el.type === "line" && el.closed === true && (el.points?.length ?? 0) >= 3)
 	);
+}
+
+function getRoughJsFillStyle(
+	el: CanvasElement,
+	current: RoughFillStyle,
+): string {
+	const metadata = el.customData?.excalidraw;
+	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+		return current;
+	}
+	const rawElement = (metadata as Record<string, unknown>).element;
+	if (
+		!rawElement ||
+		typeof rawElement !== "object" ||
+		Array.isArray(rawElement)
+	) {
+		return current;
+	}
+	const raw = (rawElement as Record<string, unknown>).fillStyle;
+	if (
+		(raw === "solid" && current === "solid") ||
+		(raw === "hachure" && current === "hachure") ||
+		(raw === "cross-hatch" && current === "cross-hatch") ||
+		(raw === "dots" && current === "dots") ||
+		((raw === "zigzag" || raw === "zigzag-line" || raw === "dashed") &&
+			current === "dashed")
+	) {
+		return raw;
+	}
+	return current;
 }
 
 export interface RoughShapeLayers {
@@ -295,6 +333,9 @@ function buildRoughNode(
 ): SVGGElement | null {
 	switch (el.type) {
 		case "rectangle": {
+			if (isPolygonVariant(el)) {
+				return rc.polygon(getElementPolygonPoints(el), opts);
+			}
 			const w = Math.max(1, el.width);
 			const h = Math.max(1, el.height);
 			const cornerR = getEffectiveCornerRadius(el);
@@ -312,17 +353,13 @@ function buildRoughNode(
 				opts,
 			);
 		case "diamond": {
-			const cx = el.x + el.width / 2;
-			const cy = el.y + el.height / 2;
-			return rc.polygon(
-				[
-					[cx, el.y],
-					[el.x + el.width, cy],
-					[cx, el.y + el.height],
-					[el.x, cy],
-				],
-				opts,
-			);
+			const radius = getEffectiveCornerRadius(el);
+			return radius > 0
+				? rc.path(
+						roundedDiamondSvgPath(el.x, el.y, el.width, el.height, radius),
+						opts,
+					)
+				: rc.polygon(getElementPolygonPoints(el), opts);
 		}
 		case "triangle":
 			return rc.polygon(getTrianglePoints(el), opts);
@@ -398,6 +435,7 @@ export function useRoughShapeLayers(
 			isFillCapableShape(el) && el.fill && el.fill !== "transparent";
 		const fillStyle: RoughFillStyle =
 			el.roughFillStyle ?? DEFAULT_ROUGH_FILL_STYLE;
+		const roughJsFillStyle = getRoughJsFillStyle(el, fillStyle);
 		const patternGaps = roughPatternFillGaps(el.roughFillScale);
 		const needsRoughStroke = r > 0;
 		const needsPatternFill = !!hasFill && fillStyle !== "solid";
@@ -416,17 +454,29 @@ export function useRoughShapeLayers(
 		const isExcalidrawImport = el.customData?.excalidrawImport === true;
 		const useContinuousRoundedRectStroke =
 			needsRoughStroke &&
+			!isExcalidrawImport &&
 			el.type === "rectangle" &&
+			!isPolygonVariant(el) &&
 			getEffectiveCornerRadius(el) > 0;
 		const baseOpts = {
 			roughness: preset.roughness,
 			bowing: preset.bowing,
 			maxRandomnessOffset: preset.maxRandomnessOffset,
 			stroke: el.stroke,
-			strokeWidth: el.strokeWidth,
+			strokeWidth:
+				isExcalidrawImport && el.strokeStyle !== "solid"
+					? el.strokeWidth + 0.5
+					: el.strokeWidth,
 			seed: getElementRoughSeed(el),
-			disableMultiStroke: isExcalidrawImport,
-			preserveVertices: true,
+			disableMultiStroke: isExcalidrawImport && el.strokeStyle !== "solid",
+			disableMultiStrokeFill: isExcalidrawImport && el.strokeStyle !== "solid",
+			preserveVertices: isExcalidrawImport ? r < 2 : true,
+			...(isExcalidrawImport
+				? {
+						fillWeight: el.strokeWidth / 2,
+						hachureGap: el.strokeWidth * 4,
+					}
+				: {}),
 			fillShapeRoughnessGain: 0.35,
 		};
 		const detailHtml = needsRoughStroke
@@ -434,14 +484,31 @@ export function useRoughShapeLayers(
 			: null;
 
 		if (needsPatternFill) {
+			if (isExcalidrawImport && needsRoughStroke) {
+				const node = buildRoughNode(rc, el, {
+					...baseOpts,
+					fill: el.fill,
+					fillStyle: roughJsFillStyle,
+					fillWeight: el.strokeWidth * 0.5,
+					hachureGap: el.strokeWidth * 4,
+				});
+				return {
+					fillHtml: null,
+					strokeHtml: node?.innerHTML ?? null,
+					svgStrokeFallback: false,
+					detailHtml,
+				};
+			}
 			const fillNode = buildRoughNode(rc, el, {
 				...baseOpts,
 				stroke: "none",
 				strokeWidth: 0,
 				fill: el.fill,
-				fillStyle,
+				fillStyle: roughJsFillStyle,
 				fillWeight: el.strokeWidth * 0.5,
-				...patternGaps,
+				...(isExcalidrawImport
+					? { hachureGap: el.strokeWidth * 4 }
+					: patternGaps),
 			});
 
 			if (needsRoughStroke) {
@@ -488,10 +555,14 @@ export function useRoughShapeLayers(
 		const node = buildRoughNode(rc, el, {
 			...baseOpts,
 			fill: hasFill ? el.fill : undefined,
-			fillStyle: hasFill ? fillStyle : undefined,
+			fillStyle: hasFill ? roughJsFillStyle : undefined,
 			fillWeight:
 				hasFill && fillStyle !== "solid" ? el.strokeWidth * 0.5 : undefined,
-			...(hasFill && fillStyle !== "solid" ? patternGaps : {}),
+			...(hasFill && fillStyle !== "solid"
+				? isExcalidrawImport
+					? { hachureGap: el.strokeWidth * 4 }
+					: patternGaps
+				: {}),
 		});
 
 		if (!node) return null;

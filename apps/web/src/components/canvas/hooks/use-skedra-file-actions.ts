@@ -11,8 +11,10 @@ import {
 import {
 	type SkedraCanvasFileActions,
 	SkedraFileError,
+	buildExcalidrawFile,
 	buildSkedraFile,
 	downloadEncryptedSkedraFile,
+	downloadExcalidrawFile,
 	downloadSkedraFile,
 	pickSkedraFile,
 	readSkedraFileAppState,
@@ -110,6 +112,20 @@ export function useSkedraFileActions({
 		[sync.elements, sync.views, store.canvasBg, store.viewport],
 	);
 
+	const handleExportExcalidraw = useCallback(
+		(filename?: string) => {
+			const file = buildExcalidrawFile(sync.elements, {
+				canvasBg: store.canvasBg,
+				viewport: store.viewport,
+			});
+			downloadExcalidrawFile(
+				file,
+				typeof filename === "string" ? filename : undefined,
+			);
+		},
+		[sync.elements, store.canvasBg, store.viewport],
+	);
+
 	const handleExportEncryptedSkedra = useCallback(
 		async (filename?: string) => {
 			setFileError("");
@@ -182,6 +198,7 @@ export function useSkedraFileActions({
 		if (!canvasFileRef) return;
 		canvasFileRef.current = {
 			exportSkedra: handleExportSkedra,
+			exportExcalidraw: handleExportExcalidraw,
 			exportEncryptedSkedra: handleExportEncryptedSkedra,
 			importSkedra: handleImportSkedra,
 		};
@@ -191,6 +208,7 @@ export function useSkedraFileActions({
 	}, [
 		canvasFileRef,
 		handleExportEncryptedSkedra,
+		handleExportExcalidraw,
 		handleExportSkedra,
 		handleImportSkedra,
 	]);
@@ -202,6 +220,7 @@ export function useSkedraFileActions({
 		setFileError,
 		handleImportSkedra,
 		handleExportSkedra,
+		handleExportExcalidraw,
 		handleExportEncryptedSkedra,
 		handleConfirmSkedraImport,
 	};

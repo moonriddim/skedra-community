@@ -4082,7 +4082,7 @@
 	border: 1px solid var(--canvas-editor-panel-primary);
 	border-radius: 0.55rem;
 	background: var(--canvas-editor-panel-primary);
-	color: #fff;
+	color: var(--primary-foreground, #fff) !important;
 	font-size: 0.82rem;
 	font-weight: 600;
 	cursor: pointer;
@@ -4095,6 +4095,7 @@
 .canvas-editor__gantt-studio-primary svg {
 	width: 0.9rem;
 	height: 0.9rem;
+	opacity: 1;
 }
 
 /* Small screens: keep the table usable by shrinking optional columns. */

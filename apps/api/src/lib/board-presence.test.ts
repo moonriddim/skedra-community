@@ -38,3 +38,22 @@ test("replays the latest presence state to newly joined viewers", async () => {
 	leavePresenceRoom(boardId, presenter);
 	leavePresenceRoom(boardId, viewer);
 });
+
+test("does not expose another connection from the same user as a peer", async () => {
+	await closeBoardPresence();
+	const boardId = crypto.randomUUID();
+	const firstSocket = createFakeWebSocket();
+	const secondSocket = createFakeWebSocket();
+	const first = joinPresenceRoom(boardId, firstSocket.ws, "same-user");
+
+	broadcastPresence(boardId, first, "stale-first-connection");
+	const second = joinPresenceRoom(boardId, secondSocket.ws, "same-user");
+
+	assert.deepEqual(secondSocket.messages, []);
+	broadcastPresence(boardId, second, "second-connection");
+	assert.deepEqual(firstSocket.messages, []);
+	assert.deepEqual(secondSocket.messages, []);
+
+	leavePresenceRoom(boardId, first);
+	leavePresenceRoom(boardId, second);
+});

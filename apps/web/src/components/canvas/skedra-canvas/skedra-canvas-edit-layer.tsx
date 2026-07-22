@@ -174,7 +174,7 @@ export function SkedraCanvasEditLayer({
 					isLocked={isLocked}
 					isInFrame={selectedEls.some((el) => !!el.frameId)}
 					isGrouped={selectedEls.some((el) => !!el.groupId)}
-					canPaste={keyboard.clipboardRef.current.length > 0}
+					canPaste
 					canPasteFormat={keyboard.formatClipboardRef.current !== null}
 					onCopy={keyboard.copySelection}
 					onCut={keyboard.cutSelection}

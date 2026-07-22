@@ -22,6 +22,9 @@ export function resolveCanvasElementTextLineHeight(
 	element: CanvasElement,
 	fontSize = element.fontSize ?? 16,
 ) {
+	if (element.lineHeight != null && element.lineHeight > 0) {
+		return element.lineHeight;
+	}
 	if (element.customData?.skedraType !== "wireframe-node") return 1.4;
 	const heightRatio = element.height / Math.max(1, fontSize);
 	if (heightRatio <= 1.25) return 1;

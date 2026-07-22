@@ -434,6 +434,7 @@ export function useCommunityCanvasPointerAdapter({
 					roughFillScale: store.roughFillScale,
 					cloudArcRadius: store.cloudArcRadius,
 					pyramidSections: store.pyramidSections,
+					polygonSides: store.polygonSides,
 					arrowMode: store.arrowMode,
 					arrowHeadStart: store.arrowHeadStart,
 					arrowHeadEnd: store.arrowHeadEnd,

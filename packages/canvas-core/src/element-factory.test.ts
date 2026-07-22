@@ -71,6 +71,15 @@ test("creates API and MCP bounds elements through one canonical mapper", () => {
 	assert.equal(pyramid.id, "pyramid");
 	assert.equal(pyramid.pyramidSections, 4);
 	assert.equal(pyramid.stroke, "#111111");
+	const polygon = createCanvasElementFromBoundsInput(defaults, {
+		type: "rectangle",
+		x: 0,
+		y: 0,
+		width: 120,
+		height: 80,
+		polygonSides: 8,
+	});
+	assert.equal(polygon.polygonSides, 8);
 
 	const arrow = createCanvasElementFromBoundsInput(
 		defaults,

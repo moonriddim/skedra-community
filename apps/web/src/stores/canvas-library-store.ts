@@ -27,6 +27,11 @@ interface CanvasLibraryState {
 	installedLibraries: InstalledShapeLibrary[];
 
 	createPackage: (name?: string) => string;
+	importPackage: (library: {
+		name: string;
+		description?: string;
+		items: SkedraLibraryItem[];
+	}) => string;
 	setActivePackage: (id: string) => void;
 	renamePackage: (id: string, name: string, description?: string) => void;
 	deletePackage: (id: string) => void;
@@ -59,6 +64,21 @@ export const useCanvasLibraryStore = create<CanvasLibraryState>()(
 				const pkg = createDefaultPackage(
 					name?.trim() || `Paket ${get().ownPackages.length + 1}`,
 				);
+				set((state) => ({
+					ownPackages: [pkg, ...state.ownPackages],
+					activePackageId: pkg.id,
+				}));
+				return pkg.id;
+			},
+
+			importPackage: (library) => {
+				const pkg: OwnLibraryPackage = {
+					id: nanoid(),
+					name: library.name.trim() || `Paket ${get().ownPackages.length + 1}`,
+					description: library.description,
+					items: library.items,
+					updatedAt: Date.now(),
+				};
 				set((state) => ({
 					ownPackages: [pkg, ...state.ownPackages],
 					activePackageId: pkg.id,

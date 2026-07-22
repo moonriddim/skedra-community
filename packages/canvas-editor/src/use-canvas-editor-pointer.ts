@@ -10,6 +10,7 @@ import {
 	type SnapGuide,
 	type SnapPointIndicator,
 	type Viewport,
+	buildCanvasBindingSyncUpdates,
 	buildFrameDropUpdates,
 	buildFrameResizeChildUpdates,
 	collectCanvasSelectionRectIds,
@@ -939,9 +940,18 @@ export function useCanvasEditorPointer({
 					Math.PI;
 				let angleDelta = currentAngle - state.rotateStartAngle;
 				if (event.shiftKey) angleDelta = Math.round(angleDelta / 15) * 15;
-				documentAdapter.updateElements(
-					getRotateUpdates(state.rotateElements, angleDelta, base),
+				const directUpdates = getRotateUpdates(
+					state.rotateElements,
+					angleDelta,
+					base,
 				);
+				documentAdapter.updateElements([
+					...directUpdates,
+					...buildCanvasBindingSyncUpdates(
+						documentAdapter.getElements(),
+						directUpdates,
+					),
+				]);
 				return;
 			}
 			if (
@@ -950,20 +960,25 @@ export function useCanvasEditorPointer({
 				state.resizeHandle
 			) {
 				const start = state.resizeStart;
-				documentAdapter.updateElement(
-					start.id,
-					resizeCanvasElement(
-						{
-							x: start.x,
-							y: start.y,
-							width: start.width,
-							height: start.height,
-						},
-						state.resizeHandle,
-						point.snapped.x - state.startCanvasX,
-						point.snapped.y - state.startCanvasY,
-					),
+				const changes = resizeCanvasElement(
+					{
+						x: start.x,
+						y: start.y,
+						width: start.width,
+						height: start.height,
+					},
+					state.resizeHandle,
+					point.snapped.x - state.startCanvasX,
+					point.snapped.y - state.startCanvasY,
 				);
+				const directUpdates = [{ id: start.id, changes }];
+				documentAdapter.updateElements([
+					...directUpdates,
+					...buildCanvasBindingSyncUpdates(
+						documentAdapter.getElements(),
+						directUpdates,
+					),
+				]);
 				return;
 			}
 			if (state.action !== "draw") return;
@@ -1240,7 +1255,14 @@ export function useCanvasEditorPointer({
 					point.snapped.x - state.startCanvasX,
 					point.snapped.y - state.startCanvasY,
 				);
-				documentAdapter.updateElement(start.id, finalBounds);
+				const directUpdates = [{ id: start.id, changes: finalBounds }];
+				documentAdapter.updateElements([
+					...directUpdates,
+					...buildCanvasBindingSyncUpdates(
+						documentAdapter.getElements(),
+						directUpdates,
+					),
+				]);
 				const current = documentAdapter.getElements().get(start.id) ?? start;
 				const resized: CanvasElement = { ...current, ...finalBounds };
 				const handled = resized

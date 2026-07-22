@@ -62,6 +62,19 @@ test("object snap modes can disable endpoints and enable nearest", () => {
 	assert.deepEqual(nearest && { x: nearest.x, y: nearest.y }, { x: 46, y: 0 });
 });
 
+test("polygon variants expose every corner to object snapping", () => {
+	const octagon = rectangle({ width: 100, height: 100, polygonSides: 8 });
+	const corners = getCanvasElementSnapPointIndicators([octagon], {
+		includeEndpoints: true,
+		includeCenters: false,
+		includeMidpoints: false,
+	}).filter((point) => point.kind === "corner");
+
+	assert.equal(corners.length, 8);
+	assert.equal(Math.round(Math.min(...corners.map((point) => point.x))), 0);
+	assert.equal(Math.round(Math.max(...corners.map((point) => point.x))), 100);
+});
+
 test("division snap exposes a configurable symmetric count per side", () => {
 	const element = rectangle();
 	const elements = new Map([[element.id, element]]);

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMcpCanvasElement, elementInputSchema } from "./element-input.js";
+import {
+	createMcpCanvasElement,
+	elementInputSchema,
+	orderMcpCanvasElementInputs,
+} from "./element-input.js";
 
 const defaults = { createId: () => "mcp-path", stroke: "#111111" };
 
@@ -48,5 +52,60 @@ test("shares divided-pyramid validation and mapping with REST and Web", () => {
 	assert.equal(
 		elementInputSchema.safeParse({ ...input, pyramidSections: 13 }).success,
 		false,
+	);
+});
+
+test("preserves visual styling needed for polished MCP diagrams", () => {
+	const input = elementInputSchema.parse({
+		type: "text",
+		x: 10,
+		y: 20,
+		width: 240,
+		height: 48,
+		text: "Architecture",
+		fontSize: 28,
+		fontFamily: "Inter",
+		fontWeight: "bold",
+		textAlign: "center",
+		textColor: "#f8fafc",
+		rotation: 0.1,
+		opacity: 92,
+		polygonSides: 8,
+		zIndex: 10,
+	});
+	const element = createMcpCanvasElement(defaults, input);
+
+	assert.equal(element.fontSize, 28);
+	assert.equal(element.fontFamily, "Inter");
+	assert.equal(element.fontWeight, "bold");
+	assert.equal(element.textAlign, "center");
+	assert.equal(element.textColor, "#f8fafc");
+	assert.equal(element.rotation, 0.1);
+	assert.equal(element.opacity, 92);
+	assert.equal(element.polygonSides, 8);
+	assert.equal("zIndex" in element, false);
+});
+
+test("orders batch-local zIndex stably from back to front", () => {
+	const parsed = [
+		{ type: "text", x: 0, y: 0, width: 20, height: 20, text: "middle-a" },
+		{ type: "rectangle", x: 0, y: 0, width: 20, height: 20, zIndex: -10 },
+		{
+			type: "text",
+			x: 0,
+			y: 0,
+			width: 20,
+			height: 20,
+			text: "front",
+			zIndex: 10,
+		},
+		{ type: "text", x: 0, y: 0, width: 20, height: 20, text: "middle-b" },
+	].map((input) => elementInputSchema.parse(input));
+
+	const ordered = orderMcpCanvasElementInputs(parsed);
+
+	assert.deepEqual(
+		ordered.map((input) => input.text ?? input.type),
+		["rectangle", "middle-a", "middle-b", "front"],
 	);
 });

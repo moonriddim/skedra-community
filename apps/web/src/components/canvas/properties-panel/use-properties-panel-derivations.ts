@@ -35,8 +35,10 @@ import {
 	DEFAULT_ARROW_HEAD_FILLED,
 	DEFAULT_ARROW_HEAD_SCALE,
 	DEFAULT_CLOUD_ARC_RADIUS,
+	DEFAULT_POLYGON_SIDES,
 	DEFAULT_ROUGH_FILL_SCALE,
 	DEFAULT_ROUGH_FILL_STYLE,
+	clampPolygonSides,
 } from "@skedra/canvas-core";
 import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
 import { useMemo } from "react";
@@ -87,6 +89,8 @@ interface PropertiesPanelDerivations {
 	showDimensions: boolean;
 	showPyramidOptions: boolean;
 	currentPyramidSections: number;
+	showPolygonOptions: boolean;
+	currentPolygonSides: number;
 	showCloudArcRadius: boolean;
 	currentCloudArcRadius: number;
 	hasTextElement: boolean;
@@ -258,9 +262,11 @@ function derivePropertiesPanelState({
 			? inspected.some(
 					(el) =>
 						el.type === "rectangle" &&
+						clampPolygonSides(el.polygonSides) === DEFAULT_POLYGON_SIDES &&
 						el.customData?.skedraType !== "sticky-note",
 				)
-			: activeTool === "rectangle");
+			: activeTool === "rectangle" &&
+				clampPolygonSides(store.polygonSides) === DEFAULT_POLYGON_SIDES);
 
 	const geometryPresetTool =
 		!isEditingTextContext &&
@@ -290,6 +296,16 @@ function derivePropertiesPanelState({
 		singleGeometryElement?.type === "triangle"
 			? (singleGeometryElement.pyramidSections ?? 1)
 			: store.pyramidSections;
+	const showPolygonOptions =
+		singleGeometryElement?.type === "rectangle" ||
+		singleGeometryElement?.type === "diamond" ||
+		geometryPresetTool === "rectangle" ||
+		geometryPresetTool === "diamond";
+	const currentPolygonSides =
+		singleGeometryElement?.type === "rectangle" ||
+		singleGeometryElement?.type === "diamond"
+			? clampPolygonSides(singleGeometryElement.polygonSides)
+			: clampPolygonSides(store.polygonSides);
 	const showCloudArcRadius =
 		singleGeometryElement?.type === "cloud" || geometryPresetTool === "cloud";
 	const currentCloudArcRadius =
@@ -552,6 +568,8 @@ function derivePropertiesPanelState({
 		showDimensions,
 		showPyramidOptions,
 		currentPyramidSections,
+		showPolygonOptions,
+		currentPolygonSides,
 		showCloudArcRadius,
 		currentCloudArcRadius,
 		hasTextElement,

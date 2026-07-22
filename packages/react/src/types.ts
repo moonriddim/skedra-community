@@ -28,6 +28,14 @@ export type RoughFillStyle =
 export type ArrowMode = "straight" | "curve" | "elbow";
 export type ArrowHead = "none" | "arrow" | "triangle" | "dot";
 
+export interface CanvasElementBinding {
+	elementId: string;
+	focus?: number;
+	gap?: number;
+	fixedPoint?: [number, number] | null;
+	mode?: "inside" | "orbit" | "skip";
+}
+
 export interface CanvasElement {
 	id: string;
 	type: ElementType;
@@ -52,6 +60,9 @@ export interface CanvasElement {
 	fontSize?: number;
 	fontFamily?: string;
 	textAlign?: "left" | "center" | "right";
+	verticalAlign?: "top" | "middle" | "bottom";
+	baseline?: number;
+	lineHeight?: number;
 	fontWeight?: "normal" | "bold";
 	fontStyle?: "normal" | "italic";
 	textDecoration?: "none" | "underline";
@@ -62,6 +73,9 @@ export interface CanvasElement {
 	arrowHeadEnd?: ArrowHead;
 	arrowHeadScale?: number;
 	arrowHeadFilled?: boolean;
+	startBinding?: CanvasElementBinding | null;
+	endBinding?: CanvasElementBinding | null;
+	containerId?: string | null;
 	cornerRadius?: number;
 	cornerRadiusPercent?: number;
 	roughness?: number;
@@ -69,6 +83,7 @@ export interface CanvasElement {
 	roughFillScale?: number;
 	cloudArcRadius?: number;
 	pyramidSections?: number;
+	polygonSides?: number;
 	frameId?: string;
 	frameLabel?: string;
 	customData?: Record<string, unknown>;

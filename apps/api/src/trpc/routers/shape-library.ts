@@ -16,6 +16,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import {
 	deletePublishedShapeLibrary,
+	getConfiguredPublishedLibraryFile,
 	getLibraryCatalogConfig,
 	listConfiguredPublicShapeLibraries,
 	listUserShapeLibraries,
@@ -77,6 +78,22 @@ export const shapeLibraryRouter = router({
 	listPublic: publicProcedure.query(async ({ ctx }) => {
 		return listConfiguredPublicShapeLibraries(ctx.db);
 	}),
+
+	getPublicPreview: publicProcedure
+		.input(z.object({ slug: z.string().min(1).max(64) }))
+		.query(async ({ ctx, input }) => {
+			const file = await getConfiguredPublishedLibraryFile(ctx.db, input.slug);
+			if (!file) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Bibliothek nicht gefunden",
+				});
+			}
+			return {
+				items: file.items.slice(0, 12),
+				totalItemCount: file.items.length,
+			};
+		}),
 
 	listMine: protectedProcedure.query(async ({ ctx }) => {
 		return listUserShapeLibraries(ctx.db, ctx.user.id);

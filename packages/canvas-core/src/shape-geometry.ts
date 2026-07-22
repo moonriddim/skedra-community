@@ -21,6 +21,10 @@ export const MIN_PYRAMID_SECTIONS = 1;
 export const MAX_PYRAMID_SECTIONS = 12;
 export const DEFAULT_PYRAMID_SECTIONS = 1;
 
+export const MIN_POLYGON_SIDES = 4;
+export const MAX_POLYGON_SIDES = 12;
+export const DEFAULT_POLYGON_SIDES = 4;
+
 export const MIN_CLOUD_ARC_RADIUS = 4;
 export const MAX_CLOUD_ARC_RADIUS = 48;
 export const DEFAULT_CLOUD_ARC_RADIUS = 18;
@@ -61,6 +65,73 @@ export function clampPyramidSections(sections?: number): number {
 		MAX_PYRAMID_SECTIONS,
 		Math.max(MIN_PYRAMID_SECTIONS, Math.round(sections ?? 1)),
 	);
+}
+
+export function clampPolygonSides(sides?: number): number {
+	if (!Number.isFinite(sides)) return DEFAULT_POLYGON_SIDES;
+	return Math.min(
+		MAX_POLYGON_SIDES,
+		Math.max(MIN_POLYGON_SIDES, Math.round(sides ?? DEFAULT_POLYGON_SIDES)),
+	);
+}
+
+export function isPolygonVariant(
+	element: Pick<CanvasElement, "type" | "polygonSides">,
+): boolean {
+	return (
+		(element.type === "rectangle" || element.type === "diamond") &&
+		clampPolygonSides(element.polygonSides) > DEFAULT_POLYGON_SIDES
+	);
+}
+
+/** Vertices of a polygon stretched to fill the supplied bounds. */
+export function getRegularPolygonPoints(
+	bounds: ShapeBounds,
+	sides?: number,
+	orientation: "vertex-top" | "edge-top" = "vertex-top",
+): [number, number][] {
+	const count = clampPolygonSides(sides);
+	const startAngle =
+		-Math.PI / 2 + (orientation === "edge-top" ? Math.PI / count : 0);
+	const unitPoints = Array.from({ length: count }, (_, index) => {
+		const angle = startAngle + (index * Math.PI * 2) / count;
+		return [Math.cos(angle), Math.sin(angle)] as [number, number];
+	});
+	const maxX = Math.max(...unitPoints.map(([x]) => Math.abs(x)), 0.001);
+	const maxY = Math.max(...unitPoints.map(([, y]) => Math.abs(y)), 0.001);
+	const centerX = bounds.x + bounds.width / 2;
+	const centerY = bounds.y + bounds.height / 2;
+	const radiusX = bounds.width / 2 / maxX;
+	const radiusY = bounds.height / 2 / maxY;
+	return unitPoints.map(([x, y]) => [
+		centerX + x * radiusX,
+		centerY + y * radiusY,
+	]);
+}
+
+export function getElementPolygonPoints(
+	element: Pick<
+		CanvasElement,
+		"type" | "x" | "y" | "width" | "height" | "polygonSides"
+	>,
+): [number, number][] {
+	const sides = clampPolygonSides(element.polygonSides);
+	return getRegularPolygonPoints(
+		element,
+		sides,
+		element.type === "rectangle" ? "edge-top" : "vertex-top",
+	);
+}
+
+export function getElementPolygonPointsAttribute(
+	element: Pick<
+		CanvasElement,
+		"type" | "x" | "y" | "width" | "height" | "polygonSides"
+	>,
+): string {
+	return getElementPolygonPoints(element)
+		.map(([x, y]) => `${x},${y}`)
+		.join(" ");
 }
 
 export function clampCloudArcRadius(radius?: number): number {

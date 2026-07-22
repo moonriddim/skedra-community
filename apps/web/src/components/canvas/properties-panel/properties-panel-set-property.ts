@@ -9,6 +9,7 @@ import {
 	FLOWCHART_YES_COLOR,
 	buildCloudArcRadiusChanges,
 	buildMindmapBranchColorUpdates,
+	clampPolygonSides,
 	getFlowchartConnectorMeta,
 } from "@skedra/canvas-core";
 import type {
@@ -34,6 +35,7 @@ interface StoreDrawingDefaults {
 	setRoughFillStyle: (style: RoughFillStyle) => void;
 	setRoughFillScale: (scale: number) => void;
 	setPyramidSections: (sections: number) => void;
+	setPolygonSides: (sides: number) => void;
 	setArrowMode: (mode: ArrowMode) => void;
 	setArrowHeadStart: (head: ArrowHead) => void;
 	setArrowHeadEnd: (head: ArrowHead) => void;
@@ -107,6 +109,7 @@ function syncStoreDrawingDefault(
 		store.setRoughFillStyle(value as RoughFillStyle);
 	else if (key === "roughFillScale") store.setRoughFillScale(value as number);
 	else if (key === "pyramidSections") store.setPyramidSections(value as number);
+	else if (key === "polygonSides") store.setPolygonSides(value as number);
 	else if (key === "arrowMode") store.setArrowMode(value as ArrowMode);
 	else if (key === "arrowHeadStart")
 		store.setArrowHeadStart(value as ArrowHead);
@@ -169,6 +172,15 @@ export function applyPropertiesPanelPropertyChange({
 				.map((el) => ({
 					id: el.id,
 					changes: buildCloudArcRadiusChanges(el, value as number),
+				}));
+			if (updates.length > 0) onUpdateElements(updates);
+		} else if (key === "polygonSides") {
+			const sides = clampPolygonSides(value as number);
+			const updates = selected
+				.filter((el) => el.type === "rectangle" || el.type === "diamond")
+				.map((el) => ({
+					id: el.id,
+					changes: { polygonSides: sides } as Partial<CanvasElement>,
 				}));
 			if (updates.length > 0) onUpdateElements(updates);
 		} else {

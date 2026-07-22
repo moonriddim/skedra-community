@@ -93,6 +93,15 @@ importers:
 
   apps/libraries:
     dependencies:
+      '@skedra/canvas-core':
+        specifier: workspace:*
+        version: link:../../packages/canvas-core
+      '@skedra/canvas-io':
+        specifier: workspace:*
+        version: link:../../packages/canvas-io
+      '@skedra/canvas-react':
+        specifier: workspace:*
+        version: link:../../packages/canvas-react
       '@skedra/shared':
         specifier: workspace:*
         version: link:../../packages/shared

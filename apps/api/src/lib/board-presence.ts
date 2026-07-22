@@ -48,11 +48,14 @@ function fanoutLocal(
 	whiteboardId: string,
 	data: string,
 	sender?: PresenceMember,
+	senderUserId = sender?.userId,
 ) {
 	const room = rooms.get(whiteboardId);
 	if (!room) return;
 	for (const member of room) {
-		if (member === sender) continue;
+		// Presence represents people, not browser connections. A reconnect or a
+		// second tab belonging to the same account must not appear as another user.
+		if (member === sender || member.userId === senderUserId) continue;
 		try {
 			member.ws.send(data);
 		} catch {
@@ -82,6 +85,7 @@ function ensureNotifyBridge() {
 				origin?: unknown;
 				whiteboardId?: unknown;
 				data?: unknown;
+				userId?: unknown;
 			};
 			if (parsed.origin === PROCESS_ID) return;
 			if (
@@ -91,7 +95,12 @@ function ensureNotifyBridge() {
 			) {
 				return;
 			}
-			fanoutLocal(parsed.whiteboardId, parsed.data);
+			fanoutLocal(
+				parsed.whiteboardId,
+				parsed.data,
+				undefined,
+				typeof parsed.userId === "string" ? parsed.userId : undefined,
+			);
 		} catch {
 			// Ignore malformed cross-process presence messages.
 		}
@@ -122,6 +131,9 @@ export function joinPresenceRoom(
 		rooms.set(whiteboardId, room);
 	}
 	for (const existingMember of room) {
+		// A previous connection from the same account may still be closing while
+		// the user returns to the board. Do not replay that stale state as a peer.
+		if (existingMember.userId === userId) continue;
 		if (!existingMember.lastData) continue;
 		try {
 			ws.send(existingMember.lastData);
@@ -156,7 +168,12 @@ export function broadcastPresence(
 	void notifyClient
 		.notify(
 			NOTIFY_CHANNEL,
-			JSON.stringify({ origin: PROCESS_ID, whiteboardId, data }),
+			JSON.stringify({
+				origin: PROCESS_ID,
+				whiteboardId,
+				data,
+				userId: sender.userId,
+			}),
 		)
 		.catch(() => undefined);
 }

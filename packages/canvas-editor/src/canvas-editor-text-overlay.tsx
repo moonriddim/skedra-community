@@ -42,6 +42,7 @@ export interface CanvasEditorEditingText {
 	fontSize: number;
 	fontFamily: string;
 	textAlign: "left" | "center" | "right";
+	verticalAlign?: "top" | "middle" | "bottom";
 	fontWeight: "normal" | "bold";
 	fontStyle: "normal" | "italic";
 	textDecoration: "none" | "underline";
@@ -119,6 +120,7 @@ export function CanvasEditorTextOverlay({
 	const elFontSize = source.fontSize ?? 18;
 	const elFontFamily = source.fontFamily ?? DEFAULT_FONT_FAMILY;
 	const elTextAlign = editingState?.textAlign ?? pending?.textAlign ?? "left";
+	const elVerticalAlign = editingState?.verticalAlign ?? "top";
 	const elFontWeight =
 		editingState?.fontWeight ?? pending?.fontWeight ?? "normal";
 	const elFontStyle = editingState?.fontStyle ?? pending?.fontStyle ?? "normal";
@@ -182,11 +184,14 @@ export function CanvasEditorTextOverlay({
 						Math.max(40, innerHeight) * viewport.zoom,
 					)
 				: 44;
-	const verticallyCentered = isShapeEditor || isMindmapNodeEditor;
+	const verticallyAligned =
+		isShapeEditor ||
+		isMindmapNodeEditor ||
+		(isCanvasTextEditor && elVerticalAlign !== "top");
 
 	const syncTextareaLayout = useCallback(
 		(ta: HTMLTextAreaElement) => {
-			if (!verticallyCentered) {
+			if (!verticallyAligned) {
 				if (hasFixedTextBounds) {
 					ta.style.height = `${screenH}px`;
 				} else {
@@ -205,13 +210,23 @@ export function CanvasEditorTextOverlay({
 				fontSize * textLineHeight,
 				ta.scrollHeight,
 			);
-			const verticalPadding = Math.max(0, (screenH - contentHeight) / 2);
+			const remainingHeight = Math.max(0, screenH - contentHeight);
+			const paddingTop =
+				elVerticalAlign === "bottom" ? remainingHeight : remainingHeight / 2;
+			const paddingBottom = Math.max(0, remainingHeight - paddingTop);
 			ta.style.height = `${screenH}px`;
 			ta.style.minHeight = `${screenH}px`;
-			ta.style.paddingTop = `${verticalPadding}px`;
-			ta.style.paddingBottom = `${verticalPadding}px`;
+			ta.style.paddingTop = `${paddingTop}px`;
+			ta.style.paddingBottom = `${paddingBottom}px`;
 		},
-		[fontSize, hasFixedTextBounds, screenH, textLineHeight, verticallyCentered],
+		[
+			elVerticalAlign,
+			fontSize,
+			hasFixedTextBounds,
+			screenH,
+			textLineHeight,
+			verticallyAligned,
+		],
 	);
 
 	const doSave = useCallback(() => {

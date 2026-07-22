@@ -3,12 +3,17 @@ import test from "node:test";
 import { hitTest } from "./hit-test";
 import {
 	DEFAULT_CLOUD_ARC_RADIUS,
+	DEFAULT_POLYGON_SIDES,
 	MAX_CLOUD_ARC_RADIUS,
+	MAX_POLYGON_SIDES,
 	MIN_CLOUD_ARC_RADIUS,
+	MIN_POLYGON_SIDES,
 	buildCloudArcRadiusChanges,
 	clampCloudArcRadius,
+	clampPolygonSides,
 	clampPyramidSections,
 	getCloudSvgPath,
+	getElementPolygonPoints,
 	getFreeformRevisionCloudSvgPath,
 	getPyramidDividerSegments,
 	getTrianglePoints,
@@ -52,6 +57,34 @@ test("clamps pyramid sections to the supported persisted range", () => {
 	assert.equal(clampPyramidSections(-4), 1);
 	assert.equal(clampPyramidSections(4.6), 5);
 	assert.equal(clampPyramidSections(99), 12);
+});
+
+test("builds bounded polygon variants and clamps their corner count", () => {
+	assert.equal(clampPolygonSides(undefined), DEFAULT_POLYGON_SIDES);
+	assert.equal(clampPolygonSides(2), MIN_POLYGON_SIDES);
+	assert.equal(clampPolygonSides(7.6), 8);
+	assert.equal(clampPolygonSides(99), MAX_POLYGON_SIDES);
+
+	const octagon: CanvasElement = {
+		...triangle,
+		id: "octagon",
+		type: "rectangle",
+		polygonSides: 8,
+	};
+	const points = getElementPolygonPoints(octagon);
+	assert.equal(points.length, 8);
+	assert.equal(Math.round(Math.min(...points.map(([x]) => x))), octagon.x);
+	assert.equal(
+		Math.round(Math.max(...points.map(([x]) => x))),
+		octagon.x + octagon.width,
+	);
+	assert.equal(Math.round(Math.min(...points.map(([, y]) => y))), octagon.y);
+	assert.equal(
+		Math.round(Math.max(...points.map(([, y]) => y))),
+		octagon.y + octagon.height,
+	);
+	assert.equal(hitTest(octagon, 110, 80), true);
+	assert.equal(hitTest(octagon, 10, 20), false);
 });
 
 test("clamps revision-cloud arc radii to the supported range", () => {

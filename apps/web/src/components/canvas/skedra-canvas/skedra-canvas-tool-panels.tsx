@@ -124,6 +124,7 @@ interface SkedraCanvasToolPanelsProps {
 	deleteElementsWithKanbanReflow: (ids: string[]) => void;
 	keyboard: KeyboardPanelApi;
 	onExportSkedra: () => void;
+	onExportExcalidraw: () => void;
 	onExportEncryptedSkedra: () => void;
 	onImportSkedra: () => void;
 	onExportVisual: CanvasCommands["exportVisual"];
@@ -169,6 +170,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	deleteElementsWithKanbanReflow,
 	keyboard,
 	onExportSkedra,
+	onExportExcalidraw,
 	onExportEncryptedSkedra,
 	onImportSkedra,
 	onExportVisual,
@@ -235,6 +237,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 					addElements={addElements}
 					getViewportCenter={getViewportCenter}
 					onExportSkedra={onExportSkedra}
+					onExportExcalidraw={onExportExcalidraw}
 					onExportEncryptedSkedra={onExportEncryptedSkedra}
 					onImportSkedra={onImportSkedra}
 					onExportVisual={onExportVisual}

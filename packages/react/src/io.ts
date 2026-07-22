@@ -1,14 +1,24 @@
 import {
+	SKEDRA_CLIPBOARD_TYPE as SHARED_CLIPBOARD_TYPE,
 	buildCroppedImageUpdate,
 	cloneCanvasSelection,
 	convertExcalidrawLibraryGroups,
+	createExcalidrawFile as createCanvasExcalidrawFile,
 	fitImageSize,
 	getCombinedBBox,
+	parseExcalidrawScene,
+	serializeExcalidrawClipboard as serializeCanvasExcalidrawClipboard,
+	serializeExcalidrawFile as serializeCanvasExcalidrawFile,
+	serializeSkedraClipboard as serializeCanvasSkedraClipboard,
 } from "@skedra/canvas-core";
 import {
 	canvasBlobToDataUrl,
 	loadCanvasImageDimensions,
 } from "@skedra/canvas-io/browser-images";
+import {
+	parseCanvasClipboardDataTransfer,
+	parseCanvasClipboardText,
+} from "@skedra/canvas-io/clipboard";
 import { decodeCanvasElement } from "@skedra/canvas-io/codecs";
 import {
 	SKEDRA_ENCRYPTED_FILE_TYPE as SHARED_ENCRYPTED_FILE_TYPE,
@@ -37,7 +47,18 @@ export const SKEDRA_FILE_MIME = SHARED_FILE_MIME;
 export const SKEDRA_LIBRARY_TYPE = "skedralib" as const;
 export const SKEDRA_LIBRARY_VERSION = 1;
 export const SKEDRA_LIBRARY_MIME = "application/vnd.skedra.library+json";
-export const SKEDRA_CLIPBOARD_TYPE = "skedra-clipboard" as const;
+export const SKEDRA_CLIPBOARD_TYPE = SHARED_CLIPBOARD_TYPE;
+export const EXCALIDRAW_FILE_MIME = "application/vnd.excalidraw+json";
+
+/** Self-contained public shape of an editable Excalidraw v2 scene. */
+export interface ExcalidrawSceneFile {
+	type: "excalidraw";
+	version: number;
+	source: string;
+	elements: Record<string, unknown>[];
+	appState: Record<string, unknown>;
+	files: Record<string, unknown>;
+}
 
 export interface SkedraFile {
 	type: typeof SKEDRA_FILE_TYPE;
@@ -104,27 +125,39 @@ function throwPublicIoError(error: unknown): never {
 }
 
 export function serializeSkedraClipboard(elements: CanvasElement[]): string {
-	return JSON.stringify({
-		type: SKEDRA_CLIPBOARD_TYPE,
-		version: 1,
-		elements,
-	});
+	return serializeCanvasSkedraClipboard(elements);
+}
+
+export function serializeExcalidrawClipboard(
+	elements: Iterable<CanvasElement>,
+): string {
+	return serializeCanvasExcalidrawClipboard(elements);
+}
+
+function getClipboardImportOptions() {
+	return {
+		createId: createSkedraElementId,
+		defaultStroke: "#17211d",
+		defaultFontFamily:
+			getSkedraElementFactoryDefaults().fontFamily ?? "sans-serif",
+	};
 }
 
 export function parseSkedraClipboard(value: string): CanvasElement[] {
-	const parsed = parseJson(value);
-	if (
-		!isRecord(parsed) ||
-		parsed.type !== SKEDRA_CLIPBOARD_TYPE ||
-		!Array.isArray(parsed.elements)
-	) {
-		throw new SkedraIoError("invalidClipboard");
-	}
-	const elements = parsed.elements.map(decodeCanvasElement);
-	if (elements.some((element) => element == null)) {
-		throw new SkedraIoError("invalidClipboard");
-	}
-	return elements as CanvasElement[];
+	const elements = parseCanvasClipboardText(value, getClipboardImportOptions());
+	if (!elements) throw new SkedraIoError("invalidClipboard");
+	return elements;
+}
+
+export function parseSkedraClipboardDataTransfer(
+	dataTransfer: Pick<DataTransfer, "getData">,
+): CanvasElement[] {
+	const elements = parseCanvasClipboardDataTransfer(
+		dataTransfer,
+		getClipboardImportOptions(),
+	);
+	if (!elements) throw new SkedraIoError("invalidClipboard");
+	return elements;
 }
 
 export function createSkedraFile(options: {
@@ -135,6 +168,66 @@ export function createSkedraFile(options: {
 	source?: string;
 }): SkedraFile {
 	return createCanvasSkedraFile(options) as SkedraFile;
+}
+
+export function createExcalidrawFile(options: {
+	elements: Iterable<CanvasElement>;
+	viewport?: Viewport;
+	canvasBg?: string;
+	source?: string;
+}): ExcalidrawSceneFile {
+	return createCanvasExcalidrawFile(options.elements, options);
+}
+
+export function serializeExcalidrawFile(file: ExcalidrawSceneFile): string {
+	return serializeCanvasExcalidrawFile(file);
+}
+
+export function parseExcalidrawFile(
+	value: string | unknown,
+	options: {
+		createId?: () => string;
+		stroke?: string;
+		fontFamily?: string;
+	} = {},
+): SkedraFile {
+	const scene = parseExcalidrawScene(value, {
+		createId: options.createId ?? createSkedraElementId,
+		defaultStroke: options.stroke ?? "#17211d",
+		defaultFontFamily:
+			options.fontFamily ??
+			getSkedraElementFactoryDefaults().fontFamily ??
+			"sans-serif",
+	});
+	if (!scene) throw new SkedraIoError("invalidFormat");
+	const rawZoom = scene.appState.zoom;
+	const zoom =
+		isRecord(rawZoom) && typeof rawZoom.value === "number" ? rawZoom.value : 1;
+	const hasViewport =
+		typeof scene.appState.scrollX === "number" ||
+		typeof scene.appState.scrollY === "number" ||
+		rawZoom != null;
+	return createSkedraFile({
+		elements: scene.elements,
+		canvasBg:
+			typeof scene.appState.viewBackgroundColor === "string"
+				? scene.appState.viewBackgroundColor
+				: undefined,
+		viewport: hasViewport
+			? {
+					x:
+						typeof scene.appState.scrollX === "number"
+							? scene.appState.scrollX
+							: 0,
+					y:
+						typeof scene.appState.scrollY === "number"
+							? scene.appState.scrollY
+							: 0,
+					zoom,
+				}
+			: undefined,
+		source: scene.source,
+	});
 }
 
 export function serializeSkedraFile(file: SkedraFile): string {
@@ -180,6 +273,18 @@ export async function parseSkedraFileContents(
 	raw: string,
 	passphrase?: string,
 ): Promise<SkedraFile> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw) as unknown;
+	} catch {
+		parsed = null;
+	}
+	if (
+		isRecord(parsed) &&
+		(parsed.type === "excalidraw" || parsed.type === "excalidraw/clipboard")
+	) {
+		return parseExcalidrawFile(parsed);
+	}
 	try {
 		return (await parseCanvasSkedraFileContents(raw, passphrase)) as SkedraFile;
 	} catch (error) {
@@ -230,10 +335,13 @@ export function parseSkedraLibrary(
 ): SkedraLibraryFile {
 	const parsed = typeof value === "string" ? parseJson(value) : value;
 	if (!isRecord(parsed)) throw new SkedraIoError("invalidLibrary");
-	if (parsed.type === "excalidrawlib" && Array.isArray(parsed.library)) {
+	if (
+		parsed.type === "excalidrawlib" &&
+		(Array.isArray(parsed.library) || Array.isArray(parsed.libraryItems))
+	) {
 		const createId = options.createId ?? createSkedraElementId;
 		const converted = convertExcalidrawLibraryGroups(
-			parsed.library as Record<string, unknown>[][],
+			(parsed.library ?? parsed.libraryItems) as unknown[],
 			{
 				createId,
 				defaultFontFamily:

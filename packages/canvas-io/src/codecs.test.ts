@@ -12,7 +12,7 @@ test("frame export filenames are shared by every host", () => {
 });
 
 function shape(
-	type: "triangle" | "cloud",
+	type: "rectangle" | "triangle" | "cloud",
 	overrides: Partial<CanvasElement> = {},
 ): CanvasElement {
 	return {
@@ -36,16 +36,27 @@ function shape(
 	};
 }
 
-test("round-trips triangle pyramid sections and cloud arc radii", () => {
+test("round-trips polygon sides, triangle sections and cloud arc radii", () => {
+	const polygon = shape("rectangle", { polygonSides: 8 });
 	const triangle = shape("triangle", { pyramidSections: 5 });
 	const cloud = shape("cloud", { cloudArcRadius: 24 });
+	const decodedPolygon = decodeCanvasElement(encodeCanvasElement(polygon));
 	const decodedTriangle = decodeCanvasElement(encodeCanvasElement(triangle));
 	const decodedCloud = decodeCanvasElement(encodeCanvasElement(cloud));
 
+	assert.equal(decodedPolygon?.type, "rectangle");
+	assert.equal(decodedPolygon?.polygonSides, 8);
 	assert.equal(decodedTriangle?.type, "triangle");
 	assert.equal(decodedTriangle?.pyramidSections, 5);
 	assert.equal(decodedCloud?.type, "cloud");
 	assert.equal(decodedCloud?.cloudArcRadius, 24);
+});
+
+test("rejects invalid persisted polygon side counts", () => {
+	const encoded = encodeCanvasElement(shape("rectangle", { polygonSides: 6 }));
+	assert.equal(decodeCanvasElement({ ...encoded, polygonSides: 3 }), null);
+	assert.equal(decodeCanvasElement({ ...encoded, polygonSides: 5.5 }), null);
+	assert.equal(decodeCanvasElement({ ...encoded, polygonSides: 13 }), null);
 });
 
 test("rejects invalid persisted cloud arc radii", () => {

@@ -10,6 +10,9 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"@skedra/canvas-core": "workspace:*",
+		"@skedra/canvas-io": "workspace:*",
+		"@skedra/canvas-react": "workspace:*",
 		"@skedra/shared": "workspace:*",
 		"@tanstack/react-query": "^5.62.0",
 		"@trpc/client": "^11.0.0",

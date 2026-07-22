@@ -38,6 +38,7 @@ interface GuestCanvasChromeProps {
 	managedBilling: boolean;
 	onSave: () => void;
 	onSaveSkedra: () => void;
+	onSaveExcalidraw: () => void;
 	onSaveEncryptedSkedra: () => void;
 	onOpenSkedra: () => void;
 	onExportSvg: () => void;
@@ -57,6 +58,7 @@ export function GuestCanvasChrome({
 	managedBilling,
 	onSave,
 	onSaveSkedra,
+	onSaveExcalidraw,
 	onSaveEncryptedSkedra,
 	onOpenSkedra,
 	onExportSvg,
@@ -113,6 +115,10 @@ export function GuestCanvasChrome({
 						<DropdownMenuItem onClick={onSaveSkedra}>
 							<Save className="mr-2 h-4 w-4" />
 							{t("guestCanvas.saveSkedra")}
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={onSaveExcalidraw}>
+							<Download className="mr-2 h-4 w-4" />
+							{t("guestCanvas.saveExcalidraw")}
 						</DropdownMenuItem>
 						<DropdownMenuItem onClick={onSaveEncryptedSkedra}>
 							<KeyRound className="mr-2 h-4 w-4" />

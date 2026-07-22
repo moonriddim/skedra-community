@@ -81,6 +81,7 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "fillColor"
 	| "flowchartInsertKind"
 	| "pathDrawMode"
+	| "polygonSides"
 	| "pyramidSections"
 	| "roughFillScale"
 	| "roughFillStyle"
@@ -103,6 +104,7 @@ export type PropertiesPanelStoreSlice = Pick<
 	| "setFillColor"
 	| "setFlowchartInsertKind"
 	| "setPathDrawMode"
+	| "setPolygonSides"
 	| "setPyramidSections"
 	| "setRoughFillScale"
 	| "setRoughFillStyle"
@@ -143,6 +145,7 @@ export function usePropertiesPanel({
 			fillColor: state.fillColor,
 			flowchartInsertKind: state.flowchartInsertKind,
 			pathDrawMode: state.pathDrawMode,
+			polygonSides: state.polygonSides,
 			pyramidSections: state.pyramidSections,
 			roughFillScale: state.roughFillScale,
 			roughFillStyle: state.roughFillStyle,
@@ -165,6 +168,7 @@ export function usePropertiesPanel({
 			setFillColor: state.setFillColor,
 			setFlowchartInsertKind: state.setFlowchartInsertKind,
 			setPathDrawMode: state.setPathDrawMode,
+			setPolygonSides: state.setPolygonSides,
 			setPyramidSections: state.setPyramidSections,
 			setRoughFillScale: state.setRoughFillScale,
 			setRoughFillStyle: state.setRoughFillStyle,

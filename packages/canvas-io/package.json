@@ -9,6 +9,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./browser-images": "./src/browser-images.ts",
+		"./clipboard": "./src/clipboard.ts",
 		"./codecs": "./src/codecs.ts",
 		"./exporters": "./src/exporters.ts",
 		"./file": "./src/file.ts",

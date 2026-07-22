@@ -25,6 +25,7 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 	const lineHeight = resolveCanvasElementTextLineHeight(el, fontSize);
 	const isWireframeNode = el.customData?.skedraType === "wireframe-node";
 	const renderedHeight = resolveCanvasTextRenderedHeight(el);
+	const verticalAlign = el.verticalAlign ?? "top";
 	return (
 		<foreignObject
 			x={el.x}
@@ -37,6 +38,14 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 				style={{
 					width: "100%",
 					height: "100%",
+					display: "flex",
+					flexDirection: "column",
+					justifyContent:
+						verticalAlign === "middle"
+							? "center"
+							: verticalAlign === "bottom"
+								? "flex-end"
+								: "flex-start",
 					boxSizing: isWireframeNode ? "border-box" : undefined,
 					fontSize,
 					fontFamily: el.fontFamily ?? defaultFontFamily,
@@ -382,6 +391,7 @@ export function RectText({ el }: { el: CanvasElement }) {
 			: textAlign === "right"
 				? "flex-end"
 				: "center";
+	const verticalAlign = isStickyNote ? "top" : (el.verticalAlign ?? "middle");
 	const text = el.text?.trim().length
 		? el.text
 		: isStickyNote
@@ -401,7 +411,12 @@ export function RectText({ el }: { el: CanvasElement }) {
 					width: "100%",
 					height: "100%",
 					display: "flex",
-					alignItems: isStickyNote ? "flex-start" : "center",
+					alignItems:
+						verticalAlign === "top"
+							? "flex-start"
+							: verticalAlign === "bottom"
+								? "flex-end"
+								: "center",
 					justifyContent: isStickyNote ? "flex-start" : justifyContent,
 					overflow: "hidden",
 				}}

@@ -7,16 +7,21 @@ import {
 	decodeCanvasElements,
 	decodeSavedCanvasViews,
 } from "@/lib/canvas/canvas-codecs";
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import {
 	buildReplaceAllHistoryEntry,
 	transactLocalUndo,
 } from "@/lib/canvas/canvas-undo";
 import { objectToYMap } from "@/lib/canvas/yjs-document-helpers";
 import { downloadBlob } from "@/lib/download-blob";
-import type {
-	CanvasElement,
-	SavedCanvasView,
-	Viewport,
+import {
+	type CanvasElement,
+	type ExcalidrawSceneFile,
+	type SavedCanvasView,
+	type Viewport,
+	createExcalidrawFile as createCanvasExcalidrawFile,
+	parseExcalidrawScene,
+	serializeExcalidrawFile,
 } from "@skedra/canvas-core";
 import {
 	SKEDRA_ENCRYPTED_FILE_EXTENSION,
@@ -31,12 +36,17 @@ import {
 	serializeCanvasSkedraFile,
 } from "@skedra/canvas-io/file";
 import type { SkedraFileAppState } from "@skedra/shared";
+import { nanoid } from "nanoid";
 import type * as Y from "yjs";
 
 export { SkedraFileError };
 
+export const EXCALIDRAW_FILE_EXTENSION = "excalidraw";
+export const EXCALIDRAW_FILE_MIME = "application/vnd.excalidraw+json";
+
 export interface SkedraCanvasFileActions {
 	exportSkedra: (filename?: string) => void;
+	exportExcalidraw: (filename?: string) => void;
 	exportEncryptedSkedra: (filename?: string) => Promise<void>;
 	importSkedra: () => Promise<void>;
 }
@@ -59,11 +69,79 @@ export function buildSkedraFile(
 	});
 }
 
-/** Parst und validiert JSON-Inhalt einer .skedra-Datei. */
-async function parseSkedraFileContents(
+/** Builds an editable Excalidraw scene from the current canvas state. */
+export function buildExcalidrawFile(
+	elements: Map<string, CanvasElement>,
+	appState: SkedraFileAppState,
+): ExcalidrawSceneFile {
+	return createCanvasExcalidrawFile(elements.values(), {
+		canvasBg: appState?.canvasBg,
+		viewport: appState?.viewport,
+		source:
+			typeof window !== "undefined"
+				? window.location.origin
+				: "https://skedra.app",
+	});
+}
+
+/** Parses and validates either a Skedra or Excalidraw JSON document. */
+export async function parseCanvasFileContents(
 	raw: string,
 	options?: { getPassphrase?: () => string | null },
 ): Promise<SkedraFile> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw) as unknown;
+	} catch {
+		parsed = null;
+	}
+	if (
+		parsed &&
+		typeof parsed === "object" &&
+		"type" in parsed &&
+		((parsed as { type?: unknown }).type === "excalidraw" ||
+			(parsed as { type?: unknown }).type === "excalidraw/clipboard")
+	) {
+		const scene = parseExcalidrawScene(parsed, {
+			createId: nanoid,
+			defaultStroke: "#17211d",
+			defaultFontFamily: CANVAS_DEFAULT_FONT,
+		});
+		if (!scene) throw new SkedraFileError("invalidFormat");
+		const rawZoom = scene.appState.zoom;
+		const zoom =
+			rawZoom &&
+			typeof rawZoom === "object" &&
+			"value" in rawZoom &&
+			typeof rawZoom.value === "number"
+				? rawZoom.value
+				: 1;
+		const hasViewport =
+			typeof scene.appState.scrollX === "number" ||
+			typeof scene.appState.scrollY === "number" ||
+			rawZoom != null;
+		return createCanvasSkedraFile({
+			elements: scene.elements,
+			canvasBg:
+				typeof scene.appState.viewBackgroundColor === "string"
+					? scene.appState.viewBackgroundColor
+					: undefined,
+			viewport: hasViewport
+				? {
+						x:
+							typeof scene.appState.scrollX === "number"
+								? scene.appState.scrollX
+								: 0,
+						y:
+							typeof scene.appState.scrollY === "number"
+								? scene.appState.scrollY
+								: 0,
+						zoom,
+					}
+				: undefined,
+			source: scene.source,
+		});
+	}
 	try {
 		return await parseCanvasSkedraFileContents(raw);
 	} catch (error) {
@@ -137,6 +215,25 @@ export function downloadSkedraFile(
 	);
 }
 
+export function downloadExcalidrawFile(
+	file: ExcalidrawSceneFile,
+	filename = `skedra-whiteboard.${EXCALIDRAW_FILE_EXTENSION}`,
+) {
+	const safeName =
+		typeof filename === "string" && filename.length > 0
+			? filename
+			: `skedra-whiteboard.${EXCALIDRAW_FILE_EXTENSION}`;
+	const blob = new Blob([serializeExcalidrawFile(file)], {
+		type: EXCALIDRAW_FILE_MIME,
+	});
+	downloadBlob(
+		blob,
+		safeName.endsWith(`.${EXCALIDRAW_FILE_EXTENSION}`)
+			? safeName
+			: `${safeName}.${EXCALIDRAW_FILE_EXTENSION}`,
+	);
+}
+
 export async function downloadEncryptedSkedraFile(
 	file: SkedraFile,
 	passphrase: string,
@@ -168,7 +265,7 @@ export function pickSkedraFile(options?: {
 	return new Promise((resolve, reject) => {
 		const input = document.createElement("input");
 		input.type = "file";
-		input.accept = `.${SKEDRA_FILE_EXTENSION},.${SKEDRA_ENCRYPTED_FILE_EXTENSION},application/json,${SKEDRA_FILE_MIME}`;
+		input.accept = `.${SKEDRA_FILE_EXTENSION},.${SKEDRA_ENCRYPTED_FILE_EXTENSION},.${EXCALIDRAW_FILE_EXTENSION},application/json,${SKEDRA_FILE_MIME},${EXCALIDRAW_FILE_MIME}`;
 
 		input.onchange = () => {
 			const file = input.files?.[0];
@@ -179,7 +276,7 @@ export function pickSkedraFile(options?: {
 
 			void file
 				.text()
-				.then((text) => parseSkedraFileContents(text, options))
+				.then((text) => parseCanvasFileContents(text, options))
 				.then(resolve)
 				.catch(reject);
 		};

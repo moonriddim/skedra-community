@@ -200,9 +200,11 @@ export { useCanvasEditorPointer } from "./use-canvas-editor-pointer";
 export {
 	handleCanvasEditorTemporaryPanKeyDown,
 	shouldIgnoreCanvasEditorKeyboardEvent,
+	useCanvasEditorClipboard,
 	useCanvasEditorKeyboard,
 } from "./use-canvas-editor-keyboard";
 export type {
+	CanvasEditorClipboardAdapter,
 	CanvasEditorKeyboardAdapter,
 	CanvasEditorResolvedKeyboardCommand,
 	CanvasEditorKeyboardState,

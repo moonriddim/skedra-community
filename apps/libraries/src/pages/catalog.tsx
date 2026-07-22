@@ -2,6 +2,7 @@
  * Öffentlicher Bibliotheks-Katalog — eigene Site (libraries.skedra.xyz).
  */
 
+import { LibraryPackagePreview } from "@/components/library-package-preview";
 import {
 	buildAddToSkedraUrl,
 	buildLibraryCatalogEntryUrl,
@@ -238,6 +239,12 @@ export function CatalogPage() {
 											{entry.description}
 										</p>
 									)}
+									<LibraryPackagePreview
+										slug={entry.slug}
+										loadingLabel={t.previewLoading}
+										unavailableLabel={t.previewUnavailable}
+										moreLabel={t.moreItems}
+									/>
 									<p className="mt-3 text-xs text-muted-foreground">
 										{entry.author ?? "—"} · {t.itemCount(entry.itemCount)}
 									</p>

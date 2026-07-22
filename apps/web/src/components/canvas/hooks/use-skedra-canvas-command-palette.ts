@@ -140,7 +140,7 @@ export function useSkedraCanvasCommandPalette({
 		const context = {
 			readOnly,
 			selectionCount: store.selectedIds.size,
-			canPaste: keyboard.clipboardRef.current.length > 0,
+			canPaste: true,
 			canUndo,
 			canRedo,
 		};

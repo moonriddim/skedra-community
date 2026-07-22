@@ -9,8 +9,10 @@ import type {
 } from "@skedra/canvas-core";
 import {
 	MAX_CLOUD_ARC_RADIUS,
+	MAX_POLYGON_SIDES,
 	MAX_PYRAMID_SECTIONS,
 	MIN_CLOUD_ARC_RADIUS,
+	MIN_POLYGON_SIDES,
 	MIN_PYRAMID_SECTIONS,
 } from "@skedra/canvas-core";
 
@@ -30,6 +32,7 @@ const ELEMENT_TYPES = new Set<ElementType>([
 
 const STROKE_STYLES = new Set<StrokeStyle>(["solid", "dashed", "dotted"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"] as const);
+const VERTICAL_ALIGNS = new Set(["top", "middle", "bottom"] as const);
 const FONT_WEIGHTS = new Set(["normal", "bold"] as const);
 const FONT_STYLES = new Set(["normal", "italic"] as const);
 const TEXT_DECORATIONS = new Set(["none", "underline"] as const);
@@ -65,6 +68,39 @@ function isOptionalBoolean(value: unknown): value is boolean | undefined {
 
 function isStringOrNull(value: unknown): value is string | null {
 	return value === null || typeof value === "string";
+}
+
+function isOptionalStringOrNull(
+	value: unknown,
+): value is string | null | undefined {
+	return value === undefined || isStringOrNull(value);
+}
+
+function isBinding(value: unknown): boolean {
+	if (value === null) return true;
+	if (!isRecord(value) || typeof value.elementId !== "string") return false;
+	if (!isOptionalNumber(value.focus) || !isOptionalNumber(value.gap))
+		return false;
+	if (
+		value.fixedPoint !== undefined &&
+		value.fixedPoint !== null &&
+		(!Array.isArray(value.fixedPoint) ||
+			value.fixedPoint.length !== 2 ||
+			!isFiniteNumber(value.fixedPoint[0]) ||
+			!isFiniteNumber(value.fixedPoint[1]))
+	) {
+		return false;
+	}
+	return (
+		value.mode === undefined ||
+		value.mode === "inside" ||
+		value.mode === "orbit" ||
+		value.mode === "skip"
+	);
+}
+
+function isOptionalBinding(value: unknown): boolean {
+	return value === undefined || isBinding(value);
 }
 
 function decodePoints(value: unknown): [number, number][] | undefined {
@@ -150,6 +186,10 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 		!isOptionalString(value.fontFamily) ||
 		(value.textAlign !== undefined &&
 			!TEXT_ALIGNS.has(value.textAlign as never)) ||
+		(value.verticalAlign !== undefined &&
+			!VERTICAL_ALIGNS.has(value.verticalAlign as never)) ||
+		!isOptionalNumber(value.baseline) ||
+		!isOptionalNumber(value.lineHeight) ||
 		(value.fontWeight !== undefined &&
 			!FONT_WEIGHTS.has(value.fontWeight as never)) ||
 		(value.fontStyle !== undefined &&
@@ -165,6 +205,9 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 			!ARROW_HEADS.has(value.arrowHeadEnd as ArrowHead)) ||
 		!isOptionalNumber(value.arrowHeadScale) ||
 		!isOptionalBoolean(value.arrowHeadFilled) ||
+		!isOptionalBinding(value.startBinding) ||
+		!isOptionalBinding(value.endBinding) ||
+		!isOptionalStringOrNull(value.containerId) ||
 		!isOptionalNumber(value.cornerRadius) ||
 		!isOptionalNumber(value.cornerRadiusPercent) ||
 		!isOptionalNumber(value.roughness) ||
@@ -180,6 +223,11 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 			(!Number.isInteger(value.pyramidSections) ||
 				value.pyramidSections < MIN_PYRAMID_SECTIONS ||
 				value.pyramidSections > MAX_PYRAMID_SECTIONS)) ||
+		!isOptionalNumber(value.polygonSides) ||
+		(value.polygonSides !== undefined &&
+			(!Number.isInteger(value.polygonSides) ||
+				value.polygonSides < MIN_POLYGON_SIDES ||
+				value.polygonSides > MAX_POLYGON_SIDES)) ||
 		!isOptionalString(value.frameId) ||
 		!isOptionalString(value.frameLabel) ||
 		(value.customData !== undefined && !isRecord(value.customData))

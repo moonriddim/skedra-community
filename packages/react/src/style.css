@@ -364,3 +364,20 @@
 	font-weight: 400;
 	line-height: 1.35;
 }
+@font-face {
+	font-family: "Virgil";
+	src: url("https://cdn.jsdelivr.net/gh/excalidraw/excalidraw@e6ae6bf05755eb3845d9635953bd6477e948a8f6/packages/excalidraw/fonts/Virgil/Virgil-Regular.woff2")
+		format("woff2");
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Excalifont";
+	src: url("https://cdn.jsdelivr.net/gh/excalidraw/excalidraw@e6ae6bf05755eb3845d9635953bd6477e948a8f6/packages/excalidraw/fonts/Excalifont/Excalifont-Regular-a88b72a24fb54c9f94e3b5fdaa7481c9.woff2")
+		format("woff2");
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+}

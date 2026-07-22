@@ -228,6 +228,8 @@ export function buildCanvasEditorEditingSession({
 			textAlign:
 				element.textAlign ??
 				(isKanbanCard ? "left" : isCenteredShape ? "center" : "left"),
+			verticalAlign:
+				element.verticalAlign ?? (isCenteredShape ? "middle" : "top"),
 			fontWeight: element.fontWeight ?? (isKanbanCard ? "bold" : "normal"),
 			fontStyle: element.fontStyle ?? "normal",
 			textDecoration: element.textDecoration ?? "none",

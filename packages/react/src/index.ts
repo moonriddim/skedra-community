@@ -23,6 +23,7 @@ export {
 	SKEDRA_LIBRARY_TYPE,
 	SKEDRA_LIBRARY_VERSION,
 	SkedraIoError,
+	createExcalidrawFile,
 	createSkedraFile,
 	createSkedraImageElement,
 	createSkedraLibraryFile,
@@ -34,9 +35,13 @@ export {
 	instantiateSkedraLibraryItem,
 	parseSkedraFile,
 	parseSkedraFileContents,
+	parseExcalidrawFile,
 	parseSkedraClipboard,
+	parseSkedraClipboardDataTransfer,
 	parseSkedraLibrary,
 	serializeSkedraFile,
+	serializeExcalidrawFile,
+	serializeExcalidrawClipboard,
 	serializeSkedraClipboard,
 	serializeSkedraLibrary,
 } from "./io.js";
@@ -111,6 +116,7 @@ export type {
 
 export type {
 	SkedraEncryptedFile,
+	ExcalidrawSceneFile,
 	SkedraFile,
 	SkedraImageOptions,
 	SkedraLibraryFile,
@@ -140,6 +146,7 @@ export type {
 export type {
 	ArrowMode,
 	CanvasElement,
+	CanvasElementBinding,
 	ElementType,
 	SavedCanvasView,
 	Viewport,

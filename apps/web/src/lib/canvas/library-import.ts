@@ -83,6 +83,9 @@ function parseSkedraLibraryContents(raw: string): SkedraLibraryFile {
 	if (parsed.data.version > SKEDRA_LIB_VERSION) {
 		throw new LibraryImportError("unsupportedVersion");
 	}
+	if (parsed.data.items.length === 0) {
+		throw new LibraryImportError("emptyLibrary");
+	}
 
 	return parsed.data;
 }
@@ -197,6 +200,9 @@ export function pickLibraryFile(theme?: CanvasThemeState): Promise<{
 		const input = document.createElement("input");
 		input.type = "file";
 		input.accept = `.${SKEDRA_LIB_EXTENSION},.excalidrawlib,application/json`;
+		input.addEventListener("cancel", () => {
+			reject(new LibraryImportError("cancelled"));
+		});
 
 		input.onchange = () => {
 			const picked = input.files?.[0];

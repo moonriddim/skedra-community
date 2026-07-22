@@ -127,6 +127,9 @@ export type CanvasElementBoundsInput = Pick<
 			| "fontStyle"
 			| "textDecoration"
 			| "textAlign"
+			| "verticalAlign"
+			| "baseline"
+			| "lineHeight"
 			| "textColor"
 			| "frameId"
 			| "frameLabel"
@@ -134,12 +137,16 @@ export type CanvasElementBoundsInput = Pick<
 			| "cornerRadiusPercent"
 			| "cloudArcRadius"
 			| "pyramidSections"
+			| "polygonSides"
 			| "closed"
 			| "arrowMode"
 			| "arrowHeadStart"
 			| "arrowHeadEnd"
 			| "arrowHeadScale"
 			| "arrowHeadFilled"
+			| "startBinding"
+			| "endBinding"
+			| "containerId"
 			| "roughness"
 			| "roughFillStyle"
 			| "roughFillScale"
@@ -202,6 +209,13 @@ export function createCanvasElementFromBoundsInput(
 				? { textDecoration: input.textDecoration }
 				: {}),
 			...(input.textAlign !== undefined ? { textAlign: input.textAlign } : {}),
+			...(input.verticalAlign !== undefined
+				? { verticalAlign: input.verticalAlign }
+				: {}),
+			...(input.baseline !== undefined ? { baseline: input.baseline } : {}),
+			...(input.lineHeight !== undefined
+				? { lineHeight: input.lineHeight }
+				: {}),
 			...(input.textColor !== undefined ? { textColor: input.textColor } : {}),
 			...(input.frameId !== undefined ? { frameId: input.frameId } : {}),
 			...(input.frameLabel !== undefined
@@ -219,6 +233,9 @@ export function createCanvasElementFromBoundsInput(
 			...(input.pyramidSections !== undefined
 				? { pyramidSections: input.pyramidSections }
 				: {}),
+			...(input.polygonSides !== undefined
+				? { polygonSides: input.polygonSides }
+				: {}),
 			...(input.closed !== undefined ? { closed: input.closed } : {}),
 			...(input.arrowMode !== undefined ? { arrowMode: input.arrowMode } : {}),
 			...(input.arrowHeadStart !== undefined
@@ -232,6 +249,15 @@ export function createCanvasElementFromBoundsInput(
 				: {}),
 			...(input.arrowHeadFilled !== undefined
 				? { arrowHeadFilled: input.arrowHeadFilled }
+				: {}),
+			...(input.startBinding !== undefined
+				? { startBinding: input.startBinding }
+				: {}),
+			...(input.endBinding !== undefined
+				? { endBinding: input.endBinding }
+				: {}),
+			...(input.containerId !== undefined
+				? { containerId: input.containerId }
 				: {}),
 			...(input.roughness !== undefined ? { roughness: input.roughness } : {}),
 			...(input.roughFillStyle !== undefined

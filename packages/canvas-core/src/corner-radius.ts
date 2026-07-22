@@ -70,3 +70,35 @@ export function roundedRectSvgPath(
 		"Z",
 	].join(" ");
 }
+
+export function roundedDiamondSvgPath(
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	radius: number,
+): string {
+	const w = Math.max(1, width);
+	const h = Math.max(1, height);
+	const rx = Math.min(Math.max(0, radius), w / 4);
+	const ry = Math.min(Math.max(0, radius), h / 4);
+	const top = { x: x + w / 2, y };
+	const right = { x: x + w, y: y + h / 2 };
+	const bottom = { x: x + w / 2, y: y + h };
+	const left = { x, y: y + h / 2 };
+	if (rx <= 0 || ry <= 0) {
+		return `M ${top.x} ${top.y} L ${right.x} ${right.y} L ${bottom.x} ${bottom.y} L ${left.x} ${left.y} Z`;
+	}
+	return [
+		`M ${top.x + rx} ${top.y + ry}`,
+		`L ${right.x - rx} ${right.y - ry}`,
+		`C ${right.x} ${right.y} ${right.x} ${right.y} ${right.x - rx} ${right.y + ry}`,
+		`L ${bottom.x + rx} ${bottom.y - ry}`,
+		`C ${bottom.x} ${bottom.y} ${bottom.x} ${bottom.y} ${bottom.x - rx} ${bottom.y - ry}`,
+		`L ${left.x + rx} ${left.y + ry}`,
+		`C ${left.x} ${left.y} ${left.x} ${left.y} ${left.x + rx} ${left.y - ry}`,
+		`L ${top.x - rx} ${top.y + ry}`,
+		`C ${top.x} ${top.y} ${top.x} ${top.y} ${top.x + rx} ${top.y + ry}`,
+		"Z",
+	].join(" ");
+}

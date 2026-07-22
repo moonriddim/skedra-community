@@ -30,14 +30,18 @@ import { z } from "zod";
 import {
 	type EncryptedBoardUpdate,
 	createPlainCanvasMutationUpdate,
-	createPlainElementsUpdate,
 	decryptBoardState,
 	encryptCanvasMutationUpdate,
-	encryptElementsUpdate,
 	readPlainBoardState,
 } from "./canvas-e2ee.js";
 import { type SkedraApiClient, createSkedraClientFromEnv } from "./client.js";
-import { createMcpCanvasElement, elementInputSchema } from "./element-input.js";
+import { buildMcpElementUpdates, elementEditSchema } from "./element-edit.js";
+import {
+	createMcpCanvasElement,
+	elementInputSchema,
+	orderMcpCanvasElementInputs,
+} from "./element-input.js";
+import { buildMcpLayerUpdates, layerOperationSchema } from "./layer-order.js";
 
 /** Factory-Defaults für Canvas-Elemente aus dem MCP (eigene IDs, neutraler Stroke). */
 const elementDefaults = {
@@ -45,52 +49,29 @@ const elementDefaults = {
 	stroke: "#1e1e1e",
 };
 
-/**
- * Baut die Elemente, verschlüsselt sie mit dem Board-Schlüssel und hängt sie als
- * Update ans Board an. Der Server sieht nur Ciphertext; die Änderung erscheint
- * dank Live-Bus sofort bei allen verbundenen Web-Clients.
- */
-async function pushEncryptedElements(
-	client: SkedraApiClient,
-	boardId: string,
-	e2eeKey: string,
-	elements: CanvasElement[],
-) {
-	const { update, keyHash } = encryptElementsUpdate(elements, e2eeKey);
-	const result = await client.appendBoardUpdate(boardId, {
-		clientId: `mcp-${randomUUID()}`,
-		keyHash,
-		update,
-	});
-	return { added: elements.length, updateId: result.id };
-}
-
 async function pushBoardElements(
 	client: SkedraApiClient,
 	boardId: string,
 	e2eeKey: string | undefined,
 	elements: CanvasElement[],
 ) {
-	const { board } = await client.getBoard(boardId);
-	if (board.encryptionMode === "server") {
-		const result = await client.appendBoardUpdate(boardId, {
-			clientId: `mcp-${randomUUID()}`,
-			update: createPlainElementsUpdate(elements),
-		});
-		return {
-			added: elements.length,
-			updateId: result.id,
-			encryptionMode: "server" as const,
-		};
-	}
-	if (!e2eeKey) {
-		throw new Error(
-			"Dieses Board ist E2EE-verschlüsselt. Übergib den e2eeKey aus Skedra.",
-		);
-	}
+	const { board, updates } = await loadBoardMutationState(
+		client,
+		boardId,
+		e2eeKey,
+	);
+	const result = await pushBoardMutation(
+		client,
+		boardId,
+		e2eeKey,
+		updates,
+		board.encryptionMode,
+		{ create: elements, update: [], deleteIds: [] },
+	);
 	return {
-		...(await pushEncryptedElements(client, boardId, e2eeKey, elements)),
-		encryptionMode: "e2ee" as const,
+		added: elements.length,
+		updateId: result.updateId,
+		encryptionMode: result.encryptionMode,
 	};
 }
 
@@ -230,7 +211,7 @@ export function createSkedraMcpServer(
 		},
 		{
 			instructions:
-				"Skedra Whiteboard MCP. Nutze list_boards zuerst und get_board_canvas_state, wenn du bestehende Inhalte lesen musst. Für Sequenzdiagramme nutze list_sequence_diagrams vor edit_sequence_diagram. Für Projektpläne nutze list_gantt_charts vor edit_gantt_chart, damit chartId, taskId und dependencyIndex stimmen. Für strukturierte Inhalte stehen create_kanban_board, create_sequence_diagram und create_gantt_chart bereit. Serverseitig verschlüsselte Boards funktionieren automatisch mit API-Key und Board-Berechtigung. Nur E2EE-Boards benötigen zusätzlich den e2eeKey aus Skedra. Alle Änderungen erscheinen sofort live.",
+				"Skedra Whiteboard MCP. Nutze list_boards zuerst und get_board_canvas_state, wenn du bestehende Inhalte lesen oder mit edit_board_elements bearbeiten musst. Schichte überlappende neue Elemente mit zIndex in add_board_elements (Hintergrund klein, Beschriftung gross) und korrigiere bestehende Ebenen mit reorder_board_elements. Für Sequenzdiagramme nutze list_sequence_diagrams vor edit_sequence_diagram. Für Projektpläne nutze list_gantt_charts vor edit_gantt_chart, damit chartId, taskId und dependencyIndex stimmen. Für strukturierte Inhalte stehen create_kanban_board, create_sequence_diagram und create_gantt_chart bereit. Serverseitig verschlüsselte Boards funktionieren automatisch mit API-Key und Board-Berechtigung. Nur E2EE-Boards benötigen zusätzlich den e2eeKey aus Skedra. Alle Änderungen erscheinen sofort live.",
 		},
 	);
 
@@ -365,7 +346,7 @@ export function createSkedraMcpServer(
 		{
 			title: "Canvas-Elemente hinzufügen",
 			description:
-				"Fügt Shapes und Texte hinzu. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
+				"Fügt Shapes und Texte oberhalb bestehender Inhalte hinzu. Die Reihenfolge im Request bleibt stabil; mit zIndex werden Elemente innerhalb des neuen Batches geschichtet (kleinere Werte hinten, grössere vorne). Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
 			inputSchema: z.object({
 				boardId: z.string().uuid(),
 				e2eeKey: z.string().min(20).optional(),
@@ -373,11 +354,87 @@ export function createSkedraMcpServer(
 			}),
 		},
 		async ({ boardId, e2eeKey, elements }) => {
-			const built = elements.map((element) =>
+			const built = orderMcpCanvasElementInputs(elements).map((element) =>
 				createMcpCanvasElement(elementDefaults, element),
 			);
 			return textResult(
 				await pushBoardElements(getClient(), boardId, e2eeKey, built),
+			);
+		},
+	);
+
+	server.registerTool(
+		"edit_board_elements",
+		{
+			title: "Canvas-Elemente bearbeiten",
+			description:
+				"Bearbeitet vorhandene Elemente atomar: Position, Grösse, Text, Farben, Linien, Typografie, Rotation, Deckkraft und weitere visuelle Eigenschaften. Nutze get_board_canvas_state zuerst für die Element-IDs und reorder_board_elements für Ebenenänderungen.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				edits: z.array(elementEditSchema).min(1).max(100),
+			}),
+		},
+		async ({ boardId, e2eeKey, edits }) => {
+			const { board, updates, state } = await loadBoardMutationState(
+				getClient(),
+				boardId,
+				e2eeKey,
+			);
+			const elementUpdates = buildMcpElementUpdates(state.elements, edits);
+			return textResult(
+				await pushBoardMutation(
+					getClient(),
+					boardId,
+					e2eeKey,
+					updates,
+					board.encryptionMode,
+					{ create: [], update: elementUpdates, deleteIds: [] },
+				),
+			);
+		},
+	);
+
+	server.registerTool(
+		"reorder_board_elements",
+		{
+			title: "Canvas-Ebenen ändern",
+			description:
+				"Ändert die Ebenenreihenfolge vorhandener Canvas-Elemente deterministisch. Nutze get_board_canvas_state zuerst, um die Element-IDs zu lesen.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				elementIds: z.array(z.string().min(1)).min(1).max(100),
+				operation: layerOperationSchema,
+			}),
+		},
+		async ({ boardId, e2eeKey, elementIds, operation }) => {
+			const { board, updates, state } = await loadBoardMutationState(
+				getClient(),
+				boardId,
+				e2eeKey,
+			);
+			const layerUpdates = buildMcpLayerUpdates(
+				state.elements,
+				elementIds,
+				operation,
+			);
+			if (layerUpdates.length === 0) {
+				return textResult({
+					changed: 0,
+					updateId: null,
+					encryptionMode: board.encryptionMode,
+				});
+			}
+			return textResult(
+				await pushBoardMutation(
+					getClient(),
+					boardId,
+					e2eeKey,
+					updates,
+					board.encryptionMode,
+					{ create: [], update: layerUpdates, deleteIds: [] },
+				),
 			);
 		},
 	);

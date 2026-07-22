@@ -4,6 +4,7 @@ import {
 	type CanvasMutationPlan,
 	applyCanvasElementUpdates,
 	applyCanvasMutationPlan,
+	buildCanvasBindingSyncUpdates,
 	buildCanvasDrawingElement,
 	buildCanvasMoveUpdates,
 	buildCanvasTextUpdate,
@@ -410,6 +411,106 @@ test("shared movement expands frame children and mindmap descendants", () => {
 		{ x: lockedFrameChild.x, y: lockedFrameChild.y },
 	);
 	assert.ok(updates.some((update) => update.id === edge.id));
+});
+
+test("moving an Excalidraw-bound shape keeps the arrow endpoint attached", () => {
+	const target = createBaseCanvasElement(
+		{ createId: () => "binding-target", stroke: "#111" },
+		{ type: "rectangle", x: 100, y: 100, width: 100, height: 80 },
+	);
+	const arrow = createBaseCanvasElement(
+		{ createId: () => "bound-arrow", stroke: "#111" },
+		{
+			type: "arrow",
+			x: 200,
+			y: 140,
+			width: 100,
+			height: 0,
+			points: [
+				[0, 0],
+				[100, 0],
+			],
+			startBinding: { elementId: target.id, focus: 0, gap: 0 },
+		},
+	);
+	const elements = [target, arrow];
+	const updates = buildCanvasMoveUpdates(
+		toCanvasElementMap(elements),
+		new Map([[target.id, { x: target.x, y: target.y }]]),
+		30,
+		20,
+	);
+	const moved = toCanvasElementMap(
+		applyCanvasElementUpdates(elements, updates),
+	);
+	const movedArrow = moved.get(arrow.id);
+	assert.ok(movedArrow?.points);
+	const start = movedArrow.points[0];
+	const end = movedArrow.points.at(-1);
+	assert.deepEqual(
+		[movedArrow.x + start[0], movedArrow.y + start[1]],
+		[230, 160],
+	);
+	assert.deepEqual(
+		end ? [movedArrow.x + end[0], movedArrow.y + end[1]] : null,
+		[300, 140],
+	);
+});
+
+test("resizing and rotating a bound shape keep its fixed arrow anchor attached", () => {
+	const target = createBaseCanvasElement(
+		{ createId: () => "fixed-binding-target", stroke: "#111" },
+		{ type: "rectangle", x: 100, y: 100, width: 100, height: 80 },
+	);
+	const arrow = createBaseCanvasElement(
+		{ createId: () => "fixed-bound-arrow", stroke: "#111" },
+		{
+			type: "arrow",
+			x: 200,
+			y: 140,
+			width: 100,
+			height: 0,
+			points: [
+				[0, 0],
+				[100, 0],
+			],
+			startBinding: {
+				elementId: target.id,
+				fixedPoint: [1, 0.5],
+				mode: "orbit",
+			},
+		},
+	);
+	const source = [target, arrow];
+	const resize = [{ id: target.id, changes: { width: 200 } }];
+	const resized = applyCanvasElementUpdates(source, [
+		...resize,
+		...buildCanvasBindingSyncUpdates(toCanvasElementMap(source), resize),
+	]);
+	const resizedArrow = resized.find((element) => element.id === arrow.id);
+	assert.ok(resizedArrow?.points);
+	assert.deepEqual(
+		[
+			resizedArrow.x + resizedArrow.points[0][0],
+			resizedArrow.y + resizedArrow.points[0][1],
+		],
+		[300, 140],
+	);
+
+	const rotate = [{ id: target.id, changes: { rotation: 90 } }];
+	const rotated = applyCanvasElementUpdates(source, [
+		...rotate,
+		...buildCanvasBindingSyncUpdates(toCanvasElementMap(source), rotate),
+	]);
+	const rotatedArrow = rotated.find((element) => element.id === arrow.id);
+	assert.ok(rotatedArrow?.points);
+	assert.deepEqual(
+		[
+			rotatedArrow.x + rotatedArrow.points[0][0],
+			rotatedArrow.y + rotatedArrow.points[0][1],
+		],
+		[150, 190],
+	);
 });
 
 test("moving a Gantt frame keeps every locked chart part attached", () => {

@@ -4,9 +4,12 @@ import {
 	DEFAULT_CLOUD_ARC_RADIUS,
 	type FrameConstraintAxis,
 	MAX_CLOUD_ARC_RADIUS,
+	MAX_POLYGON_SIDES,
 	MIN_CLOUD_ARC_RADIUS,
+	MIN_POLYGON_SIDES,
 	buildFrameConstraintsChange,
 	buildStickyNoteModeChange,
+	clampPolygonSides,
 	getCanvasLayoutItemCount,
 	readFrameConstraints,
 } from "@skedra/canvas-core";
@@ -388,6 +391,27 @@ export function CanvasEditorPropertiesPanel({
 						<small>{numberValue(element.pyramidSections, 1)}</small>
 					</label>
 				)}
+				{(element.type === "rectangle" || element.type === "diamond") && (
+					<label className="skedra-sdk__property-stack">
+						<span>{t("canvas.properties.polygonSides", "Corners")}</span>
+						<input
+							type="range"
+							min={MIN_POLYGON_SIDES}
+							max={MAX_POLYGON_SIDES}
+							step={1}
+							disabled={disabled}
+							value={numberValue(element.polygonSides, MIN_POLYGON_SIDES)}
+							onChange={(event) =>
+								onSetProperties({
+									polygonSides: Number(event.target.value),
+								})
+							}
+						/>
+						<small>
+							{numberValue(element.polygonSides, MIN_POLYGON_SIDES)}
+						</small>
+					</label>
+				)}
 				{element.type === "cloud" && (
 					<label className="skedra-sdk__property-stack">
 						<span>{t("canvas.properties.cloudArcRadius", "Arc radius")}</span>
@@ -573,24 +597,27 @@ export function CanvasEditorPropertiesPanel({
 							}
 						/>
 					</label>
-					<label>
-						<span>
-							{t("canvas.properties.cornerRadius", "Corner radius %")}
-						</span>
-						<input
-							type="number"
-							min="0"
-							max="50"
-							disabled={disabled}
-							value={numberValue(element.cornerRadiusPercent, 0)}
-							onChange={(event) =>
-								onSetProperties({
-									cornerRadiusPercent: Number(event.target.value),
-									cornerRadius: undefined,
-								})
-							}
-						/>
-					</label>
+					{element.type === "rectangle" &&
+						clampPolygonSides(element.polygonSides) === MIN_POLYGON_SIDES && (
+							<label>
+								<span>
+									{t("canvas.properties.cornerRadius", "Corner radius %")}
+								</span>
+								<input
+									type="number"
+									min="0"
+									max="50"
+									disabled={disabled}
+									value={numberValue(element.cornerRadiusPercent, 0)}
+									onChange={(event) =>
+										onSetProperties({
+											cornerRadiusPercent: Number(event.target.value),
+											cornerRadius: undefined,
+										})
+									}
+								/>
+							</label>
+						)}
 					<label>
 						<span>{t("canvas.properties.roughness", "Roughness")}</span>
 						<input

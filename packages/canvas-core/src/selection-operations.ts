@@ -4,6 +4,7 @@ import { createStackIndexAfter, createStackIndexBefore } from "./ordering";
 import {
 	DEFAULT_CLOUD_ARC_RADIUS,
 	buildCloudArcRadiusChanges,
+	clampPolygonSides,
 } from "./shape-geometry";
 import type { CanvasElement } from "./types";
 
@@ -29,6 +30,7 @@ export interface CanvasElementFormat {
 	arrowHeadScale?: number;
 	arrowHeadFilled?: boolean;
 	cloudArcRadius?: number;
+	polygonSides?: number;
 	fontSize?: number;
 	fontFamily?: string;
 }
@@ -53,6 +55,10 @@ export function getCanvasElementFormat(
 		cloudArcRadius:
 			element.type === "cloud"
 				? (element.cloudArcRadius ?? DEFAULT_CLOUD_ARC_RADIUS)
+				: undefined,
+		polygonSides:
+			element.type === "rectangle" || element.type === "diamond"
+				? clampPolygonSides(element.polygonSides)
 				: undefined,
 		fontSize: element.fontSize,
 		fontFamily: element.fontFamily,
@@ -87,6 +93,10 @@ export function buildCanvasElementFormatUpdates(
 				: {}),
 			...(element.type === "cloud" && format.cloudArcRadius !== undefined
 				? buildCloudArcRadiusChanges(element, format.cloudArcRadius)
+				: {}),
+			...((element.type === "rectangle" || element.type === "diamond") &&
+			format.polygonSides !== undefined
+				? { polygonSides: format.polygonSides }
 				: {}),
 			...(element.fontSize !== undefined && format.fontSize !== undefined
 				? { fontSize: format.fontSize }
@@ -234,6 +244,8 @@ export function cloneCanvasSelection(options: {
 			element.customData,
 			idMap,
 			logicalIdMap,
+			groupMap,
+			options.createId,
 		);
 		const clone: CanvasElement = {
 			...element,
@@ -244,6 +256,14 @@ export function cloneCanvasSelection(options: {
 			frameId: element.frameId
 				? (idMap.get(element.frameId) ?? element.frameId)
 				: undefined,
+			containerId:
+				element.containerId === null
+					? null
+					: element.containerId
+						? (idMap.get(element.containerId) ?? element.containerId)
+						: undefined,
+			startBinding: remapCanvasBinding(element.startBinding, idMap),
+			endBinding: remapCanvasBinding(element.endBinding, idMap),
 			stackIndex: createStackIndexAfter(stackBase, id),
 			customData,
 		};
@@ -251,6 +271,17 @@ export function cloneCanvasSelection(options: {
 		return clone;
 	});
 	return { elements, idMap };
+}
+
+function remapCanvasBinding(
+	binding: CanvasElement["startBinding"],
+	idMap: Map<string, string>,
+) {
+	if (binding === undefined || binding === null) return binding;
+	return {
+		...binding,
+		elementId: idMap.get(binding.elementId) ?? binding.elementId,
+	};
 }
 
 /**
@@ -384,6 +415,8 @@ function remapCustomDataReferences(
 	customData: Record<string, unknown> | undefined,
 	idMap: Map<string, string>,
 	logicalIdMap: Map<string, string>,
+	groupMap: Map<string, string>,
+	createId: () => string,
 ) {
 	if (!customData) return undefined;
 	const remapped = structuredCloneSafe(customData);
@@ -412,6 +445,37 @@ function remapCustomDataReferences(
 		const current = remapped[key];
 		if (typeof current === "string" && logicalIdMap.has(current)) {
 			remapped[key] = logicalIdMap.get(current);
+		}
+	}
+	const excalidraw = remapped.excalidraw;
+	if (
+		excalidraw &&
+		typeof excalidraw === "object" &&
+		!Array.isArray(excalidraw)
+	) {
+		const metadata = excalidraw as Record<string, unknown>;
+		const primaryGroupId = metadata.primaryGroupId;
+		if (typeof primaryGroupId === "string") {
+			metadata.primaryGroupId = getOrCreateRemappedId(
+				groupMap,
+				primaryGroupId,
+				createId,
+			);
+		}
+		const rawElement = metadata.element;
+		if (
+			rawElement &&
+			typeof rawElement === "object" &&
+			!Array.isArray(rawElement)
+		) {
+			const raw = rawElement as Record<string, unknown>;
+			if (Array.isArray(raw.groupIds)) {
+				raw.groupIds = raw.groupIds.map((groupId) =>
+					typeof groupId === "string"
+						? getOrCreateRemappedId(groupMap, groupId, createId)
+						: groupId,
+				);
+			}
 		}
 	}
 	return remapped;

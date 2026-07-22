@@ -69,6 +69,7 @@ interface CanvasToolbarProps {
 	addElements: (elements: CanvasElement[]) => void;
 	getViewportCenter: () => { x: number; y: number };
 	onExportSkedra?: () => void;
+	onExportExcalidraw?: () => void;
 	onExportEncryptedSkedra?: () => void;
 	onImportSkedra?: () => void;
 	onExportVisual: (format: "svg" | "png" | "pdf" | "pptx") => Promise<void>;
@@ -102,6 +103,7 @@ export function CanvasToolbar({
 	addElements,
 	getViewportCenter,
 	onExportSkedra,
+	onExportExcalidraw,
 	onExportEncryptedSkedra,
 	onImportSkedra,
 	onExportVisual,
@@ -313,6 +315,16 @@ export function CanvasToolbar({
 						label: t("canvas.toolbar.saveSkedra"),
 						icon: <Save className="h-4 w-4" />,
 						onSelect: onExportSkedra,
+					},
+				]
+			: []),
+		...(onExportExcalidraw
+			? [
+					{
+						id: "save-excalidraw",
+						label: t("canvas.toolbar.saveExcalidraw"),
+						icon: <Download className="h-4 w-4" />,
+						onSelect: onExportExcalidraw,
 					},
 				]
 			: []),

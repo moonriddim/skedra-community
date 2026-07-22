@@ -30,6 +30,13 @@ export interface CanvasEditorKeyboardAdapter {
 	onUnhandledKeyDown?: (event: KeyboardEvent) => boolean | undefined;
 }
 
+export interface CanvasEditorClipboardAdapter {
+	getState: () => CanvasEditorKeyboardState;
+	onCopy: (dataTransfer: DataTransfer) => boolean | undefined;
+	onCut: (dataTransfer: DataTransfer) => boolean | undefined;
+	onPaste: (dataTransfer: DataTransfer) => boolean | undefined;
+}
+
 export function handleCanvasEditorTemporaryPanKeyDown(
 	event: Pick<KeyboardEvent, "preventDefault" | "repeat">,
 	setTemporaryPan: (pressed: boolean) => void,
@@ -127,6 +134,54 @@ export function useCanvasEditorKeyboard(adapter: CanvasEditorKeyboardAdapter) {
 			window.removeEventListener("keyup", handleKeyUp);
 			window.removeEventListener("blur", clearTemporaryPan);
 			clearTemporaryPan();
+		};
+	}, []);
+}
+
+/** Native copy/cut/paste events shared by Community and the React SDK. */
+export function useCanvasEditorClipboard(
+	adapter: CanvasEditorClipboardAdapter,
+) {
+	const adapterRef = useRef(adapter);
+	adapterRef.current = adapter;
+
+	useEffect(() => {
+		const canHandle = (event: ClipboardEvent, mutatesCanvas: boolean) => {
+			const state = adapterRef.current.getState();
+			return (
+				event.clipboardData != null &&
+				state.enabled &&
+				!state.editingText &&
+				!isEditableTarget(event.target) &&
+				(!mutatesCanvas || !state.readOnly)
+			);
+		};
+		const handleCopy = (event: ClipboardEvent) => {
+			if (!canHandle(event, false) || !event.clipboardData) return;
+			if (adapterRef.current.onCopy(event.clipboardData) !== false) {
+				event.preventDefault();
+			}
+		};
+		const handleCut = (event: ClipboardEvent) => {
+			if (!canHandle(event, true) || !event.clipboardData) return;
+			if (adapterRef.current.onCut(event.clipboardData) !== false) {
+				event.preventDefault();
+			}
+		};
+		const handlePaste = (event: ClipboardEvent) => {
+			if (!canHandle(event, true) || !event.clipboardData) return;
+			if (adapterRef.current.onPaste(event.clipboardData) !== false) {
+				event.preventDefault();
+			}
+		};
+
+		window.addEventListener("copy", handleCopy);
+		window.addEventListener("cut", handleCut);
+		window.addEventListener("paste", handlePaste);
+		return () => {
+			window.removeEventListener("copy", handleCopy);
+			window.removeEventListener("cut", handleCut);
+			window.removeEventListener("paste", handlePaste);
 		};
 	}, []);
 }

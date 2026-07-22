@@ -33,6 +33,7 @@ import {
 	DEFAULT_ARROW_HEAD_SCALE,
 	DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
 	DEFAULT_CLOUD_ARC_RADIUS,
+	DEFAULT_POLYGON_SIDES,
 	DEFAULT_PYRAMID_SECTIONS,
 	DEFAULT_ROUGH_FILL_SCALE,
 	MAX_ARROW_HEAD_SCALE,
@@ -41,6 +42,7 @@ import {
 	MIN_PYRAMID_SECTIONS,
 	clampCanvasZoom,
 	clampCloudArcRadius,
+	clampPolygonSides,
 	normalizeCanvasGridSize,
 	normalizeCanvasSnapDivisionCount,
 	snapCanvasCoordinateToGrid,
@@ -119,6 +121,7 @@ export interface CanvasStoreState {
 	roughFillScale: number;
 	cloudArcRadius: number;
 	pyramidSections: number;
+	polygonSides: number;
 	arrowMode: ArrowMode;
 	arrowHeadStart: ArrowHead;
 	arrowHeadEnd: ArrowHead;
@@ -134,6 +137,7 @@ export interface CanvasStoreState {
 	setRoughFillScale: (scale: number) => void;
 	setCloudArcRadius: (radius: number) => void;
 	setPyramidSections: (sections: number) => void;
+	setPolygonSides: (sides: number) => void;
 	setArrowMode: (m: ArrowMode) => void;
 	setArrowHeadStart: (h: ArrowHead) => void;
 	setArrowHeadEnd: (h: ArrowHead) => void;
@@ -390,6 +394,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	roughFillScale: DEFAULT_ROUGH_FILL_SCALE,
 	cloudArcRadius: DEFAULT_CLOUD_ARC_RADIUS,
 	pyramidSections: DEFAULT_PYRAMID_SECTIONS,
+	polygonSides: DEFAULT_POLYGON_SIDES,
 	arrowMode: "straight" as ArrowMode,
 	arrowHeadStart: "none" as ArrowHead,
 	arrowHeadEnd: "arrow" as ArrowHead,
@@ -413,6 +418,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 				Math.max(MIN_PYRAMID_SECTIONS, Math.round(sections)),
 			),
 		}),
+	setPolygonSides: (sides) => set({ polygonSides: clampPolygonSides(sides) }),
 	setArrowMode: (m) => set({ arrowMode: m }),
 	setArrowHeadStart: (h) => set({ arrowHeadStart: h }),
 	setArrowHeadEnd: (h) => set({ arrowHeadEnd: h }),

@@ -9,10 +9,14 @@ import { authClient } from "@/lib/auth-client";
 import { decodeCanvasElements } from "@/lib/canvas/canvas-codecs";
 import { getLibrariesSiteUrl } from "@/lib/canvas/library-site-url";
 import {
+	LibraryImportError,
 	buildSkedraLibraryFile,
 	downloadSkedraLibrary,
+	getLibraryImportErrorKey,
 	installPublicLibraryBySlug,
+	installedLibraryFromFile,
 	instantiateLibraryItem,
+	pickLibraryFile,
 } from "@/lib/canvas/library-utils";
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
@@ -25,7 +29,9 @@ import type { SkedraLibraryItem } from "@skedra/shared";
 import { normalizeLibrarySlug } from "@skedra/shared";
 import {
 	BookOpen,
+	CloudUpload,
 	Download,
+	FolderOpen,
 	Loader2,
 	PackagePlus,
 	Pin,
@@ -68,21 +74,28 @@ export function LibraryPanel({
 	const [activeTab, setActiveTab] = useState<LibraryPanelTab>("libraries");
 	const [pinned, setPinned] = useState(false);
 	const [importError, setImportError] = useState("");
+	const [importingFile, setImportingFile] = useState(false);
 	const [installingSlug, setInstallingSlug] = useState<string | null>(null);
 	const [publishOpen, setPublishOpen] = useState(false);
 	const [publishSlug, setPublishSlug] = useState("");
 	const [publishDescription, setPublishDescription] = useState("");
 	const [licenseAccepted, setLicenseAccepted] = useState(false);
+	const [savingPackage, setSavingPackage] = useState(false);
+	const [personalSaveMessage, setPersonalSaveMessage] = useState<string | null>(
+		null,
+	);
 	const [submissionMessage, setSubmissionMessage] = useState<string | null>(
 		null,
 	);
 	/** Leeres Neu-Paket wird beim Abbrechen wieder entfernt. */
 	const [draftPackageId, setDraftPackageId] = useState<string | null>(null);
 	const personalLibraryLoadedRef = useRef(false);
+	const publishFormRef = useRef<HTMLDivElement>(null);
 
 	const ownPackages = useCanvasLibraryStore((s) => s.ownPackages);
 	const activePackageId = useCanvasLibraryStore((s) => s.activePackageId);
 	const createPackage = useCanvasLibraryStore((s) => s.createPackage);
+	const importPackage = useCanvasLibraryStore((s) => s.importPackage);
 	const setActivePackage = useCanvasLibraryStore((s) => s.setActivePackage);
 	const renamePackage = useCanvasLibraryStore((s) => s.renamePackage);
 	const deletePackage = useCanvasLibraryStore((s) => s.deletePackage);
@@ -101,7 +114,11 @@ export function LibraryPanel({
 		undefined,
 		{ enabled: isLoggedIn },
 	);
-	const syncPersonalLibrary = trpc.shapeLibrary.syncPersonal.useMutation();
+	const syncPersonalLibrary = trpc.shapeLibrary.syncPersonal.useMutation({
+		onSuccess: (_result, input) => {
+			utils.shapeLibrary.getPersonal.setData(undefined, input);
+		},
+	});
 
 	const submitMutation = trpc.shapeLibrary.submitForReview.useMutation({
 		onSuccess: () => {
@@ -171,14 +188,83 @@ export function LibraryPanel({
 		renamePackage(activePackage.id, name);
 	};
 
-	const handleExportPackage = () => {
-		if (!activePackage || activeItems.length === 0) return;
-		const slug = normalizeLibrarySlug(activePackage.name) || "mein-paket";
-		const lib = buildSkedraLibraryFile(activeItems, {
-			name: activePackage.name,
-			description: activePackage.description,
+	const handleSavePackageOnline = async () => {
+		if (!isLoggedIn || !activePackage || activeItems.length === 0) return;
+		setImportError("");
+		setPersonalSaveMessage(null);
+		setSavingPackage(true);
+		try {
+			await syncPersonalLibrary.mutateAsync({
+				ownPackages,
+				activePackageId,
+				installedLibraries,
+			});
+			setPersonalSaveMessage(t("shapeLibrary.savedOnline"));
+			setActiveTab("libraries");
+			setDraftPackageId(null);
+		} catch {
+			setImportError(t("shapeLibrary.errors.saveFailed"));
+		} finally {
+			setSavingPackage(false);
+		}
+	};
+
+	const handleDownloadPackage = (libraryPackage: {
+		name: string;
+		description?: string;
+		items: SkedraLibraryItem[];
+	}) => {
+		if (libraryPackage.items.length === 0) return;
+		const slug = normalizeLibrarySlug(libraryPackage.name) || "mein-paket";
+		const lib = buildSkedraLibraryFile(libraryPackage.items, {
+			name: libraryPackage.name,
+			description: libraryPackage.description,
 		});
 		downloadSkedraLibrary(lib, `${slug || "mein-paket"}.skedralib`);
+	};
+
+	const handleOpenPublishForPackage = (libraryPackage: {
+		id: string;
+		name: string;
+		description?: string;
+	}) => {
+		setActivePackage(libraryPackage.id);
+		setPublishOpen(true);
+		setLicenseAccepted(false);
+		setPublishSlug(normalizeLibrarySlug(libraryPackage.name).slice(0, 48));
+		setPublishDescription(libraryPackage.description ?? "");
+		setSubmissionMessage(null);
+		setActiveTab("create");
+	};
+
+	const handleImportFile = async () => {
+		setImportError("");
+		setImportingFile(true);
+		try {
+			const { file, format } = await pickLibraryFile({ resolvedTheme });
+			const imported = installedLibraryFromFile(file, format);
+			importPackage({
+				name: imported.name,
+				description: imported.description,
+				items: imported.items,
+			});
+			setActiveTab("create");
+			setDraftPackageId(null);
+			setPublishOpen(false);
+			setPublishSlug("");
+			setPublishDescription("");
+			setSubmissionMessage(null);
+		} catch (error) {
+			if (
+				error instanceof LibraryImportError &&
+				error.message === "cancelled"
+			) {
+				return;
+			}
+			setImportError(t(getLibraryImportErrorKey(error)));
+		} finally {
+			setImportingFile(false);
+		}
 	};
 
 	const handleInstallPublic = async (slug: string) => {
@@ -244,6 +330,11 @@ export function LibraryPanel({
 		ownPackages,
 		syncPersonalLibrary.mutate,
 	]);
+
+	useEffect(() => {
+		if (activeTab !== "create" || !publishOpen) return;
+		publishFormRef.current?.scrollIntoView({ block: "nearest" });
+	}, [activeTab, publishOpen]);
 
 	return (
 		<div
@@ -343,6 +434,11 @@ export function LibraryPanel({
 					<p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs leading-snug text-destructive">
 						{importError}
 					</p>
+				)}
+				{personalSaveMessage && (
+					<output className="block rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs leading-snug text-foreground">
+						{personalSaveMessage}
+					</output>
 				)}
 
 				{activeTab === "create" && (
@@ -494,12 +590,23 @@ export function LibraryPanel({
 									variant="outline"
 									size="sm"
 									className="h-9 w-full text-xs"
-									disabled={activeItems.length === 0}
-									onClick={handleExportPackage}
+									disabled={
+										!isLoggedIn || activeItems.length === 0 || savingPackage
+									}
+									onClick={() => void handleSavePackageOnline()}
 								>
-									<Download className="mr-2 h-3.5 w-3.5 shrink-0" />
-									{t("shapeLibrary.exportPackage")}
+									{savingPackage ? (
+										<Loader2 className="mr-2 h-3.5 w-3.5 shrink-0 animate-spin" />
+									) : (
+										<CloudUpload className="mr-2 h-3.5 w-3.5 shrink-0" />
+									)}
+									{t("shapeLibrary.saveOnline")}
 								</Button>
+								{!isLoggedIn && (
+									<p className="text-center text-[10px] text-muted-foreground">
+										{t("shapeLibrary.saveLoginHint")}
+									</p>
+								)}
 
 								{!canSubmitToCatalog ? (
 									<div className="rounded-lg border border-border/60 bg-background p-2.5 text-[11px]">
@@ -526,25 +633,19 @@ export function LibraryPanel({
 												size="sm"
 												className="h-9 w-full text-xs"
 												disabled={activeItems.length === 0}
-												onClick={() => {
-													setPublishOpen(true);
-													setLicenseAccepted(false);
-													if (!publishSlug && activePackage) {
-														setPublishSlug(
-															activePackage.name
-																.toLowerCase()
-																.replace(/[^a-z0-9]+/g, "-")
-																.replace(/^-+|-+$/g, "")
-																.slice(0, 48),
-														);
-													}
-												}}
+												onClick={() =>
+													activePackage &&
+													handleOpenPublishForPackage(activePackage)
+												}
 											>
 												<Upload className="mr-2 h-3.5 w-3.5 shrink-0" />
 												{t("shapeLibrary.publishPackage")}
 											</Button>
 										) : (
-											<div className="space-y-2 rounded-lg border border-border/60 bg-background p-2.5">
+											<div
+												ref={publishFormRef}
+												className="space-y-2 rounded-lg border border-border/60 bg-background p-2.5"
+											>
 												<p className="text-xs font-medium text-foreground">
 													{t("shapeLibrary.publishPackage")}
 												</p>
@@ -644,7 +745,8 @@ export function LibraryPanel({
 						aria-labelledby="shape-library-libraries-tab"
 						className="space-y-3"
 					>
-						{installedLibraries.length === 0 &&
+						{ownPackages.length === 0 &&
+							installedLibraries.length === 0 &&
 							installableLibraries.length === 0 && (
 								<div className="flex min-h-72 flex-col items-center justify-center px-5 text-center">
 									<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -667,6 +769,87 @@ export function LibraryPanel({
 									</Button>
 								</div>
 							)}
+
+						{ownPackages.length > 0 && (
+							<div className="space-y-2">
+								<div>
+									<h4 className="text-xs font-semibold text-foreground">
+										{t("shapeLibrary.myLibrary")}
+									</h4>
+									<p className="text-[10px] leading-snug text-muted-foreground">
+										{t("shapeLibrary.myLibraryHint")}
+									</p>
+								</div>
+								{ownPackages.map((libraryPackage) => (
+									<section
+										key={libraryPackage.id}
+										className="space-y-2 rounded-lg border border-primary/25 bg-primary/5 p-2.5"
+									>
+										<div className="flex items-start gap-2">
+											<div className="min-w-0 flex-1">
+												<h4 className="truncate text-sm font-semibold">
+													{libraryPackage.name}
+												</h4>
+												<p className="text-[10px] text-muted-foreground">
+													{t("shapeLibrary.itemCount", {
+														count: libraryPackage.items.length,
+													})}
+												</p>
+											</div>
+											<CloudUpload
+												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary"
+												aria-hidden="true"
+											/>
+										</div>
+										{libraryPackage.items.length > 0 && (
+											<div className="grid grid-cols-4 gap-1.5">
+												{libraryPackage.items.map((item) => (
+													<LibraryItemButton
+														key={`${libraryPackage.id}-${item.id}`}
+														item={item}
+														onInsert={() => insertItem(item)}
+													/>
+												))}
+											</div>
+										)}
+										<div
+											className={cn(
+												"grid gap-2",
+												isLoggedIn && canSubmitToCatalog && "grid-cols-2",
+											)}
+										>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-8 bg-background/70 px-2 text-xs"
+												disabled={libraryPackage.items.length === 0}
+												onClick={() => handleDownloadPackage(libraryPackage)}
+											>
+												<Download className="mr-1.5 h-3.5 w-3.5" />
+												{t("shapeLibrary.downloadPackage")}
+											</Button>
+											{isLoggedIn && canSubmitToCatalog && (
+												<Button
+													type="button"
+													variant="secondary"
+													size="sm"
+													className="h-8 px-2 text-xs"
+													disabled={libraryPackage.items.length === 0}
+													onClick={() =>
+														handleOpenPublishForPackage(libraryPackage)
+													}
+												>
+													<Upload className="mr-1.5 h-3.5 w-3.5" />
+													{t("shapeLibrary.submitFromLibrary")}
+												</Button>
+											)}
+										</div>
+									</section>
+								))}
+							</div>
+						)}
+
 						{installedLibraries.map((library) => {
 							return (
 								<section
@@ -742,6 +925,28 @@ export function LibraryPanel({
 						))}
 					</div>
 				)}
+			</div>
+
+			<div className="shrink-0 border-t border-border/60 p-2.5">
+				<Button
+					type="button"
+					variant="outline"
+					className="h-auto min-h-9 w-full flex-col gap-0.5 px-2.5 py-2"
+					disabled={importingFile}
+					onClick={() => void handleImportFile()}
+				>
+					<span className="flex items-center justify-center gap-1.5 text-xs font-medium">
+						{importingFile ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<FolderOpen className="h-3.5 w-3.5" />
+						)}
+						{t("shapeLibrary.importFile")}
+					</span>
+					<span className="text-[10px] text-muted-foreground">
+						{t("shapeLibrary.importFormats")}
+					</span>
+				</Button>
 			</div>
 		</div>
 	);

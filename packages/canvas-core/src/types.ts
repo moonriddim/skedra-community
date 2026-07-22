@@ -68,6 +68,15 @@ export type RoughFillStyle =
 export type ArrowMode = "straight" | "curve" | "elbow";
 export type ArrowHead = "none" | "arrow" | "triangle" | "dot";
 
+/** Editable subset of an Excalidraw linear-element binding. */
+export interface CanvasElementBinding {
+	elementId: string;
+	focus?: number;
+	gap?: number;
+	fixedPoint?: [number, number] | null;
+	mode?: "inside" | "orbit" | "skip";
+}
+
 export interface CanvasElement {
 	id: string;
 	type: ElementType;
@@ -93,6 +102,11 @@ export interface CanvasElement {
 	fontSize?: number;
 	fontFamily?: string;
 	textAlign?: "left" | "center" | "right";
+	verticalAlign?: "top" | "middle" | "bottom";
+	/** Legacy Excalidraw text baseline, retained for lossless round-trips. */
+	baseline?: number;
+	/** Unitless line-height multiplier. */
+	lineHeight?: number;
 	fontWeight?: "normal" | "bold";
 	fontStyle?: "normal" | "italic";
 	textDecoration?: "none" | "underline";
@@ -104,6 +118,10 @@ export interface CanvasElement {
 	arrowHeadEnd?: ArrowHead;
 	arrowHeadScale?: number;
 	arrowHeadFilled?: boolean;
+	startBinding?: CanvasElementBinding | null;
+	endBinding?: CanvasElementBinding | null;
+	/** Shape containing a bound text element. */
+	containerId?: string | null;
 	cornerRadius?: number;
 	cornerRadiusPercent?: number;
 	roughness?: number;
@@ -113,6 +131,8 @@ export interface CanvasElement {
 	cloudArcRadius?: number;
 	/** 1 renders a regular triangle; larger values render a divided pyramid. */
 	pyramidSections?: number;
+	/** 4 preserves the native rectangle/diamond; larger values render a polygon. */
+	polygonSides?: number;
 	frameId?: string;
 	frameLabel?: string;
 	customData?: Record<string, unknown>;

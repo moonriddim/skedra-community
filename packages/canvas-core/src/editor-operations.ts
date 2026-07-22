@@ -52,6 +52,7 @@ import type { ArrowTextOrientation, ArrowTextSide } from "./path-rendering";
 import { getSequenceDiagramId } from "./sequence-diagram";
 import {
 	clampCloudArcRadius,
+	clampPolygonSides,
 	getFreeformRevisionCloudScallopDepth,
 } from "./shape-geometry";
 import {
@@ -127,6 +128,7 @@ export interface CanvasDrawingStyle {
 	roughFillScale?: number;
 	cloudArcRadius?: number;
 	pyramidSections?: number;
+	polygonSides?: number;
 	arrowMode?: CanvasElement["arrowMode"];
 	arrowHeadStart?: CanvasElement["arrowHeadStart"];
 	arrowHeadEnd?: CanvasElement["arrowHeadEnd"];
@@ -503,6 +505,179 @@ export function translateCanvasElements(
 	);
 }
 
+function rotateCanvasPoint(
+	point: CanvasPoint,
+	center: CanvasPoint,
+	angleDegrees: number,
+) {
+	const angle = (angleDegrees * Math.PI) / 180;
+	const cos = Math.cos(angle);
+	const sin = Math.sin(angle);
+	const dx = point.x - center.x;
+	const dy = point.y - center.y;
+	return {
+		x: center.x + dx * cos - dy * sin,
+		y: center.y + dx * sin + dy * cos,
+	};
+}
+
+function getBindingTargetPoint(
+	binding: CanvasElement["startBinding"],
+	point: CanvasPoint,
+	elements: Map<string, CanvasElement>,
+	virtualElements: Map<string, CanvasElement>,
+	changedIds: ReadonlySet<string>,
+) {
+	if (!binding || !changedIds.has(binding.elementId)) return null;
+	const before = elements.get(binding.elementId);
+	const after = virtualElements.get(binding.elementId);
+	if (!before || !after) return null;
+	if (
+		before.x === after.x &&
+		before.y === after.y &&
+		before.width === after.width &&
+		before.height === after.height &&
+		before.rotation === after.rotation
+	) {
+		return null;
+	}
+	const beforeCenter = {
+		x: before.x + before.width / 2,
+		y: before.y + before.height / 2,
+	};
+	const afterCenter = {
+		x: after.x + after.width / 2,
+		y: after.y + after.height / 2,
+	};
+	if (binding.fixedPoint) {
+		const [relativeX, relativeY] = binding.fixedPoint;
+		const beforeAnchor = rotateCanvasPoint(
+			{
+				x: before.x + before.width * relativeX,
+				y: before.y + before.height * relativeY,
+			},
+			beforeCenter,
+			before.rotation,
+		);
+		const afterAnchor = rotateCanvasPoint(
+			{
+				x: after.x + after.width * relativeX,
+				y: after.y + after.height * relativeY,
+			},
+			afterCenter,
+			after.rotation,
+		);
+		return {
+			x: point.x + afterAnchor.x - beforeAnchor.x,
+			y: point.y + afterAnchor.y - beforeAnchor.y,
+		};
+	}
+
+	const unrotated = rotateCanvasPoint(point, beforeCenter, -before.rotation);
+	const relativeX =
+		before.width === 0 ? 0.5 : (unrotated.x - before.x) / before.width;
+	const relativeY =
+		before.height === 0 ? 0.5 : (unrotated.y - before.y) / before.height;
+	return rotateCanvasPoint(
+		{
+			x: after.x + after.width * relativeX,
+			y: after.y + after.height * relativeY,
+		},
+		afterCenter,
+		after.rotation,
+	);
+}
+
+function buildBoundLinearGeometryChanges(
+	element: CanvasElement,
+	elements: Map<string, CanvasElement>,
+	virtualElements: Map<string, CanvasElement>,
+	changedIds: ReadonlySet<string>,
+): Partial<CanvasElement> | null {
+	if (
+		(element.type !== "line" && element.type !== "arrow") ||
+		changedIds.has(element.id)
+	) {
+		return null;
+	}
+	const sourcePoints = element.points ?? [
+		[0, 0],
+		[element.width, element.height],
+	];
+	if (sourcePoints.length < 2) return null;
+	const absolutePoints = sourcePoints.map(
+		([x, y]) => [element.x + x, element.y + y] as [number, number],
+	);
+	const startPoint = getBindingTargetPoint(
+		element.startBinding,
+		{ x: absolutePoints[0][0], y: absolutePoints[0][1] },
+		elements,
+		virtualElements,
+		changedIds,
+	);
+	const last = absolutePoints.length - 1;
+	const endPoint = getBindingTargetPoint(
+		element.endBinding,
+		{ x: absolutePoints[last][0], y: absolutePoints[last][1] },
+		elements,
+		virtualElements,
+		changedIds,
+	);
+	if (!startPoint && !endPoint) return null;
+	if (startPoint) {
+		absolutePoints[0] = [startPoint.x, startPoint.y];
+	}
+	if (endPoint) {
+		absolutePoints[last] = [endPoint.x, endPoint.y];
+	}
+	const geometryChanged = absolutePoints.some(
+		([x, y], index) =>
+			x !== element.x + sourcePoints[index][0] ||
+			y !== element.y + sourcePoints[index][1],
+	);
+	if (!geometryChanged) {
+		return null;
+	}
+	const minX = Math.min(...absolutePoints.map(([x]) => x));
+	const minY = Math.min(...absolutePoints.map(([, y]) => y));
+	const maxX = Math.max(...absolutePoints.map(([x]) => x));
+	const maxY = Math.max(...absolutePoints.map(([, y]) => y));
+	return {
+		x: minX,
+		y: minY,
+		width: maxX - minX,
+		height: maxY - minY,
+		points: absolutePoints.map(([x, y]) => [x - minX, y - minY]),
+	};
+}
+
+/** Keeps arrow/line endpoints attached after target movement, resize or rotation. */
+export function buildCanvasBindingSyncUpdates(
+	elements: Map<string, CanvasElement>,
+	directUpdates: readonly CanvasElementUpdate[],
+): CanvasElementUpdate[] {
+	if (directUpdates.length === 0) return [];
+	const virtualElements = new Map(elements);
+	const changedIds = new Set<string>();
+	for (const update of directUpdates) {
+		const current = virtualElements.get(update.id);
+		if (!current) continue;
+		changedIds.add(update.id);
+		virtualElements.set(update.id, { ...current, ...update.changes });
+	}
+	const updates: CanvasElementUpdate[] = [];
+	for (const element of elements.values()) {
+		const changes = buildBoundLinearGeometryChanges(
+			element,
+			elements,
+			virtualElements,
+			changedIds,
+		);
+		if (changes) updates.push({ id: element.id, changes });
+	}
+	return updates;
+}
+
 /**
  * Builds the shared movement updates used by both canvas consumers.
  * The supplied start map is expanded in place so drop handling can use the
@@ -560,7 +735,6 @@ export function buildCanvasMoveUpdates(
 		}
 	}
 
-	const movedIds = new Set(moveStart.keys());
 	const virtualElements = new Map(elements);
 	const updates: CanvasElementUpdate[] = [];
 	for (const [id, start] of moveStart) {
@@ -569,6 +743,15 @@ export function buildCanvasMoveUpdates(
 		const changes = { x: start.x + dx, y: start.y + dy };
 		updates.push({ id, changes });
 		virtualElements.set(id, { ...current, ...changes });
+	}
+
+	const movedIds = new Set(moveStart.keys());
+	for (const update of buildCanvasBindingSyncUpdates(elements, updates)) {
+		updates.push(update);
+		const element = virtualElements.get(update.id);
+		if (element) {
+			virtualElements.set(update.id, { ...element, ...update.changes });
+		}
 	}
 
 	for (const edgeId of collectConnectedMindmapEdgeIds(movedIds, elements)) {
@@ -741,6 +924,10 @@ export function buildCanvasDrawingElement(options: {
 		cloudArcRadius:
 			tool === "cloud" ? clampCloudArcRadius(style.cloudArcRadius) : undefined,
 		pyramidSections: tool === "triangle" ? style.pyramidSections : undefined,
+		polygonSides:
+			tool === "rectangle" || tool === "diamond"
+				? clampPolygonSides(style.polygonSides)
+				: undefined,
 		frameLabel: tool === "frame" ? "Frame" : undefined,
 	});
 }

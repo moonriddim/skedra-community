@@ -5,7 +5,10 @@
 import { isTextEditableElement } from "@/components/canvas/hooks/use-canvas-text-editing";
 import { isFlowchartNode, isMindmapNode } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
-import { useCanvasEditorKeyboard } from "@skedra/canvas-editor";
+import {
+	useCanvasEditorClipboard,
+	useCanvasEditorKeyboard,
+} from "@skedra/canvas-editor";
 import type { CanvasKeyboardActions } from "./use-canvas-keyboard/context";
 import { useCanvasKeyboardOperations } from "./use-canvas-keyboard/operations";
 import { useCanvasStore, useCanvasStoreRef } from "./use-canvas-store";
@@ -20,6 +23,7 @@ interface UseCommunityCanvasKeyboardAdapterOptions {
 	updateElements: (
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
+	getPastePoint?: () => { x: number; y: number };
 	undo: () => void;
 	redo: () => void;
 	actions?: CanvasKeyboardActions;
@@ -33,6 +37,7 @@ export function useCommunityCanvasKeyboardAdapter({
 	createElement,
 	deleteElements,
 	updateElements,
+	getPastePoint,
 	undo,
 	redo,
 	actions,
@@ -43,22 +48,40 @@ export function useCommunityCanvasKeyboardAdapter({
 		createElement,
 		deleteElements,
 		updateElements,
+		getPastePoint,
+	});
+
+	const getClipboardState = () => ({
+		enabled,
+		readOnly,
+		editingText: editingText || storeRef.current.editingTextId != null,
+		hasSelection: storeRef.current.selectedIds.size > 0,
+	});
+	useCanvasEditorClipboard({
+		getState: getClipboardState,
+		onCopy: (dataTransfer) => ops.copySelection(dataTransfer).length > 0,
+		onCut: (dataTransfer) => ops.cutSelection(dataTransfer).length > 0,
+		onPaste: (dataTransfer) => {
+			if (ops.pasteDataTransferFromClipboard(dataTransfer)) return true;
+			if (ops.clipboardRef.current.length === 0) return false;
+			ops.pasteClipboard();
+			return true;
+		},
 	});
 
 	useCanvasEditorKeyboard({
-		getState: () => ({
-			enabled,
-			readOnly,
-			editingText: editingText || storeRef.current.editingTextId != null,
-			hasSelection: storeRef.current.selectedIds.size > 0,
-		}),
+		getState: getClipboardState,
 		onEditorAction: (action) => {
 			const store = storeRef.current;
 			if (action.type === "command") {
-				if (action.command === "copy") ops.copySelection();
-				else if (action.command === "cut") ops.cutSelection();
-				else if (action.command === "paste") ops.pasteClipboard();
-				else if (action.command === "duplicate") ops.duplicateSelection();
+				if (
+					action.command === "copy" ||
+					action.command === "cut" ||
+					action.command === "paste"
+				) {
+					return false;
+				}
+				if (action.command === "duplicate") ops.duplicateSelection();
 				else if (action.command === "bring-forward") ops.bringForward();
 				else if (action.command === "send-backward") ops.sendBackward();
 				else if (action.command === "bring-to-front") ops.bringToFront();
@@ -235,7 +258,7 @@ export function useCommunityCanvasKeyboardAdapter({
 		clipboardRef: ops.clipboardRef,
 		formatClipboardRef: ops.formatClipboardRef,
 		copySelection: ops.copySelection,
-		pasteClipboard: ops.pasteClipboard,
+		pasteClipboard: ops.pasteFromClipboard,
 		cutSelection: ops.cutSelection,
 		duplicateSelection: ops.duplicateSelection,
 		copyFormat: ops.copyFormat,

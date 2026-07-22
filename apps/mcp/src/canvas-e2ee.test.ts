@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
-import { createBaseCanvasElement } from "@skedra/canvas-core";
+import {
+	createBaseCanvasElement,
+	sortCanvasElements,
+} from "@skedra/canvas-core";
 import {
 	createPlainCanvasMutationUpdate,
 	createPlainElementsUpdate,
@@ -93,6 +96,57 @@ test("createPlainCanvasMutationUpdate updates and deletes existing elements", ()
 	assert.equal(state.elements.length, 1);
 	assert.equal(state.elements[0]?.text, "after");
 	assert.equal(state.elements[0]?.x, 30);
+});
+
+test("new MCP batches stay above legacy elements and preserve their layer order", () => {
+	const legacyFront = createBaseCanvasElement(
+		{ createId: () => "zzz-legacy-front", stroke: "#111111" },
+		{ type: "text", x: 0, y: 0, width: 100, height: 40, text: "old" },
+	);
+	const legacyBack = createBaseCanvasElement(
+		{ createId: () => "aaa-legacy-back", stroke: "#111111" },
+		{ type: "rectangle", x: 0, y: 0, width: 100, height: 40 },
+	);
+	const background = createBaseCanvasElement(
+		{ createId: () => "batch-background", stroke: "#111111" },
+		{ type: "rectangle", x: 0, y: 0, width: 100, height: 40 },
+	);
+	const symbol = createBaseCanvasElement(
+		{ createId: () => "batch-symbol", stroke: "#111111" },
+		{ type: "ellipse", x: 10, y: 10, width: 20, height: 20 },
+	);
+	const label = createBaseCanvasElement(
+		{ createId: () => "batch-label", stroke: "#111111" },
+		{ type: "text", x: 0, y: 0, width: 100, height: 40, text: "new" },
+	);
+	const initial = createPlainElementsUpdate([legacyFront, legacyBack]);
+	const mutation = createPlainCanvasMutationUpdate([{ update: initial }], {
+		create: [background, symbol, label],
+		update: [],
+		deleteIds: [],
+	});
+	const state = readPlainBoardState([
+		{ update: initial },
+		{ update: mutation.update },
+	]);
+
+	const orderedIds = sortCanvasElements(state.elements).map(
+		(element) => element.id,
+	);
+	assert.deepEqual(orderedIds.slice(-3), [
+		"batch-background",
+		"batch-symbol",
+		"batch-label",
+	]);
+	assert.ok(
+		orderedIds.indexOf("zzz-legacy-front") <
+			orderedIds.indexOf("batch-background"),
+	);
+	assert.ok(
+		state.elements
+			.filter((element) => element.id.startsWith("batch-"))
+			.every((element) => element.stackIndex),
+	);
 });
 
 test("encryptCanvasMutationUpdate creates an E2EE-compatible incremental edit", () => {

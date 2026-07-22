@@ -1,8 +1,10 @@
 import {
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
+	getElementPolygonPointsAttribute,
 	getLinePath,
 	getTrianglePointsAttribute,
+	isPolygonVariant,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import type { RoughShapeLayers } from "./render-helpers";
@@ -31,6 +33,9 @@ function GeometryClipShape({ el }: { el: CanvasElement }) {
 				/>
 			) : null;
 		case "rectangle":
+			if (isPolygonVariant(el)) {
+				return <polygon points={getElementPolygonPointsAttribute(el)} />;
+			}
 			return (
 				<rect
 					x={el.x}
@@ -45,15 +50,8 @@ function GeometryClipShape({ el }: { el: CanvasElement }) {
 			return (
 				<ellipse cx={el.x + w / 2} cy={el.y + h / 2} rx={w / 2} ry={h / 2} />
 			);
-		case "diamond": {
-			const cx = el.x + w / 2;
-			const cy = el.y + h / 2;
-			return (
-				<polygon
-					points={`${cx},${el.y} ${el.x + w},${cy} ${cx},${el.y + h} ${el.x},${cy}`}
-				/>
-			);
-		}
+		case "diamond":
+			return <polygon points={getElementPolygonPointsAttribute(el)} />;
 		case "triangle":
 			return <polygon points={getTrianglePointsAttribute(el)} />;
 		case "cloud":
@@ -92,6 +90,15 @@ function GeometryExactStroke({
 				/>
 			) : null;
 		case "rectangle":
+			if (isPolygonVariant(el)) {
+				return (
+					<polygon
+						points={getElementPolygonPointsAttribute(el)}
+						strokeLinejoin="round"
+						{...strokeProps}
+					/>
+				);
+			}
 			return (
 				<rect
 					x={el.x}
@@ -113,17 +120,14 @@ function GeometryExactStroke({
 					{...strokeProps}
 				/>
 			);
-		case "diamond": {
-			const cx = el.x + w / 2;
-			const cy = el.y + h / 2;
+		case "diamond":
 			return (
 				<polygon
-					points={`${cx},${el.y} ${el.x + w},${cy} ${cx},${el.y + h} ${el.x},${cy}`}
+					points={getElementPolygonPointsAttribute(el)}
 					strokeLinejoin="round"
 					{...strokeProps}
 				/>
 			);
-		}
 		case "triangle":
 			return (
 				<polygon

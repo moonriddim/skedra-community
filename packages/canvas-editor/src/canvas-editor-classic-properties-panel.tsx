@@ -20,9 +20,11 @@ import {
 	type KanbanPriority,
 	MAX_ARROW_HEAD_SCALE,
 	MAX_CLOUD_ARC_RADIUS,
+	MAX_POLYGON_SIDES,
 	MAX_ROUGH_FILL_SCALE,
 	MIN_ARROW_HEAD_SCALE,
 	MIN_CLOUD_ARC_RADIUS,
+	MIN_POLYGON_SIDES,
 	MIN_ROUGH_FILL_SCALE,
 	type RoughFillStyle,
 	type StrokeStyle,
@@ -169,6 +171,8 @@ export interface CanvasEditorClassicPropertiesView {
 	ellipseDiameter: number;
 	showPyramidOptions: boolean;
 	currentPyramidSections: number;
+	showPolygonOptions: boolean;
+	currentPolygonSides: number;
 	showCloudArcRadius: boolean;
 	currentCloudArcRadius: number;
 	currentOpacity: number;
@@ -1684,6 +1688,49 @@ function AppearanceProperties({
 						)}
 					</Section>
 				)}
+			{view.showPolygonOptions && (
+				<Section label={t("canvas.properties.polygon", "Polygon")}>
+					<div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+						<span>{t("canvas.properties.polygonSides", "Corners")}</span>
+						<span className="font-medium text-card-foreground">
+							{view.currentPolygonSides}
+						</span>
+					</div>
+					<input
+						type="range"
+						min={MIN_POLYGON_SIDES}
+						max={MAX_POLYGON_SIDES}
+						step={1}
+						value={view.currentPolygonSides}
+						onChange={(event) =>
+							view.onSetProperty("polygonSides", Number(event.target.value))
+						}
+						className="mt-2 w-full h-1 rounded-full appearance-none bg-muted accent-primary cursor-pointer"
+					/>
+					<div className="mt-2 grid grid-cols-6 gap-1">
+						{[4, 5, 6, 8, 10, 12].map((sides) => (
+							<ChoiceButton
+								key={sides}
+								active={view.currentPolygonSides === sides}
+								onClick={() => view.onSetProperty("polygonSides", sides)}
+							>
+								{sides}
+							</ChoiceButton>
+						))}
+					</div>
+					<p className="mt-2 text-[9px] leading-relaxed text-muted-foreground">
+						{view.currentPolygonSides === 4
+							? t(
+									"canvas.properties.polygonFourHint",
+									"Four corners preserve the original rectangle or diamond.",
+								)
+							: t(
+									"canvas.properties.polygonMultiHint",
+									"The polygon adapts automatically when the shape is resized.",
+								)}
+					</p>
+				</Section>
+			)}
 			{view.showPyramidOptions && (
 				<Section
 					label={t("canvas.properties.pyramidDiagram", "Pyramid diagram")}

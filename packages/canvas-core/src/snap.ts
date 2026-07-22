@@ -5,6 +5,7 @@ import {
 	inverseTransformCanvasElementPoint,
 	transformCanvasElementPoint,
 } from "./geometry";
+import { getElementPolygonPoints, isPolygonVariant } from "./shape-geometry";
 import { type CanvasElement, GRID_SIZE } from "./types";
 
 const SNAP_THRESHOLD = 6;
@@ -329,6 +330,40 @@ function getShapeAnchors(
 	const bottom = bbox.y + bbox.height;
 	const centerX = bbox.x + bbox.width / 2;
 	const centerY = bbox.y + bbox.height / 2;
+	if (isPolygonVariant(el)) {
+		const polygonPoints = getElementPolygonPoints({
+			...el,
+			x: bbox.x,
+			y: bbox.y,
+			width: bbox.width,
+			height: bbox.height,
+		}).map(([x, y]) => ({ x, y }));
+		return [
+			...(options.includeEndpoints === false
+				? []
+				: polygonPoints.map((point) =>
+						createAnchor(el.id, "corner", point.x, point.y),
+					)),
+			...(options.includeDivisions
+				? createStraightDivisionAnchors(
+						el.id,
+						polygonPoints,
+						true,
+						options.includeMidpoints,
+						options.divisionCount,
+					)
+				: []),
+			...((options.includeGeometricCenters ?? options.includeCenters)
+				? [createAnchor(el.id, "geometric-center", centerX, centerY)]
+				: []),
+			...(options.includeInsertions
+				? [createAnchor(el.id, "insertion", el.x, el.y)]
+				: []),
+		].map((anchor) => ({
+			...anchor,
+			...transformCanvasElementPoint(el, anchor),
+		}));
+	}
 
 	switch (el.type) {
 		case "ellipse":
@@ -573,13 +608,14 @@ function getElementSnapSegments(el: CanvasElement): SnapSegment[] {
 		const centerX = bbox.x + bbox.width / 2;
 		const centerY = bbox.y + bbox.height / 2;
 		const localPoints =
-			el.type === "diamond"
-				? [
-						{ x: centerX, y: top },
-						{ x: right, y: centerY },
-						{ x: centerX, y: bottom },
-						{ x: left, y: centerY },
-					]
+			el.type === "diamond" || isPolygonVariant(el)
+				? getElementPolygonPoints({
+						...el,
+						x: bbox.x,
+						y: bbox.y,
+						width: bbox.width,
+						height: bbox.height,
+					}).map(([x, y]) => ({ x, y }))
 				: el.type === "triangle"
 					? [
 							{ x: centerX, y: top },
@@ -839,13 +875,14 @@ function getNearestPointOnElement(
 		const centerX = left + bbox.width / 2;
 		const centerY = top + bbox.height / 2;
 		const vertices =
-			el.type === "diamond"
-				? [
-						{ x: centerX, y: top },
-						{ x: right, y: centerY },
-						{ x: centerX, y: bottom },
-						{ x: left, y: centerY },
-					]
+			el.type === "diamond" || isPolygonVariant(el)
+				? getElementPolygonPoints({
+						...el,
+						x: bbox.x,
+						y: bbox.y,
+						width: bbox.width,
+						height: bbox.height,
+					}).map(([x, y]) => ({ x, y }))
 				: el.type === "triangle"
 					? [
 							{ x: centerX, y: top },

@@ -3,7 +3,11 @@ import {
 	inverseTransformCanvasElementPoint,
 } from "./geometry-bbox";
 import { pathTextLabelHitTest as defaultPathTextLabelHitTest } from "./path-rendering";
-import { getFreeformRevisionCloudScallopDepth } from "./shape-geometry";
+import {
+	getElementPolygonPoints,
+	getFreeformRevisionCloudScallopDepth,
+	isPolygonVariant,
+} from "./shape-geometry";
 import type { CanvasElement } from "./types";
 
 const CURVE_HIT_SEGMENTS = 24;
@@ -40,6 +44,25 @@ export function hitTest(
 
 	switch (el.type) {
 		case "rectangle":
+			if (isPolygonVariant(el)) {
+				return pointInPolygon(
+					hitX,
+					hitY,
+					getElementPolygonPoints({
+						...el,
+						x: bbox.x - t,
+						y: bbox.y - t,
+						width: bbox.width + t * 2,
+						height: bbox.height + t * 2,
+					}),
+				);
+			}
+			return (
+				hitX >= bbox.x - t &&
+				hitX <= bbox.x + bbox.width + t &&
+				hitY >= bbox.y - t &&
+				hitY <= bbox.y + bbox.height + t
+			);
 		case "text":
 			return (
 				hitX >= bbox.x - t &&
@@ -48,13 +71,18 @@ export function hitTest(
 				hitY <= bbox.y + bbox.height + t
 			);
 
-		case "diamond": {
-			const dcx = bbox.x + bbox.width / 2;
-			const dcy = bbox.y + bbox.height / 2;
-			const drx = bbox.width / 2 + t;
-			const dry = bbox.height / 2 + t;
-			return Math.abs(hitX - dcx) / drx + Math.abs(hitY - dcy) / dry <= 1;
-		}
+		case "diamond":
+			return pointInPolygon(
+				hitX,
+				hitY,
+				getElementPolygonPoints({
+					...el,
+					x: bbox.x - t,
+					y: bbox.y - t,
+					width: bbox.width + t * 2,
+					height: bbox.height + t * 2,
+				}),
+			);
 
 		case "triangle":
 			return pointInPolygon(hitX, hitY, [

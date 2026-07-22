@@ -301,8 +301,9 @@ export const deMessages = {
 		signUp: "Registrieren",
 		saveToCloud: "In Cloud speichern",
 		saveSkedra: "Als .skedra speichern",
+		saveExcalidraw: "Als .excalidraw speichern",
 		saveEncryptedSkedra: "Verschlüsselte .skedra speichern",
-		openSkedra: ".skedra öffnen",
+		openSkedra: ".skedra oder .excalidraw öffnen",
 		exportSvg: "SVG exportieren",
 		exportPng: "PNG exportieren",
 		exportPdf: "PDF exportieren",
@@ -342,7 +343,7 @@ export const deMessages = {
 	skedraFile: {
 		importConfirmTitle: "Board ersetzen?",
 		importConfirmDescription:
-			"Die geöffnete .skedra-Datei ersetzt alle Elemente und Views auf der Zeichenfläche.",
+			"Die geöffnete Skedra- oder Excalidraw-Datei ersetzt alle Elemente und Views auf der Zeichenfläche.",
 		importConfirmAction: "Datei laden",
 		encryptedPassphrasePrompt:
 			"Lege eine Passphrase für die verschlüsselte .skedra-Datei fest (mindestens 8 Zeichen). Skedra kann sie nicht wiederherstellen.",
@@ -2193,8 +2194,9 @@ export const deMessages = {
 			exportPdf: "PDF Export",
 			exportPptx: "PPTX Export",
 			saveSkedra: "Als .skedra speichern",
+			saveExcalidraw: "Als .excalidraw speichern",
 			saveEncryptedSkedra: "Verschlüsselte .skedra speichern",
-			openSkedra: ".skedra öffnen",
+			openSkedra: ".skedra oder .excalidraw öffnen",
 			insertMindmap: "Mindmap",
 			insertFlowchart: "Ablaufdiagramm",
 			insertGantt: "Projektzeitplan",
@@ -2625,6 +2627,11 @@ export const deMessages = {
 			pyramidSingleHint: "Eine Sektion ergibt ein normales Dreieck.",
 			pyramidMultiHint:
 				"Die Trennlinien passen sich beim Skalieren automatisch an.",
+			polygon: "Polygon",
+			polygonSides: "Ecken",
+			polygonFourHint:
+				"Vier Ecken behalten das ursprüngliche Rechteck bzw. die Raute.",
+			polygonMultiHint: "Das Polygon passt sich beim Skalieren automatisch an.",
 			cloudArcs: "Wolkenbögen",
 			cloudArcRadius: "Bogenradius",
 			cloudArcRadiusHint:
@@ -2842,7 +2849,7 @@ export const deMessages = {
 		createOwn: "Eigenes Paket erstellen",
 		createStep1: "Neues Paket anlegen oder bestehendes wählen",
 		createStep2: "Symbole auf dem Board auswählen und „Hinzufügen“ tippen",
-		createStep3: "Als Datei speichern oder zur Katalog-Review einreichen",
+		createStep3: "Online speichern oder zur Katalog-Review einreichen",
 		cancelCreate: "Abbrechen",
 		defaultPackageName: "Meine Bibliothek",
 		newPackage: "Neues Paket",
@@ -2854,6 +2861,15 @@ export const deMessages = {
 			"Zeichne oder wähle Gruppen auf dem Board, dann + — jedes Symbol wird ein Eintrag in deinem Paket.",
 		personalExportName: "Meine Skedra-Bibliothek",
 		exportPackage: "Paket als .skedralib speichern",
+		saveOnline: "Paket online speichern",
+		savedOnline:
+			"Paket online gespeichert. Du findest es jetzt in Meine Library.",
+		saveLoginHint: "Melde dich an, um das Paket online zu speichern.",
+		myLibrary: "Meine Library",
+		myLibraryHint:
+			"Deine online gespeicherten Pakete kannst du hier herunterladen.",
+		downloadPackage: "Download",
+		submitFromLibrary: "Zur Review",
 		add: "Hinzufügen",
 		addParticipant: "Teilnehmer hinzufügen",
 		addSelection: "Auswahl zum Paket hinzufügen",
@@ -2902,6 +2918,7 @@ export const deMessages = {
 			urlNotAllowed:
 				"Diese URL ist nicht erlaubt (nur Skedra-Bibliotheks-URLs).",
 			publishFailed: "Veröffentlichen fehlgeschlagen.",
+			saveFailed: "Das Paket konnte nicht online gespeichert werden.",
 			cancelled: "Abgebrochen.",
 			unknown: "Import fehlgeschlagen.",
 		},

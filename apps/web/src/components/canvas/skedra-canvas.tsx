@@ -828,6 +828,7 @@ export function SkedraCanvas({
 		setFileError,
 		handleImportSkedra,
 		handleExportSkedra,
+		handleExportExcalidraw,
 		handleExportEncryptedSkedra,
 		handleConfirmSkedraImport,
 	} = useSkedraFileActions({
@@ -1123,6 +1124,7 @@ export function SkedraCanvas({
 		createElement: sync.createElement,
 		deleteElements: deleteElementsWithKanbanReflow,
 		updateElements: sync.updateElements,
+		getPastePoint: getViewportCenter,
 		undo: history.undo,
 		redo: history.redo,
 		actions: {
@@ -1546,6 +1548,7 @@ export function SkedraCanvas({
 					deleteElementsWithKanbanReflow={deleteElementsWithKanbanReflow}
 					keyboard={keyboard}
 					onExportSkedra={handleExportSkedra}
+					onExportExcalidraw={handleExportExcalidraw}
 					onExportEncryptedSkedra={() => void handleExportEncryptedSkedra()}
 					onImportSkedra={() => void handleImportSkedra()}
 					onExportVisual={exportVisual}

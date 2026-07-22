@@ -192,6 +192,10 @@ export function GuestCanvasPage() {
 		canvasFileRef.current?.exportSkedra();
 	};
 
+	const handleSaveExcalidraw = () => {
+		canvasFileRef.current?.exportExcalidraw();
+	};
+
 	const handleSaveEncryptedSkedra = () => {
 		void canvasFileRef.current?.exportEncryptedSkedra();
 	};
@@ -216,6 +220,7 @@ export function GuestCanvasPage() {
 					managedBilling={publicConfig?.managed !== false}
 					onSave={handleSaveClick}
 					onSaveSkedra={handleSaveSkedra}
+					onSaveExcalidraw={handleSaveExcalidraw}
 					onSaveEncryptedSkedra={handleSaveEncryptedSkedra}
 					onOpenSkedra={handleOpenSkedra}
 					onExportSvg={() => handleExportVisual("svg")}

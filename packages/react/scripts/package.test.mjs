@@ -332,6 +332,37 @@ test("SDK document encryption and decryption round-trip without host packages", 
 	assert.deepEqual(decrypted.appState?.viewport, { x: 10, y: 20, zoom: 1.5 });
 });
 
+test("SDK Excalidraw files and clipboard payloads round-trip as editable elements", async () => {
+	const sdk = await import("@skedra/react");
+	const element = sdk.createSkedraStickyNoteElement({
+		x: 12,
+		y: 24,
+		text: "Excalidraw bridge",
+	});
+	const scene = sdk.createExcalidrawFile({
+		elements: [element],
+		viewport: { x: 10, y: 20, zoom: 1.5 },
+	});
+	assert.equal(scene.type, "excalidraw");
+	assert.equal(scene.elements[1].type, "text");
+	const imported = sdk.parseExcalidrawFile(sdk.serializeExcalidrawFile(scene));
+	assert.equal(imported.elements[0].text, "Excalidraw bridge");
+	const clipboard = JSON.parse(sdk.serializeSkedraClipboard([element]));
+	assert.equal(clipboard.type, sdk.SKEDRA_CLIPBOARD_TYPE);
+	assert.equal(clipboard.version, 1);
+	const pasted = sdk.parseSkedraClipboard(JSON.stringify(clipboard));
+	assert.equal(pasted[0].text, "Excalidraw bridge");
+	const excalidrawClipboard = JSON.parse(
+		sdk.serializeExcalidrawClipboard([element]),
+	);
+	assert.equal(excalidrawClipboard.type, "excalidraw/clipboard");
+	assert.equal(excalidrawClipboard.elements[0].customData.skedra.version, 1);
+	assert.equal(
+		sdk.parseSkedraClipboard(JSON.stringify(excalidrawClipboard))[0].text,
+		"Excalidraw bridge",
+	);
+});
+
 test("shape libraries are standalone and instantiate with new ids", async () => {
 	const sdk = await import("@skedra/react/io");
 	const factories = await import("@skedra/react/factories");

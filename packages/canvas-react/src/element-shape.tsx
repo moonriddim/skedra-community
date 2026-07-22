@@ -5,10 +5,13 @@
 import {
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
+	getElementPolygonPointsAttribute,
 	getImageRenderGeometry,
 	getLinePath,
 	getPyramidDividerSegments,
 	getTrianglePointsAttribute,
+	isPolygonVariant,
+	roundedDiamondSvgPath,
 	smoothPath,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
@@ -96,6 +99,15 @@ export const ElementShape = memo(function ElementShape({
 						) : (
 							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
 						)
+					) : isPolygonVariant(el) ? (
+						<polygon
+							points={getElementPolygonPointsAttribute(el)}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinejoin="round"
+						/>
 					) : (
 						<rect
 							x={el.x}
@@ -116,9 +128,7 @@ export const ElementShape = memo(function ElementShape({
 		}
 
 		case "diamond": {
-			const dCx = el.x + el.width / 2;
-			const dCy = el.y + el.height / 2;
-			const dPoints = `${dCx},${el.y} ${el.x + el.width},${dCy} ${dCx},${el.y + el.height} ${el.x},${dCy}`;
+			const cornerRadius = getEffectiveCornerRadius(el);
 			return (
 				<g transform={transform} {...commonProps}>
 					{roughLayers ? (
@@ -127,9 +137,24 @@ export const ElementShape = memo(function ElementShape({
 						) : (
 							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
 						)
+					) : cornerRadius > 0 ? (
+						<path
+							d={roundedDiamondSvgPath(
+								el.x,
+								el.y,
+								el.width,
+								el.height,
+								cornerRadius,
+							)}
+							fill={el.fill || "transparent"}
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinejoin="round"
+						/>
 					) : (
 						<polygon
-							points={dPoints}
+							points={getElementPolygonPointsAttribute(el)}
 							fill={el.fill || "transparent"}
 							stroke={el.stroke}
 							strokeWidth={el.strokeWidth}
