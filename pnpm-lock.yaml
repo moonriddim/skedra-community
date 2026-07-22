@@ -32,12 +32,18 @@ importers:
       '@hono/node-ws':
         specifier: ^1.1.0
         version: 1.3.1(@hono/node-server@1.19.14(hono@4.12.30))(hono@4.12.30)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
       '@skedra/canvas-core':
         specifier: workspace:*
         version: link:../../packages/canvas-core
       '@skedra/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@skedra/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@skedra/shared':
         specifier: workspace:*
         version: link:../../packages/shared

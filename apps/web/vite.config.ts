@@ -8,5 +8,6 @@ export default createSkedraAppViteConfig({
 	port: 5174,
 	proxy: {
 		"/api": { target: "http://localhost:3001", changeOrigin: true },
+		"/.well-known": { target: "http://localhost:3001", changeOrigin: true },
 	},
 });

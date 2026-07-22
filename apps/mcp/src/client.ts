@@ -116,7 +116,14 @@ export function createSkedraClientFromEnv(): SkedraApiClient {
 	if (!apiKey) {
 		throw new Error(MISSING_KEY_MESSAGE);
 	}
+	return createSkedraClient({ apiUrl, apiKey });
+}
 
+export function createSkedraClient(input: {
+	apiUrl: string;
+	apiKey: string;
+}): SkedraApiClient {
+	const { apiUrl, apiKey } = input;
 	const baseUrl = apiUrl.replace(/\/$/, "");
 	const call = <T>(method: string, path: string, body?: unknown) =>
 		request<T>(baseUrl, apiKey, method, path, body);

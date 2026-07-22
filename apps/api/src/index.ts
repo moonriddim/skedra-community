@@ -77,6 +77,7 @@ import {
 } from "./lib/shape-libraries";
 import { getStripeClient, isStripeBillingConfigured } from "./lib/stripe";
 import { processStripeWebhookEvent } from "./lib/stripe-billing";
+import { mcpApp } from "./mcp";
 import { restApp } from "./rest";
 import { appRouter, createContext } from "./trpc";
 
@@ -649,6 +650,7 @@ app.get("/api/health", async (c) => {
 	}
 });
 
+app.route("/", mcpApp);
 app.route("/api", restApp);
 
 app.use(

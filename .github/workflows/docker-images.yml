@@ -2,6 +2,16 @@ name: Docker Images
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/docker-images.yml"
+      - "apps/api/**"
+      - "apps/mcp/**"
+      - "deploy/db/**"
+      - "package.json"
+      - "packages/db/**"
+      - "packages/shared/**"
+      - "pnpm-lock.yaml"
   push:
     branches:
       - main
@@ -19,6 +29,30 @@ env:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: skedra_ci
+          POSTGRES_PASSWORD: skedra_ci_password
+          POSTGRES_USER: skedra_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skedra_ci -d skedra_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_URL: http://localhost:5174
+      API_URL: http://localhost:3001
+      AUTH_SECRET: skedra-ci-auth-secret-0123456789-abcdef
+      DATA_ENCRYPTION_SECRET: skedra-ci-data-secret-0123456789-abcdef
+      DATABASE_URL: postgresql://skedra_ci:skedra_ci_password@localhost:5432/skedra_ci
+      MCP_INTERNAL_API_URL: http://127.0.0.1:3001/api/v1
+      SKEDRA_DEPLOYMENT_MODE: selfhost
 
     steps:
       - name: Checkout
@@ -42,7 +76,40 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Initialize MCP E2E database
+        run: pnpm --filter @skedra/db db:push
+
+      - name: Start API for MCP E2E
+        run: |
+          pnpm --filter @skedra/api exec tsx src/index.ts > "$RUNNER_TEMP/skedra-api.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/skedra-api.pid"
+          for _ in {1..30}; do
+            if curl --fail --silent http://localhost:3001/api/health >/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/skedra-api.pid")" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/skedra-api.log"
+          exit 1
+
+      - name: Test remote MCP OAuth end to end
+        env:
+          MCP_E2E_BASE_URL: http://localhost:3001
+          MCP_E2E_USER_ID: create
+        run: pnpm test:mcp:e2e
+
+      - name: Show MCP E2E API log on failure
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/skedra-api.log" ]; then
+            tail -n 200 "$RUNNER_TEMP/skedra-api.log"
+          fi
+
   build:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: quality
     strategy:

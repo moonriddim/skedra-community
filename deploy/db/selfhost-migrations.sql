@@ -815,3 +815,60 @@ CREATE TABLE IF NOT EXISTS "whiteboard_presentation_audience" (
 
 CREATE INDEX IF NOT EXISTS "whiteboard_presentation_audience_session_expiry_idx"
 	ON "whiteboard_presentation_audience" ("whiteboard_id", "session_id", "expires_at");
+
+-- Remote MCP OAuth 2.1. These tables must be present on upgrades as well as
+-- fresh schema exports because the API starts before any OAuth client can
+-- dynamically register.
+CREATE TABLE IF NOT EXISTS "mcp_oauth_clients" (
+	"id" text PRIMARY KEY NOT NULL,
+	"client_name" text NOT NULL,
+	"redirect_uris" text NOT NULL,
+	"client_uri" text,
+	"token_endpoint_auth_method" text DEFAULT 'none' NOT NULL,
+	"registration_ip_hash" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "mcp_oauth_clients_registration_ip_idx"
+	ON "mcp_oauth_clients" ("registration_ip_hash", "created_at");
+
+CREATE TABLE IF NOT EXISTS "mcp_oauth_authorization_codes" (
+	"code_hash" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+	"client_id" text NOT NULL REFERENCES "mcp_oauth_clients"("id") ON DELETE cascade,
+	"redirect_uri" text NOT NULL,
+	"resource" text NOT NULL,
+	"code_challenge" text NOT NULL,
+	"scopes" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"used_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "mcp_oauth_codes_client_idx"
+	ON "mcp_oauth_authorization_codes" ("client_id");
+CREATE INDEX IF NOT EXISTS "mcp_oauth_codes_expiry_idx"
+	ON "mcp_oauth_authorization_codes" ("expires_at");
+
+CREATE TABLE IF NOT EXISTS "mcp_oauth_tokens" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"family_id" uuid NOT NULL,
+	"kind" text NOT NULL,
+	"token_hash" text NOT NULL UNIQUE,
+	"user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+	"client_id" text NOT NULL REFERENCES "mcp_oauth_clients"("id") ON DELETE cascade,
+	"resource" text NOT NULL,
+	"scopes" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"last_used_at" timestamp,
+	"revoked_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "mcp_oauth_tokens_family_idx"
+	ON "mcp_oauth_tokens" ("family_id");
+CREATE INDEX IF NOT EXISTS "mcp_oauth_tokens_user_client_idx"
+	ON "mcp_oauth_tokens" ("user_id", "client_id");
+CREATE INDEX IF NOT EXISTS "mcp_oauth_tokens_expiry_idx"
+	ON "mcp_oauth_tokens" ("expires_at");

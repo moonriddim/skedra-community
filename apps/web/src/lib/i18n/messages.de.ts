@@ -521,16 +521,18 @@ export const deMessages = {
 			empty: "Noch keine API Keys erstellt.",
 			createdAt: "Erstellt {date}",
 			lastUsed: "Zuletzt genutzt {date}",
-			mcpTitle: "MCP in Cursor einbinden",
+			mcpTitle: "Skedra MCP einbinden",
 			mcpDescription:
-				"Füge diesen Block in deine Cursor MCP-Konfiguration ein:",
+				"Wähle deinen Client und füge den gehosteten Skedra MCP hinzu. Die Server-URL wird automatisch aus dieser Skedra-Instanz übernommen.",
 			mcpHint:
-				"Baue den MCP-Server mit pnpm --filter @skedra/mcp build. Cursor startet ihn separat — nicht über pnpm dev.",
+				"Beim ersten Verbinden öffnet sich die sichere Skedra-Anmeldung im Browser. Ein API-Key muss nicht kopiert werden.",
 			openapiHint: "OpenAPI-Spec:",
 			createdDialogTitle: "API Key erstellt",
 			createdDialogDescription:
 				"Kopiere den Key jetzt — er wird danach nicht mehr angezeigt.",
 			copyKey: "Key kopieren",
+			copyConfig: "Installation kopieren",
+			addToCursor: "Zu Cursor hinzufügen",
 			scopesTitle: "Berechtigungen",
 			expiresNever: "Kein Ablauf",
 			expiresDays: "{days} Tage",

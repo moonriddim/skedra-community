@@ -16,8 +16,15 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
 import { authClient } from "@/lib/auth-client";
 import { useI18n } from "@/lib/i18n";
+import {
+	type McpClient,
+	buildCursorMcpInstallUrl,
+	buildMcpConfigSnippet,
+	resolveSkedraMcpUrl,
+} from "@/lib/mcp-config";
 import { trpc } from "@/lib/trpc";
 import { getUserInitials } from "@/lib/user-initials";
 import {
@@ -72,6 +79,13 @@ const SCOPE_LABELS: Record<SkedraApiKeyScope, string> = {
 	"boards:write": "Boards bearbeiten",
 	"members:write": "Mitglieder einladen",
 	"boards:delete": "Endgültig löschen",
+};
+
+const MCP_CLIENT_LABELS: Record<McpClient, string> = {
+	codex: "Codex",
+	cursor: "Cursor",
+	claude: "Claude",
+	opencode: "OpenCode",
 };
 
 export function ApiKeysSettingsPage() {
@@ -143,7 +157,9 @@ export function ApiKeysSettingsPage() {
 	]);
 	const [expiresInDays, setExpiresInDays] = useState<number | "">("");
 	const [createdKey, setCreatedKey] = useState<string | null>(null);
-	const [copied, setCopied] = useState(false);
+	const [mcpClient, setMcpClient] = useState<McpClient>("codex");
+	const [copiedKey, setCopiedKey] = useState(false);
+	const [copiedConfig, setCopiedConfig] = useState(false);
 
 	// AI BYOK / lokale LLMs (Ollama, LM Studio, …)
 	const [aiProvider, setAiProvider] = useState<SkedraAiProvider>("openai");
@@ -281,27 +297,31 @@ export function ApiKeysSettingsPage() {
 		},
 	});
 
-	const mcpConfigSnippet = useMemo(() => {
-		const keyVal = createdKey ?? "sked_DEIN_KEY_HIER";
-		return `{
-  "mcpServers": {
-    "skedra": {
-      "command": "node",
-      "args": ["apps/mcp/dist/index.js"],
-      "env": {
-        "SKEDRA_API_URL": "http://localhost:3001/api/v1",
-        "SKEDRA_API_KEY": "${keyVal}"
-      }
-    }
-  }
-}`;
-	}, [createdKey]);
+	const mcpUrl = resolveSkedraMcpUrl(getAbsoluteApiBaseUrl());
+	const mcpConfigSnippet = useMemo(
+		() =>
+			buildMcpConfigSnippet({
+				client: mcpClient,
+				mcpUrl,
+			}),
+		[mcpClient, mcpUrl],
+	);
+	const cursorInstallUrl = useMemo(
+		() => buildCursorMcpInstallUrl(mcpUrl),
+		[mcpUrl],
+	);
 
 	const handleCopyKey = async () => {
 		if (!createdKey) return;
 		await navigator.clipboard.writeText(createdKey);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
+		setCopiedKey(true);
+		setTimeout(() => setCopiedKey(false), 2000);
+	};
+
+	const handleCopyConfig = async (snippet: string) => {
+		await navigator.clipboard.writeText(snippet);
+		setCopiedConfig(true);
+		setTimeout(() => setCopiedConfig(false), 2000);
 	};
 
 	return (
@@ -834,72 +854,61 @@ export function ApiKeysSettingsPage() {
 									</div>
 								</div>
 
-								{/* JSON Code snippet */}
-								<div className="relative group">
-									<div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div className="flex w-fit flex-wrap rounded-lg border border-border bg-muted/40 p-1">
+									{(["codex", "cursor", "claude", "opencode"] as const).map(
+										(client) => (
+											<button
+												key={client}
+												type="button"
+												aria-pressed={mcpClient === client}
+												onClick={() => {
+													setMcpClient(client);
+													setCopiedConfig(false);
+												}}
+												className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+													mcpClient === client
+														? "bg-background text-foreground shadow-sm"
+														: "text-muted-foreground hover:text-foreground"
+												}`}
+											>
+												{MCP_CLIENT_LABELS[client]}
+											</button>
+										),
+									)}
+								</div>
+
+								<div className="relative">
+									<div className="absolute right-3 top-3 z-10 flex gap-2">
+										{mcpClient === "cursor" ? (
+											<Button
+												asChild
+												variant="default"
+												size="sm"
+												className="h-7 text-xs shadow-sm"
+											>
+												<a href={cursorInstallUrl}>
+													{t("settings.apiKeys.addToCursor")}
+												</a>
+											</Button>
+										) : null}
 										<Button
 											variant="secondary"
 											size="sm"
-											className="h-7 text-xs bg-card/85 shadow-sm hover:bg-card border"
-											onClick={async () => {
-												await navigator.clipboard.writeText(mcpConfigSnippet);
-											}}
+											className="h-7 border bg-card/90 text-xs shadow-sm hover:bg-card"
+											onClick={() => void handleCopyConfig(mcpConfigSnippet)}
 										>
-											<Copy className="h-3 w-3 mr-1" />
-											Kopieren
+											{copiedConfig ? (
+												<Check className="mr-1 h-3 w-3 text-emerald-500" />
+											) : (
+												<Copy className="mr-1 h-3 w-3" />
+											)}
+											{copiedConfig
+												? t("common.copied")
+												: t("settings.apiKeys.copyConfig")}
 										</Button>
 									</div>
-									<pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs font-mono text-slate-200 border border-slate-900 leading-relaxed shadow-inner">
-										<code>
-											<span className="text-purple-400">{"{"}</span>
-											{"\n  "}
-											<span className="text-sky-300">"mcpServers"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-purple-400">{"{"}</span>
-											{"\n    "}
-											<span className="text-sky-300">"skedra"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-purple-400">{"{"}</span>
-											{"\n      "}
-											<span className="text-sky-300">"command"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-emerald-300">"node"</span>
-											<span className="text-slate-400">,</span>
-											{"\n      "}
-											<span className="text-sky-300">"args"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-purple-400">[</span>
-											<span className="text-emerald-300">
-												"apps/mcp/dist/index.js"
-											</span>
-											<span className="text-purple-400">]</span>
-											<span className="text-slate-400">,</span>
-											{"\n      "}
-											<span className="text-sky-300">"env"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-purple-400">{"{"}</span>
-											{"\n        "}
-											<span className="text-sky-300">"SKEDRA_API_URL"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-emerald-300">
-												"http://localhost:3001/api/v1"
-											</span>
-											<span className="text-slate-400">,</span>
-											{"\n        "}
-											<span className="text-sky-300">"SKEDRA_API_KEY"</span>
-											<span className="text-slate-400">:</span>{" "}
-											<span className="text-emerald-300">
-												"{createdKey ?? "sked_DEIN_KEY_HIER"}"
-											</span>
-											{"\n      "}
-											<span className="text-purple-400">{"}"}</span>
-											{"\n    "}
-											<span className="text-purple-400">{"}"}</span>
-											{"\n  "}
-											<span className="text-purple-400">{"}"}</span>
-											{"\n"}
-											<span className="text-purple-400">{"}"}</span>
-										</code>
+									<pre className="max-h-96 overflow-auto rounded-xl border border-slate-900 bg-slate-950 p-4 pr-28 text-xs font-mono leading-relaxed text-slate-200 shadow-inner">
+										<code>{mcpConfigSnippet}</code>
 									</pre>
 								</div>
 
@@ -1163,7 +1172,7 @@ export function ApiKeysSettingsPage() {
 				open={!!createdKey}
 				onOpenChange={(open) => !open && setCreatedKey(null)}
 			>
-				<DialogContent className="sm:max-w-md">
+				<DialogContent className="sm:max-w-2xl">
 					<DialogHeader>
 						<DialogTitle>
 							{t("settings.apiKeys.createdDialogTitle")}
@@ -1184,7 +1193,7 @@ export function ApiKeysSettingsPage() {
 								onClick={handleCopyKey}
 								className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
 							>
-								{copied ? (
+								{copiedKey ? (
 									<Check className="h-4 w-4 text-emerald-500" />
 								) : (
 									<Copy className="h-4 w-4" />
@@ -1192,12 +1201,12 @@ export function ApiKeysSettingsPage() {
 							</button>
 						</div>
 						<Button className="w-full" onClick={handleCopyKey}>
-							{copied ? (
+							{copiedKey ? (
 								<Check className="mr-2 h-4 w-4" />
 							) : (
 								<Copy className="mr-2 h-4 w-4" />
 							)}
-							{copied ? t("common.copied") : t("settings.apiKeys.copyKey")}
+							{copiedKey ? t("common.copied") : t("settings.apiKeys.copyKey")}
 						</Button>
 					</div>
 				</DialogContent>

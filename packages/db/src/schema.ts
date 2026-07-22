@@ -615,6 +615,84 @@ export const userApiKeys = pgTable(
 	],
 );
 
+// ===== Remote MCP OAuth 2.1 =====
+
+/** Dynamically registered public MCP clients (Codex, Claude, Cursor, OpenCode). */
+export const mcpOauthClients = pgTable(
+	"mcp_oauth_clients",
+	{
+		id: text("id").primaryKey(),
+		clientName: text("client_name").notNull(),
+		redirectUris: text("redirect_uris").notNull(),
+		clientUri: text("client_uri"),
+		tokenEndpointAuthMethod: text("token_endpoint_auth_method")
+			.notNull()
+			.default("none"),
+		registrationIpHash: text("registration_ip_hash"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("mcp_oauth_clients_registration_ip_idx").on(
+			table.registrationIpHash,
+			table.createdAt,
+		),
+	],
+);
+
+/** Single-use, PKCE-bound OAuth authorization codes. Only SHA-256 hashes persist. */
+export const mcpOauthAuthorizationCodes = pgTable(
+	"mcp_oauth_authorization_codes",
+	{
+		codeHash: text("code_hash").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		clientId: text("client_id")
+			.notNull()
+			.references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+		redirectUri: text("redirect_uri").notNull(),
+		resource: text("resource").notNull(),
+		codeChallenge: text("code_challenge").notNull(),
+		scopes: text("scopes").notNull(),
+		expiresAt: timestamp("expires_at").notNull(),
+		usedAt: timestamp("used_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("mcp_oauth_codes_client_idx").on(table.clientId),
+		index("mcp_oauth_codes_expiry_idx").on(table.expiresAt),
+	],
+);
+
+/** Rotating OAuth access/refresh tokens. Plaintext values are never stored. */
+export const mcpOauthTokens = pgTable(
+	"mcp_oauth_tokens",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		familyId: uuid("family_id").notNull(),
+		kind: text("kind").notNull(),
+		tokenHash: text("token_hash").notNull().unique(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		clientId: text("client_id")
+			.notNull()
+			.references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+		resource: text("resource").notNull(),
+		scopes: text("scopes").notNull(),
+		expiresAt: timestamp("expires_at").notNull(),
+		lastUsedAt: timestamp("last_used_at"),
+		revokedAt: timestamp("revoked_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("mcp_oauth_tokens_family_idx").on(table.familyId),
+		index("mcp_oauth_tokens_user_client_idx").on(table.userId, table.clientId),
+		index("mcp_oauth_tokens_expiry_idx").on(table.expiresAt),
+	],
+);
+
 export const boardIntegrationSyncs = pgTable(
 	"board_integration_syncs",
 	{

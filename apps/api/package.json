@@ -8,14 +8,17 @@
 		"dev": "tsx watch --env-file=../../.env src/index.ts",
 		"build": "tsc",
 		"test": "node --import tsx --test \"src/**/*.test.ts\"",
+		"test:mcp:e2e": "node --import tsx --test src/mcp.e2e.test.ts",
 		"start": "node dist/index.js"
 	},
 	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@aws-sdk/client-s3": "^3.1083.0",
 		"@hono/node-server": "^1.13.0",
 		"@hono/node-ws": "^1.1.0",
 		"@skedra/canvas-core": "workspace:*",
 		"@skedra/db": "workspace:*",
+		"@skedra/mcp": "workspace:*",
 		"@skedra/shared": "workspace:*",
 		"@trpc/server": "^11.0.0",
 		"better-auth": "^1.2.0",

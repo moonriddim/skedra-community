@@ -80,6 +80,8 @@ const envSchema = z
 		/** Öffentlicher Katalog (apps/libraries), z. B. http://localhost:5175 */
 		LIBRARIES_URL: z.string().default("http://localhost:5175"),
 		API_URL: z.string().default("http://localhost:3001"),
+		/** Interner REST-Endpunkt fuer Remote-MCP-Toolaufrufe; nie an Clients ausliefern. */
+		MCP_INTERNAL_API_URL: optionalUrl,
 		GOOGLE_CLIENT_ID: optionalString,
 		GOOGLE_CLIENT_SECRET: optionalString,
 		GITHUB_CLIENT_ID: optionalString,

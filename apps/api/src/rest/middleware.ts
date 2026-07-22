@@ -8,6 +8,7 @@ import { createMiddleware } from "hono/factory";
 import { type ApiKeyUser, authenticateApiKey } from "../lib/api-keys";
 import { userHasProductAccess } from "../lib/billing-entitlement";
 import { db } from "../lib/db";
+import { authenticateInternalMcpApiToken } from "../lib/mcp-internal-auth";
 
 export type ApiAuthVariables = {
 	apiUser: ApiKeyUser;
@@ -26,7 +27,9 @@ export const apiKeyAuth = createMiddleware<{ Variables: ApiAuthVariables }>(
 		}
 
 		const token = authHeader.slice("Bearer ".length).trim();
-		const auth = await authenticateApiKey(db, token);
+		const auth =
+			(await authenticateInternalMcpApiToken(db, token)) ??
+			(await authenticateApiKey(db, token));
 		if (!auth) {
 			return c.json({ error: "Ungueltiger oder abgelaufener API Key" }, 401);
 		}

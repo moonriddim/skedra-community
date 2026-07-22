@@ -4,6 +4,16 @@
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./client": {
+			"types": "./dist/client.d.ts",
+			"import": "./dist/client.js"
+		}
+	},
 	"bin": {
 		"skedra-mcp": "./dist/index.js"
 	},

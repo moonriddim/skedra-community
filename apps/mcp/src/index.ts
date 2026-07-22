@@ -214,555 +214,570 @@ async function pushBoardMutation(
 }
 
 /** Lazy init — der Key wird erst beim ersten Tool-Aufruf benoetigt, nicht beim Prozessstart. */
-let client: SkedraApiClient | null = null;
-
-function getClient() {
-	if (!client) {
-		client = createSkedraClientFromEnv();
-	}
-	return client;
-}
-
-const server = new McpServer(
-	{
-		name: "skedra",
-		version: "0.1.0",
-	},
-	{
-		instructions:
-			"Skedra Whiteboard MCP. Nutze list_boards zuerst und get_board_canvas_state, wenn du bestehende Inhalte lesen musst. Für Sequenzdiagramme nutze list_sequence_diagrams vor edit_sequence_diagram. Für Projektpläne nutze list_gantt_charts vor edit_gantt_chart, damit chartId, taskId und dependencyIndex stimmen. Für strukturierte Inhalte stehen create_kanban_board, create_sequence_diagram und create_gantt_chart bereit. Serverseitig verschlüsselte Boards funktionieren automatisch mit API-Key und Board-Berechtigung. Nur E2EE-Boards benötigen zusätzlich den e2eeKey aus Skedra. Alle Änderungen erscheinen sofort live.",
-	},
-);
-
-function textResult(data: unknown) {
-	return {
-		content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+export function createSkedraMcpServer(
+	clientFactory: () => SkedraApiClient = createSkedraClientFromEnv,
+) {
+	let client: SkedraApiClient | null = null;
+	const getClient = () => {
+		if (!client) client = clientFactory();
+		return client;
 	};
-}
 
-server.registerTool(
-	"list_boards",
-	{
-		title: "Boards auflisten",
-		description: "Listet alle aktiven Whiteboards des authentifizierten Users.",
-		inputSchema: z.object({}),
-	},
-	async () => textResult(await getClient().listBoards()),
-);
+	const server = new McpServer(
+		{
+			name: "skedra",
+			version: "0.1.0",
+		},
+		{
+			instructions:
+				"Skedra Whiteboard MCP. Nutze list_boards zuerst und get_board_canvas_state, wenn du bestehende Inhalte lesen musst. Für Sequenzdiagramme nutze list_sequence_diagrams vor edit_sequence_diagram. Für Projektpläne nutze list_gantt_charts vor edit_gantt_chart, damit chartId, taskId und dependencyIndex stimmen. Für strukturierte Inhalte stehen create_kanban_board, create_sequence_diagram und create_gantt_chart bereit. Serverseitig verschlüsselte Boards funktionieren automatisch mit API-Key und Board-Berechtigung. Nur E2EE-Boards benötigen zusätzlich den e2eeKey aus Skedra. Alle Änderungen erscheinen sofort live.",
+		},
+	);
 
-server.registerTool(
-	"list_archived_boards",
-	{
-		title: "Archivierte Boards",
-		description: "Listet Boards im Papierkorb.",
-		inputSchema: z.object({}),
-	},
-	async () => textResult(await getClient().listArchivedBoards()),
-);
+	function textResult(data: unknown) {
+		return {
+			content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+		};
+	}
 
-server.registerTool(
-	"create_board",
-	{
-		title: "Board erstellen",
-		description:
-			"Erstellt ein Skedra-Whiteboard. Serverseitige Verschlüsselung funktioniert automatisch; E2EE gibt zusätzlich einen clientseitigen Key zurück.",
-		inputSchema: z.object({
-			name: z.string().min(1).max(120).describe("Name des Boards"),
-			encryptionMode: z.enum(["server", "e2ee"]).default("server"),
-		}),
-	},
-	async ({ name, encryptionMode }) =>
-		textResult(await getClient().createBoard(name, encryptionMode)),
-);
+	server.registerTool(
+		"list_boards",
+		{
+			title: "Boards auflisten",
+			description:
+				"Listet alle aktiven Whiteboards des authentifizierten Users.",
+			inputSchema: z.object({}),
+		},
+		async () => textResult(await getClient().listBoards()),
+	);
 
-server.registerTool(
-	"get_board",
-	{
-		title: "Board abrufen",
-		description: "Gibt Metadaten eines Boards zurueck.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-		}),
-	},
-	async ({ boardId }) => textResult(await getClient().getBoard(boardId)),
-);
+	server.registerTool(
+		"list_archived_boards",
+		{
+			title: "Archivierte Boards",
+			description: "Listet Boards im Papierkorb.",
+			inputSchema: z.object({}),
+		},
+		async () => textResult(await getClient().listArchivedBoards()),
+	);
 
-server.registerTool(
-	"get_board_canvas_state",
-	{
-		title: "Canvas-Zustand lesen",
-		description:
-			"Liest Canvas-Elemente und Views. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z
-				.string()
-				.min(20)
-				.optional()
-				.describe(
-					"Board-Schlüssel aus #skedraKey der Board-URL oder aus create_board.",
-				),
-		}),
-	},
-	async ({ boardId, e2eeKey }) =>
-		textResult(await readBoardState(getClient(), boardId, e2eeKey)),
-);
+	server.registerTool(
+		"create_board",
+		{
+			title: "Board erstellen",
+			description:
+				"Erstellt ein Skedra-Whiteboard. Serverseitige Verschlüsselung funktioniert automatisch; E2EE gibt zusätzlich einen clientseitigen Key zurück.",
+			inputSchema: z.object({
+				name: z.string().min(1).max(120).describe("Name des Boards"),
+				encryptionMode: z.enum(["server", "e2ee"]).default("server"),
+			}),
+		},
+		async ({ name, encryptionMode }) =>
+			textResult(await getClient().createBoard(name, encryptionMode)),
+	);
 
-server.registerTool(
-	"update_board",
-	{
-		title: "Board umbenennen",
-		description: "Ändert den Namen eines Boards.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			name: z.string().min(1).max(120),
-		}),
-	},
-	async ({ boardId, name }) =>
-		textResult(await getClient().updateBoard(boardId, name)),
-);
+	server.registerTool(
+		"get_board",
+		{
+			title: "Board abrufen",
+			description: "Gibt Metadaten eines Boards zurueck.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+			}),
+		},
+		async ({ boardId }) => textResult(await getClient().getBoard(boardId)),
+	);
 
-server.registerTool(
-	"archive_board",
-	{
-		title: "Board archivieren",
-		description: "Verschiebt ein Board in den Papierkorb.",
-		inputSchema: z.object({ boardId: z.string().uuid() }),
-	},
-	async ({ boardId }) => textResult(await getClient().archiveBoard(boardId)),
-);
+	server.registerTool(
+		"get_board_canvas_state",
+		{
+			title: "Canvas-Zustand lesen",
+			description:
+				"Liest Canvas-Elemente und Views. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z
+					.string()
+					.min(20)
+					.optional()
+					.describe(
+						"Board-Schlüssel aus #skedraKey der Board-URL oder aus create_board.",
+					),
+			}),
+		},
+		async ({ boardId, e2eeKey }) =>
+			textResult(await readBoardState(getClient(), boardId, e2eeKey)),
+	);
 
-server.registerTool(
-	"restore_board",
-	{
-		title: "Board wiederherstellen",
-		description: "Stellt ein archiviertes Board wieder her.",
-		inputSchema: z.object({ boardId: z.string().uuid() }),
-	},
-	async ({ boardId }) => textResult(await getClient().restoreBoard(boardId)),
-);
+	server.registerTool(
+		"update_board",
+		{
+			title: "Board umbenennen",
+			description: "Ändert den Namen eines Boards.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				name: z.string().min(1).max(120),
+			}),
+		},
+		async ({ boardId, name }) =>
+			textResult(await getClient().updateBoard(boardId, name)),
+	);
 
-server.registerTool(
-	"permanent_delete_board",
-	{
-		title: "Board endgueltig loeschen",
-		description:
-			"Loescht ein archiviertes Board unwiderruflich (Papierkorb). Erfordert boards:delete Scope.",
-		inputSchema: z.object({ boardId: z.string().uuid() }),
-	},
-	async ({ boardId }) =>
-		textResult(await getClient().permanentDeleteBoard(boardId)),
-);
+	server.registerTool(
+		"archive_board",
+		{
+			title: "Board archivieren",
+			description: "Verschiebt ein Board in den Papierkorb.",
+			inputSchema: z.object({ boardId: z.string().uuid() }),
+		},
+		async ({ boardId }) => textResult(await getClient().archiveBoard(boardId)),
+	);
 
-// Realtime-E2EE-Schreibpfad: Elemente werden im MCP verschlüsselt (canvas-e2ee.ts)
-// und über POST /boards/:id/updates angehängt. Der Server sieht nur Ciphertext; die
-// Änderung erscheint dank Live-Bus sofort bei allen Web-Clients. Der Agent muss den
-// E2EE-Schlüssel (#skedraKey aus der Board-URL) übergeben; create_board liefert ihn.
+	server.registerTool(
+		"restore_board",
+		{
+			title: "Board wiederherstellen",
+			description: "Stellt ein archiviertes Board wieder her.",
+			inputSchema: z.object({ boardId: z.string().uuid() }),
+		},
+		async ({ boardId }) => textResult(await getClient().restoreBoard(boardId)),
+	);
 
-server.registerTool(
-	"add_board_elements",
-	{
-		title: "Canvas-Elemente hinzufügen",
-		description:
-			"Fügt Shapes und Texte hinzu. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-			elements: z.array(elementInputSchema).min(1).max(100),
-		}),
-	},
-	async ({ boardId, e2eeKey, elements }) => {
-		const built = elements.map((element) =>
-			createMcpCanvasElement(elementDefaults, element),
-		);
-		return textResult(
-			await pushBoardElements(getClient(), boardId, e2eeKey, built),
-		);
-	},
-);
+	server.registerTool(
+		"permanent_delete_board",
+		{
+			title: "Board endgueltig loeschen",
+			description:
+				"Loescht ein archiviertes Board unwiderruflich (Papierkorb). Erfordert boards:delete Scope.",
+			inputSchema: z.object({ boardId: z.string().uuid() }),
+		},
+		async ({ boardId }) =>
+			textResult(await getClient().permanentDeleteBoard(boardId)),
+	);
 
-server.registerTool(
-	"create_kanban_board",
-	{
-		title: "Kanban-Board erzeugen",
-		description:
-			"Erzeugt ein Kanban-Board. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-			x: z.number().optional(),
-			y: z.number().optional(),
-			lists: z
-				.array(
-					z.object({
-						name: z.string().min(1),
-						cards: z.array(z.string()).default([]),
-					}),
-				)
-				.min(1)
-				.max(12),
-		}),
-	},
-	async ({ boardId, e2eeKey, x, y, lists }) => {
-		const built = createKanbanBoardElements(elementDefaults, {
-			x: x ?? 100,
-			y: y ?? 100,
-			lists: lists.map((list) => ({ name: list.name, cards: list.cards })),
-			defaultCardTitle: "Neue Karte",
-		});
-		return textResult(
-			await pushBoardElements(getClient(), boardId, e2eeKey, built),
-		);
-	},
-);
+	// Realtime-E2EE-Schreibpfad: Elemente werden im MCP verschlüsselt (canvas-e2ee.ts)
+	// und über POST /boards/:id/updates angehängt. Der Server sieht nur Ciphertext; die
+	// Änderung erscheint dank Live-Bus sofort bei allen Web-Clients. Der Agent muss den
+	// E2EE-Schlüssel (#skedraKey aus der Board-URL) übergeben; create_board liefert ihn.
 
-server.registerTool(
-	"create_gantt_chart",
-	{
-		title: "Gantt-Diagramm erzeugen",
-		description:
-			"Erzeugt einen strukturierten Projektzeitplan mit Aufgaben, Fortschritt, Meilensteinen und Abhängigkeiten. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-			x: z.number().optional(),
-			y: z.number().optional(),
-			title: z.string().min(1).optional(),
-			startDate: z
-				.string()
-				.regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD erwartet")
-				.optional(),
-			dayCount: z.number().int().min(7).max(180).optional(),
-			tasks: z
-				.array(
-					z.object({
-						id: z.string().min(1),
-						title: z.string().min(1),
-						startDay: z.number().int().min(0),
-						durationDays: z.number().int().min(1),
-						progress: z.number().min(0).max(100).optional(),
-						status: z
-							.enum(["planned", "active", "completed", "delayed"])
-							.optional(),
-						owner: z.string().optional(),
-						color: z.string().optional(),
-						milestone: z.boolean().optional(),
-						critical: z.boolean().optional(),
-						group: z.boolean().optional(),
-						parentId: z.string().optional(),
-						collapsed: z.boolean().optional(),
-					}),
-				)
-				.min(1)
-				.max(40),
-			dependencies: z
-				.array(
-					z.object({
-						fromTaskId: z.string().min(1),
-						toTaskId: z.string().min(1),
-						type: z
-							.enum([
-								"finish-to-start",
-								"start-to-start",
-								"finish-to-finish",
-								"start-to-finish",
-							])
-							.optional(),
-					}),
-				)
-				.max(80)
-				.optional(),
-		}),
-	},
-	async ({
-		boardId,
-		e2eeKey,
-		x,
-		y,
-		title,
-		startDate,
-		dayCount,
-		tasks,
-		dependencies,
-	}) => {
-		const built = createGanttChartElements(elementDefaults, {
-			x: x ?? 100,
-			y: y ?? 100,
+	server.registerTool(
+		"add_board_elements",
+		{
+			title: "Canvas-Elemente hinzufügen",
+			description:
+				"Fügt Shapes und Texte hinzu. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				elements: z.array(elementInputSchema).min(1).max(100),
+			}),
+		},
+		async ({ boardId, e2eeKey, elements }) => {
+			const built = elements.map((element) =>
+				createMcpCanvasElement(elementDefaults, element),
+			);
+			return textResult(
+				await pushBoardElements(getClient(), boardId, e2eeKey, built),
+			);
+		},
+	);
+
+	server.registerTool(
+		"create_kanban_board",
+		{
+			title: "Kanban-Board erzeugen",
+			description:
+				"Erzeugt ein Kanban-Board. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				x: z.number().optional(),
+				y: z.number().optional(),
+				lists: z
+					.array(
+						z.object({
+							name: z.string().min(1),
+							cards: z.array(z.string()).default([]),
+						}),
+					)
+					.min(1)
+					.max(12),
+			}),
+		},
+		async ({ boardId, e2eeKey, x, y, lists }) => {
+			const built = createKanbanBoardElements(elementDefaults, {
+				x: x ?? 100,
+				y: y ?? 100,
+				lists: lists.map((list) => ({ name: list.name, cards: list.cards })),
+				defaultCardTitle: "Neue Karte",
+			});
+			return textResult(
+				await pushBoardElements(getClient(), boardId, e2eeKey, built),
+			);
+		},
+	);
+
+	server.registerTool(
+		"create_gantt_chart",
+		{
+			title: "Gantt-Diagramm erzeugen",
+			description:
+				"Erzeugt einen strukturierten Projektzeitplan mit Aufgaben, Fortschritt, Meilensteinen und Abhängigkeiten. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				x: z.number().optional(),
+				y: z.number().optional(),
+				title: z.string().min(1).optional(),
+				startDate: z
+					.string()
+					.regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD erwartet")
+					.optional(),
+				dayCount: z.number().int().min(7).max(180).optional(),
+				tasks: z
+					.array(
+						z.object({
+							id: z.string().min(1),
+							title: z.string().min(1),
+							startDay: z.number().int().min(0),
+							durationDays: z.number().int().min(1),
+							progress: z.number().min(0).max(100).optional(),
+							status: z
+								.enum(["planned", "active", "completed", "delayed"])
+								.optional(),
+							owner: z.string().optional(),
+							color: z.string().optional(),
+							milestone: z.boolean().optional(),
+							critical: z.boolean().optional(),
+							group: z.boolean().optional(),
+							parentId: z.string().optional(),
+							collapsed: z.boolean().optional(),
+						}),
+					)
+					.min(1)
+					.max(40),
+				dependencies: z
+					.array(
+						z.object({
+							fromTaskId: z.string().min(1),
+							toTaskId: z.string().min(1),
+							type: z
+								.enum([
+									"finish-to-start",
+									"start-to-start",
+									"finish-to-finish",
+									"start-to-finish",
+								])
+								.optional(),
+						}),
+					)
+					.max(80)
+					.optional(),
+			}),
+		},
+		async ({
+			boardId,
+			e2eeKey,
+			x,
+			y,
 			title,
 			startDate,
 			dayCount,
 			tasks,
 			dependencies,
-			fontFamily: "system-ui, sans-serif",
-		});
-		return textResult(
-			await pushBoardElements(getClient(), boardId, e2eeKey, built),
-		);
-	},
-);
-
-server.registerTool(
-	"list_gantt_charts",
-	{
-		title: "Projektpläne lesen",
-		description:
-			"Listet strukturierte Projektpläne mit chartId, Aufgaben, Meilensteinen und nummerierten Abhängigkeiten auf. Vor edit_gantt_chart verwenden.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-		}),
-	},
-	async ({ boardId, e2eeKey }) => {
-		const state = await readBoardState(getClient(), boardId, e2eeKey);
-		return textResult({
-			boardId,
-			charts: getGanttChartSummaries(state.elements).map((chart) => ({
-				...chart,
-				dependencies: chart.dependencies.map((dependency, index) => ({
-					index,
-					...dependency,
-				})),
-			})),
-		});
-	},
-);
-
-server.registerTool(
-	"edit_gantt_chart",
-	{
-		title: "Projektplan bearbeiten",
-		description:
-			"Bearbeitet einen vorhandenen Projektplan atomar. Unterstützt Plan-Metadaten, Aufgaben, Meilensteine, Gruppen, Verschiebungen, Fortschritt, Status und Abhängigkeiten. IDs vorher mit list_gantt_charts lesen.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-			chartId: z.string().min(1).max(160),
-			action: aiGanttChartEditActionSchema.describe(
-				"Semantische Einzelaktion für den Projektplan.",
-			),
-		}),
-	},
-	async ({ boardId, e2eeKey, chartId, action }) => {
-		const mutationState = await loadBoardMutationState(
-			getClient(),
-			boardId,
-			e2eeKey,
-		);
-		const planned = planGanttChartEdit({
-			defaults: elementDefaults,
-			elements: mutationState.state.elements,
-			chartId,
-			action,
-			buildOptions: {
+		}) => {
+			const built = createGanttChartElements(elementDefaults, {
+				x: x ?? 100,
+				y: y ?? 100,
+				title,
+				startDate,
+				dayCount,
+				tasks,
+				dependencies,
 				fontFamily: "system-ui, sans-serif",
-				today: new Date().toISOString().slice(0, 10),
-			},
-		});
-		if (!planned) {
-			throw new Error(
-				"Projektplan-Aktion konnte nicht angewendet werden. Prüfe chartId, taskId und dependencyIndex mit list_gantt_charts.",
+			});
+			return textResult(
+				await pushBoardElements(getClient(), boardId, e2eeKey, built),
 			);
-		}
-		const pushed = await pushBoardMutation(
-			getClient(),
-			boardId,
-			e2eeKey,
-			mutationState.updates,
-			mutationState.board.encryptionMode,
-			planned.plan,
-		);
-		return textResult({
-			...pushed,
-			operation: action.operation,
-			affectedTaskId: planned.affectedTaskId,
-			chart: {
-				id: chartId,
-				...planned.document,
-				appearance: undefined,
-				dependencies: planned.document.dependencies.map(
-					(dependency, index) => ({ index, ...dependency }),
+		},
+	);
+
+	server.registerTool(
+		"list_gantt_charts",
+		{
+			title: "Projektpläne lesen",
+			description:
+				"Listet strukturierte Projektpläne mit chartId, Aufgaben, Meilensteinen und nummerierten Abhängigkeiten auf. Vor edit_gantt_chart verwenden.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+			}),
+		},
+		async ({ boardId, e2eeKey }) => {
+			const state = await readBoardState(getClient(), boardId, e2eeKey);
+			return textResult({
+				boardId,
+				charts: getGanttChartSummaries(state.elements).map((chart) => ({
+					...chart,
+					dependencies: chart.dependencies.map((dependency, index) => ({
+						index,
+						...dependency,
+					})),
+				})),
+			});
+		},
+	);
+
+	server.registerTool(
+		"edit_gantt_chart",
+		{
+			title: "Projektplan bearbeiten",
+			description:
+				"Bearbeitet einen vorhandenen Projektplan atomar. Unterstützt Plan-Metadaten, Aufgaben, Meilensteine, Gruppen, Verschiebungen, Fortschritt, Status und Abhängigkeiten. IDs vorher mit list_gantt_charts lesen.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				chartId: z.string().min(1).max(160),
+				action: aiGanttChartEditActionSchema.describe(
+					"Semantische Einzelaktion für den Projektplan.",
 				),
-			},
-		});
-	},
-);
-
-server.registerTool(
-	"create_sequence_diagram",
-	{
-		title: "Sequenzdiagramm erzeugen",
-		description:
-			"Erzeugt ein strukturiertes, im Sequenzdiagramm-Editor weiterbearbeitbares Diagramm aus Mermaid-Sequenzsyntax. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-			x: z.number().optional(),
-			y: z.number().optional(),
-			source: z
-				.string()
-				.min(20)
-				.max(12_000)
-				.refine(
-					(value) =>
-						/^\s*(?:```(?:mermaid)?\s*)?sequenceDiagram\b/iu.test(value),
-					"Mermaid-Sequenzsyntax muss mit sequenceDiagram beginnen.",
-				),
-		}),
-	},
-	async ({ boardId, e2eeKey, x, y, source }) => {
-		const built = createSequenceDiagramElements({
-			source,
-			x: x ?? 100,
-			y: y ?? 100,
-			defaults: elementDefaults,
-			appearance: { fontFamily: "system-ui, sans-serif" },
-		});
-		return textResult(
-			await pushBoardElements(getClient(), boardId, e2eeKey, built),
-		);
-	},
-);
-
-server.registerTool(
-	"list_sequence_diagrams",
-	{
-		title: "Sequenzdiagramme lesen",
-		description:
-			"Listet strukturierte Sequenzdiagramme mit diagramId, Teilnehmer-IDs, Nachrichten und eventIndex auf. Vor edit_sequence_diagram verwenden.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-		}),
-	},
-	async ({ boardId, e2eeKey }) => {
-		const state = await readBoardState(getClient(), boardId, e2eeKey);
-		return textResult({
-			boardId,
-			diagrams: getSequenceDiagramSummaries(state.elements),
-		});
-	},
-);
-
-server.registerTool(
-	"edit_sequence_diagram",
-	{
-		title: "Sequenzdiagramm bearbeiten",
-		description:
-			"Bearbeitet ein vorhandenes strukturiertes Sequenzdiagramm atomar. Unterstützt Teilnehmer/Nachrichten hinzufügen, Nachrichten ändern/löschen, Aktivierung sowie Bedingung oder Wiederholung. IDs und eventIndex vorher mit list_sequence_diagrams lesen.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			e2eeKey: z.string().min(20).optional(),
-			diagramId: z.string().min(1).max(160),
-			action: aiSequenceDiagramEditActionSchema.describe(
-				"Semantische Einzelaktion für das Sequenzdiagramm.",
-			),
-		}),
-	},
-	async ({ boardId, e2eeKey, diagramId, action }) => {
-		const mutationState = await loadBoardMutationState(
-			getClient(),
-			boardId,
-			e2eeKey,
-		);
-		const elements = new Map(
-			mutationState.state.elements.map((element) => [element.id, element]),
-		);
-		const plan = planSequenceDiagramEdit({
-			elements,
-			diagramId,
-			action,
-			defaults: elementDefaults,
-			appearance: { fontFamily: "system-ui, sans-serif" },
-		});
-		if (!plan) {
-			throw new Error(
-				"Sequenzdiagramm-Aktion konnte nicht angewendet werden. Prüfe diagramId, Teilnehmer-IDs und eventIndex mit list_sequence_diagrams.",
+			}),
+		},
+		async ({ boardId, e2eeKey, chartId, action }) => {
+			const mutationState = await loadBoardMutationState(
+				getClient(),
+				boardId,
+				e2eeKey,
 			);
-		}
-		const pushed = await pushBoardMutation(
-			getClient(),
-			boardId,
-			e2eeKey,
-			mutationState.updates,
-			mutationState.board.encryptionMode,
-			plan,
-		);
-		const nextElements = applyCanvasMutationPlan(
-			mutationState.state.elements,
-			plan,
-		);
-		return textResult({
-			...pushed,
-			operation: action.operation,
-			diagram: getSequenceDiagramSummaries(nextElements).find(
-				(diagram) => diagram.id === diagramId,
-			),
-		});
-	},
-);
+			const planned = planGanttChartEdit({
+				defaults: elementDefaults,
+				elements: mutationState.state.elements,
+				chartId,
+				action,
+				buildOptions: {
+					fontFamily: "system-ui, sans-serif",
+					today: new Date().toISOString().slice(0, 10),
+				},
+			});
+			if (!planned) {
+				throw new Error(
+					"Projektplan-Aktion konnte nicht angewendet werden. Prüfe chartId, taskId und dependencyIndex mit list_gantt_charts.",
+				);
+			}
+			const pushed = await pushBoardMutation(
+				getClient(),
+				boardId,
+				e2eeKey,
+				mutationState.updates,
+				mutationState.board.encryptionMode,
+				planned.plan,
+			);
+			return textResult({
+				...pushed,
+				operation: action.operation,
+				affectedTaskId: planned.affectedTaskId,
+				chart: {
+					id: chartId,
+					...planned.document,
+					appearance: undefined,
+					dependencies: planned.document.dependencies.map(
+						(dependency, index) => ({ index, ...dependency }),
+					),
+				},
+			});
+		},
+	);
 
-server.registerTool(
-	"list_board_team_roles",
-	{
-		title: "Board-Team-Rollen",
-		description:
-			"Listet Team-Rollen, die fuer direkte Board-Einladungen verwendet werden koennen.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-		}),
-	},
-	async ({ boardId }) =>
-		textResult(await getClient().listBoardTeamRoles(boardId)),
-);
+	server.registerTool(
+		"create_sequence_diagram",
+		{
+			title: "Sequenzdiagramm erzeugen",
+			description:
+				"Erzeugt ein strukturiertes, im Sequenzdiagramm-Editor weiterbearbeitbares Diagramm aus Mermaid-Sequenzsyntax. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				x: z.number().optional(),
+				y: z.number().optional(),
+				source: z
+					.string()
+					.min(20)
+					.max(12_000)
+					.refine(
+						(value) =>
+							/^\s*(?:```(?:mermaid)?\s*)?sequenceDiagram\b/iu.test(value),
+						"Mermaid-Sequenzsyntax muss mit sequenceDiagram beginnen.",
+					),
+			}),
+		},
+		async ({ boardId, e2eeKey, x, y, source }) => {
+			const built = createSequenceDiagramElements({
+				source,
+				x: x ?? 100,
+				y: y ?? 100,
+				defaults: elementDefaults,
+				appearance: { fontFamily: "system-ui, sans-serif" },
+			});
+			return textResult(
+				await pushBoardElements(getClient(), boardId, e2eeKey, built),
+			);
+		},
+	);
 
-server.registerTool(
-	"invite_board_member",
-	{
-		title: "Mitglied einladen",
-		description:
-			"Laedt einen registrierten User per E-Mail zum Board ein. Nutze vorher list_board_team_roles und uebergib die gewuenschte roleId.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			email: z.string().email(),
-			roleId: z.string().uuid(),
-		}),
-	},
-	async ({ boardId, email, roleId }) =>
-		textResult(await getClient().inviteMember(boardId, email, roleId)),
-);
+	server.registerTool(
+		"list_sequence_diagrams",
+		{
+			title: "Sequenzdiagramme lesen",
+			description:
+				"Listet strukturierte Sequenzdiagramme mit diagramId, Teilnehmer-IDs, Nachrichten und eventIndex auf. Vor edit_sequence_diagram verwenden.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+			}),
+		},
+		async ({ boardId, e2eeKey }) => {
+			const state = await readBoardState(getClient(), boardId, e2eeKey);
+			return textResult({
+				boardId,
+				diagrams: getSequenceDiagramSummaries(state.elements),
+			});
+		},
+	);
 
-server.registerTool(
-	"list_activity",
-	{
-		title: "Aktivitaeten",
-		description: "Letzte Aktivitaeten ueber alle Boards.",
-		inputSchema: z.object({
-			limit: z.number().min(1).max(100).optional(),
-		}),
-	},
-	async ({ limit }) => textResult(await getClient().listActivity(limit ?? 30)),
-);
+	server.registerTool(
+		"edit_sequence_diagram",
+		{
+			title: "Sequenzdiagramm bearbeiten",
+			description:
+				"Bearbeitet ein vorhandenes strukturiertes Sequenzdiagramm atomar. Unterstützt Teilnehmer/Nachrichten hinzufügen, Nachrichten ändern/löschen, Aktivierung sowie Bedingung oder Wiederholung. IDs und eventIndex vorher mit list_sequence_diagrams lesen.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				e2eeKey: z.string().min(20).optional(),
+				diagramId: z.string().min(1).max(160),
+				action: aiSequenceDiagramEditActionSchema.describe(
+					"Semantische Einzelaktion für das Sequenzdiagramm.",
+				),
+			}),
+		},
+		async ({ boardId, e2eeKey, diagramId, action }) => {
+			const mutationState = await loadBoardMutationState(
+				getClient(),
+				boardId,
+				e2eeKey,
+			);
+			const elements = new Map(
+				mutationState.state.elements.map((element) => [element.id, element]),
+			);
+			const plan = planSequenceDiagramEdit({
+				elements,
+				diagramId,
+				action,
+				defaults: elementDefaults,
+				appearance: { fontFamily: "system-ui, sans-serif" },
+			});
+			if (!plan) {
+				throw new Error(
+					"Sequenzdiagramm-Aktion konnte nicht angewendet werden. Prüfe diagramId, Teilnehmer-IDs und eventIndex mit list_sequence_diagrams.",
+				);
+			}
+			const pushed = await pushBoardMutation(
+				getClient(),
+				boardId,
+				e2eeKey,
+				mutationState.updates,
+				mutationState.board.encryptionMode,
+				plan,
+			);
+			const nextElements = applyCanvasMutationPlan(
+				mutationState.state.elements,
+				plan,
+			);
+			return textResult({
+				...pushed,
+				operation: action.operation,
+				diagram: getSequenceDiagramSummaries(nextElements).find(
+					(diagram) => diagram.id === diagramId,
+				),
+			});
+		},
+	);
 
-server.registerTool(
-	"list_board_activity",
-	{
-		title: "Board-Aktivitaeten",
-		description: "Aktivitaeten fuer ein bestimmtes Board.",
-		inputSchema: z.object({
-			boardId: z.string().uuid(),
-			limit: z.number().min(1).max(100).optional(),
-		}),
-	},
-	async ({ boardId, limit }) =>
-		textResult(await getClient().listBoardActivity(boardId, limit ?? 50)),
-);
+	server.registerTool(
+		"list_board_team_roles",
+		{
+			title: "Board-Team-Rollen",
+			description:
+				"Listet Team-Rollen, die fuer direkte Board-Einladungen verwendet werden koennen.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+			}),
+		},
+		async ({ boardId }) =>
+			textResult(await getClient().listBoardTeamRoles(boardId)),
+	);
+
+	server.registerTool(
+		"invite_board_member",
+		{
+			title: "Mitglied einladen",
+			description:
+				"Laedt einen registrierten User per E-Mail zum Board ein. Nutze vorher list_board_team_roles und uebergib die gewuenschte roleId.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				email: z.string().email(),
+				roleId: z.string().uuid(),
+			}),
+		},
+		async ({ boardId, email, roleId }) =>
+			textResult(await getClient().inviteMember(boardId, email, roleId)),
+	);
+
+	server.registerTool(
+		"list_activity",
+		{
+			title: "Aktivitaeten",
+			description: "Letzte Aktivitaeten ueber alle Boards.",
+			inputSchema: z.object({
+				limit: z.number().min(1).max(100).optional(),
+			}),
+		},
+		async ({ limit }) =>
+			textResult(await getClient().listActivity(limit ?? 30)),
+	);
+
+	server.registerTool(
+		"list_board_activity",
+		{
+			title: "Board-Aktivitaeten",
+			description: "Aktivitaeten fuer ein bestimmtes Board.",
+			inputSchema: z.object({
+				boardId: z.string().uuid(),
+				limit: z.number().min(1).max(100).optional(),
+			}),
+		},
+		async ({ boardId, limit }) =>
+			textResult(await getClient().listBoardActivity(boardId, limit ?? 50)),
+	);
+
+	return server;
+}
 
 async function main() {
+	const server = createSkedraMcpServer();
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 }
 
-main().catch((error) => {
-	console.error("[skedra-mcp]", error);
-	process.exit(1);
-});
+const normalizedEntryPath = process.argv[1]?.replaceAll("\\", "/");
+const isDirectRun =
+	normalizedEntryPath?.endsWith("/apps/mcp/src/index.ts") === true ||
+	normalizedEntryPath?.endsWith("/apps/mcp/dist/index.js") === true ||
+	normalizedEntryPath?.includes("/node_modules/@skedra/mcp/dist/index.js") ===
+		true;
+
+if (isDirectRun) {
+	main().catch((error) => {
+		console.error("[skedra-mcp]", error);
+		process.exit(1);
+	});
+}

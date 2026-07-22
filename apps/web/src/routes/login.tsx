@@ -2,6 +2,7 @@ import { AuthFormLayout } from "@/components/auth/auth-form-layout";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
 import { authClient } from "@/lib/auth-client";
 import {
 	readE2eeKeyFromHash,
@@ -10,7 +11,7 @@ import {
 } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 
 export function LoginPage() {
@@ -27,7 +28,22 @@ export function LoginPage() {
 		retry: false,
 	});
 	const saveIdentity = trpc.userE2ee.saveIdentity.useMutation();
-	const baseRedirectTo = searchParams.get("redirect") || "/library";
+	const requestedRedirect = searchParams.get("redirect") || "/library";
+	const baseRedirectTo = (() => {
+		try {
+			const target = new URL(requestedRedirect, window.location.origin);
+			const allowedOrigins = new Set([
+				window.location.origin,
+				new URL(getAbsoluteApiBaseUrl()).origin,
+			]);
+			if (!allowedOrigins.has(target.origin)) return "/library";
+			return target.origin === window.location.origin
+				? `${target.pathname}${target.search}${target.hash}`
+				: target.toString();
+		} catch {
+			return "/library";
+		}
+	})();
 	const e2eeKeyFromHash = readE2eeKeyFromHash();
 	const redirectTo = e2eeKeyFromHash
 		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)
@@ -37,10 +53,27 @@ export function LoginPage() {
 		(searchParams.get("oauthError") || searchParams.get("error")
 			? t("auth.social.failed")
 			: "");
+	const externalRedirect = (() => {
+		try {
+			return (
+				new URL(redirectTo, window.location.origin).origin !==
+				window.location.origin
+			);
+		} catch {
+			return false;
+		}
+	})();
 
-	if (!isPending && session?.user) {
+	useEffect(() => {
+		if (!isPending && session?.user && externalRedirect) {
+			window.location.replace(redirectTo);
+		}
+	}, [externalRedirect, isPending, redirectTo, session?.user]);
+
+	if (!isPending && session?.user && !externalRedirect) {
 		return <Navigate to={redirectTo} replace />;
 	}
+	if (!isPending && session?.user) return null;
 
 	const handleSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
