@@ -8,7 +8,10 @@ import { env } from "./env";
 import { auth } from "./lib/auth";
 import { userHasProductAccess } from "./lib/billing-entitlement";
 import { db } from "./lib/db";
-import { mcpConsentHtml } from "./lib/mcp-consent";
+import {
+	mcpConsentContentSecurityPolicy,
+	mcpConsentHtml,
+} from "./lib/mcp-consent";
 import { createInternalMcpApiToken } from "./lib/mcp-internal-auth";
 import {
 	MCP_ALLOWED_RESOURCES,
@@ -240,7 +243,7 @@ mcpApp.get("/api/oauth/authorize", async (c) => {
 		const consentToken = createMcpConsentToken(request, session.user.id);
 		c.header(
 			"Content-Security-Policy",
-			"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+			mcpConsentContentSecurityPolicy(request.redirectUri),
 		);
 		c.header("Referrer-Policy", "no-referrer");
 		c.header("X-Frame-Options", "DENY");

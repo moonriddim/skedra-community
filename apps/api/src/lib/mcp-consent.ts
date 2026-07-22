@@ -9,6 +9,13 @@ function escapeHtml(value: string) {
 		.replaceAll("'", "&#039;");
 }
 
+export function mcpConsentContentSecurityPolicy(redirectUri: string) {
+	const redirect = new URL(redirectUri);
+	const redirectSource =
+		redirect.origin === "null" ? redirect.protocol : redirect.origin;
+	return `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${redirectSource}; base-uri 'none'; frame-ancestors 'none'`;
+}
+
 export function mcpConsentHtml(input: {
 	clientName: string;
 	userName: string;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mcpConsentHtml } from "./mcp-consent";
+import { mcpConsentContentSecurityPolicy, mcpConsentHtml } from "./mcp-consent";
 
 test("consent identifies the registered redirect host and escapes client data", () => {
 	const html = mcpConsentHtml({
@@ -28,4 +28,13 @@ test("consent warns about local callback clients", () => {
 
 	assert.match(html, /127\.0\.0\.1:49152/u);
 	assert.match(html, /Lokale Anwendung/u);
+});
+
+test("consent CSP permits only the registered OAuth callback target", () => {
+	const policy = mcpConsentContentSecurityPolicy(
+		"http://127.0.0.1:49152/callback/codex",
+	);
+
+	assert.match(policy, /form-action 'self' http:\/\/127\.0\.0\.1:49152/u);
+	assert.doesNotMatch(policy, /https:/u);
 });
