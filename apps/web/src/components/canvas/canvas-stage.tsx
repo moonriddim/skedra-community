@@ -20,6 +20,8 @@ import type {
 } from "@skedra/canvas-core";
 import type { ImageCropRect } from "@skedra/canvas-core";
 import {
+	CanvasEditorEllipseTrimOverlay,
+	type CanvasEditorEllipseTrimPreview,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
 	CanvasEditorSavedViewDraft,
@@ -66,6 +68,11 @@ interface CanvasStageProps {
 	transformOrigin?: { x: number; y: number } | null;
 	laserTrails?: LaserTrail[];
 	croppingElement?: CanvasElement | null;
+	ellipseTrimPreview?:
+		| (CanvasEditorEllipseTrimPreview & {
+				instruction: string;
+		  })
+		| null;
 	resolveAssetUrl?: (src: string) => string;
 	onApplyImageCrop?: (crop: ImageCropRect) => void;
 	onCancelImageCrop?: () => void;
@@ -136,6 +143,7 @@ export function CanvasStage({
 	transformOrigin = null,
 	laserTrails = [],
 	croppingElement = null,
+	ellipseTrimPreview = null,
 	resolveAssetUrl,
 	onApplyImageCrop,
 	onCancelImageCrop,
@@ -220,6 +228,13 @@ export function CanvasStage({
 				svgSize={svgSize}
 				resolveAssetUrl={resolveAssetUrl}
 			/>
+			{ellipseTrimPreview && (
+				<CanvasEditorEllipseTrimOverlay
+					preview={ellipseTrimPreview}
+					zoom={viewport.zoom}
+					instruction={ellipseTrimPreview.instruction}
+				/>
+			)}
 			<CanvasSearchOverlay
 				matches={searchMatches}
 				activeIndex={searchActiveIndex}
@@ -239,7 +254,7 @@ export function CanvasStage({
 					onResizeStart={onViewResizeStart}
 				/>
 			)}
-			{!textEditorOpen && !croppingElement && (
+			{!textEditorOpen && !croppingElement && !ellipseTrimPreview && (
 				<CanvasEditorSelectionOverlay
 					selected={selectedElements}
 					zoom={viewport.zoom}

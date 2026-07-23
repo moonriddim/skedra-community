@@ -81,6 +81,10 @@ export interface CanvasElement {
 	roughness?: number;
 	roughFillStyle?: RoughFillStyle;
 	roughFillScale?: number;
+	/** Clockwise ellipse-arc start angle in degrees. Both arc angles are required. */
+	arcStartAngle?: number;
+	/** Clockwise ellipse-arc end angle in degrees. Both arc angles are required. */
+	arcEndAngle?: number;
 	cloudArcRadius?: number;
 	pyramidSections?: number;
 	polygonSides?: number;

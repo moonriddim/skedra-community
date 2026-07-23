@@ -2,6 +2,8 @@ import {
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getElementPolygonPointsAttribute,
+	getEllipseArcAngles,
+	getEllipseArcSvgPath,
 	getLinePath,
 	getTrianglePointsAttribute,
 	isPolygonVariant,
@@ -110,8 +112,19 @@ function GeometryExactStroke({
 					{...strokeProps}
 				/>
 			);
-		case "ellipse":
-			return (
+		case "ellipse": {
+			const ellipseArc = getEllipseArcAngles(el);
+			return ellipseArc ? (
+				<path
+					d={getEllipseArcSvgPath(
+						el,
+						ellipseArc.startAngle,
+						ellipseArc.endAngle,
+					)}
+					strokeLinecap="round"
+					{...strokeProps}
+				/>
+			) : (
 				<ellipse
 					cx={el.x + w / 2}
 					cy={el.y + h / 2}
@@ -120,6 +133,7 @@ function GeometryExactStroke({
 					{...strokeProps}
 				/>
 			);
+		}
 		case "diamond":
 			return (
 				<polygon

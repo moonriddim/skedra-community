@@ -77,6 +77,8 @@ export interface CanvasEditorContextMenuProps {
 	onRemoveFromFrame: () => void;
 	onGroup: () => void;
 	onUngroup: () => void;
+	canTrimEllipse?: boolean;
+	onTrimEllipse?: () => void;
 	snapToObjects: boolean;
 	onToggleSnap: () => void;
 	showSnapPoints: boolean;
@@ -153,6 +155,8 @@ export function CanvasEditorContextMenu({
 	onRemoveFromFrame,
 	onGroup,
 	onUngroup,
+	canTrimEllipse = false,
+	onTrimEllipse,
 	snapToObjects,
 	onToggleSnap,
 	showSnapPoints,
@@ -390,6 +394,21 @@ export function CanvasEditorContextMenu({
 				action: onToggleLock,
 				disabled: readOnly,
 			};
+	const geometryGroup: ContextMenuItem[] =
+		canTrimEllipse && onTrimEllipse
+			? [
+					{
+						id: "trim-ellipse",
+						label: t(
+							"canvas.contextMenu.trimEllipse",
+							"Cut circle/ellipse here",
+						),
+						icon: icon(<Scissors />),
+						action: onTrimEllipse,
+						disabled: mutatingDisabled,
+					},
+				]
+			: [];
 	const frameGroup: ContextMenuItem[] = [
 		isInFrame
 			? {
@@ -477,6 +496,7 @@ export function CanvasEditorContextMenu({
 		hasSelection
 			? [
 					clipboardGroup,
+					geometryGroup,
 					frameGroup,
 					groupGroup,
 					formatGroup,

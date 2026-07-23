@@ -1,3 +1,7 @@
+import {
+	inverseTransformCanvasElementPoint,
+	transformCanvasElementPoint,
+} from "./geometry-bbox";
 import type { CanvasElement, ElementType } from "./types";
 
 export type CanvasGeometryElementType = Extract<
@@ -43,6 +47,160 @@ export interface PyramidDividerSegment {
 	y1: number;
 	x2: number;
 	y2: number;
+}
+
+export interface EllipseArcAngles {
+	startAngle: number;
+	endAngle: number;
+	sweepAngle: number;
+}
+
+const FULL_TURN_DEGREES = 360;
+export const MIN_ELLIPSE_ARC_SWEEP_DEGREES = 0.1;
+
+export function normalizeEllipseAngle(angle: number): number {
+	const normalized =
+		((angle % FULL_TURN_DEGREES) + FULL_TURN_DEGREES) % FULL_TURN_DEGREES;
+	return Math.abs(normalized) < Number.EPSILON ? 0 : normalized;
+}
+
+export function getEllipseArcSweep(
+	startAngle: number,
+	endAngle: number,
+): number {
+	return normalizeEllipseAngle(endAngle - startAngle);
+}
+
+export function getEllipseArcAngles(
+	element: Pick<CanvasElement, "type" | "arcStartAngle" | "arcEndAngle">,
+): EllipseArcAngles | null {
+	if (
+		element.type !== "ellipse" ||
+		!Number.isFinite(element.arcStartAngle) ||
+		!Number.isFinite(element.arcEndAngle)
+	) {
+		return null;
+	}
+	const startAngle = normalizeEllipseAngle(element.arcStartAngle ?? 0);
+	const endAngle = normalizeEllipseAngle(element.arcEndAngle ?? 0);
+	const sweepAngle = getEllipseArcSweep(startAngle, endAngle);
+	if (sweepAngle < MIN_ELLIPSE_ARC_SWEEP_DEGREES) return null;
+	return {
+		startAngle,
+		endAngle,
+		sweepAngle,
+	};
+}
+
+export function isEllipseArc(
+	element: Pick<CanvasElement, "type" | "arcStartAngle" | "arcEndAngle">,
+): boolean {
+	return getEllipseArcAngles(element) !== null;
+}
+
+export function getEllipsePointAtAngle(
+	element: Pick<
+		CanvasElement,
+		"x" | "y" | "width" | "height" | "rotation" | "flipX" | "flipY"
+	>,
+	angle: number,
+	transformed = false,
+): { x: number; y: number } {
+	const radians = (normalizeEllipseAngle(angle) * Math.PI) / 180;
+	const point = {
+		x: element.x + element.width / 2 + (element.width / 2) * Math.cos(radians),
+		y:
+			element.y + element.height / 2 + (element.height / 2) * Math.sin(radians),
+	};
+	return transformed
+		? transformCanvasElementPoint(element as CanvasElement, point)
+		: point;
+}
+
+/** Projects an arbitrary rendered point onto the ellipse's parametric angle. */
+export function getEllipseAngleAtPoint(
+	element: Pick<
+		CanvasElement,
+		"x" | "y" | "width" | "height" | "rotation" | "flipX" | "flipY"
+	>,
+	point: { x: number; y: number },
+): number {
+	const local = inverseTransformCanvasElementPoint(
+		element as CanvasElement,
+		point,
+	);
+	const centerX = element.x + element.width / 2;
+	const centerY = element.y + element.height / 2;
+	const radiusX = Math.max(Math.abs(element.width) / 2, 0.001);
+	const radiusY = Math.max(Math.abs(element.height) / 2, 0.001);
+	return normalizeEllipseAngle(
+		(Math.atan2((local.y - centerY) / radiusY, (local.x - centerX) / radiusX) *
+			180) /
+			Math.PI,
+	);
+}
+
+export function getEllipseArcSvgPath(
+	element: Pick<CanvasElement, "x" | "y" | "width" | "height">,
+	startAngle: number,
+	endAngle: number,
+): string {
+	const sweepAngle = getEllipseArcSweep(startAngle, endAngle);
+	if (sweepAngle < MIN_ELLIPSE_ARC_SWEEP_DEGREES) return "";
+	const start = getEllipsePointAtAngle(
+		{
+			...element,
+			rotation: 0,
+			flipX: false,
+			flipY: false,
+		},
+		startAngle,
+	);
+	const end = getEllipsePointAtAngle(
+		{
+			...element,
+			rotation: 0,
+			flipX: false,
+			flipY: false,
+		},
+		endAngle,
+	);
+	const radiusX = Math.max(1, Math.abs(element.width) / 2);
+	const radiusY = Math.max(1, Math.abs(element.height) / 2);
+	return [
+		`M ${start.x} ${start.y}`,
+		`A ${radiusX} ${radiusY} 0 ${sweepAngle > 180 ? 1 : 0} 1 ${end.x} ${end.y}`,
+	].join(" ");
+}
+
+/**
+ * Chooses the short arc by default. Holding the modifier lets callers retain
+ * the complementary long arc without changing the two picked cut points.
+ */
+export function getRetainedEllipseArcAngles(
+	firstAngle: number,
+	secondAngle: number,
+	preferLongArc = false,
+): EllipseArcAngles | null {
+	const first = normalizeEllipseAngle(firstAngle);
+	const second = normalizeEllipseAngle(secondAngle);
+	const clockwiseSweep = getEllipseArcSweep(first, second);
+	if (
+		clockwiseSweep < MIN_ELLIPSE_ARC_SWEEP_DEGREES ||
+		FULL_TURN_DEGREES - clockwiseSweep < MIN_ELLIPSE_ARC_SWEEP_DEGREES
+	) {
+		return null;
+	}
+	const keepClockwise = preferLongArc
+		? clockwiseSweep >= 180
+		: clockwiseSweep <= 180;
+	const startAngle = keepClockwise ? first : second;
+	const endAngle = keepClockwise ? second : first;
+	return {
+		startAngle,
+		endAngle,
+		sweepAngle: getEllipseArcSweep(startAngle, endAngle),
+	};
 }
 
 export function isCanvasGeometryElementType(

@@ -2540,6 +2540,7 @@ export const deMessages = {
 		},
 		contextMenu: {
 			snapSettings: "Objektfang",
+			trimEllipse: "Kreis/Ellipse hier schneiden",
 			cut: "Ausschneiden",
 			copy: "Kopieren",
 			paste: "Einfügen",
@@ -2573,6 +2574,10 @@ export const deMessages = {
 			gridSnap: "Am Raster einrasten",
 			gridSnapEnabled: "✓ Am Raster einrasten",
 			gridSpacing: "Rasterabstand",
+		},
+		ellipseTrim: {
+			chooseSecondPoint:
+				"Zweiten Schnittpunkt wählen · Umschalt = langer Bogen · Esc = Abbrechen",
 		},
 		properties: {
 			listTitle: "Listen-Titel",

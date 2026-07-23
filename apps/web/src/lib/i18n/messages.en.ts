@@ -2508,6 +2508,7 @@ export const enMessages = {
 		},
 		contextMenu: {
 			snapSettings: "Object snap",
+			trimEllipse: "Cut circle/ellipse here",
 			cut: "Cut",
 			copy: "Copy",
 			paste: "Paste",
@@ -2541,6 +2542,10 @@ export const enMessages = {
 			gridSnap: "Snap to grid",
 			gridSnapEnabled: "✓ Snap to grid",
 			gridSpacing: "Grid spacing",
+		},
+		ellipseTrim: {
+			chooseSecondPoint:
+				"Choose second cut point · Shift = long arc · Esc = cancel",
 		},
 		properties: {
 			listTitle: "List title",

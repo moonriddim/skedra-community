@@ -66,6 +66,7 @@ interface SkedraCanvasEditLayerProps {
 	selectedIds: Set<string>;
 	selectedEls: CanvasElement[];
 	isLocked: boolean;
+	readOnly: boolean;
 	textEditorOpen: boolean;
 	textEditing: TextEditingApi;
 	keyboard: KeyboardApi;
@@ -77,6 +78,10 @@ interface SkedraCanvasEditLayerProps {
 	createMindmapSibling: (nodeId: string) => void;
 	deleteElementsWithKanbanReflow: (ids: string[]) => void;
 	elements: Map<string, CanvasElement>;
+	onStartEllipseTrim: (
+		element: CanvasElement,
+		point: { clientX: number; clientY: number },
+	) => void;
 }
 
 export function SkedraCanvasEditLayer({
@@ -87,6 +92,7 @@ export function SkedraCanvasEditLayer({
 	selectedIds,
 	selectedEls,
 	isLocked,
+	readOnly,
 	textEditorOpen,
 	textEditing,
 	keyboard,
@@ -94,6 +100,7 @@ export function SkedraCanvasEditLayer({
 	createMindmapSibling,
 	deleteElementsWithKanbanReflow,
 	elements,
+	onStartEllipseTrim,
 }: SkedraCanvasEditLayerProps) {
 	const {
 		pendingText,
@@ -172,6 +179,7 @@ export function SkedraCanvasEditLayer({
 					hasSelection={selectedIds.size > 0}
 					selectionCount={selectedIds.size}
 					isLocked={isLocked}
+					readOnly={readOnly}
 					isInFrame={selectedEls.some((el) => !!el.frameId)}
 					isGrouped={selectedEls.some((el) => !!el.groupId)}
 					canPaste
@@ -205,6 +213,17 @@ export function SkedraCanvasEditLayer({
 					onRemoveFromFrame={keyboard.removeFromFrame}
 					onGroup={keyboard.groupSelection}
 					onUngroup={keyboard.ungroupSelection}
+					canTrimEllipse={
+						selectedEls.length === 1 && selectedEls[0]?.type === "ellipse"
+					}
+					onTrimEllipse={() => {
+						const ellipse = selectedEls[0];
+						if (!ellipse) return;
+						onStartEllipseTrim(ellipse, {
+							clientX: contextMenu.x,
+							clientY: contextMenu.y,
+						});
+					}}
 					snapToObjects={store.snapToObjects}
 					onToggleSnap={store.toggleSnapToObjects}
 					showSnapPoints={store.showSnapPoints}

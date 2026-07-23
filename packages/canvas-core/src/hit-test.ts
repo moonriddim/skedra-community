@@ -5,6 +5,8 @@ import {
 import { pathTextLabelHitTest as defaultPathTextLabelHitTest } from "./path-rendering";
 import {
 	getElementPolygonPoints,
+	getEllipseArcAngles,
+	getEllipsePointAtAngle,
 	getFreeformRevisionCloudScallopDepth,
 	isPolygonVariant,
 } from "./shape-geometry";
@@ -118,6 +120,35 @@ export function hitTest(
 		}
 
 		case "ellipse": {
+			const arc = getEllipseArcAngles(el);
+			if (arc) {
+				const segmentCount = Math.max(
+					8,
+					Math.ceil((arc.sweepAngle / 360) * 64),
+				);
+				let previous = getEllipsePointAtAngle(el, arc.startAngle);
+				for (let index = 1; index <= segmentCount; index++) {
+					const current = getEllipsePointAtAngle(
+						el,
+						arc.startAngle + (arc.sweepAngle * index) / segmentCount,
+					);
+					if (
+						pointToLineDistance(
+							hitX,
+							hitY,
+							previous.x,
+							previous.y,
+							current.x,
+							current.y,
+						) <=
+						t + el.strokeWidth + 4
+					) {
+						return true;
+					}
+					previous = current;
+				}
+				return false;
+			}
 			const cx = bbox.x + bbox.width / 2;
 			const cy = bbox.y + bbox.height / 2;
 			const rx = bbox.width / 2 + t;

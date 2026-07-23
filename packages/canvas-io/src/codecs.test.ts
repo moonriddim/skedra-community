@@ -12,7 +12,7 @@ test("frame export filenames are shared by every host", () => {
 });
 
 function shape(
-	type: "rectangle" | "triangle" | "cloud",
+	type: "rectangle" | "ellipse" | "triangle" | "cloud",
 	overrides: Partial<CanvasElement> = {},
 ): CanvasElement {
 	return {
@@ -50,6 +50,19 @@ test("round-trips polygon sides, triangle sections and cloud arc radii", () => {
 	assert.equal(decodedTriangle?.pyramidSections, 5);
 	assert.equal(decodedCloud?.type, "cloud");
 	assert.equal(decodedCloud?.cloudArcRadius, 24);
+});
+
+test("round-trips ellipse arc angles as an all-or-nothing pair", () => {
+	const arc = shape("ellipse", { arcStartAngle: 25, arcEndAngle: 220 });
+	const decoded = decodeCanvasElement(encodeCanvasElement(arc));
+	assert.equal(decoded?.arcStartAngle, 25);
+	assert.equal(decoded?.arcEndAngle, 220);
+
+	const encoded = encodeCanvasElement(arc);
+	assert.equal(
+		decodeCanvasElement({ ...encoded, arcEndAngle: undefined }),
+		null,
+	);
 });
 
 test("rejects invalid persisted polygon side counts", () => {

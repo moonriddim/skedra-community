@@ -14,8 +14,11 @@ import {
 	clampPyramidSections,
 	getCloudSvgPath,
 	getElementPolygonPoints,
+	getEllipseAngleAtPoint,
+	getEllipseArcSvgPath,
 	getFreeformRevisionCloudSvgPath,
 	getPyramidDividerSegments,
+	getRetainedEllipseArcAngles,
 	getTrianglePoints,
 } from "./shape-geometry";
 import type { CanvasElement } from "./types";
@@ -109,6 +112,59 @@ test("clamps revision-cloud arc radii to the supported range", () => {
 	assert.equal(clampCloudArcRadius(-2), MIN_CLOUD_ARC_RADIUS);
 	assert.equal(clampCloudArcRadius(23.5), 23.5);
 	assert.equal(clampCloudArcRadius(100), MAX_CLOUD_ARC_RADIUS);
+});
+
+test("builds ellipse arcs from two cut points and keeps the short side", () => {
+	const ellipse: CanvasElement = {
+		...triangle,
+		id: "ellipse",
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 100,
+	};
+	assert.equal(getEllipseAngleAtPoint(ellipse, { x: 210, y: 70 }), 0);
+	assert.equal(getEllipseAngleAtPoint(ellipse, { x: 110, y: 120 }), 90);
+
+	const shortArc = getRetainedEllipseArcAngles(350, 80);
+	assert.deepEqual(shortArc, {
+		startAngle: 350,
+		endAngle: 80,
+		sweepAngle: 90,
+	});
+	assert.deepEqual(getRetainedEllipseArcAngles(350, 80, true), {
+		startAngle: 80,
+		endAngle: 350,
+		sweepAngle: 270,
+	});
+	assert.equal(getRetainedEllipseArcAngles(45, 45), null);
+	assert.match(
+		getEllipseArcSvgPath(
+			ellipse,
+			shortArc?.startAngle ?? 0,
+			shortArc?.endAngle ?? 0,
+		),
+		/^M .* A 100 50 0 0 1 /,
+	);
+});
+
+test("ellipse arc hit testing ignores the removed part of the circle", () => {
+	const arc: CanvasElement = {
+		...triangle,
+		id: "arc",
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 100,
+		arcStartAngle: 0,
+		arcEndAngle: 90,
+	};
+	assert.equal(hitTest(arc, 210, 70), true);
+	assert.equal(hitTest(arc, 110, 120), true);
+	assert.equal(hitTest(arc, 10, 70), false);
+	assert.equal(hitTest(arc, 110, 20), false);
 });
 
 test("resizes freeform cloud bounds without moving its baseline points", () => {

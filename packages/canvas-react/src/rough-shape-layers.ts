@@ -2,6 +2,7 @@ import {
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getElementPolygonPoints,
+	getEllipseArcAngles,
 	getLinePath,
 	getPyramidDividerSegments,
 	getTrianglePoints,
@@ -76,7 +77,7 @@ function getRoughPreset(el: CanvasElement, level: number) {
 function isFillCapableShape(el: CanvasElement): boolean {
 	return (
 		el.type === "rectangle" ||
-		el.type === "ellipse" ||
+		(el.type === "ellipse" && !getEllipseArcAngles(el)) ||
 		el.type === "diamond" ||
 		el.type === "triangle" ||
 		el.type === "cloud" ||
@@ -344,14 +345,27 @@ function buildRoughNode(
 			}
 			return rc.rectangle(el.x, el.y, w, h, opts);
 		}
-		case "ellipse":
-			return rc.ellipse(
-				el.x + el.width / 2,
-				el.y + el.height / 2,
-				Math.max(1, el.width),
-				Math.max(1, el.height),
-				opts,
-			);
+		case "ellipse": {
+			const arc = getEllipseArcAngles(el);
+			return arc
+				? rc.arc(
+						el.x + el.width / 2,
+						el.y + el.height / 2,
+						Math.max(1, el.width),
+						Math.max(1, el.height),
+						(arc.startAngle * Math.PI) / 180,
+						((arc.startAngle + arc.sweepAngle) * Math.PI) / 180,
+						false,
+						{ ...opts, fill: undefined, fillStyle: undefined },
+					)
+				: rc.ellipse(
+						el.x + el.width / 2,
+						el.y + el.height / 2,
+						Math.max(1, el.width),
+						Math.max(1, el.height),
+						opts,
+					);
+		}
 		case "diamond": {
 			const radius = getEffectiveCornerRadius(el);
 			return radius > 0

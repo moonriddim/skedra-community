@@ -214,6 +214,9 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 		(value.roughFillStyle !== undefined &&
 			!ROUGH_FILL_STYLES.has(value.roughFillStyle as RoughFillStyle)) ||
 		!isOptionalNumber(value.roughFillScale) ||
+		!isOptionalNumber(value.arcStartAngle) ||
+		!isOptionalNumber(value.arcEndAngle) ||
+		(value.arcStartAngle === undefined) !== (value.arcEndAngle === undefined) ||
 		!isOptionalNumber(value.cloudArcRadius) ||
 		(value.cloudArcRadius !== undefined &&
 			(value.cloudArcRadius < MIN_CLOUD_ARC_RADIUS ||

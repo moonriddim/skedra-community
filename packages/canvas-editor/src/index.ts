@@ -175,6 +175,11 @@ export { CanvasEditorSnapOverlay } from "./canvas-editor-snap-overlay";
 export type { CanvasEditorSnapOverlayProps } from "./canvas-editor-snap-overlay";
 export { CanvasEditorSnapMenu } from "./canvas-editor-snap-menu";
 export { CanvasEditorContextMenu } from "./canvas-editor-context-menu";
+export {
+	CanvasEditorEllipseTrimOverlay,
+	type CanvasEditorEllipseTrimOverlayProps,
+} from "./canvas-editor-ellipse-trim-overlay";
+export { useCanvasEditorEllipseTrim } from "./use-canvas-editor-ellipse-trim";
 export type {
 	CanvasEditorSnapMenuKind,
 	CanvasEditorSnapMenuProps,
@@ -184,6 +189,7 @@ export type {
 	CanvasEditorContextMenuProps,
 	CanvasEditorContextMenuTranslate,
 } from "./canvas-editor-context-menu";
+export type { CanvasEditorEllipseTrimPreview } from "./use-canvas-editor-ellipse-trim";
 export {
 	expandCanvasEditorAtomicSelectionIds,
 	getCanvasEditorContextSelectionIds,

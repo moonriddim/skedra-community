@@ -6,6 +6,8 @@ import {
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getElementPolygonPointsAttribute,
+	getEllipseArcAngles,
+	getEllipseArcSvgPath,
 	getImageRenderGeometry,
 	getLinePath,
 	getPyramidDividerSegments,
@@ -235,7 +237,8 @@ export const ElementShape = memo(function ElementShape({
 				</g>
 			);
 
-		case "ellipse":
+		case "ellipse": {
+			const ellipseArc = getEllipseArcAngles(el);
 			return (
 				<g transform={transform} {...commonProps}>
 					{roughLayers ? (
@@ -244,6 +247,19 @@ export const ElementShape = memo(function ElementShape({
 						) : (
 							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
 						)
+					) : ellipseArc ? (
+						<path
+							d={getEllipseArcSvgPath(
+								el,
+								ellipseArc.startAngle,
+								ellipseArc.endAngle,
+							)}
+							fill="none"
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinecap="round"
+						/>
 					) : (
 						<ellipse
 							cx={el.x + el.width / 2}
@@ -259,6 +275,7 @@ export const ElementShape = memo(function ElementShape({
 					{!isEditingText && el.text && <RectText el={el} />}
 				</g>
 			);
+		}
 
 		case "text": {
 			const isPreview = el.id === "__preview";

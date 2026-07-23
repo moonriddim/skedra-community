@@ -72,6 +72,7 @@ import {
 	CanvasEditor,
 	type CanvasEditorSavedViewPreviewRenderer,
 	resolveCanvasEditorRotationKeyDelta,
+	useCanvasEditorEllipseTrim,
 	useCanvasEditorSavedViews,
 } from "@skedra/canvas-editor";
 import { nanoid } from "nanoid";
@@ -1043,6 +1044,18 @@ export function SkedraCanvas({
 			: null;
 	const isLocked =
 		selectedEls.length > 0 && selectedEls.every((el) => el.locked);
+	const activateEllipseTrim = useCallback(() => {
+		store.setActiveTool("select");
+		store.setContextMenu(null);
+		store.setSnapMenu(null);
+	}, [store.setActiveTool, store.setContextMenu, store.setSnapMenu]);
+	const ellipseTrim = useCanvasEditorEllipseTrim({
+		svgRef,
+		viewport,
+		elements: sync.elements,
+		updateElement: sync.updateElement,
+		onActivate: activateEllipseTrim,
+	});
 	const editingView = editingViewId
 		? (sync.views.get(editingViewId) ?? null)
 		: null;
@@ -1476,6 +1489,39 @@ export function SkedraCanvas({
 		openKanbanCard,
 		openKanbanList,
 	});
+	const handleStagePointerDown = useCallback(
+		(event: React.PointerEvent<SVGSVGElement>) => {
+			if (ellipseTrim.handlePointerDown(event)) return;
+			handlePointerDown(event);
+		},
+		[ellipseTrim.handlePointerDown, handlePointerDown],
+	);
+	const handleStagePointerMove = useCallback(
+		(event: React.PointerEvent<SVGSVGElement>) => {
+			if (ellipseTrim.handlePointerMove(event)) return;
+			handleCanvasPointerMove(event);
+		},
+		[ellipseTrim.handlePointerMove, handleCanvasPointerMove],
+	);
+	const handleStagePointerUp = useCallback(
+		(event: React.PointerEvent<SVGSVGElement>) => {
+			if (ellipseTrim.handlePointerUp(event)) return;
+			handlePointerUp(event);
+		},
+		[ellipseTrim.handlePointerUp, handlePointerUp],
+	);
+	const handleCanvasContextMenu = useCallback(
+		(event: React.MouseEvent) => {
+			if (ellipseTrim.active) {
+				event.preventDefault();
+				event.stopPropagation();
+				ellipseTrim.cancel();
+				return;
+			}
+			handleContextMenu(event);
+		},
+		[ellipseTrim.active, ellipseTrim.cancel, handleContextMenu],
+	);
 
 	const showEditorChrome = !presentationMode && !sync.isReadonly && !zenMode;
 	const selectedExistingElements = Array.from(selectedIds).flatMap((id) => {
@@ -1511,7 +1557,7 @@ export function SkedraCanvas({
 				collaboration={canvasEditorCollaboration}
 				className={`skedra-canvas h-full w-full relative overflow-hidden select-none${store.isSpacePressed ? " cursor-grab" : ""}`}
 				style={{ backgroundColor: canvasBg || "var(--background)" }}
-				onContextMenu={handleContextMenu}
+				onContextMenu={handleCanvasContextMenu}
 			>
 				{!localMode && !sync.isConnected && (
 					<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
@@ -1670,15 +1716,23 @@ export function SkedraCanvas({
 					drawingPreview={pointerHandlers.drawingPreview}
 					pathStartSnap={pointerHandlers.pathStartSnap}
 					croppingElement={croppingElement}
+					ellipseTrimPreview={
+						ellipseTrim.preview
+							? {
+									...ellipseTrim.preview,
+									instruction: t("canvas.ellipseTrim.chooseSecondPoint"),
+								}
+							: null
+					}
 					resolveAssetUrl={resolveAssetUrl}
 					onApplyImageCrop={handleApplyImageCrop}
 					onCancelImageCrop={() => store.setCroppingImageId(null)}
 					beginAuxiliaryPointerGesture={
 						pointerHandlers.beginAuxiliaryPointerGesture
 					}
-					onPointerDown={handlePointerDown}
-					onPointerMove={handleCanvasPointerMove}
-					onPointerUp={handlePointerUp}
+					onPointerDown={handleStagePointerDown}
+					onPointerMove={handleStagePointerMove}
+					onPointerUp={handleStagePointerUp}
 					onPointerCancel={handlePointerCancel}
 					onLostPointerCapture={handleLostPointerCapture}
 					onWheel={pointerHandlers.onWheel}
@@ -1791,6 +1845,7 @@ export function SkedraCanvas({
 					selectedIds={selectedIds}
 					selectedEls={selectedEls}
 					isLocked={isLocked}
+					readOnly={sync.isReadonly}
 					textEditorOpen={textEditorOpen}
 					textEditing={{
 						pendingText,
@@ -1808,6 +1863,7 @@ export function SkedraCanvas({
 					createMindmapSibling={createMindmapSibling}
 					deleteElementsWithKanbanReflow={deleteElementsWithKanbanReflow}
 					elements={sync.elements}
+					onStartEllipseTrim={ellipseTrim.start}
 				/>
 
 				<SkedraCanvasChrome
