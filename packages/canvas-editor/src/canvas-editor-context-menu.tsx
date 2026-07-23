@@ -9,11 +9,13 @@ import {
 	ClipboardPaste,
 	Copy,
 	CopyPlus,
+	FileCode2,
 	FlipHorizontal2,
 	FlipVertical2,
 	Frame,
 	Grid3X3,
 	Group,
+	Image,
 	Link,
 	Lock,
 	Magnet,
@@ -56,6 +58,8 @@ export interface CanvasEditorContextMenuProps {
 	onCopy: () => void;
 	onCut: () => void;
 	onPaste: () => void | Promise<void>;
+	onCopyAsPng?: () => void | Promise<void>;
+	onCopyAsSvg?: () => void | Promise<void>;
 	onDuplicate: () => void;
 	onDelete: () => void;
 	onSelectAll: () => void;
@@ -136,6 +140,8 @@ export function CanvasEditorContextMenu({
 	onCopy,
 	onCut,
 	onPaste,
+	onCopyAsPng,
+	onCopyAsSvg,
 	onDuplicate,
 	onDelete,
 	onSelectAll,
@@ -549,6 +555,33 @@ export function CanvasEditorContextMenu({
 							action: onPaste,
 							disabled: readOnly || !canPaste,
 						},
+						...(onCopyAsPng
+							? [
+									{
+										id: "copy-as-png",
+										label: t(
+											"canvas.contextMenu.copyAsPng",
+											"Copy to clipboard as PNG",
+										),
+										icon: icon(<Image />),
+										shortcut: "Shift+Alt+C",
+										action: onCopyAsPng,
+									},
+								]
+							: []),
+						...(onCopyAsSvg
+							? [
+									{
+										id: "copy-as-svg",
+										label: t(
+											"canvas.contextMenu.copyAsSvg",
+											"Copy to clipboard as SVG",
+										),
+										icon: icon(<FileCode2 />),
+										action: onCopyAsSvg,
+									},
+								]
+							: []),
 						{
 							id: "paste-format",
 							label: t(

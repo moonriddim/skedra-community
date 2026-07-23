@@ -13,6 +13,7 @@ const actions = [
 	{ type: "focus-property", property: "stroke" },
 	{ type: "eyedropper", target: "fill" },
 	{ type: "paste-plain-text" },
+	{ type: "copy-canvas-as-png" },
 	{ type: "copy-format" },
 	{ type: "paste-format" },
 	{ type: "add-link" },

@@ -75,6 +75,10 @@ import {
 	useCanvasEditorEllipseTrim,
 	useCanvasEditorSavedViews,
 } from "@skedra/canvas-editor";
+import {
+	type CanvasVisualClipboardFormat,
+	copySkedraVisualToClipboard,
+} from "@skedra/canvas-io/clipboard";
 import { nanoid } from "nanoid";
 import {
 	Suspense,
@@ -281,6 +285,10 @@ export function SkedraCanvas({
 	useLibraryDeepLink();
 
 	const svgRef = useRef<SVGSVGElement>(null);
+	const lastCanvasPointerClientRef = useRef<{
+		clientX: number;
+		clientY: number;
+	} | null>(null);
 	const { t } = useI18n();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const presentationModeAppliedRef = useRef(false);
@@ -618,6 +626,31 @@ export function SkedraCanvas({
 		canvasSearchOpen,
 	} = store;
 	const setStoreCanvasBg = store.setCanvasBg;
+	const rememberCanvasPointer = useCallback(
+		(point: { clientX: number; clientY: number }) => {
+			lastCanvasPointerClientRef.current = {
+				clientX: point.clientX,
+				clientY: point.clientY,
+			};
+		},
+		[],
+	);
+	const getCanvasPastePoint = useCallback(() => {
+		const rect = svgRef.current?.getBoundingClientRect();
+		if (!rect) return { x: 400, y: 300 };
+		const pointer = lastCanvasPointerClientRef.current ?? {
+			clientX: rect.left + rect.width / 2,
+			clientY: rect.top + rect.height / 2,
+		};
+		const currentViewport = storeRef.current.viewport;
+		return {
+			x:
+				(pointer.clientX - rect.left - currentViewport.x) /
+				currentViewport.zoom,
+			y:
+				(pointer.clientY - rect.top - currentViewport.y) / currentViewport.zoom,
+		};
+	}, [storeRef]);
 
 	useEffect(() => {
 		if (store.activePanel === "library") {
@@ -1054,7 +1087,8 @@ export function SkedraCanvas({
 		viewport,
 		elements: sync.elements,
 		snapToObjects: store.snapToObjects,
-		updateElement: sync.updateElement,
+		createId: nanoid,
+		applyMutationPlan: sync.applyMutationPlan,
 		onActivate: activateEllipseTrim,
 	});
 	const editingView = editingViewId
@@ -1105,8 +1139,25 @@ export function SkedraCanvas({
 		imageUploadOptions,
 		deleteElementsWithKanbanReflow,
 		fitViewportToBounds,
+		getPastePoint: getCanvasPastePoint,
 		addFlowchartStep,
 	});
+	const copyCanvasToClipboard = useCallback(
+		async (format: CanvasVisualClipboardFormat) => {
+			const svg = svgRef.current;
+			if (!svg) return;
+			try {
+				await copySkedraVisualToClipboard(svg, format);
+			} catch (error) {
+				console.error(
+					`Could not copy the canvas as ${format.toUpperCase()}`,
+					error,
+				);
+				window.alert(t("canvas.contextMenu.copyFailed"));
+			}
+		},
+		[t],
+	);
 	const canvasSearch = useCanvasSearch({
 		open: canvasSearchOpen,
 		elements: sync.elements,
@@ -1138,7 +1189,7 @@ export function SkedraCanvas({
 		createElement: sync.createElement,
 		deleteElements: deleteElementsWithKanbanReflow,
 		updateElements: sync.updateElements,
-		getPastePoint: getViewportCenter,
+		getPastePoint: getCanvasPastePoint,
 		undo: history.undo,
 		redo: history.redo,
 		actions: {
@@ -1156,6 +1207,7 @@ export function SkedraCanvas({
 			openHelp: () => setHelpDialogOpen(true),
 			toggleTheme: handleToggleTheme,
 			pastePlainText: handlePastePlainText,
+			copyCanvasAsPng: () => copyCanvasToClipboard("png"),
 			startImageCrop: handleStartImageCrop,
 			flowchartCreateDefaultStep: (nodeId) => addFlowchartStep(nodeId),
 			flowchartCreateStep: handleFlowchartCreateStep,
@@ -1492,27 +1544,35 @@ export function SkedraCanvas({
 	});
 	const handleStagePointerDown = useCallback(
 		(event: React.PointerEvent<SVGSVGElement>) => {
+			rememberCanvasPointer(event);
 			if (ellipseTrim.handlePointerDown(event)) return;
 			handlePointerDown(event);
 		},
-		[ellipseTrim.handlePointerDown, handlePointerDown],
+		[ellipseTrim.handlePointerDown, handlePointerDown, rememberCanvasPointer],
 	);
 	const handleStagePointerMove = useCallback(
 		(event: React.PointerEvent<SVGSVGElement>) => {
+			rememberCanvasPointer(event);
 			if (ellipseTrim.handlePointerMove(event)) return;
 			handleCanvasPointerMove(event);
 		},
-		[ellipseTrim.handlePointerMove, handleCanvasPointerMove],
+		[
+			ellipseTrim.handlePointerMove,
+			handleCanvasPointerMove,
+			rememberCanvasPointer,
+		],
 	);
 	const handleStagePointerUp = useCallback(
 		(event: React.PointerEvent<SVGSVGElement>) => {
+			rememberCanvasPointer(event);
 			if (ellipseTrim.handlePointerUp(event)) return;
 			handlePointerUp(event);
 		},
-		[ellipseTrim.handlePointerUp, handlePointerUp],
+		[ellipseTrim.handlePointerUp, handlePointerUp, rememberCanvasPointer],
 	);
 	const handleCanvasContextMenu = useCallback(
 		(event: React.MouseEvent) => {
+			rememberCanvasPointer(event);
 			if (ellipseTrim.active) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -1521,7 +1581,12 @@ export function SkedraCanvas({
 			}
 			handleContextMenu(event);
 		},
-		[ellipseTrim.active, ellipseTrim.cancel, handleContextMenu],
+		[
+			ellipseTrim.active,
+			ellipseTrim.cancel,
+			handleContextMenu,
+			rememberCanvasPointer,
+		],
 	);
 
 	const showEditorChrome = !presentationMode && !sync.isReadonly && !zenMode;
@@ -1864,6 +1929,8 @@ export function SkedraCanvas({
 						registerTextEditorCommit,
 					}}
 					keyboard={keyboard}
+					onCopyCanvasAsPng={() => copyCanvasToClipboard("png")}
+					onCopyCanvasAsSvg={() => copyCanvasToClipboard("svg")}
 					liveStickyNoteEditor={liveStickyNoteEditor}
 					createMindmapSibling={createMindmapSibling}
 					deleteElementsWithKanbanReflow={deleteElementsWithKanbanReflow}

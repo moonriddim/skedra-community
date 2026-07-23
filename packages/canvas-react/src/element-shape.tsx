@@ -13,6 +13,11 @@ import {
 	getImageRenderGeometry,
 	getLinePath,
 	getPyramidDividerSegments,
+	getSvgImportedLineData,
+	getSvgImportedRectData,
+	getSvgImportedStrokeDasharray,
+	getSvgPathElementData,
+	getSvgPathRenderMatrix,
 	getTrianglePointsAttribute,
 	isPolygonVariant,
 	roundedDiamondSvgPath,
@@ -65,10 +70,54 @@ export const ElementShape = memo(function ElementShape({
 	const roughLayers = useRoughShapeLayers(el);
 	const roughLineHtml =
 		roughLayers && !roughLayers.fillHtml ? roughLayers.strokeHtml : null;
+	const svgPath = getSvgPathElementData(el);
+	const svgPathMatrix = svgPath ? getSvgPathRenderMatrix(el) : null;
+	if (svgPath && svgPathMatrix) {
+		const importedStrokeWidth =
+			svgPath.sourceStrokeWidth !== undefined &&
+			svgPath.strokeWidth !== undefined &&
+			svgPath.strokeWidth > 0
+				? svgPath.sourceStrokeWidth * (el.strokeWidth / svgPath.strokeWidth)
+				: el.strokeWidth;
+		const usesSourceStroke = svgPath.sourceStrokeWidth !== undefined;
+		const renderStrokeScale =
+			(Math.hypot(svgPathMatrix[0], svgPathMatrix[1]) +
+				Math.hypot(svgPathMatrix[2], svgPathMatrix[3])) /
+			2;
+		const editedDash =
+			dash && renderStrokeScale > 0
+				? dash.replace(/[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/gi, (token) =>
+						String(Number(token) / renderStrokeScale),
+					)
+				: dash;
+		const pathDash =
+			svgPath.strokeStyle && svgPath.strokeStyle === el.strokeStyle
+				? svgPath.strokeDasharray
+				: editedDash;
+		return (
+			<g transform={transform} {...commonProps}>
+				<path
+					d={svgPath.d}
+					transform={`matrix(${svgPathMatrix.join(" ")})`}
+					fill={el.fill || "transparent"}
+					fillOpacity={svgPath.fillOpacity}
+					fillRule={svgPath.fillRule}
+					stroke={el.stroke}
+					strokeOpacity={svgPath.strokeOpacity}
+					strokeWidth={importedStrokeWidth}
+					strokeLinecap={svgPath.strokeLinecap}
+					strokeLinejoin={svgPath.strokeLinejoin}
+					strokeDasharray={pathDash}
+					vectorEffect={usesSourceStroke ? undefined : "non-scaling-stroke"}
+				/>
+			</g>
+		);
+	}
 
 	switch (el.type) {
 		case "rectangle": {
 			const shapeTrim = getCanvasShapeTrim(el);
+			const svgRect = getSvgImportedRectData(el);
 			const isGanttScrollThumb =
 				el.customData?.ganttRole === "canvas-scroll-thumb";
 			if (el.customData?.skedraType === "kanban-card") {
@@ -129,8 +178,16 @@ export const ElementShape = memo(function ElementShape({
 							y={el.y}
 							width={Math.max(1, el.width)}
 							height={Math.max(1, el.height)}
-							rx={getEffectiveCornerRadius(el)}
-							ry={getEffectiveCornerRadius(el)}
+							rx={
+								svgRect
+									? svgRect.rxRatio * el.width
+									: getEffectiveCornerRadius(el)
+							}
+							ry={
+								svgRect
+									? svgRect.ryRatio * el.height
+									: getEffectiveCornerRadius(el)
+							}
 							fill={el.fill || "transparent"}
 							stroke={el.stroke}
 							strokeWidth={el.strokeWidth}
@@ -336,6 +393,7 @@ export const ElementShape = memo(function ElementShape({
 		case "image": {
 			const geometry = getImageRenderGeometry(el);
 			if (!geometry.src) return null;
+			const isSvgFallback = el.customData?.skedraType === "svg-fallback";
 			const clipId = geometry.clipId
 				? `${svgIdPrefix}-${geometry.clipId.replace(/[^a-zA-Z0-9_-]/g, "-")}`
 				: null;
@@ -354,16 +412,18 @@ export const ElementShape = memo(function ElementShape({
 							</clipPath>
 						</defs>
 					)}
-					<rect
-						x={geometry.x}
-						y={geometry.y}
-						width={Math.max(1, geometry.width)}
-						height={Math.max(1, geometry.height)}
-						fill="var(--card, #ffffff)"
-						stroke={el.stroke || "#00000020"}
-						strokeWidth={el.strokeWidth ?? 1}
-						rx={8}
-					/>
+					{!isSvgFallback && (
+						<rect
+							x={geometry.x}
+							y={geometry.y}
+							width={Math.max(1, geometry.width)}
+							height={Math.max(1, geometry.height)}
+							fill="var(--card, #ffffff)"
+							stroke={el.stroke || "#00000020"}
+							strokeWidth={el.strokeWidth ?? 1}
+							rx={8}
+						/>
+					)}
 					<image
 						href={imageSrc}
 						x={geometry.imageX}
@@ -379,6 +439,7 @@ export const ElementShape = memo(function ElementShape({
 
 		case "line": {
 			if (!el.points || el.points.length < 2) return null;
+			const svgLine = getSvgImportedLineData(el);
 			const textPathId = `skedra-line-text-${el.id}`;
 			if (roughLayers) {
 				return (
@@ -399,12 +460,25 @@ export const ElementShape = memo(function ElementShape({
 				<g transform={transform} {...commonProps}>
 					<path
 						d={dLine}
-						fill={el.closed ? el.fill || "transparent" : "none"}
+						fill={
+							svgLine
+								? el.fill || "transparent"
+								: el.closed
+									? el.fill || "transparent"
+									: "none"
+						}
+						fillOpacity={svgLine?.fillOpacity}
+						fillRule={svgLine?.fillRule}
 						stroke={el.stroke}
+						strokeOpacity={svgLine?.strokeOpacity}
 						strokeWidth={el.strokeWidth}
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeDasharray={dash}
+						strokeLinecap={svgLine?.strokeLinecap ?? "round"}
+						strokeLinejoin={svgLine?.strokeLinejoin ?? "round"}
+						strokeDasharray={
+							svgLine
+								? (getSvgImportedStrokeDasharray(el, svgLine) ?? dash)
+								: dash
+						}
 						transform={`translate(${el.x}, ${el.y})`}
 					/>
 					{!isEditingText && (

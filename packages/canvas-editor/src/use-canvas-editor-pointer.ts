@@ -2,6 +2,7 @@ import {
 	type CanvasDrawingStyle,
 	type CanvasDrawingTool,
 	type CanvasElement,
+	type CanvasMutationPlan,
 	type CanvasPathDrawMode,
 	type CanvasPathTool,
 	type CanvasScene,
@@ -15,6 +16,7 @@ import {
 	buildFrameDropUpdates,
 	buildFrameResizeChildUpdates,
 	collectCanvasSelectionRectIds,
+	findCanvasShapeFragmentReconnect,
 	findClosestCanvasShapeContourIntersection,
 	getRotateUpdates,
 	isCanvasCenterShapeTool,
@@ -148,6 +150,7 @@ export interface CanvasEditorDocumentAdapter {
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
 	deleteElements?: (ids: string[]) => void;
+	applyMutationPlan?: (plan: CanvasMutationPlan) => void;
 	duplicateSelection?: () => void;
 	beginHistory?: () => void;
 	finishHistory?: () => void;
@@ -971,6 +974,40 @@ export function useCanvasEditorPointer({
 				state.shapeTrimEndpoint
 			) {
 				const snapDistance = 14 / Math.max(ui.viewport.zoom, 0.01);
+				const reconnect = findCanvasShapeFragmentReconnect(
+					state.resizeStart,
+					state.shapeTrimEndpoint,
+					documentAdapter.getElements(),
+					point.raw,
+					snapDistance,
+				);
+				if (
+					reconnect &&
+					(documentAdapter.applyMutationPlan || documentAdapter.deleteElements)
+				) {
+					const reset = resolveCanvasShapeTrimEndpointDrag(
+						state.resizeStart,
+						state.shapeTrimEndpoint,
+						reconnect.snapPoint,
+						0,
+					);
+					if (reset) {
+						documentAdapter.updateElement(state.resizeStart.id, reset.changes);
+					}
+					uiAdapter.setSnapVisuals?.(
+						[],
+						[
+							{
+								elementId: reconnect.siblingId,
+								kind: "endpoint",
+								x: reconnect.snapPoint.x,
+								y: reconnect.snapPoint.y,
+								active: true,
+							},
+						],
+					);
+					return;
+				}
 				let result = resolveCanvasShapeTrimEndpointDrag(
 					state.resizeStart,
 					state.shapeTrimEndpoint,
@@ -1381,6 +1418,37 @@ export function useCanvasEditorPointer({
 				state.shapeTrimEndpoint
 			) {
 				const snapDistance = 14 / Math.max(ui.viewport.zoom, 0.01);
+				const reconnect = findCanvasShapeFragmentReconnect(
+					state.resizeStart,
+					state.shapeTrimEndpoint,
+					documentAdapter.getElements(),
+					point.raw,
+					snapDistance,
+				);
+				if (
+					reconnect &&
+					(documentAdapter.applyMutationPlan || documentAdapter.deleteElements)
+				) {
+					const plan: CanvasMutationPlan = {
+						create: [],
+						update: [
+							{
+								id: reconnect.survivorId,
+								changes: reconnect.changes,
+							},
+						],
+						deleteIds: [reconnect.siblingId],
+						selectedIds: [reconnect.survivorId],
+					};
+					if (documentAdapter.applyMutationPlan) {
+						documentAdapter.applyMutationPlan(plan);
+					} else {
+						documentAdapter.deleteElements?.(plan.deleteIds);
+						documentAdapter.updateElements(plan.update);
+					}
+					finishGesture(true);
+					return;
+				}
 				let result = resolveCanvasShapeTrimEndpointDrag(
 					state.resizeStart,
 					state.shapeTrimEndpoint,

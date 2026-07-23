@@ -23,7 +23,7 @@ import {
 	cloneTransformedCanvasSelection,
 	createSelectionFrame,
 	getCanvasElementFormat,
-	getCombinedBBox,
+	getCanvasPasteOffset,
 	getFlipUpdates,
 	getGroupUpdates,
 	getLockUpdates,
@@ -95,39 +95,37 @@ export function useCanvasKeyboardOperations({
 		[getSelected],
 	);
 
-	const pasteClipboard = useCallback(() => {
-		if (clipboardRef.current.length === 0) return;
-		const cloned = cloneCanvasSelection({
-			elements: clipboardRef.current,
-			existingElements: elements.values(),
-			createId: nanoid,
-		});
-		for (const element of cloned.elements) createElement(element);
-		storeRef.current.setSelectedIds(
-			new Set(cloned.elements.map((element) => element.id)),
-		);
-		clipboardRef.current = cloned.elements;
-	}, [createElement, elements, storeRef]);
+	const pasteClipboard = useCallback(
+		(placement: "pointer" | "offset" = "pointer") => {
+			if (clipboardRef.current.length === 0) return;
+			const cloned = cloneCanvasSelection({
+				elements: clipboardRef.current,
+				existingElements: elements.values(),
+				createId: nanoid,
+				offset:
+					placement === "pointer"
+						? getCanvasPasteOffset(clipboardRef.current, getPastePoint?.())
+						: undefined,
+			});
+			for (const element of cloned.elements) createElement(element);
+			storeRef.current.setSelectedIds(
+				new Set(cloned.elements.map((element) => element.id)),
+			);
+			clipboardRef.current = cloned.elements;
+		},
+		[createElement, elements, getPastePoint, storeRef],
+	);
 
 	const pasteImportedClipboard = useCallback(
 		(imported: CanvasElement[] | null) => {
 			if (imported === null) return false;
 			if (imported.length === 0) return true;
 
-			const bounds = getCombinedBBox(imported);
-			const target = getPastePoint?.();
-			const offset =
-				bounds && target
-					? {
-							x: target.x - (bounds.x + bounds.width / 2),
-							y: target.y - (bounds.y + bounds.height / 2),
-						}
-					: { x: 20, y: 20 };
 			const cloned = cloneCanvasSelection({
 				elements: imported,
 				existingElements: elements.values(),
 				createId: nanoid,
-				offset,
+				offset: getCanvasPasteOffset(imported, getPastePoint?.()),
 			});
 			for (const element of cloned.elements) createElement(element);
 			storeRef.current.setSelectedIds(
@@ -190,7 +188,7 @@ export function useCanvasKeyboardOperations({
 
 	const duplicateSelection = useCallback(() => {
 		copySelection();
-		pasteClipboard();
+		pasteClipboard("offset");
 	}, [copySelection, pasteClipboard]);
 
 	const copyFormat = useCallback(() => {

@@ -1,8 +1,8 @@
 import {
 	getCanvasShapePointAtTrimPosition,
+	getCanvasShapeSplitResult,
 	getCanvasShapeTrimChanges,
 	getCanvasShapeTrimSvgPath,
-	getRetainedCanvasShapeTrim,
 } from "@skedra/canvas-core";
 import type { CanvasEditorShapeTrimPreview } from "./use-canvas-editor-ellipse-trim";
 
@@ -22,12 +22,12 @@ export function CanvasEditorShapeTrimOverlay({
 	instruction,
 }: CanvasEditorShapeTrimOverlayProps) {
 	const { element } = preview;
-	const trim = getRetainedCanvasShapeTrim(
+	const trim = getCanvasShapeSplitResult(
 		element,
 		preview.firstPosition,
 		preview.secondPosition,
 		preview.preferLongPath,
-	);
+	)?.primary;
 	const firstPoint = getCanvasShapePointAtTrimPosition(
 		element,
 		preview.firstPosition,

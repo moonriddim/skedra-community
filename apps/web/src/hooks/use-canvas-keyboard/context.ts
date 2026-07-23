@@ -13,6 +13,7 @@ export interface CanvasKeyboardActions {
 	openHelp?: () => void;
 	toggleTheme?: () => void;
 	pastePlainText?: (text: string) => void;
+	copyCanvasAsPng?: () => void | Promise<void>;
 	startImageCrop?: () => void;
 	flowchartCreateDefaultStep?: (nodeId: string) => void;
 	flowchartCreateStep?: (direction: FlowchartDirection) => void;

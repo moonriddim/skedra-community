@@ -193,6 +193,7 @@ export type CanvasEditorKeyboardAction =
 	| { type: "focus-property"; property: "stroke" | "fill" | "font" }
 	| { type: "eyedropper"; target: "stroke" | "fill" }
 	| { type: "paste-plain-text" }
+	| { type: "copy-canvas-as-png" }
 	| { type: "copy-format" }
 	| { type: "paste-format" }
 	| { type: "add-link" }
@@ -245,6 +246,7 @@ const EXACT_KEYBOARD_ACTION_BY_SHORTCUT: Readonly<
 > = {
 	"5:v": { type: "paste-plain-text" },
 	"7:v": { type: "paste-plain-text" },
+	"3:c": { type: "copy-canvas-as-png" },
 	"6:c": { type: "copy-format" },
 	"7:c": { type: "copy-format" },
 	"6:v": { type: "paste-format" },

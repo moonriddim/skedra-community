@@ -13,14 +13,19 @@ import {
 	clampCloudArcRadius,
 	clampPolygonSides,
 	clampPyramidSections,
+	findCanvasShapeFragmentReconnect,
 	getCanvasShapeContourPoints,
+	getCanvasShapeFragmentMeta,
 	getCanvasShapePathProgressAtPoint,
 	getCanvasShapePointAtPathProgress,
+	getCanvasShapeSplitResult,
+	getCanvasShapeTrim,
 	getCanvasShapeTrimSvgPath,
 	getCloudSvgPath,
 	getElementPolygonPoints,
 	getEllipseAngleAtPoint,
 	getEllipseArcSvgPath,
+	getEllipsePointAtAngle,
 	getFreeformRevisionCloudSvgPath,
 	getPyramidDividerSegments,
 	getRetainedCanvasShapeTrim,
@@ -29,6 +34,7 @@ import {
 	getTrimmedCanvasShapePolyline,
 	resolveCanvasShapeTrimEndpointDrag,
 	resolveEllipseArcEndpointDrag,
+	splitCanvasShapeElement,
 } from "./shape-geometry";
 import type { CanvasElement } from "./types";
 
@@ -212,6 +218,119 @@ test("drags either ellipse arc endpoint and snaps back to a full ellipse", () =>
 		arcEndAngle: undefined,
 	});
 	assert.deepEqual(restored?.snapPoint, { x: 210, y: 70 });
+});
+
+test("splits a closed contour into movable pieces and cuts a piece again", () => {
+	const ellipse: CanvasElement = {
+		...triangle,
+		id: "split-root",
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 100,
+		text: "Original label",
+		groupId: "former-group",
+	};
+	let id = 0;
+	const firstSplit = splitCanvasShapeElement(
+		ellipse,
+		40,
+		120,
+		() => `piece-${++id}`,
+	);
+	assert.ok(firstSplit);
+	assert.equal(firstSplit.length, 2);
+	const firstPrimary = firstSplit[0];
+	const firstComplement = firstSplit[1];
+	assert.ok(firstPrimary);
+	assert.ok(firstComplement);
+	assert.equal(firstPrimary.id, ellipse.id);
+	assert.equal(getCanvasShapeTrim(firstPrimary)?.sweep, 80);
+	assert.equal(getCanvasShapeTrim(firstComplement)?.sweep, 280);
+	assert.equal(firstPrimary.groupId, null);
+	assert.equal(firstComplement.text, undefined);
+	assert.deepEqual(getCanvasShapeFragmentMeta(firstPrimary), {
+		rootId: ellipse.id,
+	});
+	assert.deepEqual(getCanvasShapeFragmentMeta(firstComplement), {
+		rootId: ellipse.id,
+	});
+
+	const secondSplit = splitCanvasShapeElement(
+		firstPrimary,
+		60,
+		90,
+		() => `piece-${++id}`,
+	);
+	assert.ok(secondSplit);
+	assert.equal(secondSplit.length, 3);
+	assert.deepEqual(
+		secondSplit.map((piece) => getCanvasShapeTrim(piece)?.sweep),
+		[30, 20, 30],
+	);
+	assert.equal(secondSplit[0]?.id, ellipse.id);
+	assert.equal(secondSplit[0]?.text, "Original label");
+	assert.ok(secondSplit.every((piece) => canTrimCanvasShape(piece)));
+
+	const preview = getCanvasShapeSplitResult(firstPrimary, 60, 90);
+	assert.equal(preview?.primary.start, 60);
+	assert.equal(preview?.primary.end, 90);
+});
+
+test("reconnects untouched sibling fragments but keeps moved pieces independent", () => {
+	const ellipse: CanvasElement = {
+		...triangle,
+		id: "reconnect-root",
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 100,
+	};
+	let id = 0;
+	const pieces = splitCanvasShapeElement(
+		ellipse,
+		0,
+		90,
+		() => `reconnect-piece-${++id}`,
+	);
+	assert.ok(pieces);
+	const [quarter, remainder] = pieces;
+	assert.ok(quarter);
+	assert.ok(remainder);
+	const elements = new Map(pieces.map((piece) => [piece.id, piece]));
+	const sharedEndpoint = getEllipsePointAtAngle(ellipse, 90, true);
+	const reconnect = findCanvasShapeFragmentReconnect(
+		quarter,
+		"end",
+		elements,
+		sharedEndpoint,
+		1,
+	);
+	assert.equal(reconnect?.siblingId, remainder.id);
+	assert.deepEqual(reconnect?.changes, {
+		arcStartAngle: undefined,
+		arcEndAngle: undefined,
+		pathTrimStart: undefined,
+		pathTrimEnd: undefined,
+		customData: undefined,
+	});
+
+	const movedRemainder = { ...remainder, x: remainder.x + 12 };
+	assert.equal(
+		findCanvasShapeFragmentReconnect(
+			quarter,
+			"end",
+			new Map([
+				[quarter.id, quarter],
+				[movedRemainder.id, movedRemainder],
+			]),
+			sharedEndpoint,
+			20,
+		),
+		null,
+	);
 });
 
 test("trims straight closed shapes along their perimeter and hit tests only the retained path", () => {

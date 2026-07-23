@@ -1,13 +1,13 @@
 import {
 	type CanvasElement,
+	type CanvasMutationPlan,
 	type SnapAnchor,
 	type Viewport,
 	canTrimCanvasShape,
 	findClosestCanvasShapeContourIntersection,
-	getCanvasShapeTrimChanges,
 	getCanvasShapeTrimPositionAtPoint,
-	getRetainedCanvasShapeTrim,
 	isCanvasTrimmableShape,
+	splitCanvasShapeElement,
 } from "@skedra/canvas-core";
 import {
 	type PointerEvent as ReactPointerEvent,
@@ -43,7 +43,8 @@ interface UseShapeTrimOptions {
 	viewport: Viewport;
 	elements: Map<string, CanvasElement>;
 	snapToObjects?: boolean;
-	updateElement: (id: string, updates: Partial<CanvasElement>) => void;
+	createId: () => string;
+	applyMutationPlan: (plan: CanvasMutationPlan) => void;
 	onActivate: () => void;
 }
 
@@ -66,7 +67,8 @@ export function useCanvasEditorShapeTrim({
 	viewport,
 	elements,
 	snapToObjects = true,
-	updateElement,
+	createId,
+	applyMutationPlan,
 	onActivate,
 }: UseShapeTrimOptions) {
 	const [draft, setDraft] = useState<ShapeTrimDraft | null>(null);
@@ -190,18 +192,36 @@ export function useCanvasEditorShapeTrim({
 				snapAnchor ?? canvasPoint,
 			);
 			if (secondPosition === null) return true;
-			const trim = getRetainedCanvasShapeTrim(
+			const fragments = splitCanvasShapeElement(
 				element,
 				draft.firstPosition,
 				secondPosition,
+				createId,
 				event.shiftKey,
 			);
-			if (!trim) return true;
-			updateElement(element.id, getCanvasShapeTrimChanges(element, trim));
+			if (!fragments) return true;
+			const [primary, ...created] = fragments;
+			if (!primary) return true;
+			const { id: _primaryId, ...changes } = primary;
+			applyMutationPlan({
+				create: created,
+				update: [{ id: element.id, changes }],
+				deleteIds: [],
+				selectedIds: [element.id],
+			});
 			setDraft(null);
 			return true;
 		},
-		[cancel, draft, elements, snapToObjects, svgRef, updateElement, viewport],
+		[
+			applyMutationPlan,
+			cancel,
+			createId,
+			draft,
+			elements,
+			snapToObjects,
+			svgRef,
+			viewport,
+		],
 	);
 
 	const handlePointerUp = useCallback(

@@ -74,6 +74,8 @@ interface SkedraCanvasEditLayerProps {
 	textEditorOpen: boolean;
 	textEditing: TextEditingApi;
 	keyboard: KeyboardApi;
+	onCopyCanvasAsPng: () => void | Promise<void>;
+	onCopyCanvasAsSvg: () => void | Promise<void>;
 	liveStickyNoteEditor: {
 		mode: StickyNoteMode;
 		text: string;
@@ -100,6 +102,8 @@ export function SkedraCanvasEditLayer({
 	textEditorOpen,
 	textEditing,
 	keyboard,
+	onCopyCanvasAsPng,
+	onCopyCanvasAsSvg,
 	liveStickyNoteEditor,
 	createMindmapSibling,
 	deleteElementsWithKanbanReflow,
@@ -191,6 +195,8 @@ export function SkedraCanvasEditLayer({
 					onCopy={keyboard.copySelection}
 					onCut={keyboard.cutSelection}
 					onPaste={keyboard.pasteClipboard}
+					onCopyAsPng={onCopyCanvasAsPng}
+					onCopyAsSvg={onCopyCanvasAsSvg}
 					onDuplicate={keyboard.duplicateSelection}
 					onDelete={() => {
 						deleteElementsWithKanbanReflow(Array.from(selectedIds));

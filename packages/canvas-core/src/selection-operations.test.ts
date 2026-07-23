@@ -12,6 +12,7 @@ import {
 	cloneCanvasSelection,
 	cloneTransformedCanvasSelection,
 	getCanvasElementFormat,
+	getCanvasPasteOffset,
 	getFlipUpdates,
 	getGroupUpdates,
 	getLockUpdates,
@@ -28,6 +29,16 @@ function rectangle(id: string, x: number, width = 20) {
 		{ type: "rectangle", x, y: 0, width, height: 20 },
 	);
 }
+
+test("centers pasted selections at the requested canvas point", () => {
+	const elements = [rectangle("a", 10, 20), rectangle("b", 70, 40)];
+
+	assert.deepEqual(getCanvasPasteOffset(elements, { x: 300, y: 200 }), {
+		x: 240,
+		y: 190,
+	});
+	assert.deepEqual(getCanvasPasteOffset(elements), { x: 20, y: 20 });
+});
 
 test("format clipboard behavior stays shared across editor hosts", () => {
 	const source = {

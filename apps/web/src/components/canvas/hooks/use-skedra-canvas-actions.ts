@@ -44,6 +44,7 @@ interface UseSkedraCanvasActionsOptions {
 		bounds: { x: number; y: number; width: number; height: number },
 		padding?: number,
 	) => void;
+	getPastePoint?: () => { x: number; y: number };
 	addFlowchartStep: (nodeId: string, options?: AddFlowchartStepOptions) => void;
 }
 
@@ -57,6 +58,7 @@ export function useSkedraCanvasActions({
 	imageUploadOptions,
 	deleteElementsWithKanbanReflow,
 	fitViewportToBounds,
+	getPastePoint,
 	addFlowchartStep,
 }: UseSkedraCanvasActionsOptions) {
 	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
@@ -96,12 +98,12 @@ export function useSkedraCanvasActions({
 		);
 		if (elementsToAdd.length === 0) return;
 		for (const el of elementsToAdd) sync.createElement(el);
-		store.setSelectedIds(new Set([elementsToAdd[0].id]));
+		store.setSelectedIds(new Set(elementsToAdd.map((element) => element.id)));
 	}, [getViewportCenter, imageUploadOptions, resolvedTheme, store, sync]);
 
 	const handlePastePlainText = useCallback(
 		(text: string) => {
-			const center = getViewportCenter();
+			const center = getPastePoint?.() ?? getViewportCenter();
 			const id = nanoid();
 			sync.createElement({
 				id,
@@ -133,7 +135,7 @@ export function useSkedraCanvasActions({
 			store.setSelectedIds(new Set([id]));
 			store.setEditingTextId(id);
 		},
-		[getViewportCenter, store, sync],
+		[getPastePoint, getViewportCenter, store, sync],
 	);
 
 	const handleToggleTheme = useCallback(() => {

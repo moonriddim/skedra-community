@@ -305,6 +305,13 @@ importers:
         version: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)
 
   packages/canvas-core:
+    dependencies:
+      '@xmldom/xmldom':
+        specifier: ^0.9.10
+        version: 0.9.10
+      points-on-path:
+        specifier: 0.2.1
+        version: 0.2.1
     devDependencies:
       typescript:
         specifier: ^5.7.0
@@ -2210,6 +2217,10 @@ packages:
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
+
+  '@xmldom/xmldom@0.9.10':
+    resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
+    engines: {node: '>=14.6'}
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -4833,6 +4844,8 @@ snapshots:
       vite: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)
     transitivePeerDependencies:
       - supports-color
+
+  '@xmldom/xmldom@0.9.10': {}
 
   accepts@2.0.0:
     dependencies:

@@ -234,9 +234,12 @@ async function rasterizeSvg(
 	const prepared = prepareSvg(svgElement, options);
 	const scale = Math.max(0.25, options.scale ?? 2);
 	const source = new XMLSerializer().serializeToString(prepared.svg);
-	const url = URL.createObjectURL(
-		new Blob([source], { type: "image/svg+xml;charset=utf-8" }),
-	);
+	const usesDataUrl = prepared.svg.querySelector("foreignObject") != null;
+	const url = usesDataUrl
+		? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`
+		: URL.createObjectURL(
+				new Blob([source], { type: "image/svg+xml;charset=utf-8" }),
+			);
 	try {
 		const image = await loadImage(url);
 		const canvas = document.createElement("canvas");
@@ -248,7 +251,7 @@ async function rasterizeSvg(
 		context.drawImage(image, 0, 0, prepared.width, prepared.height);
 		return { canvas, width: prepared.width, height: prepared.height };
 	} finally {
-		URL.revokeObjectURL(url);
+		if (!usesDataUrl) URL.revokeObjectURL(url);
 	}
 }
 

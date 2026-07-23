@@ -38,6 +38,7 @@ import {
 	getAlignmentUpdates,
 	getCanvasElementFormat,
 	getCanvasKeyboardResizeChanges,
+	getCanvasPasteOffset,
 	getCanvasSelectionSnapPointIndicators,
 	getCanvasViewportCenter,
 	getCombinedBBox,
@@ -61,6 +62,7 @@ import {
 	normalizeCanvasGridSize,
 	normalizeCanvasRect,
 	normalizeCanvasSnapDivisionCount,
+	parseSvgToCanvasElements,
 	planCanvasDeletion,
 	planFlowchartStepMutation,
 	planKanbanCardInsertion,
@@ -129,7 +131,10 @@ import type {
 	CanvasEditorStickyChecklistItem,
 	CanvasEditorStickyNoteMode,
 } from "@skedra/canvas-editor";
-import { writeCanvasClipboardDataTransfer } from "@skedra/canvas-io/clipboard";
+import {
+	copySkedraVisualToClipboard,
+	writeCanvasClipboardDataTransfer,
+} from "@skedra/canvas-io/clipboard";
 import {
 	CanvasElementRenderer,
 	CanvasRenderer,
@@ -585,6 +590,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const svgRef = useRef<SVGSVGElement | null>(null);
 		const rootRef = useRef<HTMLDivElement | null>(null);
 		const spacePressedRef = useRef(false);
+		const lastCanvasPointerClientRef = useRef<{
+			clientX: number;
+			clientY: number;
+		} | null>(null);
 		const clipboardRef = useRef<CanvasElement[]>([]);
 		const formatClipboardRef = useRef<CanvasElementFormat | null>(null);
 		const eyedropperTargetRef = useRef<"stroke" | "fill">("stroke");
@@ -983,6 +992,21 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			const rect = svg.getBoundingClientRect();
 			return getCanvasViewportCenter(rect, viewport);
 		}, [viewport]);
+		const rememberCanvasPointer = useCallback(
+			(point: { clientX: number; clientY: number }) => {
+				lastCanvasPointerClientRef.current = {
+					clientX: point.clientX,
+					clientY: point.clientY,
+				};
+			},
+			[],
+		);
+		const getPastePoint = useCallback((): Point => {
+			const svg = svgRef.current;
+			const pointer = lastCanvasPointerClientRef.current;
+			if (!svg || !pointer) return getViewportCenter();
+			return toWorldPoint(pointer, svg, viewport);
+		}, [getViewportCenter, viewport]);
 
 		const addSdkElements = useCallback(
 			(nextElements: CanvasElement[]) => {
@@ -1581,12 +1605,19 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 
 		const pasteElements = useCallback(
-			(source: CanvasElement[]) => {
+			(
+				source: CanvasElement[],
+				placement: "pointer" | "offset" = "pointer",
+			) => {
 				if (source.length === 0 || readOnly) return [];
 				const cloned = cloneCanvasSelection({
 					elements: source,
 					existingElements: currentElements,
 					createId,
+					offset:
+						placement === "pointer"
+							? getCanvasPasteOffset(source, getPastePoint())
+							: undefined,
 				});
 				clipboardRef.current = cloned.elements.map((element) =>
 					structuredClone(element),
@@ -1595,7 +1626,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				setSelectedIds(new Set(cloned.elements.map((element) => element.id)));
 				return cloned.elements;
 			},
-			[commitCanvasElements, currentElements, readOnly],
+			[commitCanvasElements, currentElements, getPastePoint, readOnly],
 		);
 
 		const pasteSelection = useCallback(
@@ -1625,9 +1656,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 
 		const duplicateSelection = useCallback(() => {
-			copySelection();
-			return pasteSelection();
-		}, [copySelection, pasteSelection]);
+			const copied = copySelection();
+			return pasteElements(copied, "offset");
+		}, [copySelection, pasteElements]);
 
 		const applySelectedUpdates = useCallback(
 			(updates: Array<{ id: string; changes: Partial<CanvasElement> }>) => {
@@ -2550,6 +2581,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					),
 				);
 			},
+			applyMutationPlan: (plan) => {
+				if (readOnly) return;
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
+			},
 			duplicateSelection: readOnly
 				? undefined
 				: () => {
@@ -2753,14 +2788,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			viewport,
 			elements: elementMap,
 			snapToObjects,
-			updateElement: (id, changes) => {
+			createId,
+			applyMutationPlan: (plan) => {
 				if (readOnly) return;
 				beginHistoryTransaction();
-				commitCanvasElements(
-					currentElements.map((element) =>
-						element.id === id ? { ...element, ...changes } : element,
-					),
-				);
+				commitCanvasElements(applyCanvasMutationPlan(currentElements, plan));
 				finishHistoryTransaction();
 			},
 			onActivate: () => {
@@ -2771,6 +2803,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		});
 		const onSdkSurfacePointerDown = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
+				rememberCanvasPointer(event);
 				if (shapeTrim.handlePointerDown(event)) return;
 				if (isCapturingView && event.button === 0) {
 					if (
@@ -2807,6 +2840,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				cancelViewInteraction,
 				editorPointer,
 				isCapturingView,
+				rememberCanvasPointer,
 				snapOverrideMode,
 				shapeTrim.handlePointerDown,
 				startViewCapture,
@@ -2815,6 +2849,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 		const onSdkSurfacePointerMove = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
+				rememberCanvasPointer(event);
 				if (shapeTrim.handlePointerMove(event)) return;
 				editorPointer.onPointerMove(event);
 				const rect = event.currentTarget.getBoundingClientRect();
@@ -2827,12 +2862,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			[
 				editorPointer,
 				handleViewPointerMove,
+				rememberCanvasPointer,
 				shapeTrim.handlePointerMove,
 				viewport,
 			],
 		);
 		const onSdkSurfaceContextMenu = useCallback(
 			(event: ReactMouseEvent<SVGSVGElement>) => {
+				rememberCanvasPointer(event);
 				if (shapeTrim.active) {
 					event.preventDefault();
 					shapeTrim.cancel();
@@ -2871,6 +2908,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				editorPointer,
 				elementMap,
 				presentationViewId,
+				rememberCanvasPointer,
 				scene,
 				selectedIds,
 				shapeTrim.active,
@@ -2881,11 +2919,17 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 		const onSdkSurfacePointerUp = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
+				rememberCanvasPointer(event);
 				if (shapeTrim.handlePointerUp(event)) return;
 				editorPointer.onPointerUp(event);
 				handleViewPointerUp(event.pointerId);
 			},
-			[editorPointer, handleViewPointerUp, shapeTrim.handlePointerUp],
+			[
+				editorPointer,
+				handleViewPointerUp,
+				rememberCanvasPointer,
+				shapeTrim.handlePointerUp,
+			],
 		);
 
 		const insertPathPoint = (
@@ -3089,15 +3133,41 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const pickAndInsertImage = useCallback(async () => {
 			const file = await pickBrowserFile("image/*");
-			if (file) await insertImage(file, { name: file.name });
-		}, [insertImage]);
+			if (!file) return;
+			if (
+				file.type.toLowerCase() === "image/svg+xml" ||
+				file.name.toLowerCase().endsWith(".svg")
+			) {
+				const imported = parseSvgToCanvasElements(await file.text(), {
+					createId,
+					stroke,
+					fontFamily: drawingStyle.fontFamily,
+					target: getViewportCenter(),
+					maxWidth: 1200,
+					maxHeight: 900,
+					sourceName: file.name,
+				});
+				if (imported) {
+					const added = addSdkElements(imported.elements);
+					setSelectedIds(new Set(added.map((element) => element.id)));
+					return;
+				}
+			}
+			await insertImage(file, { name: file.name });
+		}, [
+			addSdkElements,
+			drawingStyle.fontFamily,
+			getViewportCenter,
+			insertImage,
+			stroke,
+		]);
 
 		const pastePlainText = useCallback(async () => {
 			if (readOnly || !navigator.clipboard?.readText) return;
 			const text = await navigator.clipboard.readText().catch(() => "");
 			if (!text.trim()) return;
 			const id = createId();
-			const center = getViewportCenter();
+			const center = getPastePoint();
 			const element = {
 				...buildCanvasTextElement({
 					id,
@@ -3118,7 +3188,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			commitCanvasElements,
 			currentElements,
 			drawingStyle,
-			getViewportCenter,
+			getPastePoint,
 			readOnly,
 		]);
 
@@ -3175,6 +3245,18 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		]);
 
 		const clearSelected = deleteSelection;
+		const copyCanvasToClipboard = useCallback(async (format: "png" | "svg") => {
+			const svg = svgRef.current;
+			if (!svg) return;
+			try {
+				await copySkedraVisualToClipboard(svg, format);
+			} catch (error) {
+				console.error(
+					`Could not copy the canvas as ${format.toUpperCase()}`,
+					error,
+				);
+			}
+		}, []);
 		const keyboardActionHandlers: SkedraSdkKeyboardActionHandlers = {
 			command: (command) => {
 				if (command === "paste") void pasteFromClipboard();
@@ -3202,6 +3284,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				setTool("eyedropper");
 			},
 			pastePlainText: () => void pastePlainText(),
+			copyCanvasAsPng: () => void copyCanvasToClipboard("png"),
 			copyFormat: copySelectionFormat,
 			pasteFormat: pasteSelectionFormat,
 			addLink: addSelectionLink,
@@ -4123,6 +4206,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						onPaste={() => {
 							void pasteFromClipboard();
 						}}
+						onCopyAsPng={() => copyCanvasToClipboard("png")}
+						onCopyAsSvg={() => copyCanvasToClipboard("svg")}
 						onDuplicate={duplicateSelection}
 						onDelete={deleteSelection}
 						onSelectAll={() =>

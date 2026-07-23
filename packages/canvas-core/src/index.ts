@@ -27,6 +27,8 @@ export * from "./selection-operations";
 export * from "./sequence-diagram";
 export * from "./snap";
 export * from "./sticky-note";
+export * from "./svg-import";
+export * from "./svg-path-element";
 export * from "./viewport";
 export * from "./wireframe";
 export * from "./wireframe-presets";

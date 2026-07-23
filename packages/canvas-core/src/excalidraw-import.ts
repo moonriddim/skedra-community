@@ -135,6 +135,22 @@ function readPoints(value: unknown): [number, number][] | undefined {
 	return points.length > 0 ? points : undefined;
 }
 
+function pointsCloseLoop(points: [number, number][] | undefined): boolean {
+	if (!points || points.length < 4) return false;
+	const first = points[0];
+	const last = points[points.length - 1];
+	return (
+		Math.abs(first[0] - last[0]) <= 0.0001 &&
+		Math.abs(first[1] - last[1]) <= 0.0001
+	);
+}
+
+function withoutRepeatedClosingPoint(
+	points: [number, number][] | undefined,
+): [number, number][] | undefined {
+	return pointsCloseLoop(points) ? points?.slice(0, -1) : points;
+}
+
 function readBinding(value: unknown): CanvasElementBinding | null {
 	if (!isRecord(value) || typeof value.elementId !== "string") return null;
 	const fixedPoint = readPoints(
@@ -444,8 +460,19 @@ export function convertExcalidrawElement(
 	};
 
 	if (type === "line" || type === "arrow" || type === "freehand") {
-		element.points = readPoints(raw.points);
-		if (type === "line") element.closed = raw.polygon === true;
+		const points = readPoints(raw.points);
+		const repeatedClosingPoint = pointsCloseLoop(points);
+		element.points =
+			type === "line" && repeatedClosingPoint
+				? withoutRepeatedClosingPoint(points)
+				: points;
+		if (type === "line") {
+			element.closed = raw.polygon === true || repeatedClosingPoint;
+			element.arrowMode =
+				isRecord(raw.roundness) || raw.strokeSharpness === "round"
+					? "curve"
+					: "straight";
+		}
 		if (type === "line" || type === "arrow") {
 			element.startBinding = readBinding(raw.startBinding);
 			element.endBinding = readBinding(raw.endBinding);

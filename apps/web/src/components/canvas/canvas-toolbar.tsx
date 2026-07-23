@@ -146,7 +146,10 @@ export function CanvasToolbar({
 			{ resolvedTheme },
 			imageUploadOptions,
 		);
-		if (elements.length > 0) addElements(elements);
+		if (elements.length > 0) {
+			addElements(elements);
+			store.setSelectedIds(new Set(elements.map((element) => element.id)));
+		}
 	};
 	const createNewGantt = () => {
 		const existingCount = Array.from(elements.values()).filter(

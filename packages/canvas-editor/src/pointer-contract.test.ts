@@ -386,6 +386,9 @@ test("keyboard resolver preserves modifier precedence and selection shortcuts", 
 		resolve("c", { ctrlKey: true, altKey: true, shiftKey: true }),
 		{ type: "copy-format" },
 	);
+	assert.deepEqual(resolve("c", { altKey: true, shiftKey: true }), {
+		type: "copy-canvas-as-png",
+	});
 	assert.deepEqual(
 		resolve("p", { metaKey: true, altKey: true, shiftKey: true }),
 		{ type: "open-command-palette" },

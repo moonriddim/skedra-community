@@ -79,6 +79,27 @@ export interface CanvasShapeTrim {
 	sweep: number;
 }
 
+export const CANVAS_SHAPE_FRAGMENT_DATA_KEY = "skedraShapeFragment";
+
+export interface CanvasShapeFragmentMeta {
+	/** Stable lineage shared by every piece produced from the same contour. */
+	rootId: string;
+}
+
+export interface CanvasShapeSplitResult {
+	/** The piece that keeps the selected element's id. */
+	primary: CanvasShapeTrim;
+	/** Every visible piece, with the primary piece first. */
+	fragments: CanvasShapeTrim[];
+}
+
+export interface CanvasShapeFragmentReconnectPlan {
+	survivorId: string;
+	siblingId: string;
+	changes: Partial<CanvasElement>;
+	snapPoint: { x: number; y: number };
+}
+
 export interface CanvasShapeTrimEndpointDragResult {
 	changes: Pick<
 		CanvasElement,
@@ -735,6 +756,412 @@ export function getCanvasShapeTrimChanges(
 			};
 }
 
+const SHAPE_FRAGMENT_PROGRESS_EPSILON = 1e-7;
+
+function getCanvasShapeTrimUnitPosition(
+	kind: CanvasShapeTrim["kind"],
+	position: number,
+): number {
+	return kind === "ellipse"
+		? normalizeCanvasPathProgress(position / FULL_TURN_DEGREES)
+		: normalizeCanvasPathProgress(position);
+}
+
+function getCanvasShapeTrimUnitSweep(trim: CanvasShapeTrim): number {
+	return trim.kind === "ellipse" ? trim.sweep / FULL_TURN_DEGREES : trim.sweep;
+}
+
+function createCanvasShapeTrimFromUnitInterval(
+	kind: CanvasShapeTrim["kind"],
+	start: number,
+	sweep: number,
+): CanvasShapeTrim {
+	const normalizedStart = normalizeCanvasPathProgress(start);
+	const normalizedEnd = normalizeCanvasPathProgress(start + sweep);
+	return kind === "ellipse"
+		? {
+				kind,
+				start: normalizedStart * FULL_TURN_DEGREES,
+				end: normalizedEnd * FULL_TURN_DEGREES,
+				sweep: sweep * FULL_TURN_DEGREES,
+			}
+		: {
+				kind,
+				start: normalizedStart,
+				end: normalizedEnd,
+				sweep,
+			};
+}
+
+function canvasShapeTrimIntervalsEqual(
+	first: CanvasShapeTrim,
+	second: CanvasShapeTrim,
+): boolean {
+	if (first.kind !== second.kind) return false;
+	const firstStart = getCanvasShapeTrimUnitPosition(first.kind, first.start);
+	const secondStart = getCanvasShapeTrimUnitPosition(second.kind, second.start);
+	const startDistance = Math.min(
+		normalizeCanvasPathProgress(firstStart - secondStart),
+		normalizeCanvasPathProgress(secondStart - firstStart),
+	);
+	return (
+		startDistance <= SHAPE_FRAGMENT_PROGRESS_EPSILON &&
+		Math.abs(
+			getCanvasShapeTrimUnitSweep(first) - getCanvasShapeTrimUnitSweep(second),
+		) <= SHAPE_FRAGMENT_PROGRESS_EPSILON
+	);
+}
+
+/**
+ * Splits the currently visible contour interval at two positions. Closed
+ * shapes produce two arcs; cutting an existing arc can produce up to three
+ * independently movable pieces.
+ */
+export function getCanvasShapeSplitResult(
+	element: CanvasElement,
+	firstPosition: number,
+	secondPosition: number,
+	preferLongPath = false,
+): CanvasShapeSplitResult | null {
+	if (!isCanvasTrimmableShape(element)) return null;
+	const existingTrim = getCanvasShapeTrim(element);
+	const kind: CanvasShapeTrim["kind"] =
+		element.type === "ellipse" ? "ellipse" : "path";
+	const currentStart = existingTrim
+		? getCanvasShapeTrimUnitPosition(kind, existingTrim.start)
+		: 0;
+	const currentSweep = existingTrim
+		? getCanvasShapeTrimUnitSweep(existingTrim)
+		: 1;
+	const toCurrentOffset = (position: number) =>
+		normalizeCanvasPathProgress(
+			getCanvasShapeTrimUnitPosition(kind, position) - currentStart,
+		);
+	const firstOffset = toCurrentOffset(firstPosition);
+	const secondOffset = toCurrentOffset(secondPosition);
+
+	if (
+		existingTrim &&
+		(firstOffset > currentSweep + SHAPE_FRAGMENT_PROGRESS_EPSILON ||
+			secondOffset > currentSweep + SHAPE_FRAGMENT_PROGRESS_EPSILON)
+	) {
+		return null;
+	}
+
+	const cutOffsets = [firstOffset, secondOffset]
+		.filter(
+			(offset) =>
+				offset > SHAPE_FRAGMENT_PROGRESS_EPSILON &&
+				offset < currentSweep - SHAPE_FRAGMENT_PROGRESS_EPSILON,
+		)
+		.sort((a, b) => a - b)
+		.filter(
+			(offset, index, values) =>
+				index === 0 ||
+				Math.abs(offset - (values[index - 1] ?? offset)) >
+					SHAPE_FRAGMENT_PROGRESS_EPSILON,
+		);
+
+	let fragments: CanvasShapeTrim[];
+	if (!existingTrim) {
+		const first = getCanvasShapeTrimUnitPosition(kind, firstPosition);
+		const second = getCanvasShapeTrimUnitPosition(kind, secondPosition);
+		const clockwiseSweep = normalizeCanvasPathProgress(second - first);
+		if (
+			clockwiseSweep <= SHAPE_FRAGMENT_PROGRESS_EPSILON ||
+			1 - clockwiseSweep <= SHAPE_FRAGMENT_PROGRESS_EPSILON
+		) {
+			return null;
+		}
+		fragments = [
+			createCanvasShapeTrimFromUnitInterval(kind, first, clockwiseSweep),
+			createCanvasShapeTrimFromUnitInterval(kind, second, 1 - clockwiseSweep),
+		];
+	} else {
+		if (cutOffsets.length === 0) return null;
+		const boundaries = [0, ...cutOffsets, currentSweep];
+		fragments = boundaries
+			.slice(0, -1)
+			.map((offset, index) =>
+				createCanvasShapeTrimFromUnitInterval(
+					kind,
+					currentStart + offset,
+					(boundaries[index + 1] ?? currentSweep) - offset,
+				),
+			);
+	}
+
+	let primary: CanvasShapeTrim | undefined;
+	if (!existingTrim) {
+		const retained = getRetainedCanvasShapeTrim(
+			element,
+			firstPosition,
+			secondPosition,
+			preferLongPath,
+		);
+		primary = retained
+			? fragments.find((fragment) =>
+					canvasShapeTrimIntervalsEqual(fragment, retained),
+				)
+			: undefined;
+	} else if (
+		Math.abs(firstOffset - secondOffset) > SHAPE_FRAGMENT_PROGRESS_EPSILON
+	) {
+		const middleStart = Math.min(firstOffset, secondOffset);
+		const middleSweep = Math.abs(firstOffset - secondOffset);
+		const middle = createCanvasShapeTrimFromUnitInterval(
+			kind,
+			currentStart + middleStart,
+			middleSweep,
+		);
+		primary = fragments.find((fragment) =>
+			canvasShapeTrimIntervalsEqual(fragment, middle),
+		);
+	}
+	primary ??= preferLongPath
+		? fragments.reduce((longest, fragment) =>
+				getCanvasShapeTrimUnitSweep(fragment) >
+				getCanvasShapeTrimUnitSweep(longest)
+					? fragment
+					: longest,
+			)
+		: fragments.reduce((shortest, fragment) =>
+				getCanvasShapeTrimUnitSweep(fragment) <
+				getCanvasShapeTrimUnitSweep(shortest)
+					? fragment
+					: shortest,
+			);
+
+	return {
+		primary,
+		fragments: [
+			primary,
+			...fragments.filter((fragment) => fragment !== primary),
+		],
+	};
+}
+
+export function getCanvasShapeFragmentMeta(
+	element: Pick<CanvasElement, "customData">,
+): CanvasShapeFragmentMeta | null {
+	const candidate = element.customData?.[CANVAS_SHAPE_FRAGMENT_DATA_KEY];
+	if (
+		!candidate ||
+		typeof candidate !== "object" ||
+		typeof (candidate as { rootId?: unknown }).rootId !== "string"
+	) {
+		return null;
+	}
+	return { rootId: (candidate as { rootId: string }).rootId };
+}
+
+function withCanvasShapeFragmentMeta(
+	element: CanvasElement,
+	rootId: string,
+): Record<string, unknown> {
+	return {
+		...(element.customData ?? {}),
+		[CANVAS_SHAPE_FRAGMENT_DATA_KEY]: { rootId },
+	};
+}
+
+function withoutCanvasShapeFragmentMeta(
+	customData: CanvasElement["customData"],
+): CanvasElement["customData"] {
+	if (!customData) return undefined;
+	const { [CANVAS_SHAPE_FRAGMENT_DATA_KEY]: _fragmentMeta, ...remaining } =
+		customData;
+	return Object.keys(remaining).length > 0 ? remaining : undefined;
+}
+
+/**
+ * Creates normal canvas elements for every piece while preserving the
+ * selected element id on the previewed piece.
+ */
+export function splitCanvasShapeElement(
+	element: CanvasElement,
+	firstPosition: number,
+	secondPosition: number,
+	createId: () => string,
+	preferLongPath = false,
+): CanvasElement[] | null {
+	const result = getCanvasShapeSplitResult(
+		element,
+		firstPosition,
+		secondPosition,
+		preferLongPath,
+	);
+	if (!result || result.fragments.length < 2) return null;
+	const rootId = getCanvasShapeFragmentMeta(element)?.rootId ?? element.id;
+	return result.fragments.map((trim, index) => {
+		const fragment: CanvasElement = {
+			...element,
+			id: index === 0 ? element.id : createId(),
+			groupId: null,
+			customData: withCanvasShapeFragmentMeta(element, rootId),
+			...getCanvasShapeTrimChanges(element, trim),
+		};
+		if (index > 0) {
+			fragment.text = undefined;
+			fragment.containerId = undefined;
+			fragment.link = undefined;
+		}
+		return fragment;
+	});
+}
+
+function canvasShapeFragmentValuesEqual(
+	first: CanvasElement,
+	second: CanvasElement,
+): boolean {
+	const numericKeys = [
+		"x",
+		"y",
+		"width",
+		"height",
+		"rotation",
+		"strokeWidth",
+		"opacity",
+		"roughness",
+		"roughFillScale",
+	] as const;
+	if (
+		numericKeys.some(
+			(key) =>
+				Math.abs((first[key] ?? 0) - (second[key] ?? 0)) >
+				SHAPE_FRAGMENT_PROGRESS_EPSILON,
+		)
+	) {
+		return false;
+	}
+	return (
+		first.type === second.type &&
+		first.flipX === second.flipX &&
+		first.flipY === second.flipY &&
+		first.stroke === second.stroke &&
+		first.fill === second.fill &&
+		first.strokeStyle === second.strokeStyle &&
+		first.frameId === second.frameId &&
+		first.roughFillStyle === second.roughFillStyle
+	);
+}
+
+function getCanvasShapeFragmentMergeChanges(
+	element: CanvasElement,
+	sibling: CanvasElement,
+	endpoint: CanvasShapeTrimEndpoint,
+): Partial<CanvasElement> | null {
+	const trim = getCanvasShapeTrim(element);
+	const siblingTrim = getCanvasShapeTrim(sibling);
+	if (!trim || !siblingTrim || trim.kind !== siblingTrim.kind) return null;
+	const meta = getCanvasShapeFragmentMeta(element);
+	const siblingMeta = getCanvasShapeFragmentMeta(sibling);
+	if (
+		!meta ||
+		!siblingMeta ||
+		meta.rootId !== siblingMeta.rootId ||
+		!canvasShapeFragmentValuesEqual(element, sibling)
+	) {
+		return null;
+	}
+
+	const start = getCanvasShapeTrimUnitPosition(trim.kind, trim.start);
+	const sweep = getCanvasShapeTrimUnitSweep(trim);
+	const end = normalizeCanvasPathProgress(start + sweep);
+	const siblingStart = getCanvasShapeTrimUnitPosition(
+		siblingTrim.kind,
+		siblingTrim.start,
+	);
+	const siblingSweep = getCanvasShapeTrimUnitSweep(siblingTrim);
+	const siblingEnd = normalizeCanvasPathProgress(siblingStart + siblingSweep);
+	const boundaryDistance =
+		endpoint === "start"
+			? Math.min(
+					normalizeCanvasPathProgress(start - siblingEnd),
+					normalizeCanvasPathProgress(siblingEnd - start),
+				)
+			: Math.min(
+					normalizeCanvasPathProgress(end - siblingStart),
+					normalizeCanvasPathProgress(siblingStart - end),
+				);
+	if (boundaryDistance > SHAPE_FRAGMENT_PROGRESS_EPSILON) return null;
+
+	const mergedSweep = sweep + siblingSweep;
+	if (mergedSweep > 1 + SHAPE_FRAGMENT_PROGRESS_EPSILON) return null;
+	const mergedStart = endpoint === "start" ? siblingStart : start;
+	const mergedIsFull = mergedSweep >= 1 - SHAPE_FRAGMENT_PROGRESS_EPSILON;
+	return {
+		...(mergedIsFull
+			? {
+					arcStartAngle: undefined,
+					arcEndAngle: undefined,
+					pathTrimStart: undefined,
+					pathTrimEnd: undefined,
+				}
+			: getCanvasShapeTrimChanges(
+					element,
+					createCanvasShapeTrimFromUnitInterval(
+						trim.kind,
+						mergedStart,
+						mergedSweep,
+					),
+				)),
+		customData: mergedIsFull
+			? withoutCanvasShapeFragmentMeta(element.customData)
+			: element.customData,
+		...(element.text === undefined && sibling.text !== undefined
+			? { text: sibling.text }
+			: {}),
+		...(element.link === undefined && sibling.link !== undefined
+			? { link: sibling.link }
+			: {}),
+	};
+}
+
+/**
+ * Finds a same-lineage piece whose matching endpoint is still on the exact
+ * same source geometry. Moved pieces intentionally stop matching.
+ */
+export function findCanvasShapeFragmentReconnect(
+	element: CanvasElement,
+	endpoint: CanvasShapeTrimEndpoint,
+	elements: ReadonlyMap<string, CanvasElement>,
+	point: { x: number; y: number },
+	snapDistance: number,
+): CanvasShapeFragmentReconnectPlan | null {
+	const trim = getCanvasShapeTrim(element);
+	if (!trim || !getCanvasShapeFragmentMeta(element)) return null;
+	const endpointPosition = endpoint === "start" ? trim.start : trim.end;
+	const snapPoint = getCanvasShapePointAtTrimPosition(
+		element,
+		endpointPosition,
+		true,
+	);
+	if (
+		!snapPoint ||
+		Math.hypot(point.x - snapPoint.x, point.y - snapPoint.y) >
+			Math.max(0, snapDistance)
+	) {
+		return null;
+	}
+	for (const sibling of elements.values()) {
+		if (sibling.id === element.id) continue;
+		const changes = getCanvasShapeFragmentMergeChanges(
+			element,
+			sibling,
+			endpoint,
+		);
+		if (!changes) continue;
+		return {
+			survivorId: element.id,
+			siblingId: sibling.id,
+			changes,
+			snapPoint,
+		};
+	}
+	return null;
+}
+
 export function getTrimmedCanvasShapePolyline(
 	element: CanvasElement,
 	transformed = false,
@@ -807,6 +1234,17 @@ export function resolveCanvasShapeTrimEndpointDrag(
 		Math.hypot(point.x - snapPoint.x, point.y - snapPoint.y) <=
 		Math.max(0, snapDistance);
 	if (snappedToFullShape) {
+		if (getCanvasShapeFragmentMeta(element)) {
+			const draggedPosition = endpoint === "start" ? trim.start : trim.end;
+			return {
+				changes: getCanvasShapeTrimChanges(element, trim),
+				draggedPosition,
+				snapPoint:
+					getCanvasShapePointAtTrimPosition(element, draggedPosition, true) ??
+					snapPoint,
+				snappedToFullShape: false,
+			};
+		}
 		return {
 			changes: {
 				arcStartAngle: undefined,
@@ -830,6 +1268,23 @@ export function resolveCanvasShapeTrimEndpointDrag(
 		nextTrim.kind === "ellipse"
 			? getEllipseArcSweep(nextTrim.start, nextTrim.end)
 			: normalizeCanvasPathProgress(nextTrim.end - nextTrim.start);
+	if (
+		(nextTrim.kind === "ellipse" &&
+			nextTrim.sweep < MIN_ELLIPSE_ARC_SWEEP_DEGREES) ||
+		(nextTrim.kind === "path" && nextTrim.sweep < MIN_PATH_TRIM_SWEEP)
+	) {
+		return {
+			changes: getCanvasShapeTrimChanges(element, trim),
+			draggedPosition: endpoint === "start" ? trim.start : trim.end,
+			snapPoint:
+				getCanvasShapePointAtTrimPosition(
+					element,
+					endpoint === "start" ? trim.start : trim.end,
+					true,
+				) ?? snapPoint,
+			snappedToFullShape: false,
+		};
+	}
 	return {
 		changes: getCanvasShapeTrimChanges(element, nextTrim),
 		draggedPosition,

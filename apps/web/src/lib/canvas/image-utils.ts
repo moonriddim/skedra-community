@@ -19,6 +19,7 @@ export interface PickedImage {
 	width: number;
 	height: number;
 	name: string;
+	svgText?: string;
 	sizeBytes?: number;
 	storage?: "inline" | "object";
 }
@@ -127,6 +128,20 @@ async function readImageFile(
 		file.size > uploadOptions.maxImageBytes
 	) {
 		throw new Error("IMAGE_TOO_LARGE");
+	}
+	const isSvg =
+		file.type.toLowerCase() === "image/svg+xml" ||
+		file.name.toLowerCase().endsWith(".svg");
+	if (isSvg) {
+		return {
+			src: await canvasBlobToDataUrl(file),
+			width: 0,
+			height: 0,
+			name: file.name,
+			svgText: await file.text(),
+			sizeBytes: file.size,
+			storage: "inline",
+		};
 	}
 	const dimensions = await loadCanvasImageBlobDimensions(file);
 	const uploaded = await uploadEncryptedImageAsset(file, uploadOptions);

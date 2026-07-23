@@ -268,7 +268,10 @@ const STICKY_COLORS = [
 	"#ffe3e3",
 	"#ffec99",
 ];
-const STROKE_WIDTHS = [1, 2, 4] as const;
+const STROKE_WIDTH_PRESETS = [1, 2, 4, 8] as const;
+const MIN_STROKE_WIDTH = 0;
+const MAX_STROKE_WIDTH = 32;
+const STROKE_WIDTH_SLIDER_STEP = 0.1;
 const STROKE_STYLES = ["solid", "dashed", "dotted"] as const;
 const ROUGHNESS_LEVELS = [0, 1, 2] as const;
 const CORNER_RADIUS_PRESETS = [0, 25, 50, 100] as const;
@@ -539,6 +542,115 @@ function DimensionInput({
 				className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] text-card-foreground outline-none transition-colors focus:border-primary"
 			/>
 		</label>
+	);
+}
+
+function formatStrokeWidth(value: number): string {
+	return Number.isInteger(value)
+		? String(value)
+		: String(Math.round(value * 100) / 100);
+}
+
+function clampStrokeWidth(value: number): number {
+	return Math.min(MAX_STROKE_WIDTH, Math.max(MIN_STROKE_WIDTH, value));
+}
+
+export function CanvasEditorStrokeWidthControl({
+	value,
+	onChange,
+	t,
+}: {
+	value: number;
+	onChange: (value: number) => void;
+	t: CanvasEditorPropertiesTranslate;
+}) {
+	const [draft, setDraft] = useState(formatStrokeWidth(value));
+	useEffect(() => setDraft(formatStrokeWidth(value)), [value]);
+
+	const selectValue = (next: number) => {
+		const clamped = clampStrokeWidth(next);
+		setDraft(formatStrokeWidth(clamped));
+		onChange(clamped);
+	};
+	const commitDraft = () => {
+		const parsed = Number(draft);
+		if (!Number.isFinite(parsed)) {
+			setDraft(formatStrokeWidth(value));
+			return;
+		}
+		selectValue(parsed);
+	};
+
+	return (
+		<div data-skedra-property="stroke-width-control">
+			<div className="flex gap-1">
+				{STROKE_WIDTH_PRESETS.map((width) => {
+					const labelKey =
+						width === 1
+							? "thin"
+							: width === 2
+								? "medium"
+								: width === 4
+									? "thick"
+									: "extraThick";
+					return (
+						<ChoiceButton
+							key={width}
+							active={Math.abs(value - width) < 0.001}
+							onClick={() => selectValue(width)}
+							title={t(`canvas.properties.${labelKey}`, String(width))}
+						>
+							<div
+								className="rounded-full bg-card-foreground"
+								style={{
+									width: Math.min(width, 8) * 3 + 8,
+									height: Math.min(width, 6) + 1,
+								}}
+							/>
+						</ChoiceButton>
+					);
+				})}
+			</div>
+			<div className="mt-2 flex items-center gap-2">
+				<input
+					type="range"
+					min={MIN_STROKE_WIDTH}
+					max={MAX_STROKE_WIDTH}
+					step={STROKE_WIDTH_SLIDER_STEP}
+					value={clampStrokeWidth(value)}
+					onChange={(event) => selectValue(Number(event.target.value))}
+					className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+					aria-label={t(
+						"canvas.properties.customStrokeWidth",
+						"Custom stroke width",
+					)}
+					data-stroke-width-range="true"
+				/>
+				<input
+					type="number"
+					min={MIN_STROKE_WIDTH}
+					max={MAX_STROKE_WIDTH}
+					step={0.1}
+					inputMode="decimal"
+					value={draft}
+					onChange={(event) => setDraft(event.target.value)}
+					onBlur={commitDraft}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") event.currentTarget.blur();
+						if (event.key === "Escape") {
+							setDraft(formatStrokeWidth(value));
+							event.currentTarget.blur();
+						}
+					}}
+					className="w-14 rounded border border-border bg-background px-1.5 py-1 text-right text-[10px] text-card-foreground outline-none transition-colors focus:border-primary"
+					aria-label={t(
+						"canvas.properties.exactStrokeWidth",
+						"Exact stroke width",
+					)}
+					data-stroke-width-input="true"
+				/>
+			</div>
+		</div>
 	);
 }
 
@@ -1576,24 +1688,11 @@ function AppearanceProperties({
 			)}
 			{view.showStrokeWidth && (
 				<Section label={t("canvas.properties.strokeWidth", "Stroke width")}>
-					<div className="flex gap-1">
-						{STROKE_WIDTHS.map((width) => (
-							<ChoiceButton
-								key={width}
-								active={view.currentStrokeWidth === width}
-								onClick={() => view.onSetProperty("strokeWidth", width)}
-								title={t(
-									`canvas.properties.${width === 1 ? "thin" : width === 2 ? "medium" : "thick"}`,
-									String(width),
-								)}
-							>
-								<div
-									className="rounded-full bg-card-foreground"
-									style={{ width: width * 5 + 6, height: width + 1 }}
-								/>
-							</ChoiceButton>
-						))}
-					</div>
+					<CanvasEditorStrokeWidthControl
+						value={view.currentStrokeWidth}
+						onChange={(width) => view.onSetProperty("strokeWidth", width)}
+						t={t}
+					/>
 				</Section>
 			)}
 			{view.showStrokeStyle && (

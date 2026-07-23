@@ -7,6 +7,7 @@ import { templateText } from "@/lib/templates/shared";
 import { useThemeStore } from "@/stores/theme";
 import {
 	type CanvasElement,
+	type CanvasMutationPlan,
 	type CanvasScene,
 	DEFAULT_FONT_SIZE,
 	type GanttChartDocument,
@@ -52,7 +53,7 @@ interface UseCommunityCanvasPointerAdapterOptions {
 	deleteElements?: (ids: string[]) => void;
 	/** Direct adapter delete for semantic rebuilds that also replace locked parts. */
 	deleteElementsDirect?: (ids: string[]) => void;
-	applyMutationPlan?: (plan: GanttChartMutationPlan) => void;
+	applyMutationPlan?: (plan: CanvasMutationPlan) => void;
 	startUndoCapture?: () => void;
 	stopUndoCapture?: () => void;
 	cancelUndoCapture?: () => void;
@@ -386,6 +387,7 @@ export function useCommunityCanvasPointerAdapter({
 			updateElement,
 			updateElements,
 			deleteElements,
+			applyMutationPlan,
 			duplicateSelection,
 			beginHistory: startUndoCapture ?? stopUndoCapture,
 			finishHistory: stopUndoCapture,
@@ -396,6 +398,7 @@ export function useCommunityCanvasPointerAdapter({
 			cancelUndoCapture,
 			createElement,
 			deleteElements,
+			applyMutationPlan,
 			duplicateSelection,
 			elements,
 			finishMove,

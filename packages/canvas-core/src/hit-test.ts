@@ -11,6 +11,10 @@ import {
 	getTrimmedCanvasShapePolyline,
 	isPolygonVariant,
 } from "./shape-geometry";
+import {
+	getSvgImportedLineData,
+	getSvgPathElementSubpaths,
+} from "./svg-path-element";
 import type { CanvasElement } from "./types";
 
 const CURVE_HIT_SEGMENTS = 24;
@@ -175,11 +179,38 @@ export function hitTest(
 
 		case "line": {
 			if (pathTextLabelHitTest?.(el, hitX, hitY, t + 6)) return true;
+			const svgSubpaths = getSvgPathElementSubpaths(el);
+			if (svgSubpaths) {
+				const localX = hitX - el.x;
+				const localY = hitY - el.y;
+				if (
+					el.fill !== "transparent" &&
+					el.fill !== "" &&
+					svgSubpaths.some(
+						(path) => path.length >= 3 && pointInPolygon(localX, localY, path),
+					)
+				) {
+					return true;
+				}
+				for (const path of svgSubpaths) {
+					for (let index = 0; index < path.length - 1; index++) {
+						const [x1, y1] = path[index];
+						const [x2, y2] = path[index + 1];
+						if (
+							pointToLineDistance(localX, localY, x1, y1, x2, y2) <=
+							t + el.strokeWidth + 4
+						) {
+							return true;
+						}
+					}
+				}
+				return false;
+			}
 			if (!el.points || el.points.length < 2) return false;
 			const localX = hitX - el.x;
 			const localY = hitY - el.y;
 			if (
-				el.closed === true &&
+				(el.closed === true || getSvgImportedLineData(el) !== null) &&
 				el.points.length >= 3 &&
 				el.fill !== "transparent" &&
 				el.fill !== "" &&

@@ -1,9 +1,11 @@
+import { getSvgPathElementData } from "./svg-path-element";
 import type { CanvasElement } from "./types";
 
 export function isCanvasPointPathElement(
 	element: CanvasElement,
 ): element is CanvasElement & { points: [number, number][] } {
 	return (
+		!getSvgPathElementData(element) &&
 		(element.type === "line" ||
 			element.type === "arrow" ||
 			element.type === "cloud") &&

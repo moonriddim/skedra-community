@@ -14,8 +14,10 @@ const TEXT_EDITABLE_ELEMENT_TYPES = new Set<CanvasElement["type"]>([
 
 /** Elements whose primary label can be edited through the inline text editor. */
 export function isCanvasTextEditableElement(
-	element: Pick<CanvasElement, "type">,
+	element: Pick<CanvasElement, "type"> &
+		Partial<Pick<CanvasElement, "customData">>,
 ): boolean {
+	if (element.customData?.skedraType === "svg-path") return false;
 	return TEXT_EDITABLE_ELEMENT_TYPES.has(element.type);
 }
 

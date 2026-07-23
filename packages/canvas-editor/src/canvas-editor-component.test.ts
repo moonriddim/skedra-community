@@ -8,6 +8,7 @@ import {
 } from "@skedra/canvas-core";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { CanvasEditorStrokeWidthControl } from "./canvas-editor-classic-properties-panel";
 import {
 	CanvasEditor,
 	CanvasEditorContextMenu,
@@ -307,6 +308,30 @@ test("properties labels consistently use the translation adapter", () => {
 	assert.doesNotMatch(markup, />Lock</u);
 });
 
+test("stroke width keeps presets and exposes free and exact controls", () => {
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorStrokeWidthControl, {
+			value: 7.5,
+			onChange: noop,
+			t: (key) => `translated:${key}`,
+		}),
+	);
+
+	assert.match(markup, /data-skedra-property="stroke-width-control"/u);
+	assert.equal((markup.match(/<button/gu) ?? []).length, 4);
+	assert.match(markup, /data-stroke-width-range="true"/u);
+	assert.match(markup, /type="range"/u);
+	assert.match(markup, /min="0"/u);
+	assert.match(markup, /max="32"/u);
+	assert.match(markup, /value="7\.5"/u);
+	assert.match(markup, /data-stroke-width-input="true"/u);
+	assert.match(markup, /type="number"/u);
+	assert.match(
+		markup,
+		/aria-label="translated:canvas\.properties\.exactStrokeWidth"/u,
+	);
+});
+
 test("productivity panels are shared host-neutral surfaces", () => {
 	const elements = new Map([[element.id, element]]);
 	const translate = (key: string) => `translated:${key}`;
@@ -422,6 +447,78 @@ test("productivity panels are shared host-neutral surfaces", () => {
 	assert.match(snapMenuMarkup, /translated:canvas\.snapMenu\.overrideTitle/u);
 	assert.match(contextMenuMarkup, /canvas-editor__context-menu/u);
 	assert.match(contextMenuMarkup, /translated:canvas\.contextMenu\.copy/u);
+});
+
+test("empty-canvas context menu exposes visual clipboard actions", () => {
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorContextMenu, {
+			x: 20,
+			y: 20,
+			hasSelection: false,
+			selectionCount: 0,
+			isLocked: false,
+			isInFrame: false,
+			isGrouped: false,
+			canPaste: true,
+			canPasteFormat: false,
+			onCopy: noop,
+			onCut: noop,
+			onPaste: noop,
+			onCopyAsPng: noop,
+			onCopyAsSvg: noop,
+			onDuplicate: noop,
+			onDelete: noop,
+			onSelectAll: noop,
+			onToggleLock: noop,
+			onCopyFormat: noop,
+			onPasteFormat: noop,
+			onBringForward: noop,
+			onSendBackward: noop,
+			onBringToFront: noop,
+			onSendToBack: noop,
+			onFlipHorizontal: noop,
+			onFlipVertical: noop,
+			onCopyMirrorHorizontal: noop,
+			onCopyMirrorVertical: noop,
+			onRotate: noop,
+			onCopyRotate: noop,
+			onAddLink: noop,
+			onEmbedInFrame: noop,
+			onRemoveFromFrame: noop,
+			onGroup: noop,
+			onUngroup: noop,
+			snapToObjects: true,
+			onToggleSnap: noop,
+			showSnapPoints: true,
+			onToggleSnapPoints: noop,
+			snapModes: {
+				endpoint: true,
+				midpoint: false,
+				division: false,
+				center: false,
+				"geometric-center": false,
+				quadrant: false,
+				intersection: false,
+				extension: false,
+				insertion: false,
+				nearest: false,
+			},
+			onToggleSnapMode: noop,
+			snapDivisionCount: 2,
+			onSnapDivisionCountChange: noop,
+			gridEnabled: false,
+			onToggleGrid: noop,
+			gridSnapEnabled: false,
+			onToggleGridSnap: noop,
+			gridSize: 20,
+			onGridSizeChange: noop,
+			onClose: noop,
+		}),
+	);
+	assert.match(markup, /Copy to clipboard as PNG/u);
+	assert.match(markup, /Shift\+Alt\+C/u);
+	assert.match(markup, /Copy to clipboard as SVG/u);
+	assert.match(markup, /Select all/u);
 });
 
 test("toolbar actions, menus and color controls share one renderer", () => {

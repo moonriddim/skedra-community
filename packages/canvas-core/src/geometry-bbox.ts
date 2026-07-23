@@ -1,3 +1,4 @@
+import { getSvgPathElementData } from "./svg-path-element";
 import type { CanvasElement, Viewport } from "./types";
 
 export interface BBox {
@@ -8,6 +9,9 @@ export interface BBox {
 }
 
 export function getUntransformedBBox(el: CanvasElement): BBox {
+	if (getSvgPathElementData(el)) {
+		return { x: el.x, y: el.y, width: el.width, height: el.height };
+	}
 	if (
 		(el.type === "line" || el.type === "arrow" || el.type === "freehand") &&
 		el.points &&

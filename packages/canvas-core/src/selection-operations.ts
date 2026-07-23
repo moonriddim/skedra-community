@@ -19,6 +19,23 @@ export type CanvasSelectionTransform =
 	| { type: "flip"; axis: CanvasFlipAxis }
 	| { type: "rotate"; angle: number };
 
+/**
+ * Places the center of a copied selection at the requested canvas point.
+ * The legacy offset remains the fallback for hosts without pointer context.
+ */
+export function getCanvasPasteOffset(
+	elements: readonly CanvasElement[],
+	target?: { x: number; y: number } | null,
+): { x: number; y: number } {
+	if (!target) return { x: 20, y: 20 };
+	const bounds = getCombinedBBox([...elements]);
+	if (!bounds) return { x: 20, y: 20 };
+	return {
+		x: target.x - (bounds.x + bounds.width / 2),
+		y: target.y - (bounds.y + bounds.height / 2),
+	};
+}
+
 /** Host-neutral format clipboard shared by Community and the React SDK. */
 export interface CanvasElementFormat {
 	stroke?: string;

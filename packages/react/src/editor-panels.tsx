@@ -129,6 +129,8 @@ export interface SkedraContextMenuProps {
 	onCopy: () => void;
 	onCut: () => void;
 	onPaste: () => void | Promise<void>;
+	onCopyAsPng?: () => void | Promise<void>;
+	onCopyAsSvg?: () => void | Promise<void>;
 	onDuplicate: () => void;
 	onDelete: () => void;
 	onSelectAll: () => void;

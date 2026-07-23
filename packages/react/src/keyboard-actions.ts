@@ -30,6 +30,7 @@ export type SkedraSdkKeyboardAction =
 	| { type: "focus-property"; property: "stroke" | "fill" | "font" }
 	| { type: "eyedropper"; target: "stroke" | "fill" }
 	| { type: "paste-plain-text" }
+	| { type: "copy-canvas-as-png" }
 	| { type: "copy-format" }
 	| { type: "paste-format" }
 	| { type: "add-link" }
@@ -60,6 +61,7 @@ export interface SkedraSdkKeyboardActionHandlers {
 	focusProperty: (property: "stroke" | "fill" | "font") => void;
 	eyedropper: (target: "stroke" | "fill") => void;
 	pastePlainText: () => void;
+	copyCanvasAsPng: () => void;
 	copyFormat: () => void;
 	pasteFormat: () => void;
 	addLink: () => void;
@@ -115,6 +117,9 @@ export function handleSkedraSdkKeyboardAction(
 			break;
 		case "paste-plain-text":
 			handlers.pastePlainText();
+			break;
+		case "copy-canvas-as-png":
+			handlers.copyCanvasAsPng();
 			break;
 		case "copy-format":
 			handlers.copyFormat();

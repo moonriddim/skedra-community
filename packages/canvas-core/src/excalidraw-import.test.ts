@@ -123,6 +123,63 @@ test("parses Excalidraw clipboard scenes emitted by drwn.io", () => {
 	assert.equal(elements?.[1].text, "website-window");
 });
 
+test("restores filled curved drwn.io paths whose first and last point match", () => {
+	const elements = parseExcalidrawClipboard(
+		JSON.stringify({
+			type: "excalidraw",
+			version: 2,
+			source: "https://excalidraw.com",
+			elements: [
+				{
+					id: "tailwind-ribbon",
+					type: "line",
+					x: 290,
+					y: -562,
+					width: 414,
+					height: 179,
+					strokeColor: "#000000",
+					backgroundColor: "#17bab9",
+					fillStyle: "solid",
+					strokeWidth: 1,
+					strokeStyle: "solid",
+					roughness: 1,
+					opacity: 100,
+					strokeSharpness: "round",
+					points: [
+						[0, -53],
+						[46, -126],
+						[154, -144],
+						[253, -78],
+						[414, -74],
+						[361, 15],
+						[213, 6],
+						[107, -89],
+						[0, -53],
+					],
+				},
+			],
+		}),
+		options,
+	);
+
+	assert.equal(elements?.length, 1);
+	assert.equal(elements?.[0].type, "line");
+	assert.equal(elements?.[0].closed, true);
+	assert.equal(elements?.[0].arrowMode, "curve");
+	assert.equal(elements?.[0].fill, "#17bab9");
+	assert.equal(elements?.[0].roughFillStyle, "solid");
+	assert.deepEqual(elements?.[0].points, [
+		[0, -53],
+		[46, -126],
+		[154, -144],
+		[253, -78],
+		[414, -74],
+		[361, 15],
+		[213, 6],
+		[107, -89],
+	]);
+});
+
 test("ignores plain text and other clipboard JSON formats", () => {
 	assert.equal(parseExcalidrawClipboard("not json", options), null);
 	assert.equal(

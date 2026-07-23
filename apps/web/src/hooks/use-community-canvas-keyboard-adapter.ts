@@ -136,6 +136,10 @@ export function useCommunityCanvasKeyboardAdapter({
 				});
 				return true;
 			}
+			if (action.type === "copy-canvas-as-png") {
+				void actions?.copyCanvasAsPng?.();
+				return true;
+			}
 			if (action.type === "copy-format") {
 				ops.copyFormat();
 				return true;

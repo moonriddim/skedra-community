@@ -91,7 +91,8 @@ export function useCanvasEditorKeyboard(adapter: CanvasEditorKeyboardAdapter) {
 					action.type !== "tool" &&
 					action.type !== "open-help" &&
 					action.type !== "open-command-palette" &&
-					action.type !== "open-canvas-search"
+					action.type !== "open-canvas-search" &&
+					action.type !== "copy-canvas-as-png"
 				) {
 					return;
 				}

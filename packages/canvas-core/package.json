@@ -51,5 +51,9 @@
 	},
 	"devDependencies": {
 		"typescript": "^5.7.0"
+	},
+	"dependencies": {
+		"@xmldom/xmldom": "^0.9.10",
+		"points-on-path": "0.2.1"
 	}
 }
