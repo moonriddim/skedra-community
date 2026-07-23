@@ -15,6 +15,67 @@
 import { DEFAULT_FONT_FAMILY, type Viewport } from "@skedra/canvas-core";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
+const STANDALONE_TEXT_PADDING_X = 4;
+const STANDALONE_TEXT_PADDING_Y = 2;
+const MIN_STANDALONE_TEXT_SIZE = 20;
+
+interface CanvasEditorNaturalTextSizeOptions {
+	text: string;
+	fontSize: number;
+	fontFamily: string;
+	fontWeight: "normal" | "bold";
+	fontStyle: "normal" | "italic";
+	lineHeight: number;
+	paddingX: number;
+	paddingY: number;
+	measureLine?: (line: string) => number;
+}
+
+/**
+ * Resolves the stored bounds of a standalone canvas text element from its
+ * actual line widths instead of retaining the editor's temporary input size.
+ */
+export function resolveCanvasEditorNaturalTextSize({
+	text,
+	fontSize,
+	fontFamily,
+	fontWeight,
+	fontStyle,
+	lineHeight,
+	paddingX,
+	paddingY,
+	measureLine,
+}: CanvasEditorNaturalTextSizeOptions): { width: number; height: number } {
+	const lines = text.split("\n");
+	const fallbackMeasure = (line: string) =>
+		Array.from(line.replaceAll("\t", "        ")).length * fontSize * 0.6;
+	let browserMeasure: ((line: string) => number) | null = null;
+	if (!measureLine && typeof document !== "undefined") {
+		const context = document.createElement("canvas").getContext("2d");
+		if (context) {
+			context.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+			browserMeasure = (line) =>
+				context.measureText(line.replaceAll("\t", "        ")).width;
+		}
+	}
+	const resolveLineWidth = measureLine ?? browserMeasure ?? fallbackMeasure;
+	const contentWidth = lines.reduce(
+		(widest, line) => Math.max(widest, resolveLineWidth(line)),
+		0,
+	);
+
+	return {
+		width: Math.max(
+			MIN_STANDALONE_TEXT_SIZE,
+			Math.ceil(contentWidth + paddingX * 2),
+		),
+		height: Math.max(
+			MIN_STANDALONE_TEXT_SIZE,
+			Math.ceil(lines.length * fontSize * lineHeight + paddingY * 2),
+		),
+	};
+}
+
 export interface CanvasEditorPendingText {
 	x: number;
 	y: number;
@@ -137,6 +198,7 @@ export function CanvasEditorTextOverlay({
 	const isMindmapNodeEditor = editorVariant === "mindmap-node";
 	const isCanvasTextEditor = editorVariant === "canvas-text";
 	const isArrowEditor = editorVariant === "arrow";
+	const autoFitStandaloneText = !isEditing || isCanvasTextEditor;
 	const hasExactTextWidth =
 		isShapeEditor || isMindmapNodeEditor || isCanvasTextEditor;
 	const hasFixedTextBounds =
@@ -170,7 +232,7 @@ export function CanvasEditorTextOverlay({
 		: Math.max(isStickyNote ? 40 : 140, innerWidth * viewport.zoom);
 	const fontSize = elFontSize * viewport.zoom;
 	const textLineHeight =
-		editingState?.lineHeight ?? (isStickyNote ? 1.4 : 1.35);
+		editingState?.lineHeight ?? (isArrowEditor ? 1.35 : 1.4);
 	const innerHeight = editingState
 		? Math.max(1, editingState.height - editorPaddingY * 2)
 		: (pending?.height ?? 44);
@@ -188,6 +250,34 @@ export function CanvasEditorTextOverlay({
 		isShapeEditor ||
 		isMindmapNodeEditor ||
 		(isCanvasTextEditor && elVerticalAlign !== "top");
+	const naturalTextPaddingX = isCanvasTextEditor
+		? editorPaddingX
+		: STANDALONE_TEXT_PADDING_X;
+	const naturalTextPaddingY = isCanvasTextEditor
+		? editorPaddingY
+		: STANDALONE_TEXT_PADDING_Y;
+	const resolveNaturalTextSize = useCallback(
+		(text: string) =>
+			resolveCanvasEditorNaturalTextSize({
+				text,
+				fontSize: elFontSize,
+				fontFamily: elFontFamily,
+				fontWeight: elFontWeight,
+				fontStyle: elFontStyle,
+				lineHeight: textLineHeight,
+				paddingX: naturalTextPaddingX,
+				paddingY: naturalTextPaddingY,
+			}),
+		[
+			elFontFamily,
+			elFontSize,
+			elFontStyle,
+			elFontWeight,
+			naturalTextPaddingX,
+			naturalTextPaddingY,
+			textLineHeight,
+		],
+	);
 
 	const syncTextareaLayout = useCallback(
 		(ta: HTMLTextAreaElement) => {
@@ -235,19 +325,24 @@ export function CanvasEditorTextOverlay({
 
 		const ta = textareaRef.current;
 		const text = ta?.value ?? "";
-		const naturalW = hasFixedTextBounds
-			? (editingState?.sourceWidth ?? editingState?.width ?? elWidth)
-			: Math.max(
-					elWidth,
-					(ta?.scrollWidth ?? 140) / viewport.zoom + editorPaddingX * 2,
-				);
-		const naturalH = hasFixedTextBounds
-			? (editingState?.sourceHeight ?? editingState?.height ?? innerHeight)
-			: Math.max(
-					30,
-					(ta?.scrollHeight ?? 40) / viewport.zoom + editorPaddingY * 2,
-				);
-		const size = { width: naturalW, height: naturalH };
+		const size = autoFitStandaloneText
+			? resolveNaturalTextSize(text)
+			: {
+					width: hasFixedTextBounds
+						? (editingState?.sourceWidth ?? editingState?.width ?? elWidth)
+						: Math.max(
+								elWidth,
+								(ta?.scrollWidth ?? 140) / viewport.zoom + editorPaddingX * 2,
+							),
+					height: hasFixedTextBounds
+						? (editingState?.sourceHeight ??
+							editingState?.height ??
+							innerHeight)
+						: Math.max(
+								30,
+								(ta?.scrollHeight ?? 40) / viewport.zoom + editorPaddingY * 2,
+							),
+				};
 
 		if (editingState) {
 			onUpdateText(editingState.id, text, size);
@@ -261,9 +356,11 @@ export function CanvasEditorTextOverlay({
 		elWidth,
 		editorPaddingX,
 		editorPaddingY,
+		autoFitStandaloneText,
 		hasFixedTextBounds,
 		innerHeight,
 		viewport.zoom,
+		resolveNaturalTextSize,
 		onCreateText,
 		onUpdateText,
 		onClose,
@@ -384,17 +481,26 @@ export function CanvasEditorTextOverlay({
 		if (!ta) return;
 		syncTextareaLayout(ta);
 		if (!editingState) return;
-		onUpdateText(editingState.id, ta.value, {
-			width: hasFixedTextBounds
-				? (editingState.sourceWidth ?? editingState.width)
-				: Math.max(
-						elWidth,
-						ta.scrollWidth / viewport.zoom + editorPaddingX * 2,
-					),
-			height: hasFixedTextBounds
-				? (editingState.sourceHeight ?? editingState.height)
-				: Math.max(30, ta.scrollHeight / viewport.zoom + editorPaddingY * 2),
-		});
+		onUpdateText(
+			editingState.id,
+			ta.value,
+			autoFitStandaloneText
+				? resolveNaturalTextSize(ta.value)
+				: {
+						width: hasFixedTextBounds
+							? (editingState.sourceWidth ?? editingState.width)
+							: Math.max(
+									elWidth,
+									ta.scrollWidth / viewport.zoom + editorPaddingX * 2,
+								),
+						height: hasFixedTextBounds
+							? (editingState.sourceHeight ?? editingState.height)
+							: Math.max(
+									30,
+									ta.scrollHeight / viewport.zoom + editorPaddingY * 2,
+								),
+					},
+		);
 	};
 
 	const overlayVariant = isStickyNote

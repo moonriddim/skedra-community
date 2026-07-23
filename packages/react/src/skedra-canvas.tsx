@@ -26,6 +26,7 @@ import {
 	buildSendToBackUpdates,
 	buildTemplateDropUpdates,
 	buildTemplateSectionLayoutSyncUpdates,
+	canTrimCanvasShape,
 	clientPointToCanvas,
 	cloneCanvasSelection,
 	cloneTransformedCanvasSelection,
@@ -81,6 +82,7 @@ import {
 	CANVAS_EDITOR_TOOL_IDS,
 	CanvasEditor,
 	CanvasEditorContextMenu,
+	CanvasEditorEraserTrailOverlay,
 	CanvasEditorGanttStudio,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
@@ -90,6 +92,7 @@ import {
 	CanvasEditorSelectionGestureOverlay,
 	CanvasEditorSelectionOverlay,
 	CanvasEditorSequenceDiagramPanel,
+	CanvasEditorShapeTrimOverlay,
 	CanvasEditorSnapOverlay,
 	CanvasEditorStickyNoteOverlay,
 	CanvasEditorSurface,
@@ -112,6 +115,7 @@ import {
 	useCanvasEditorKeyboard,
 	useCanvasEditorPointer,
 	useCanvasEditorSavedViews,
+	useCanvasEditorShapeTrim,
 } from "@skedra/canvas-editor";
 import type {
 	CanvasEditorDocumentAdapter,
@@ -2744,8 +2748,30 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				if (action === "rotate") setTransformOrigin(null);
 			},
 		});
+		const shapeTrim = useCanvasEditorShapeTrim({
+			svgRef,
+			viewport,
+			elements: elementMap,
+			snapToObjects,
+			updateElement: (id, changes) => {
+				if (readOnly) return;
+				beginHistoryTransaction();
+				commitCanvasElements(
+					currentElements.map((element) =>
+						element.id === id ? { ...element, ...changes } : element,
+					),
+				);
+				finishHistoryTransaction();
+			},
+			onActivate: () => {
+				setTool("select");
+				setContextMenu(null);
+				setSnapMenu(null);
+			},
+		});
 		const onSdkSurfacePointerDown = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
+				if (shapeTrim.handlePointerDown(event)) return;
 				if (isCapturingView && event.button === 0) {
 					if (
 						!editorPointer.beginAuxiliaryPointerGesture(
@@ -2782,12 +2808,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				editorPointer,
 				isCapturingView,
 				snapOverrideMode,
+				shapeTrim.handlePointerDown,
 				startViewCapture,
 				viewport,
 			],
 		);
 		const onSdkSurfacePointerMove = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
+				if (shapeTrim.handlePointerMove(event)) return;
 				editorPointer.onPointerMove(event);
 				const rect = event.currentTarget.getBoundingClientRect();
 				handleViewPointerMove(
@@ -2796,10 +2824,20 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					event.pointerId,
 				);
 			},
-			[editorPointer, handleViewPointerMove, viewport],
+			[
+				editorPointer,
+				handleViewPointerMove,
+				shapeTrim.handlePointerMove,
+				viewport,
+			],
 		);
 		const onSdkSurfaceContextMenu = useCallback(
 			(event: ReactMouseEvent<SVGSVGElement>) => {
+				if (shapeTrim.active) {
+					event.preventDefault();
+					shapeTrim.cancel();
+					return;
+				}
 				if (presentationViewId) {
 					event.preventDefault();
 					return;
@@ -2835,16 +2873,19 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				presentationViewId,
 				scene,
 				selectedIds,
+				shapeTrim.active,
+				shapeTrim.cancel,
 				tool,
 				viewport,
 			],
 		);
 		const onSdkSurfacePointerUp = useCallback(
 			(event: ReactPointerEvent<SVGSVGElement>) => {
+				if (shapeTrim.handlePointerUp(event)) return;
 				editorPointer.onPointerUp(event);
 				handleViewPointerUp(event.pointerId);
 			},
-			[editorPointer, handleViewPointerUp],
+			[editorPointer, handleViewPointerUp, shapeTrim.handlePointerUp],
 		);
 
 		const insertPathPoint = (
@@ -3828,6 +3869,13 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						zoom={viewport.zoom}
 						origin={transformOrigin}
 					/>
+					{shapeTrim.preview && (
+						<CanvasEditorShapeTrimOverlay
+							preview={shapeTrim.preview}
+							zoom={viewport.zoom}
+							instruction="Choose second cut point · Shift = long path · Esc = cancel"
+						/>
+					)}
 					{editingView && !pendingText && !editingSession && (
 						<CanvasEditorSavedViewOverlay
 							view={editingView}
@@ -3860,35 +3908,40 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							zoom={viewport.zoom}
 						/>
 					)}
-					<CanvasEditorSelectionOverlay
-						selected={selectedElements}
-						zoom={viewport.zoom}
-						readOnly={readOnly}
-						transformOrigin={transformOrigin}
-						outlinePadding={4}
-						handleSize={10}
-						outlineStroke="var(--skedra-sdk-accent, #2563eb)"
-						handleFill="var(--skedra-sdk-background, #fff)"
-						handleStroke="var(--skedra-sdk-accent, #2563eb)"
-						dashedOutline={false}
-						classes={{
-							outline: "skedra-sdk__selected-outline",
-							handle: "skedra-sdk__resize-handle",
-						}}
-						onResizeStart={editorPointer.beginResize}
-						onResizeKeyDown={resizeWithKeyboard}
-						onRotateStart={editorPointer.beginRotate}
-						onRotateKeyDown={rotateWithKeyboard}
-						onPathPointDragStart={editorPointer.beginPathPointDrag}
-						onInsertPathPoint={(element, pointIndex, point, event) =>
-							editorPointer.runPointerUpAction(event, () =>
-								insertPathPoint(element, pointIndex, point),
-							)
-						}
-						pathBackground="var(--skedra-sdk-panel)"
-						pathAccent="var(--skedra-sdk-primary)"
-						pathControlLine="color-mix(in srgb, var(--skedra-sdk-primary) 55%, transparent)"
-					/>
+					{!shapeTrim.preview && (
+						<CanvasEditorSelectionOverlay
+							selected={selectedElements}
+							zoom={viewport.zoom}
+							readOnly={readOnly}
+							transformOrigin={transformOrigin}
+							outlinePadding={4}
+							handleSize={10}
+							outlineStroke="var(--skedra-sdk-accent, #2563eb)"
+							handleFill="var(--skedra-sdk-background, #fff)"
+							handleStroke="var(--skedra-sdk-accent, #2563eb)"
+							dashedOutline={false}
+							classes={{
+								outline: "skedra-sdk__selected-outline",
+								handle: "skedra-sdk__resize-handle",
+							}}
+							onResizeStart={editorPointer.beginResize}
+							onResizeKeyDown={resizeWithKeyboard}
+							onRotateStart={editorPointer.beginRotate}
+							onRotateKeyDown={rotateWithKeyboard}
+							onPathPointDragStart={editorPointer.beginPathPointDrag}
+							onShapeTrimEndpointDragStart={
+								editorPointer.beginShapeTrimEndpointDrag
+							}
+							onInsertPathPoint={(element, pointIndex, point, event) =>
+								editorPointer.runPointerUpAction(event, () =>
+									insertPathPoint(element, pointIndex, point),
+								)
+							}
+							pathBackground="var(--skedra-sdk-panel)"
+							pathAccent="var(--skedra-sdk-primary)"
+							pathControlLine="color-mix(in srgb, var(--skedra-sdk-primary) 55%, transparent)"
+						/>
+					)}
 					<CanvasEditorSelectionGestureOverlay
 						selectionRect={selectionRect}
 						lassoPath={lassoPath?.map((point): [number, number] => [
@@ -3898,6 +3951,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						zoom={viewport.zoom}
 						selectionClassName="skedra-sdk__selection"
 						lassoClassName="skedra-sdk__lasso"
+					/>
+					<CanvasEditorEraserTrailOverlay
+						points={editorPointer.eraserTrail}
+						zoom={viewport.zoom}
 					/>
 					{laserTrail && laserTrail.points.length > 1 && (
 						<polyline
@@ -4103,6 +4160,19 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						onRemoveFromFrame={removeSelectionFromFrame}
 						onGroup={groupSelection}
 						onUngroup={ungroupSelection}
+						canTrimShape={
+							selectedElements.length === 1 &&
+							selectedElements[0] !== undefined &&
+							canTrimCanvasShape(selectedElements[0])
+						}
+						onTrimShape={() => {
+							const shape = selectedElements[0];
+							if (!shape) return;
+							shapeTrim.start(shape, {
+								clientX: contextMenu.x,
+								clientY: contextMenu.y,
+							});
+						}}
 						snapToObjects={snapToObjects}
 						onToggleSnap={() => setSnapToObjects(!snapToObjects)}
 						showSnapPoints={objectSnapSettings.showPoints}

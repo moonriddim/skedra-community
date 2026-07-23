@@ -2165,6 +2165,14 @@ export const deMessages = {
 				s: "Größe unten ändern",
 				se: "Größe unten rechts ändern",
 			},
+			ellipseArc: {
+				start: "Bogenanfang verschieben",
+				end: "Bogenende verschieben",
+			},
+			shapeTrim: {
+				start: "Schnittanfang entlang der Kontur verschieben",
+				end: "Schnittende entlang der Kontur verschieben",
+			},
 		},
 		toolbar: {
 			pan: "Verschieben",
@@ -2541,6 +2549,7 @@ export const deMessages = {
 		contextMenu: {
 			snapSettings: "Objektfang",
 			trimEllipse: "Kreis/Ellipse hier schneiden",
+			trimShape: "Form hier schneiden",
 			cut: "Ausschneiden",
 			copy: "Kopieren",
 			paste: "Einfügen",
@@ -2578,6 +2587,10 @@ export const deMessages = {
 		ellipseTrim: {
 			chooseSecondPoint:
 				"Zweiten Schnittpunkt wählen · Umschalt = langer Bogen · Esc = Abbrechen",
+		},
+		shapeTrim: {
+			chooseSecondPoint:
+				"Zweiten Schnittpunkt wählen · Umschalt = langer Pfad · Esc = Abbrechen",
 		},
 		properties: {
 			listTitle: "Listen-Titel",

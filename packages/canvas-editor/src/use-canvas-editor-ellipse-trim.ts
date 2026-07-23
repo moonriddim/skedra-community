@@ -1,8 +1,13 @@
 import {
 	type CanvasElement,
+	type SnapAnchor,
 	type Viewport,
-	getEllipseAngleAtPoint,
-	getRetainedEllipseArcAngles,
+	canTrimCanvasShape,
+	findClosestCanvasShapeContourIntersection,
+	getCanvasShapeTrimChanges,
+	getCanvasShapeTrimPositionAtPoint,
+	getRetainedCanvasShapeTrim,
+	isCanvasTrimmableShape,
 } from "@skedra/canvas-core";
 import {
 	type PointerEvent as ReactPointerEvent,
@@ -14,24 +19,30 @@ import {
 	useState,
 } from "react";
 
-export interface CanvasEditorEllipseTrimPreview {
+export interface CanvasEditorShapeTrimPreview {
 	element: CanvasElement;
-	firstAngle: number;
-	secondAngle: number;
-	preferLongArc: boolean;
+	firstPosition: number;
+	secondPosition: number;
+	preferLongPath: boolean;
+	snapAnchor: SnapAnchor | null;
 }
 
-interface EllipseTrimDraft {
+/** @deprecated Use CanvasEditorShapeTrimPreview. */
+export type CanvasEditorEllipseTrimPreview = CanvasEditorShapeTrimPreview;
+
+interface ShapeTrimDraft {
 	elementId: string;
-	firstAngle: number;
-	secondAngle: number;
-	preferLongArc: boolean;
+	firstPosition: number;
+	secondPosition: number;
+	preferLongPath: boolean;
+	snapAnchor: SnapAnchor | null;
 }
 
-interface UseEllipseTrimOptions {
+interface UseShapeTrimOptions {
 	svgRef: RefObject<SVGSVGElement | null>;
 	viewport: Viewport;
 	elements: Map<string, CanvasElement>;
+	snapToObjects?: boolean;
 	updateElement: (id: string, updates: Partial<CanvasElement>) => void;
 	onActivate: () => void;
 }
@@ -49,15 +60,16 @@ function clientPointToCanvas(
 	};
 }
 
-/** Two-point CAD-style trim interaction for circles and ellipses. */
-export function useCanvasEditorEllipseTrim({
+/** Two-point CAD-style trim interaction for supported closed shapes. */
+export function useCanvasEditorShapeTrim({
 	svgRef,
 	viewport,
 	elements,
+	snapToObjects = true,
 	updateElement,
 	onActivate,
-}: UseEllipseTrimOptions) {
-	const [draft, setDraft] = useState<EllipseTrimDraft | null>(null);
+}: UseShapeTrimOptions) {
+	const [draft, setDraft] = useState<ShapeTrimDraft | null>(null);
 	const consumedPointerIdRef = useRef<number | null>(null);
 
 	const cancel = useCallback(() => setDraft(null), []);
@@ -71,23 +83,36 @@ export function useCanvasEditorEllipseTrim({
 			},
 		) => {
 			const svg = svgRef.current;
-			if (!svg || element.type !== "ellipse" || element.locked) return;
+			if (!svg || !canTrimCanvasShape(element)) return;
 			const canvasPoint = clientPointToCanvas(
 				svg,
 				viewport,
 				point.clientX,
 				point.clientY,
 			);
-			const firstAngle = getEllipseAngleAtPoint(element, canvasPoint);
+			const snapAnchor = snapToObjects
+				? findClosestCanvasShapeContourIntersection(
+						element,
+						elements,
+						canvasPoint,
+						14 / Math.max(viewport.zoom, 0.01),
+					)
+				: null;
+			const firstPosition = getCanvasShapeTrimPositionAtPoint(
+				element,
+				snapAnchor ?? canvasPoint,
+			);
+			if (firstPosition === null) return;
 			onActivate();
 			setDraft({
 				elementId: element.id,
-				firstAngle,
-				secondAngle: firstAngle,
-				preferLongArc: false,
+				firstPosition,
+				secondPosition: firstPosition,
+				preferLongPath: false,
+				snapAnchor,
 			});
 		},
-		[onActivate, svgRef, viewport],
+		[elements, onActivate, snapToObjects, svgRef, viewport],
 	);
 
 	const handlePointerMove = useCallback(
@@ -95,7 +120,7 @@ export function useCanvasEditorEllipseTrim({
 			if (!draft) return false;
 			const svg = svgRef.current;
 			const element = elements.get(draft.elementId);
-			if (!svg || element?.type !== "ellipse") {
+			if (!svg || !element || !isCanvasTrimmableShape(element)) {
 				cancel();
 				return true;
 			}
@@ -105,20 +130,33 @@ export function useCanvasEditorEllipseTrim({
 				event.clientX,
 				event.clientY,
 			);
-			const secondAngle = getEllipseAngleAtPoint(element, canvasPoint);
+			const snapAnchor = snapToObjects
+				? findClosestCanvasShapeContourIntersection(
+						element,
+						elements,
+						canvasPoint,
+						14 / Math.max(viewport.zoom, 0.01),
+					)
+				: null;
+			const secondPosition = getCanvasShapeTrimPositionAtPoint(
+				element,
+				snapAnchor ?? canvasPoint,
+			);
+			if (secondPosition === null) return true;
 			setDraft((current) =>
 				current
 					? {
 							...current,
-							secondAngle,
-							preferLongArc: event.shiftKey,
+							secondPosition,
+							preferLongPath: event.shiftKey,
+							snapAnchor,
 						}
 					: null,
 			);
 			event.preventDefault();
 			return true;
 		},
-		[cancel, draft, elements, svgRef, viewport],
+		[cancel, draft, elements, snapToObjects, svgRef, viewport],
 	);
 
 	const handlePointerDown = useCallback(
@@ -129,7 +167,7 @@ export function useCanvasEditorEllipseTrim({
 			consumedPointerIdRef.current = event.pointerId;
 			const svg = svgRef.current;
 			const element = elements.get(draft.elementId);
-			if (!svg || element?.type !== "ellipse") {
+			if (!svg || !element || !isCanvasTrimmableShape(element)) {
 				cancel();
 				return true;
 			}
@@ -139,21 +177,31 @@ export function useCanvasEditorEllipseTrim({
 				event.clientX,
 				event.clientY,
 			);
-			const secondAngle = getEllipseAngleAtPoint(element, canvasPoint);
-			const arc = getRetainedEllipseArcAngles(
-				draft.firstAngle,
-				secondAngle,
+			const snapAnchor = snapToObjects
+				? findClosestCanvasShapeContourIntersection(
+						element,
+						elements,
+						canvasPoint,
+						14 / Math.max(viewport.zoom, 0.01),
+					)
+				: null;
+			const secondPosition = getCanvasShapeTrimPositionAtPoint(
+				element,
+				snapAnchor ?? canvasPoint,
+			);
+			if (secondPosition === null) return true;
+			const trim = getRetainedCanvasShapeTrim(
+				element,
+				draft.firstPosition,
+				secondPosition,
 				event.shiftKey,
 			);
-			if (!arc) return true;
-			updateElement(element.id, {
-				arcStartAngle: arc.startAngle,
-				arcEndAngle: arc.endAngle,
-			});
+			if (!trim) return true;
+			updateElement(element.id, getCanvasShapeTrimChanges(element, trim));
 			setDraft(null);
 			return true;
 		},
-		[cancel, draft, elements, svgRef, updateElement, viewport],
+		[cancel, draft, elements, snapToObjects, svgRef, updateElement, viewport],
 	);
 
 	const handlePointerUp = useCallback(
@@ -167,15 +215,16 @@ export function useCanvasEditorEllipseTrim({
 		[],
 	);
 
-	const preview = useMemo<CanvasEditorEllipseTrimPreview | null>(() => {
+	const preview = useMemo<CanvasEditorShapeTrimPreview | null>(() => {
 		if (!draft) return null;
 		const element = elements.get(draft.elementId);
-		if (element?.type !== "ellipse") return null;
+		if (!element || !isCanvasTrimmableShape(element)) return null;
 		return {
 			element,
-			firstAngle: draft.firstAngle,
-			secondAngle: draft.secondAngle,
-			preferLongArc: draft.preferLongArc,
+			firstPosition: draft.firstPosition,
+			secondPosition: draft.secondPosition,
+			preferLongPath: draft.preferLongPath,
+			snapAnchor: draft.snapAnchor,
 		};
 	}, [draft, elements]);
 
@@ -204,3 +253,6 @@ export function useCanvasEditorEllipseTrim({
 		handlePointerUp,
 	};
 }
+
+/** @deprecated Use useCanvasEditorShapeTrim. */
+export const useCanvasEditorEllipseTrim = useCanvasEditorShapeTrim;

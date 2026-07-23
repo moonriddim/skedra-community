@@ -5,6 +5,7 @@ import {
 	type CanvasPathDrawMode,
 	type CanvasPathTool,
 	type CanvasScene,
+	type CanvasShapeTrimEndpoint,
 	type HandlePosition,
 	type SnapAnchor,
 	type SnapGuide,
@@ -14,12 +15,15 @@ import {
 	buildFrameDropUpdates,
 	buildFrameResizeChildUpdates,
 	collectCanvasSelectionRectIds,
+	findClosestCanvasShapeContourIntersection,
 	getRotateUpdates,
 	isCanvasCenterShapeTool,
+	isCanvasTrimmableShape,
 	isLassoPathLargeEnough,
 	isMultiSelectModifier,
 	resizeCanvasElement,
 	resizeCanvasTextElement,
+	resolveCanvasShapeTrimEndpointDrag,
 	shouldClearCanvasSelectionOnToolActivation,
 	shouldKeepCanvasDrawing,
 } from "@skedra/canvas-core";
@@ -35,6 +39,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import type { CanvasEditorEraserTrailPoint } from "./canvas-editor-eraser-trail-overlay";
 import { buildCanvasEditorDrawingElement } from "./drawing-preview";
 import type { CanvasEditorToolId } from "./editor-contract";
 import {
@@ -222,6 +227,7 @@ interface PointerState {
 	rotateStartAngle: number;
 	dragPointElementId: string | null;
 	dragPointIndex: number;
+	shapeTrimEndpoint: CanvasShapeTrimEndpoint | null;
 	drawFromCenter: boolean;
 	erasedIds: Set<string>;
 	laserId: string | null;
@@ -268,6 +274,7 @@ const INITIAL_POINTER_STATE: PointerState = {
 	rotateStartAngle: 0,
 	dragPointElementId: null,
 	dragPointIndex: -1,
+	shapeTrimEndpoint: null,
 	drawFromCenter: false,
 	erasedIds: new Set(),
 	laserId: null,
@@ -316,6 +323,9 @@ export function useCanvasEditorPointer({
 	const historyActiveRef = useRef(false);
 	const [drawingPreview, setDrawingPreviewState] =
 		useState<CanvasElement | null>(null);
+	const [eraserTrail, setEraserTrail] = useState<
+		CanvasEditorEraserTrailPoint[]
+	>([]);
 	const drawingPreviewRef = useRef<CanvasElement | null>(null);
 	const setDrawingPreview = useCallback<
 		Dispatch<SetStateAction<CanvasElement | null>>
@@ -356,6 +366,7 @@ export function useCanvasEditorPointer({
 			if (state.action === "laser" && state.laserId) {
 				uiAdapter.finishLaser?.(state.laserId);
 			}
+			if (state.action === "erase") setEraserTrail([]);
 			if (commitHistory) finishHistory();
 			stateRef.current = { ...INITIAL_POINTER_STATE };
 			uiAdapter.setSelectionBox(null);
@@ -417,7 +428,9 @@ export function useCanvasEditorPointer({
 		}
 		if (
 			!historyWasRolledBack &&
-			(state.action === "resize" || state.action === "drag-point") &&
+			(state.action === "resize" ||
+				state.action === "drag-point" ||
+				state.action === "drag-shape-trim") &&
 			state.resizeStart
 		) {
 			const { id, ...original } = state.resizeStart;
@@ -675,6 +688,9 @@ export function useCanvasEditorPointer({
 			if (pointerAction === "erase") {
 				beginHistory();
 				stateRef.current.action = "erase";
+				setEraserTrail([
+					{ x: point.raw.x, y: point.raw.y, t: performance.now() },
+				]);
 				eraseAtPoint(point.snapped);
 				event.currentTarget.setPointerCapture(event.pointerId);
 				return;
@@ -865,6 +881,21 @@ export function useCanvasEditorPointer({
 				return;
 			}
 			if (state.action === "erase") {
+				setEraserTrail((trail) => {
+					const previous = trail.at(-1);
+					const minDistance = 1.5 / Math.max(ui.viewport.zoom, 0.01);
+					if (
+						previous &&
+						Math.hypot(point.raw.x - previous.x, point.raw.y - previous.y) <
+							minDistance
+					) {
+						return trail;
+					}
+					return [
+						...trail,
+						{ x: point.raw.x, y: point.raw.y, t: performance.now() },
+					];
+				});
 				eraseAtPoint(point.snapped);
 				return;
 			}
@@ -932,6 +963,56 @@ export function useCanvasEditorPointer({
 					);
 				}
 				uiAdapter.setSnapVisuals?.(result.guides);
+				return;
+			}
+			if (
+				state.action === "drag-shape-trim" &&
+				state.resizeStart &&
+				state.shapeTrimEndpoint
+			) {
+				const snapDistance = 14 / Math.max(ui.viewport.zoom, 0.01);
+				let result = resolveCanvasShapeTrimEndpointDrag(
+					state.resizeStart,
+					state.shapeTrimEndpoint,
+					point.raw,
+					snapDistance,
+				);
+				let contourAnchor: SnapAnchor | null = null;
+				if (result && !result.snappedToFullShape && ui.snapToObjects) {
+					contourAnchor = findClosestCanvasShapeContourIntersection(
+						state.resizeStart,
+						documentAdapter.getElements(),
+						point.raw,
+						snapDistance,
+					);
+					if (contourAnchor) {
+						result = resolveCanvasShapeTrimEndpointDrag(
+							state.resizeStart,
+							state.shapeTrimEndpoint,
+							contourAnchor,
+							0,
+						);
+					}
+				}
+				if (result) {
+					documentAdapter.updateElement(state.resizeStart.id, result.changes);
+					uiAdapter.setSnapVisuals?.(
+						[],
+						result.snappedToFullShape
+							? [
+									{
+										elementId: state.resizeStart.id,
+										kind: "endpoint",
+										x: result.snapPoint.x,
+										y: result.snapPoint.y,
+										active: true,
+									},
+								]
+							: contourAnchor
+								? [{ ...contourAnchor, active: true }]
+								: [],
+					);
+				}
 				return;
 			}
 			if (
@@ -1294,12 +1375,45 @@ export function useCanvasEditorPointer({
 					}
 				}
 			}
+			if (
+				state.action === "drag-shape-trim" &&
+				state.resizeStart &&
+				state.shapeTrimEndpoint
+			) {
+				const snapDistance = 14 / Math.max(ui.viewport.zoom, 0.01);
+				let result = resolveCanvasShapeTrimEndpointDrag(
+					state.resizeStart,
+					state.shapeTrimEndpoint,
+					point.raw,
+					snapDistance,
+				);
+				if (result && !result.snappedToFullShape && ui.snapToObjects) {
+					const contourAnchor = findClosestCanvasShapeContourIntersection(
+						state.resizeStart,
+						documentAdapter.getElements(),
+						point.raw,
+						snapDistance,
+					);
+					if (contourAnchor) {
+						result = resolveCanvasShapeTrimEndpointDrag(
+							state.resizeStart,
+							state.shapeTrimEndpoint,
+							contourAnchor,
+							0,
+						);
+					}
+				}
+				if (result) {
+					documentAdapter.updateElement(state.resizeStart.id, result.changes);
+				}
+			}
 			finishGesture(
 				state.action === "move" ||
 					(state.action === "draw" && ui.activeTool !== "text") ||
 					state.action === "resize" ||
 					state.action === "rotate" ||
 					state.action === "drag-point" ||
+					state.action === "drag-shape-trim" ||
 					state.action === "erase",
 			);
 		},
@@ -1497,6 +1611,34 @@ export function useCanvasEditorPointer({
 		[beginHistory, registerTouchPointer, resolvePoint, svgRef, uiAdapter],
 	);
 
+	const beginShapeTrimEndpointDrag = useCallback(
+		(
+			event: ReactPointerEvent<SVGElement>,
+			element: CanvasElement,
+			endpoint: CanvasShapeTrimEndpoint,
+		) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (registerTouchPointer(event)) return;
+			if (
+				uiAdapter.getState().readOnly ||
+				element.locked ||
+				!isCanvasTrimmableShape(element)
+			) {
+				return;
+			}
+			beginHistory();
+			stateRef.current = {
+				...INITIAL_POINTER_STATE,
+				action: "drag-shape-trim",
+				resizeStart: { ...element },
+				shapeTrimEndpoint: endpoint,
+			};
+			svgRef.current?.setPointerCapture(event.pointerId);
+		},
+		[beginHistory, registerTouchPointer, svgRef, uiAdapter],
+	);
+
 	const beginRotate = useCallback(
 		(
 			event: ReactPointerEvent<SVGElement>,
@@ -1538,6 +1680,9 @@ export function useCanvasEditorPointer({
 		beginResize,
 		beginRotate,
 		beginPathPointDrag,
+		beginShapeTrimEndpointDrag,
+		/** @deprecated Use beginShapeTrimEndpointDrag. */
+		beginEllipseArcEndpointDrag: beginShapeTrimEndpointDrag,
 		beginAuxiliaryPointerGesture,
 		runPointerUpAction,
 		isMultiTouchGesture: () => touchSessionRef.current?.isMultiTouch() ?? false,
@@ -1546,6 +1691,7 @@ export function useCanvasEditorPointer({
 		finishPath,
 		cancelPath,
 		drawingPreview,
+		eraserTrail,
 		pathStartSnap,
 	};
 }

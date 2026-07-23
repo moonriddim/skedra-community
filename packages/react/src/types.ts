@@ -85,6 +85,10 @@ export interface CanvasElement {
 	arcStartAngle?: number;
 	/** Clockwise ellipse-arc end angle in degrees. Both arc angles are required. */
 	arcEndAngle?: number;
+	/** Start position of a retained open shape contour, normalized to 0..1. */
+	pathTrimStart?: number;
+	/** End position of a retained open shape contour, normalized to 0..1. */
+	pathTrimEnd?: number;
 	cloudArcRadius?: number;
 	pyramidSections?: number;
 	polygonSides?: number;

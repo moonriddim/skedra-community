@@ -1,7 +1,10 @@
 import {
 	type CanvasElement,
+	type CanvasShapeTrimEndpoint,
 	type HandlePosition,
 	getCanvasElementCenter,
+	getCanvasShapePointAtTrimPosition,
+	getCanvasShapeTrim,
 	getCombinedBBox,
 	getGanttCanvasScrollbarThumbMeta,
 	getGanttChartId,
@@ -85,6 +88,16 @@ export interface CanvasEditorSelectionOverlayProps {
 		element: CanvasElement,
 		pointIndex: number,
 	) => void;
+	onEllipseArcEndpointDragStart?: (
+		event: ReactPointerEvent<SVGCircleElement>,
+		element: CanvasElement,
+		endpoint: CanvasShapeTrimEndpoint,
+	) => void;
+	onShapeTrimEndpointDragStart?: (
+		event: ReactPointerEvent<SVGCircleElement>,
+		element: CanvasElement,
+		endpoint: CanvasShapeTrimEndpoint,
+	) => void;
 	onInsertPathPoint: (
 		element: CanvasElement,
 		pointIndex: number,
@@ -122,6 +135,8 @@ export function CanvasEditorSelectionOverlay({
 	onRotateStart,
 	onRotateKeyDown,
 	onPathPointDragStart,
+	onEllipseArcEndpointDragStart,
+	onShapeTrimEndpointDragStart,
 	onInsertPathPoint,
 	pathBackground,
 	pathAccent,
@@ -187,6 +202,9 @@ export function CanvasEditorSelectionOverlay({
 	const selectionTransform =
 		transforms.length > 0 ? transforms.join(" ") : undefined;
 	const resizeHandles = single?.type === "text" ? TEXT_HANDLES : HANDLES;
+	const shapeTrim = single ? getCanvasShapeTrim(single) : null;
+	const onTrimEndpointDragStart =
+		onShapeTrimEndpointDragStart ?? onEllipseArcEndpointDragStart;
 	const rotateHandleY = bbox.y - 28 / zoom;
 	const rotateLabel =
 		services?.translations?.translate(
@@ -322,6 +340,54 @@ export function CanvasEditorSelectionOverlay({
 									}
 								/>
 							</g>
+						);
+					})}
+
+				{!readOnly &&
+					single &&
+					!single.locked &&
+					shapeTrim &&
+					onTrimEndpointDragStart &&
+					(["start", "end"] as const).map((endpoint) => {
+						const positionValue =
+							endpoint === "start" ? shapeTrim.start : shapeTrim.end;
+						const position = getCanvasShapePointAtTrimPosition(
+							single,
+							positionValue,
+						);
+						if (!position) return null;
+						const label =
+							services?.translations?.translate(
+								`canvas.accessibility.shapeTrim.${endpoint}`,
+								`Move shape trim ${endpoint}`,
+							) ?? `Move shape trim ${endpoint}`;
+						return (
+							<circle
+								key={`shape-trim-${endpoint}`}
+								className={classes?.handle}
+								data-skedra-ui={
+									single.type === "ellipse"
+										? "ellipse-arc-handle"
+										: "shape-trim-handle"
+								}
+								data-trim-endpoint={endpoint}
+								data-arc-endpoint={
+									single.type === "ellipse" ? endpoint : undefined
+								}
+								cx={position.x}
+								cy={position.y}
+								r={size * 0.78}
+								fill={handleStroke}
+								stroke={handleFill}
+								strokeWidth={2 / zoom}
+								pointerEvents="all"
+								style={{ cursor: "crosshair" }}
+								role="button"
+								aria-label={label}
+								onPointerDown={(event) =>
+									onTrimEndpointDragStart(event, single, endpoint)
+								}
+							/>
 						);
 					})}
 			</g>

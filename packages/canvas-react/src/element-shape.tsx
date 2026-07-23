@@ -3,6 +3,8 @@
  */
 
 import {
+	getCanvasShapeTrim,
+	getCanvasShapeTrimSvgPath,
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getElementPolygonPointsAttribute,
@@ -66,6 +68,7 @@ export const ElementShape = memo(function ElementShape({
 
 	switch (el.type) {
 		case "rectangle": {
+			const shapeTrim = getCanvasShapeTrim(el);
 			const isGanttScrollThumb =
 				el.customData?.ganttRole === "canvas-scroll-thumb";
 			if (el.customData?.skedraType === "kanban-card") {
@@ -101,6 +104,16 @@ export const ElementShape = memo(function ElementShape({
 						) : (
 							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
 						)
+					) : shapeTrim ? (
+						<path
+							d={getCanvasShapeTrimSvgPath(el)}
+							fill="none"
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
 					) : isPolygonVariant(el) ? (
 						<polygon
 							points={getElementPolygonPointsAttribute(el)}
@@ -131,6 +144,7 @@ export const ElementShape = memo(function ElementShape({
 
 		case "diamond": {
 			const cornerRadius = getEffectiveCornerRadius(el);
+			const shapeTrim = getCanvasShapeTrim(el);
 			return (
 				<g transform={transform} {...commonProps}>
 					{roughLayers ? (
@@ -139,6 +153,16 @@ export const ElementShape = memo(function ElementShape({
 						) : (
 							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
 						)
+					) : shapeTrim ? (
+						<path
+							d={getCanvasShapeTrimSvgPath(el)}
+							fill="none"
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
 					) : cornerRadius > 0 ? (
 						<path
 							d={roundedDiamondSvgPath(
@@ -172,6 +196,7 @@ export const ElementShape = memo(function ElementShape({
 		case "triangle": {
 			const trianglePoints = getTrianglePointsAttribute(el);
 			const dividers = getPyramidDividerSegments(el, el.pyramidSections);
+			const shapeTrim = getCanvasShapeTrim(el);
 			return (
 				<g transform={transform} {...commonProps}>
 					{roughLayers ? (
@@ -180,6 +205,16 @@ export const ElementShape = memo(function ElementShape({
 						) : (
 							<RoughSvgMarkup html={roughLayers.strokeHtml ?? ""} dash={dash} />
 						)
+					) : shapeTrim ? (
+						<path
+							d={getCanvasShapeTrimSvgPath(el)}
+							fill="none"
+							stroke={el.stroke}
+							strokeWidth={el.strokeWidth}
+							strokeDasharray={dash}
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
 					) : (
 						<polygon
 							points={trianglePoints}
@@ -190,7 +225,7 @@ export const ElementShape = memo(function ElementShape({
 							strokeLinejoin="round"
 						/>
 					)}
-					{roughLayers?.detailHtml ? (
+					{shapeTrim ? null : roughLayers?.detailHtml ? (
 						<RoughSvgMarkup html={roughLayers.detailHtml} dash={dash} />
 					) : (
 						dividers.map((divider, index) => (

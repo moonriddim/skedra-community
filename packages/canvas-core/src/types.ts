@@ -131,6 +131,13 @@ export interface CanvasElement {
 	arcStartAngle?: number;
 	/** Clockwise ellipse-arc end angle in degrees. Both arc angles are required. */
 	arcEndAngle?: number;
+	/**
+	 * Start position of a retained open contour, normalized to the closed
+	 * shape perimeter. Both path trim values are required.
+	 */
+	pathTrimStart?: number;
+	/** End position of a retained open contour, normalized to 0..1. */
+	pathTrimEnd?: number;
 	/** Radius/depth of the repeating revision-cloud arcs in canvas units. */
 	cloudArcRadius?: number;
 	/** 1 renders a regular triangle; larger values render a divided pyramid. */

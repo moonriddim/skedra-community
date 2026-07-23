@@ -1,34 +1,47 @@
 import {
-	getEllipseArcSvgPath,
-	getEllipsePointAtAngle,
-	getRetainedEllipseArcAngles,
+	getCanvasShapePointAtTrimPosition,
+	getCanvasShapeTrimChanges,
+	getCanvasShapeTrimSvgPath,
+	getRetainedCanvasShapeTrim,
 } from "@skedra/canvas-core";
-import type { CanvasEditorEllipseTrimPreview } from "./use-canvas-editor-ellipse-trim";
+import type { CanvasEditorShapeTrimPreview } from "./use-canvas-editor-ellipse-trim";
 
-export interface CanvasEditorEllipseTrimOverlayProps {
-	preview: CanvasEditorEllipseTrimPreview;
+export interface CanvasEditorShapeTrimOverlayProps {
+	preview: CanvasEditorShapeTrimPreview;
 	zoom: number;
 	instruction: string;
 }
+/** @deprecated Use CanvasEditorShapeTrimOverlayProps. */
+export type CanvasEditorEllipseTrimOverlayProps =
+	CanvasEditorShapeTrimOverlayProps;
 
-/** Zoom-stable cut points, retained-arc preview, and interaction hint. */
-export function CanvasEditorEllipseTrimOverlay({
+/** Zoom-stable cut points, retained-contour preview, and interaction hint. */
+export function CanvasEditorShapeTrimOverlay({
 	preview,
 	zoom,
 	instruction,
-}: CanvasEditorEllipseTrimOverlayProps) {
+}: CanvasEditorShapeTrimOverlayProps) {
 	const { element } = preview;
-	const arc = getRetainedEllipseArcAngles(
-		preview.firstAngle,
-		preview.secondAngle,
-		preview.preferLongArc,
-	);
-	const firstPoint = getEllipsePointAtAngle(element, preview.firstAngle, true);
-	const secondPoint = getEllipsePointAtAngle(
+	const trim = getRetainedCanvasShapeTrim(
 		element,
-		preview.secondAngle,
+		preview.firstPosition,
+		preview.secondPosition,
+		preview.preferLongPath,
+	);
+	const firstPoint = getCanvasShapePointAtTrimPosition(
+		element,
+		preview.firstPosition,
 		true,
 	);
+	const secondPoint = getCanvasShapePointAtTrimPosition(
+		element,
+		preview.secondPosition,
+		true,
+	);
+	if (!firstPoint || !secondPoint) return null;
+	const previewElement = trim
+		? { ...element, ...getCanvasShapeTrimChanges(element, trim) }
+		: element;
 	const centerX = element.x + element.width / 2;
 	const centerY = element.y + element.height / 2;
 	const transformParts: string[] = [];
@@ -51,12 +64,12 @@ export function CanvasEditorEllipseTrimOverlay({
 	return (
 		<g
 			data-ui-only="true"
-			data-skedra-ui="ellipse-trim-preview"
+			data-skedra-ui="shape-trim-preview"
 			pointerEvents="none"
 		>
-			{arc && (
+			{trim && (
 				<path
-					d={getEllipseArcSvgPath(element, arc.startAngle, arc.endAngle)}
+					d={getCanvasShapeTrimSvgPath(previewElement)}
 					transform={transform}
 					fill="none"
 					stroke="var(--primary, #6366f1)"
@@ -80,6 +93,16 @@ export function CanvasEditorEllipseTrimOverlay({
 				stroke="var(--primary, #6366f1)"
 				strokeWidth={2 * inverseZoom}
 			/>
+			{preview.snapAnchor && (
+				<circle
+					cx={preview.snapAnchor.x}
+					cy={preview.snapAnchor.y}
+					r={8 * inverseZoom}
+					fill="none"
+					stroke="var(--primary, #6366f1)"
+					strokeWidth={2 * inverseZoom}
+				/>
+			)}
 			<rect
 				x={labelX}
 				y={labelY}
@@ -102,3 +125,12 @@ export function CanvasEditorEllipseTrimOverlay({
 		</g>
 	);
 }
+
+/** @deprecated Use CanvasEditorShapeTrimOverlay. */
+export function CanvasEditorEllipseTrimOverlay(
+	props: CanvasEditorEllipseTrimOverlayProps,
+) {
+	return <CanvasEditorShapeTrimOverlay {...props} />;
+}
+
+export type { CanvasEditorShapeTrimPreview };

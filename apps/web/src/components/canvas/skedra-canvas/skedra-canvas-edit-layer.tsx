@@ -11,7 +11,11 @@ import type {
 	StickyChecklistItem,
 	StickyNoteMode,
 } from "@/lib/canvas/sticky-note-utils";
-import type { CanvasElement, CanvasObjectSnapMode } from "@skedra/canvas-core";
+import {
+	type CanvasElement,
+	type CanvasObjectSnapMode,
+	canTrimCanvasShape,
+} from "@skedra/canvas-core";
 import {
 	CanvasEditorStickyNoteOverlay,
 	CanvasEditorTextOverlay,
@@ -78,7 +82,7 @@ interface SkedraCanvasEditLayerProps {
 	createMindmapSibling: (nodeId: string) => void;
 	deleteElementsWithKanbanReflow: (ids: string[]) => void;
 	elements: Map<string, CanvasElement>;
-	onStartEllipseTrim: (
+	onStartShapeTrim: (
 		element: CanvasElement,
 		point: { clientX: number; clientY: number },
 	) => void;
@@ -100,7 +104,7 @@ export function SkedraCanvasEditLayer({
 	createMindmapSibling,
 	deleteElementsWithKanbanReflow,
 	elements,
-	onStartEllipseTrim,
+	onStartShapeTrim,
 }: SkedraCanvasEditLayerProps) {
 	const {
 		pendingText,
@@ -213,13 +217,15 @@ export function SkedraCanvasEditLayer({
 					onRemoveFromFrame={keyboard.removeFromFrame}
 					onGroup={keyboard.groupSelection}
 					onUngroup={keyboard.ungroupSelection}
-					canTrimEllipse={
-						selectedEls.length === 1 && selectedEls[0]?.type === "ellipse"
+					canTrimShape={
+						selectedEls.length === 1 &&
+						selectedEls[0] !== undefined &&
+						canTrimCanvasShape(selectedEls[0])
 					}
-					onTrimEllipse={() => {
-						const ellipse = selectedEls[0];
-						if (!ellipse) return;
-						onStartEllipseTrim(ellipse, {
+					onTrimShape={() => {
+						const shape = selectedEls[0];
+						if (!shape) return;
+						onStartShapeTrim(shape, {
 							clientX: contextMenu.x,
 							clientY: contextMenu.y,
 						});

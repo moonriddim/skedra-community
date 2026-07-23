@@ -11,6 +11,7 @@ import type {
 	CanvasElement,
 	CanvasPathStartSnapState,
 	CanvasSearchMatch,
+	EllipseArcEndpoint,
 	HandlePosition,
 	LaserTrail,
 	SavedCanvasView,
@@ -22,6 +23,8 @@ import type { ImageCropRect } from "@skedra/canvas-core";
 import {
 	CanvasEditorEllipseTrimOverlay,
 	type CanvasEditorEllipseTrimPreview,
+	CanvasEditorEraserTrailOverlay,
+	type CanvasEditorEraserTrailPoint,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
 	CanvasEditorSavedViewDraft,
@@ -67,6 +70,7 @@ interface CanvasStageProps {
 	selectedSnapOptions?: SnapPointOptions | null;
 	transformOrigin?: { x: number; y: number } | null;
 	laserTrails?: LaserTrail[];
+	eraserTrail?: readonly CanvasEditorEraserTrailPoint[];
 	croppingElement?: CanvasElement | null;
 	ellipseTrimPreview?:
 		| (CanvasEditorEllipseTrimPreview & {
@@ -105,6 +109,11 @@ interface CanvasStageProps {
 		element: CanvasElement,
 		pointIndex: number,
 	) => void;
+	onEllipseArcEndpointDragStart: (
+		event: React.PointerEvent<SVGCircleElement>,
+		element: CanvasElement,
+		endpoint: EllipseArcEndpoint,
+	) => void;
 	runPointerUpAction: (
 		event: React.PointerEvent<SVGElement>,
 		action: () => void,
@@ -142,6 +151,7 @@ export function CanvasStage({
 	selectedSnapOptions = null,
 	transformOrigin = null,
 	laserTrails = [],
+	eraserTrail = [],
 	croppingElement = null,
 	ellipseTrimPreview = null,
 	resolveAssetUrl,
@@ -160,6 +170,7 @@ export function CanvasStage({
 	onElementRotateStart,
 	onElementRotateKeyDown,
 	onPathPointDragStart,
+	onEllipseArcEndpointDragStart,
 	runPointerUpAction,
 	onViewMoveStart,
 	onViewResizeStart,
@@ -264,6 +275,7 @@ export function CanvasStage({
 					onRotateStart={onElementRotateStart}
 					onRotateKeyDown={onElementRotateKeyDown}
 					onPathPointDragStart={onPathPointDragStart}
+					onEllipseArcEndpointDragStart={onEllipseArcEndpointDragStart}
 					onInsertPathPoint={(element, pointIndex, point, event) =>
 						runPointerUpAction(event, () =>
 							canvasCommands.insertWaypoint(element.id, pointIndex, point),
@@ -309,6 +321,10 @@ export function CanvasStage({
 				stroke="rgba(255, 255, 255, 0.9)"
 			/>
 
+			<CanvasEditorEraserTrailOverlay
+				points={eraserTrail}
+				zoom={viewport.zoom}
+			/>
 			<LaserOverlay trails={laserTrails} viewport={viewport} />
 
 			{croppingElement && onApplyImageCrop && onCancelImageCrop && (

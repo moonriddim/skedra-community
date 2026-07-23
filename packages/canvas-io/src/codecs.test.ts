@@ -65,6 +65,24 @@ test("round-trips ellipse arc angles as an all-or-nothing pair", () => {
 	);
 });
 
+test("round-trips shape path trim positions as an all-or-nothing pair", () => {
+	const trimmed = shape("rectangle", {
+		pathTrimStart: 0.125,
+		pathTrimEnd: 0.75,
+	});
+	const decoded = decodeCanvasElement(encodeCanvasElement(trimmed));
+	assert.equal(decoded?.pathTrimStart, 0.125);
+	assert.equal(decoded?.pathTrimEnd, 0.75);
+
+	const encoded = encodeCanvasElement(trimmed);
+	assert.equal(
+		decodeCanvasElement({ ...encoded, pathTrimEnd: undefined }),
+		null,
+	);
+	assert.equal(decodeCanvasElement({ ...encoded, pathTrimStart: -0.1 }), null);
+	assert.equal(decodeCanvasElement({ ...encoded, pathTrimEnd: 1 }), null);
+});
+
 test("rejects invalid persisted polygon side counts", () => {
 	const encoded = encodeCanvasElement(shape("rectangle", { polygonSides: 6 }));
 	assert.equal(decodeCanvasElement({ ...encoded, polygonSides: 3 }), null);

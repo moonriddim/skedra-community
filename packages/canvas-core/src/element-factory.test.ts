@@ -102,6 +102,17 @@ test("creates API and MCP bounds elements through one canonical mapper", () => {
 	});
 	assert.equal(incompleteArc.arcStartAngle, undefined);
 	assert.equal(incompleteArc.arcEndAngle, undefined);
+	const trimmedPolygon = createCanvasElementFromBoundsInput(defaults, {
+		type: "rectangle",
+		x: 10,
+		y: 20,
+		width: 180,
+		height: 120,
+		pathTrimStart: 0.1,
+		pathTrimEnd: 0.7,
+	});
+	assert.equal(trimmedPolygon.pathTrimStart, 0.1);
+	assert.equal(trimmedPolygon.pathTrimEnd, 0.7);
 
 	const arrow = createCanvasElementFromBoundsInput(
 		defaults,

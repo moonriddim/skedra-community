@@ -82,6 +82,11 @@ export {
 	CanvasEditorSurface,
 	resolveCanvasEditorCursor,
 } from "./canvas-editor-surface";
+export { CanvasEditorEraserTrailOverlay } from "./canvas-editor-eraser-trail-overlay";
+export type {
+	CanvasEditorEraserTrailOverlayProps,
+	CanvasEditorEraserTrailPoint,
+} from "./canvas-editor-eraser-trail-overlay";
 export { CanvasEditorSelectionOverlay } from "./canvas-editor-selection-overlay";
 export { resolveCanvasEditorRotationKeyDelta } from "./canvas-editor-selection-overlay";
 export { CanvasEditorSelectionGestureOverlay } from "./canvas-editor-selection-gesture-overlay";
@@ -177,9 +182,14 @@ export { CanvasEditorSnapMenu } from "./canvas-editor-snap-menu";
 export { CanvasEditorContextMenu } from "./canvas-editor-context-menu";
 export {
 	CanvasEditorEllipseTrimOverlay,
+	CanvasEditorShapeTrimOverlay,
 	type CanvasEditorEllipseTrimOverlayProps,
+	type CanvasEditorShapeTrimOverlayProps,
 } from "./canvas-editor-ellipse-trim-overlay";
-export { useCanvasEditorEllipseTrim } from "./use-canvas-editor-ellipse-trim";
+export {
+	useCanvasEditorEllipseTrim,
+	useCanvasEditorShapeTrim,
+} from "./use-canvas-editor-ellipse-trim";
 export type {
 	CanvasEditorSnapMenuKind,
 	CanvasEditorSnapMenuProps,
@@ -189,7 +199,10 @@ export type {
 	CanvasEditorContextMenuProps,
 	CanvasEditorContextMenuTranslate,
 } from "./canvas-editor-context-menu";
-export type { CanvasEditorEllipseTrimPreview } from "./use-canvas-editor-ellipse-trim";
+export type {
+	CanvasEditorEllipseTrimPreview,
+	CanvasEditorShapeTrimPreview,
+} from "./use-canvas-editor-ellipse-trim";
 export {
 	expandCanvasEditorAtomicSelectionIds,
 	getCanvasEditorContextSelectionIds,

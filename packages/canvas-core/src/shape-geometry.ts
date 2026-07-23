@@ -1,3 +1,4 @@
+import { getEffectiveCornerRadius } from "./corner-radius";
 import {
 	inverseTransformCanvasElementPoint,
 	transformCanvasElementPoint,
@@ -53,6 +54,39 @@ export interface EllipseArcAngles {
 	startAngle: number;
 	endAngle: number;
 	sweepAngle: number;
+}
+
+export type CanvasShapeTrimEndpoint = "start" | "end";
+/** @deprecated Use CanvasShapeTrimEndpoint. */
+export type EllipseArcEndpoint = CanvasShapeTrimEndpoint;
+
+export interface EllipseArcEndpointDragResult {
+	changes: Pick<CanvasElement, "arcStartAngle" | "arcEndAngle">;
+	draggedAngle: number;
+	snapPoint: { x: number; y: number };
+	snappedToFullEllipse: boolean;
+}
+
+export type CanvasTrimmableShapeType = Extract<
+	ElementType,
+	"rectangle" | "ellipse" | "diamond" | "triangle"
+>;
+
+export interface CanvasShapeTrim {
+	kind: "ellipse" | "path";
+	start: number;
+	end: number;
+	sweep: number;
+}
+
+export interface CanvasShapeTrimEndpointDragResult {
+	changes: Pick<
+		CanvasElement,
+		"arcStartAngle" | "arcEndAngle" | "pathTrimStart" | "pathTrimEnd"
+	>;
+	draggedPosition: number;
+	snapPoint: { x: number; y: number };
+	snappedToFullShape: boolean;
 }
 
 const FULL_TURN_DEGREES = 360;
@@ -140,6 +174,65 @@ export function getEllipseAngleAtPoint(
 	);
 }
 
+/**
+ * Moves one open arc endpoint along the source ellipse. Dropping it close to
+ * the opposite endpoint removes the cut and restores a complete ellipse.
+ */
+export function resolveEllipseArcEndpointDrag(
+	element: Pick<
+		CanvasElement,
+		| "type"
+		| "x"
+		| "y"
+		| "width"
+		| "height"
+		| "rotation"
+		| "flipX"
+		| "flipY"
+		| "arcStartAngle"
+		| "arcEndAngle"
+	>,
+	endpoint: EllipseArcEndpoint,
+	point: { x: number; y: number },
+	snapDistance: number,
+): EllipseArcEndpointDragResult | null {
+	const arc = getEllipseArcAngles(element);
+	if (!arc) return null;
+	const oppositeAngle = endpoint === "start" ? arc.endAngle : arc.startAngle;
+	const snapPoint = getEllipsePointAtAngle(element, oppositeAngle, true);
+	const snappedToFullEllipse =
+		Math.hypot(point.x - snapPoint.x, point.y - snapPoint.y) <=
+		Math.max(0, snapDistance);
+	if (snappedToFullEllipse) {
+		return {
+			changes: {
+				arcStartAngle: undefined,
+				arcEndAngle: undefined,
+			},
+			draggedAngle: oppositeAngle,
+			snapPoint,
+			snappedToFullEllipse: true,
+		};
+	}
+
+	const draggedAngle = getEllipseAngleAtPoint(element, point);
+	return {
+		changes:
+			endpoint === "start"
+				? {
+						arcStartAngle: draggedAngle,
+						arcEndAngle: arc.endAngle,
+					}
+				: {
+						arcStartAngle: arc.startAngle,
+						arcEndAngle: draggedAngle,
+					},
+		draggedAngle,
+		snapPoint,
+		snappedToFullEllipse: false,
+	};
+}
+
 export function getEllipseArcSvgPath(
 	element: Pick<CanvasElement, "x" | "y" | "width" | "height">,
 	startAngle: number,
@@ -200,6 +293,550 @@ export function getRetainedEllipseArcAngles(
 		startAngle,
 		endAngle,
 		sweepAngle: getEllipseArcSweep(startAngle, endAngle),
+	};
+}
+
+const MIN_PATH_TRIM_SWEEP = 0.0001;
+
+export function isCanvasTrimmableShape(
+	element: Pick<CanvasElement, "type">,
+): element is Pick<CanvasElement, "type"> & {
+	type: CanvasTrimmableShapeType;
+} {
+	return (
+		element.type === "rectangle" ||
+		element.type === "ellipse" ||
+		element.type === "diamond" ||
+		element.type === "triangle"
+	);
+}
+
+/** Excludes semantic widgets and curved-corner variants from straight contour trim. */
+export function canTrimCanvasShape(element: CanvasElement): boolean {
+	if (!isCanvasTrimmableShape(element) || element.locked) return false;
+	if (
+		element.type === "rectangle" &&
+		(element.customData?.skedraType !== undefined ||
+			element.customData?.ganttRole !== undefined)
+	) {
+		return false;
+	}
+	return true;
+}
+
+export function normalizeCanvasPathProgress(progress: number): number {
+	if (progress >= 0 && progress < 1) return progress;
+	const normalized = ((progress % 1) + 1) % 1;
+	return Math.abs(normalized) < Number.EPSILON ? 0 : normalized;
+}
+
+const ROUNDED_CONTOUR_SEGMENTS = 16;
+
+function appendArcContourPoints(
+	points: [number, number][],
+	centerX: number,
+	centerY: number,
+	radiusX: number,
+	radiusY: number,
+	startAngle: number,
+	endAngle: number,
+	includeEnd = true,
+) {
+	const count = ROUNDED_CONTOUR_SEGMENTS;
+	const last = includeEnd ? count : count - 1;
+	for (let index = 1; index <= last; index++) {
+		const angle = startAngle + ((endAngle - startAngle) * index) / count;
+		points.push([
+			centerX + radiusX * Math.cos(angle),
+			centerY + radiusY * Math.sin(angle),
+		]);
+	}
+}
+
+function getRoundedRectangleContourPoints(
+	element: CanvasElement,
+	radius: number,
+): [number, number][] {
+	const left = element.x;
+	const right = element.x + element.width;
+	const top = element.y;
+	const bottom = element.y + element.height;
+	const points: [number, number][] = [
+		[left + radius, top],
+		[right - radius, top],
+	];
+	appendArcContourPoints(
+		points,
+		right - radius,
+		top + radius,
+		radius,
+		radius,
+		-Math.PI / 2,
+		0,
+	);
+	points.push([right, bottom - radius]);
+	appendArcContourPoints(
+		points,
+		right - radius,
+		bottom - radius,
+		radius,
+		radius,
+		0,
+		Math.PI / 2,
+	);
+	points.push([left + radius, bottom]);
+	appendArcContourPoints(
+		points,
+		left + radius,
+		bottom - radius,
+		radius,
+		radius,
+		Math.PI / 2,
+		Math.PI,
+	);
+	points.push([left, top + radius]);
+	appendArcContourPoints(
+		points,
+		left + radius,
+		top + radius,
+		radius,
+		radius,
+		Math.PI,
+		(Math.PI * 3) / 2,
+		false,
+	);
+	return points;
+}
+
+function cubicPoint(
+	start: [number, number],
+	control: [number, number],
+	end: [number, number],
+	amount: number,
+): [number, number] {
+	const inverse = 1 - amount;
+	return [
+		inverse * inverse * inverse * start[0] +
+			3 * inverse * inverse * amount * control[0] +
+			3 * inverse * amount * amount * control[0] +
+			amount * amount * amount * end[0],
+		inverse * inverse * inverse * start[1] +
+			3 * inverse * inverse * amount * control[1] +
+			3 * inverse * amount * amount * control[1] +
+			amount * amount * amount * end[1],
+	];
+}
+
+function appendRoundedDiamondCorner(
+	points: [number, number][],
+	start: [number, number],
+	vertex: [number, number],
+	end: [number, number],
+	includeEnd = true,
+) {
+	const last = includeEnd
+		? ROUNDED_CONTOUR_SEGMENTS
+		: ROUNDED_CONTOUR_SEGMENTS - 1;
+	for (let index = 1; index <= last; index++) {
+		points.push(
+			cubicPoint(start, vertex, end, index / ROUNDED_CONTOUR_SEGMENTS),
+		);
+	}
+}
+
+function getRoundedDiamondContourPoints(
+	element: CanvasElement,
+	radius: number,
+): [number, number][] {
+	const width = Math.max(1, element.width);
+	const height = Math.max(1, element.height);
+	const radiusX = Math.min(Math.max(0, radius), width / 4);
+	const radiusY = Math.min(Math.max(0, radius), height / 4);
+	const top: [number, number] = [element.x + width / 2, element.y];
+	const right: [number, number] = [element.x + width, element.y + height / 2];
+	const bottom: [number, number] = [element.x + width / 2, element.y + height];
+	const left: [number, number] = [element.x, element.y + height / 2];
+	const topAfter: [number, number] = [top[0] + radiusX, top[1] + radiusY];
+	const rightBefore: [number, number] = [
+		right[0] - radiusX,
+		right[1] - radiusY,
+	];
+	const rightAfter: [number, number] = [right[0] - radiusX, right[1] + radiusY];
+	const bottomBefore: [number, number] = [
+		bottom[0] + radiusX,
+		bottom[1] - radiusY,
+	];
+	const bottomAfter: [number, number] = [
+		bottom[0] - radiusX,
+		bottom[1] - radiusY,
+	];
+	const leftBefore: [number, number] = [left[0] + radiusX, left[1] + radiusY];
+	const leftAfter: [number, number] = [left[0] + radiusX, left[1] - radiusY];
+	const topBefore: [number, number] = [top[0] - radiusX, top[1] + radiusY];
+	const points: [number, number][] = [topAfter, rightBefore];
+	appendRoundedDiamondCorner(points, rightBefore, right, rightAfter);
+	points.push(bottomBefore);
+	appendRoundedDiamondCorner(points, bottomBefore, bottom, bottomAfter);
+	points.push(leftBefore);
+	appendRoundedDiamondCorner(points, leftBefore, left, leftAfter);
+	points.push(topBefore);
+	appendRoundedDiamondCorner(points, topBefore, top, topAfter, false);
+	return points;
+}
+
+export function getCanvasShapeContourPoints(
+	element: Pick<
+		CanvasElement,
+		| "type"
+		| "x"
+		| "y"
+		| "width"
+		| "height"
+		| "rotation"
+		| "flipX"
+		| "flipY"
+		| "polygonSides"
+		| "cornerRadius"
+		| "cornerRadiusPercent"
+	>,
+	transformed = false,
+): [number, number][] {
+	let points: [number, number][];
+	const radius = getEffectiveCornerRadius(element);
+	if (
+		element.type === "rectangle" &&
+		!isPolygonVariant(element) &&
+		radius > 0
+	) {
+		points = getRoundedRectangleContourPoints(element as CanvasElement, radius);
+	} else if (element.type === "diamond" && radius > 0) {
+		points = getRoundedDiamondContourPoints(element as CanvasElement, radius);
+	} else if (element.type === "diamond" || isPolygonVariant(element)) {
+		points = getElementPolygonPoints(element);
+	} else if (element.type === "triangle") {
+		points = getTrianglePoints(element);
+	} else if (element.type === "rectangle") {
+		points = [
+			[element.x, element.y],
+			[element.x + element.width, element.y],
+			[element.x + element.width, element.y + element.height],
+			[element.x, element.y + element.height],
+		];
+	} else {
+		return [];
+	}
+	return transformed
+		? points.map(([x, y]) => {
+				const point = transformCanvasElementPoint(element as CanvasElement, {
+					x,
+					y,
+				});
+				return [point.x, point.y];
+			})
+		: points;
+}
+
+function getContourMetrics(points: readonly [number, number][]) {
+	const segmentLengths = points.map(([x1, y1], index) => {
+		const [x2, y2] = points[(index + 1) % points.length] ?? [x1, y1];
+		return Math.hypot(x2 - x1, y2 - y1);
+	});
+	return {
+		segmentLengths,
+		totalLength: segmentLengths.reduce((sum, length) => sum + length, 0),
+	};
+}
+
+export function getCanvasShapePointAtPathProgress(
+	element: CanvasElement,
+	progress: number,
+	transformed = false,
+): { x: number; y: number } | null {
+	const points = getCanvasShapeContourPoints(element);
+	if (points.length < 2) return null;
+	const { segmentLengths, totalLength } = getContourMetrics(points);
+	if (totalLength <= 0) return null;
+	let remaining = normalizeCanvasPathProgress(progress) * totalLength;
+	for (let index = 0; index < points.length; index++) {
+		const length = segmentLengths[index] ?? 0;
+		if (remaining <= length || index === points.length - 1) {
+			const [x1, y1] = points[index];
+			const [x2, y2] = points[(index + 1) % points.length];
+			const amount = length > 0 ? Math.min(1, remaining / length) : 0;
+			const point = {
+				x: x1 + (x2 - x1) * amount,
+				y: y1 + (y2 - y1) * amount,
+			};
+			return transformed ? transformCanvasElementPoint(element, point) : point;
+		}
+		remaining -= length;
+	}
+	return null;
+}
+
+/** Projects an arbitrary rendered point onto a straight closed shape contour. */
+export function getCanvasShapePathProgressAtPoint(
+	element: CanvasElement,
+	point: { x: number; y: number },
+): number | null {
+	const points = getCanvasShapeContourPoints(element);
+	if (points.length < 2) return null;
+	const local = inverseTransformCanvasElementPoint(element, point);
+	const { segmentLengths, totalLength } = getContourMetrics(points);
+	if (totalLength <= 0) return null;
+	let traversed = 0;
+	let bestProgress = 0;
+	let bestDistance = Number.POSITIVE_INFINITY;
+	for (let index = 0; index < points.length; index++) {
+		const [x1, y1] = points[index];
+		const [x2, y2] = points[(index + 1) % points.length];
+		const dx = x2 - x1;
+		const dy = y2 - y1;
+		const length = segmentLengths[index] ?? 0;
+		const amount =
+			length > 0
+				? Math.max(
+						0,
+						Math.min(
+							1,
+							((local.x - x1) * dx + (local.y - y1) * dy) / (length * length),
+						),
+					)
+				: 0;
+		const nearestX = x1 + dx * amount;
+		const nearestY = y1 + dy * amount;
+		const distance = Math.hypot(local.x - nearestX, local.y - nearestY);
+		if (distance < bestDistance) {
+			bestDistance = distance;
+			bestProgress = (traversed + length * amount) / totalLength;
+		}
+		traversed += length;
+	}
+	return normalizeCanvasPathProgress(bestProgress);
+}
+
+export function getCanvasShapeTrim(
+	element: Pick<
+		CanvasElement,
+		"type" | "arcStartAngle" | "arcEndAngle" | "pathTrimStart" | "pathTrimEnd"
+	>,
+): CanvasShapeTrim | null {
+	if (element.type === "ellipse") {
+		const arc = getEllipseArcAngles(element);
+		return arc
+			? {
+					kind: "ellipse",
+					start: arc.startAngle,
+					end: arc.endAngle,
+					sweep: arc.sweepAngle,
+				}
+			: null;
+	}
+	if (
+		(element.type !== "rectangle" &&
+			element.type !== "diamond" &&
+			element.type !== "triangle") ||
+		!Number.isFinite(element.pathTrimStart) ||
+		!Number.isFinite(element.pathTrimEnd)
+	) {
+		return null;
+	}
+	const start = normalizeCanvasPathProgress(element.pathTrimStart ?? 0);
+	const end = normalizeCanvasPathProgress(element.pathTrimEnd ?? 0);
+	const sweep = normalizeCanvasPathProgress(end - start);
+	if (sweep < MIN_PATH_TRIM_SWEEP) return null;
+	return { kind: "path", start, end, sweep };
+}
+
+export function getCanvasShapeTrimPositionAtPoint(
+	element: CanvasElement,
+	point: { x: number; y: number },
+): number | null {
+	if (element.type === "ellipse") return getEllipseAngleAtPoint(element, point);
+	if (!isCanvasTrimmableShape(element)) return null;
+	return getCanvasShapePathProgressAtPoint(element, point);
+}
+
+export function getCanvasShapePointAtTrimPosition(
+	element: CanvasElement,
+	position: number,
+	transformed = false,
+): { x: number; y: number } | null {
+	if (element.type === "ellipse") {
+		return getEllipsePointAtAngle(element, position, transformed);
+	}
+	if (!isCanvasTrimmableShape(element)) return null;
+	return getCanvasShapePointAtPathProgress(element, position, transformed);
+}
+
+export function getRetainedCanvasShapeTrim(
+	element: Pick<CanvasElement, "type">,
+	firstPosition: number,
+	secondPosition: number,
+	preferLongPath = false,
+): CanvasShapeTrim | null {
+	if (element.type === "ellipse") {
+		const arc = getRetainedEllipseArcAngles(
+			firstPosition,
+			secondPosition,
+			preferLongPath,
+		);
+		return arc
+			? {
+					kind: "ellipse",
+					start: arc.startAngle,
+					end: arc.endAngle,
+					sweep: arc.sweepAngle,
+				}
+			: null;
+	}
+	if (!isCanvasTrimmableShape(element)) return null;
+	const first = normalizeCanvasPathProgress(firstPosition);
+	const second = normalizeCanvasPathProgress(secondPosition);
+	const clockwiseSweep = normalizeCanvasPathProgress(second - first);
+	if (
+		clockwiseSweep < MIN_PATH_TRIM_SWEEP ||
+		1 - clockwiseSweep < MIN_PATH_TRIM_SWEEP
+	) {
+		return null;
+	}
+	const keepClockwise = preferLongPath
+		? clockwiseSweep >= 0.5
+		: clockwiseSweep <= 0.5;
+	const start = keepClockwise ? first : second;
+	const end = keepClockwise ? second : first;
+	return {
+		kind: "path",
+		start,
+		end,
+		sweep: normalizeCanvasPathProgress(end - start),
+	};
+}
+
+export function getCanvasShapeTrimChanges(
+	element: Pick<CanvasElement, "type">,
+	trim: CanvasShapeTrim,
+): Pick<
+	CanvasElement,
+	"arcStartAngle" | "arcEndAngle" | "pathTrimStart" | "pathTrimEnd"
+> {
+	return element.type === "ellipse"
+		? {
+				arcStartAngle: trim.start,
+				arcEndAngle: trim.end,
+				pathTrimStart: undefined,
+				pathTrimEnd: undefined,
+			}
+		: {
+				arcStartAngle: undefined,
+				arcEndAngle: undefined,
+				pathTrimStart: trim.start,
+				pathTrimEnd: trim.end,
+			};
+}
+
+export function getTrimmedCanvasShapePolyline(
+	element: CanvasElement,
+	transformed = false,
+): Array<{ x: number; y: number }> {
+	const trim = getCanvasShapeTrim(element);
+	if (!trim || trim.kind !== "path") return [];
+	const contour = getCanvasShapeContourPoints(element);
+	const { segmentLengths, totalLength } = getContourMetrics(contour);
+	if (contour.length < 2 || totalLength <= 0) return [];
+	const startPoint = getCanvasShapePointAtPathProgress(element, trim.start);
+	const endPoint = getCanvasShapePointAtPathProgress(element, trim.end);
+	if (!startPoint || !endPoint) return [];
+	const result = [startPoint];
+	const endUnwrapped = trim.start + trim.sweep;
+	let traversed = 0;
+	const vertices = contour.map(([x, y], index) => {
+		if (index > 0) traversed += segmentLengths[index - 1] ?? 0;
+		return { x, y, progress: traversed / totalLength };
+	});
+	for (let cycle = 0; cycle <= 1; cycle++) {
+		for (const vertex of vertices) {
+			const vertexProgress = vertex.progress + cycle;
+			if (
+				vertexProgress > trim.start + MIN_PATH_TRIM_SWEEP &&
+				vertexProgress < endUnwrapped - MIN_PATH_TRIM_SWEEP
+			) {
+				result.push({ x: vertex.x, y: vertex.y });
+			}
+		}
+	}
+	result.push(endPoint);
+	return transformed
+		? result.map((point) => transformCanvasElementPoint(element, point))
+		: result;
+}
+
+export function getCanvasShapeTrimSvgPath(element: CanvasElement): string {
+	const trim = getCanvasShapeTrim(element);
+	if (!trim) return "";
+	if (trim.kind === "ellipse") {
+		return getEllipseArcSvgPath(element, trim.start, trim.end);
+	}
+	const points = getTrimmedCanvasShapePolyline(element);
+	if (points.length < 2) return "";
+	return points
+		.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+		.join(" ");
+}
+
+/**
+ * Moves either endpoint along the source contour. Dropping it on the opposite
+ * endpoint removes the trim and restores the complete closed shape.
+ */
+export function resolveCanvasShapeTrimEndpointDrag(
+	element: CanvasElement,
+	endpoint: CanvasShapeTrimEndpoint,
+	point: { x: number; y: number },
+	snapDistance: number,
+): CanvasShapeTrimEndpointDragResult | null {
+	const trim = getCanvasShapeTrim(element);
+	if (!trim) return null;
+	const oppositePosition = endpoint === "start" ? trim.end : trim.start;
+	const snapPoint = getCanvasShapePointAtTrimPosition(
+		element,
+		oppositePosition,
+		true,
+	);
+	if (!snapPoint) return null;
+	const snappedToFullShape =
+		Math.hypot(point.x - snapPoint.x, point.y - snapPoint.y) <=
+		Math.max(0, snapDistance);
+	if (snappedToFullShape) {
+		return {
+			changes: {
+				arcStartAngle: undefined,
+				arcEndAngle: undefined,
+				pathTrimStart: undefined,
+				pathTrimEnd: undefined,
+			},
+			draggedPosition: oppositePosition,
+			snapPoint,
+			snappedToFullShape: true,
+		};
+	}
+	const draggedPosition = getCanvasShapeTrimPositionAtPoint(element, point);
+	if (draggedPosition === null) return null;
+	const nextTrim: CanvasShapeTrim = {
+		...trim,
+		start: endpoint === "start" ? draggedPosition : trim.start,
+		end: endpoint === "end" ? draggedPosition : trim.end,
+	};
+	nextTrim.sweep =
+		nextTrim.kind === "ellipse"
+			? getEllipseArcSweep(nextTrim.start, nextTrim.end)
+			: normalizeCanvasPathProgress(nextTrim.end - nextTrim.start);
+	return {
+		changes: getCanvasShapeTrimChanges(element, nextTrim),
+		draggedPosition,
+		snapPoint:
+			getCanvasShapePointAtTrimPosition(element, draggedPosition, true) ??
+			snapPoint,
+		snappedToFullShape: false,
 	};
 }
 

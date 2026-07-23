@@ -9,17 +9,26 @@ import {
 	MIN_CLOUD_ARC_RADIUS,
 	MIN_POLYGON_SIDES,
 	buildCloudArcRadiusChanges,
+	canTrimCanvasShape,
 	clampCloudArcRadius,
 	clampPolygonSides,
 	clampPyramidSections,
+	getCanvasShapeContourPoints,
+	getCanvasShapePathProgressAtPoint,
+	getCanvasShapePointAtPathProgress,
+	getCanvasShapeTrimSvgPath,
 	getCloudSvgPath,
 	getElementPolygonPoints,
 	getEllipseAngleAtPoint,
 	getEllipseArcSvgPath,
 	getFreeformRevisionCloudSvgPath,
 	getPyramidDividerSegments,
+	getRetainedCanvasShapeTrim,
 	getRetainedEllipseArcAngles,
 	getTrianglePoints,
+	getTrimmedCanvasShapePolyline,
+	resolveCanvasShapeTrimEndpointDrag,
+	resolveEllipseArcEndpointDrag,
 } from "./shape-geometry";
 import type { CanvasElement } from "./types";
 
@@ -165,6 +174,159 @@ test("ellipse arc hit testing ignores the removed part of the circle", () => {
 	assert.equal(hitTest(arc, 110, 120), true);
 	assert.equal(hitTest(arc, 10, 70), false);
 	assert.equal(hitTest(arc, 110, 20), false);
+});
+
+test("drags either ellipse arc endpoint and snaps back to a full ellipse", () => {
+	const arc: CanvasElement = {
+		...triangle,
+		id: "editable-arc",
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 100,
+		arcStartAngle: 0,
+		arcEndAngle: 180,
+	};
+	const movedStart = resolveEllipseArcEndpointDrag(
+		arc,
+		"start",
+		{ x: 110, y: 120 },
+		5,
+	);
+	assert.deepEqual(movedStart?.changes, {
+		arcStartAngle: 90,
+		arcEndAngle: 180,
+	});
+	assert.equal(movedStart?.snappedToFullEllipse, false);
+
+	const restored = resolveEllipseArcEndpointDrag(
+		arc,
+		"end",
+		{ x: 208, y: 70 },
+		5,
+	);
+	assert.equal(restored?.snappedToFullEllipse, true);
+	assert.deepEqual(restored?.changes, {
+		arcStartAngle: undefined,
+		arcEndAngle: undefined,
+	});
+	assert.deepEqual(restored?.snapPoint, { x: 210, y: 70 });
+});
+
+test("trims straight closed shapes along their perimeter and hit tests only the retained path", () => {
+	const rectangle: CanvasElement = {
+		...triangle,
+		id: "trimmed-rectangle",
+		type: "rectangle",
+		pathTrimStart: 0.125,
+		pathTrimEnd: 0.375,
+	};
+	assert.deepEqual(getCanvasShapePointAtPathProgress(rectangle, 0.125), {
+		x: 90,
+		y: 20,
+	});
+	assert.equal(
+		getCanvasShapePathProgressAtPoint(rectangle, { x: 210, y: 60 }),
+		0.375,
+	);
+	assert.deepEqual(getTrimmedCanvasShapePolyline(rectangle), [
+		{ x: 90, y: 20 },
+		{ x: 210, y: 20 },
+		{ x: 210, y: 60 },
+	]);
+	assert.equal(
+		getCanvasShapeTrimSvgPath(rectangle),
+		"M 90 20 L 210 20 L 210 60",
+	);
+	assert.equal(hitTest(rectangle, 150, 20), true);
+	assert.equal(hitTest(rectangle, 10, 80), false);
+
+	const shortTrim = getRetainedCanvasShapeTrim(rectangle, 0.9, 0.1);
+	assert.equal(shortTrim?.kind, "path");
+	assert.equal(shortTrim?.start, 0.9);
+	assert.equal(shortTrim?.end, 0.1);
+	assert.ok(Math.abs((shortTrim?.sweep ?? 0) - 0.2) < 1e-9);
+	assert.deepEqual(
+		getTrimmedCanvasShapePolyline({
+			...rectangle,
+			pathTrimStart: 0.9,
+			pathTrimEnd: 0.1,
+		}),
+		[
+			{ x: 10, y: 84 },
+			{ x: 10, y: 20 },
+			{ x: 74, y: 20 },
+		],
+	);
+	assert.deepEqual(getRetainedCanvasShapeTrim(rectangle, 0.9, 0.1, true), {
+		kind: "path",
+		start: 0.1,
+		end: 0.9,
+		sweep: 0.8,
+	});
+});
+
+test("drags polygon trim endpoints and restores the full closed shape", () => {
+	const polygon: CanvasElement = {
+		...triangle,
+		id: "editable-polygon",
+		type: "rectangle",
+		polygonSides: 8,
+		pathTrimStart: 0.1,
+		pathTrimEnd: 0.6,
+	};
+	const moved = resolveCanvasShapeTrimEndpointDrag(
+		polygon,
+		"start",
+		{ x: 210, y: 80 },
+		5,
+	);
+	assert.equal(moved?.snappedToFullShape, false);
+	assert.notEqual(moved?.changes.pathTrimStart, polygon.pathTrimStart);
+	assert.equal(moved?.changes.pathTrimEnd, polygon.pathTrimEnd);
+
+	const opposite = getCanvasShapePointAtPathProgress(polygon, 0.1, true);
+	assert.ok(opposite);
+	const restored = resolveCanvasShapeTrimEndpointDrag(
+		polygon,
+		"end",
+		opposite,
+		1,
+	);
+	assert.equal(restored?.snappedToFullShape, true);
+	assert.deepEqual(restored?.changes, {
+		arcStartAngle: undefined,
+		arcEndAngle: undefined,
+		pathTrimStart: undefined,
+		pathTrimEnd: undefined,
+	});
+});
+
+test("rounded rectangles and diamonds retain their visible curved contour", () => {
+	for (const type of ["rectangle", "diamond"] as const) {
+		const rounded: CanvasElement = {
+			...triangle,
+			id: `rounded-${type}`,
+			type,
+			cornerRadiusPercent: 25,
+			pathTrimStart: 0.8,
+			pathTrimEnd: 0.2,
+		};
+		assert.equal(canTrimCanvasShape(rounded), true);
+		assert.equal(getCanvasShapeContourPoints(rounded).length, 68);
+		const retained = getTrimmedCanvasShapePolyline(rounded);
+		assert.ok(retained.length > 20);
+		assert.ok(getCanvasShapeTrimSvgPath(rounded).split(" L ").length > 20);
+	}
+	assert.equal(
+		canTrimCanvasShape({
+			...triangle,
+			type: "rectangle",
+			customData: { skedraType: "sticky-note" },
+		}),
+		false,
+	);
 });
 
 test("resizes freeform cloud bounds without moving its baseline points", () => {

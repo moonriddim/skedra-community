@@ -30,6 +30,7 @@ export type CanvasEditorPointerGestureAction =
 	| "resize"
 	| "rotate"
 	| "drag-point"
+	| "drag-shape-trim"
 	| "erase"
 	| "laser";
 

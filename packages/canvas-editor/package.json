@@ -15,6 +15,7 @@
 		"test": "esbuild src/*.test.ts --bundle --platform=node --format=esm --external:react --external:react-dom --external:react-dom/* --external:lucide-react --outdir=.tmp/test-build-tests && node --test \".tmp/test-build-tests/*.js\""
 	},
 	"dependencies": {
+		"@excalidraw/laser-pointer": "^1.3.2",
 		"@skedra/canvas-core": "workspace:*",
 		"lucide-react": "^0.460.0"
 	},

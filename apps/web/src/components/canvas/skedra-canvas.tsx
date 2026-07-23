@@ -1053,6 +1053,7 @@ export function SkedraCanvas({
 		svgRef,
 		viewport,
 		elements: sync.elements,
+		snapToObjects: store.snapToObjects,
 		updateElement: sync.updateElement,
 		onActivate: activateEllipseTrim,
 	});
@@ -1714,13 +1715,14 @@ export function SkedraCanvas({
 					textEditorOpen={textEditorOpen}
 					viewDraft={viewDraft}
 					drawingPreview={pointerHandlers.drawingPreview}
+					eraserTrail={pointerHandlers.eraserTrail}
 					pathStartSnap={pointerHandlers.pathStartSnap}
 					croppingElement={croppingElement}
 					ellipseTrimPreview={
 						ellipseTrim.preview
 							? {
 									...ellipseTrim.preview,
-									instruction: t("canvas.ellipseTrim.chooseSecondPoint"),
+									instruction: t("canvas.shapeTrim.chooseSecondPoint"),
 								}
 							: null
 					}
@@ -1748,6 +1750,9 @@ export function SkedraCanvas({
 						keyboard.rotateSelection(angleDelta);
 					}}
 					onPathPointDragStart={pointerHandlers.beginPathPointDrag}
+					onEllipseArcEndpointDragStart={
+						pointerHandlers.beginEllipseArcEndpointDrag
+					}
 					runPointerUpAction={pointerHandlers.runPointerUpAction}
 					onViewMoveStart={(event) => {
 						if (
@@ -1863,7 +1868,7 @@ export function SkedraCanvas({
 					createMindmapSibling={createMindmapSibling}
 					deleteElementsWithKanbanReflow={deleteElementsWithKanbanReflow}
 					elements={sync.elements}
-					onStartEllipseTrim={ellipseTrim.start}
+					onStartShapeTrim={ellipseTrim.start}
 				/>
 
 				<SkedraCanvasChrome

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createBaseCanvasElement } from "./element-factory";
 import {
+	findClosestCanvasShapeContourIntersection,
 	findClosestSnapAnchor,
 	getCanvasElementSnapPointIndicators,
 	getVisibleSnapPointIndicators,
@@ -293,6 +294,70 @@ test("intersection object snap resolves crossing path segments", () => {
 	);
 	assert.equal(anchor?.kind, "intersection");
 	assert.deepEqual(anchor && { x: anchor.x, y: anchor.y }, { x: 50, y: 50 });
+});
+
+test("shape trim snap finds intersections on straight and elliptical contours", () => {
+	const target = rectangle({ id: "target", width: 100, height: 100 });
+	const crossing = createBaseCanvasElement(
+		{ createId: () => "crossing", stroke: "#111" },
+		{
+			type: "line",
+			x: 30,
+			y: -20,
+			width: 0,
+			height: 40,
+			points: [
+				[0, 0],
+				[0, 40],
+			],
+		},
+	);
+	const elements = new Map([
+		[target.id, target],
+		[crossing.id, crossing],
+	]);
+	const straight = findClosestCanvasShapeContourIntersection(
+		target,
+		elements,
+		{ x: 31, y: 2 },
+		8,
+	);
+	assert.deepEqual(straight, {
+		elementId: crossing.id,
+		kind: "intersection",
+		x: 30,
+		y: 0,
+	});
+
+	const ellipse = rectangle({
+		id: "ellipse-target",
+		type: "ellipse",
+		width: 100,
+		height: 60,
+	});
+	const ellipseCrossing = {
+		...crossing,
+		id: "ellipse-crossing",
+		x: 75,
+		y: -20,
+		height: 100,
+		points: [
+			[0, 0],
+			[0, 100],
+		] as [number, number][],
+	};
+	const ellipseAnchor = findClosestCanvasShapeContourIntersection(
+		ellipse,
+		new Map([
+			[ellipse.id, ellipse],
+			[ellipseCrossing.id, ellipseCrossing],
+		]),
+		{ x: 75, y: 4 },
+		8,
+	);
+	assert.equal(ellipseAnchor?.elementId, ellipseCrossing.id);
+	assert.equal(ellipseAnchor?.x, 75);
+	assert.ok(Math.abs((ellipseAnchor?.y ?? 0) - 4.019) < 0.02);
 });
 
 test("extension object snap projects beyond a path endpoint", () => {

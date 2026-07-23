@@ -79,6 +79,8 @@ export interface CanvasEditorContextMenuProps {
 	onUngroup: () => void;
 	canTrimEllipse?: boolean;
 	onTrimEllipse?: () => void;
+	canTrimShape?: boolean;
+	onTrimShape?: () => void;
 	snapToObjects: boolean;
 	onToggleSnap: () => void;
 	showSnapPoints: boolean;
@@ -157,6 +159,8 @@ export function CanvasEditorContextMenu({
 	onUngroup,
 	canTrimEllipse = false,
 	onTrimEllipse,
+	canTrimShape = false,
+	onTrimShape,
 	snapToObjects,
 	onToggleSnap,
 	showSnapPoints,
@@ -394,17 +398,15 @@ export function CanvasEditorContextMenu({
 				action: onToggleLock,
 				disabled: readOnly,
 			};
+	const trimAction = onTrimShape ?? onTrimEllipse;
 	const geometryGroup: ContextMenuItem[] =
-		canTrimEllipse && onTrimEllipse
+		(canTrimShape || canTrimEllipse) && trimAction
 			? [
 					{
-						id: "trim-ellipse",
-						label: t(
-							"canvas.contextMenu.trimEllipse",
-							"Cut circle/ellipse here",
-						),
+						id: "trim-shape",
+						label: t("canvas.contextMenu.trimShape", "Cut shape here"),
 						icon: icon(<Scissors />),
-						action: onTrimEllipse,
+						action: trimAction,
 						disabled: mutatingDisabled,
 					},
 				]

@@ -46,7 +46,7 @@ export function TextBlock({ el }: { el: CanvasElement }) {
 							: verticalAlign === "bottom"
 								? "flex-end"
 								: "flex-start",
-					boxSizing: isWireframeNode ? "border-box" : undefined,
+					boxSizing: "border-box",
 					fontSize,
 					fontFamily: el.fontFamily ?? defaultFontFamily,
 					fontWeight: el.fontWeight ?? "normal",

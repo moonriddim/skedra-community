@@ -217,6 +217,13 @@ export function decodeCanvasElement(value: unknown): CanvasElement | null {
 		!isOptionalNumber(value.arcStartAngle) ||
 		!isOptionalNumber(value.arcEndAngle) ||
 		(value.arcStartAngle === undefined) !== (value.arcEndAngle === undefined) ||
+		!isOptionalNumber(value.pathTrimStart) ||
+		!isOptionalNumber(value.pathTrimEnd) ||
+		(value.pathTrimStart === undefined) !== (value.pathTrimEnd === undefined) ||
+		(value.pathTrimStart !== undefined &&
+			(value.pathTrimStart < 0 || value.pathTrimStart >= 1)) ||
+		(value.pathTrimEnd !== undefined &&
+			(value.pathTrimEnd < 0 || value.pathTrimEnd >= 1)) ||
 		!isOptionalNumber(value.cloudArcRadius) ||
 		(value.cloudArcRadius !== undefined &&
 			(value.cloudArcRadius < MIN_CLOUD_ARC_RADIUS ||

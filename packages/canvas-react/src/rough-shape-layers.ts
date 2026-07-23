@@ -1,4 +1,6 @@
 import {
+	getCanvasShapeTrim,
+	getCanvasShapeTrimSvgPath,
 	getCloudSvgPath,
 	getEffectiveCornerRadius,
 	getElementPolygonPoints,
@@ -75,6 +77,7 @@ function getRoughPreset(el: CanvasElement, level: number) {
 }
 
 function isFillCapableShape(el: CanvasElement): boolean {
+	if (getCanvasShapeTrim(el)) return false;
 	return (
 		el.type === "rectangle" ||
 		(el.type === "ellipse" && !getEllipseArcAngles(el)) ||
@@ -332,6 +335,14 @@ function buildRoughNode(
 	el: CanvasElement,
 	opts: RoughOptions,
 ): SVGGElement | null {
+	const shapeTrim = getCanvasShapeTrim(el);
+	if (shapeTrim) {
+		return rc.path(getCanvasShapeTrimSvgPath(el), {
+			...opts,
+			fill: undefined,
+			fillStyle: undefined,
+		});
+	}
 	switch (el.type) {
 		case "rectangle": {
 			if (isPolygonVariant(el)) {
@@ -423,7 +434,7 @@ function buildRoughPyramidDividerHtml(
 	el: CanvasElement,
 	opts: RoughOptions,
 ): string | null {
-	if (el.type !== "triangle") return null;
+	if (el.type !== "triangle" || getCanvasShapeTrim(el)) return null;
 	const dividers = getPyramidDividerSegments(el, el.pyramidSections);
 	if (dividers.length === 0) return null;
 	const baseSeed = opts?.seed ?? getElementRoughSeed(el);
@@ -470,6 +481,7 @@ export function useRoughShapeLayers(
 			needsRoughStroke &&
 			!isExcalidrawImport &&
 			el.type === "rectangle" &&
+			!getCanvasShapeTrim(el) &&
 			!isPolygonVariant(el) &&
 			getEffectiveCornerRadius(el) > 0;
 		const baseOpts = {

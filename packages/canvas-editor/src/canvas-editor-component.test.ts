@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
 	CanvasEditor,
 	CanvasEditorContextMenu,
+	CanvasEditorEraserTrailOverlay,
 	CanvasEditorGanttStudio,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
@@ -257,6 +258,25 @@ test("CanvasEditor is the shared host root", () => {
 	assert.match(markup, /data-canvas-editor="true"/u);
 	assert.match(markup, /class="canvas-editor test-host"/u);
 	assert.match(markup, />surface</u);
+});
+
+test("eraser feedback renders as transient UI instead of document content", () => {
+	const now = performance.now();
+	const markup = renderToStaticMarkup(
+		createElement(CanvasEditorEraserTrailOverlay, {
+			points: [
+				{ x: 10, y: 20, t: now - 30 },
+				{ x: 35, y: 24, t: now - 15 },
+				{ x: 70, y: 30, t: now },
+			],
+			zoom: 1,
+		}),
+	);
+
+	assert.match(markup, /data-skedra-ui="eraser-trail"/u);
+	assert.match(markup, /data-ui-only="true"/u);
+	assert.match(markup, /opacity="0\.2"/u);
+	assert.match(markup, /<path/u);
 });
 
 test("properties labels consistently use the translation adapter", () => {
@@ -523,6 +543,58 @@ test("surface transform and selection handles share one renderer", () => {
 	assert.match(textSelection, /aria-label="Resize se"/u);
 	assert.doesNotMatch(textSelection, /aria-label="Resize n"/u);
 	assert.equal((textSelection.match(/role="button"/gu) ?? []).length, 4);
+
+	const arcSelection = renderToStaticMarkup(
+		createElement(CanvasEditorSelectionOverlay, {
+			selected: [
+				{
+					...element,
+					id: "ellipse-arc",
+					type: "ellipse",
+					arcStartAngle: 25,
+					arcEndAngle: 210,
+				},
+			],
+			zoom: 1,
+			onResizeStart: noop,
+			onPathPointDragStart: noop,
+			onEllipseArcEndpointDragStart: noop,
+			onInsertPathPoint: noop,
+		}),
+	);
+	assert.equal(
+		(arcSelection.match(/data-skedra-ui="ellipse-arc-handle"/gu) ?? []).length,
+		2,
+	);
+	assert.match(arcSelection, /data-arc-endpoint="start"/u);
+	assert.match(arcSelection, /data-arc-endpoint="end"/u);
+
+	const trimmedRectangleSelection = renderToStaticMarkup(
+		createElement(CanvasEditorSelectionOverlay, {
+			selected: [
+				{
+					...element,
+					id: "trimmed-rectangle",
+					pathTrimStart: 0.15,
+					pathTrimEnd: 0.7,
+				},
+			],
+			zoom: 1,
+			onResizeStart: noop,
+			onPathPointDragStart: noop,
+			onShapeTrimEndpointDragStart: noop,
+			onInsertPathPoint: noop,
+		}),
+	);
+	assert.equal(
+		(
+			trimmedRectangleSelection.match(/data-skedra-ui="shape-trim-handle"/gu) ??
+			[]
+		).length,
+		2,
+	);
+	assert.match(trimmedRectangleSelection, /data-trim-endpoint="start"/u);
+	assert.match(trimmedRectangleSelection, /data-trim-endpoint="end"/u);
 
 	let ganttId = 0;
 	const ganttSelection = renderToStaticMarkup(

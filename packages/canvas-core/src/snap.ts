@@ -5,7 +5,16 @@ import {
 	inverseTransformCanvasElementPoint,
 	transformCanvasElementPoint,
 } from "./geometry";
-import { getElementPolygonPoints, isPolygonVariant } from "./shape-geometry";
+import {
+	getCanvasShapeContourPoints,
+	getCanvasShapeTrim,
+	getElementPolygonPoints,
+	getEllipseArcAngles,
+	getEllipsePointAtAngle,
+	getTrimmedCanvasShapePolyline,
+	isCanvasTrimmableShape,
+	isPolygonVariant,
+} from "./shape-geometry";
 import { type CanvasElement, GRID_SIZE } from "./types";
 
 const SNAP_THRESHOLD = 6;
@@ -599,42 +608,93 @@ function getElementSnapSegments(el: CanvasElement): SnapSegment[] {
 			transformCanvasElementPoint(el, { x: el.x + x, y: el.y + y }),
 		);
 		closed = Boolean(el.closed);
-	} else if (el.type !== "ellipse") {
-		const bbox = getUntransformedBBox(el);
-		const left = bbox.x;
-		const right = bbox.x + bbox.width;
-		const top = bbox.y;
-		const bottom = bbox.y + bbox.height;
-		const centerX = bbox.x + bbox.width / 2;
-		const centerY = bbox.y + bbox.height / 2;
-		const localPoints =
-			el.type === "diamond" || isPolygonVariant(el)
-				? getElementPolygonPoints({
-						...el,
-						x: bbox.x,
-						y: bbox.y,
-						width: bbox.width,
-						height: bbox.height,
-					}).map(([x, y]) => ({ x, y }))
-				: el.type === "triangle"
-					? [
-							{ x: centerX, y: top },
-							{ x: right, y: bottom },
-							{ x: left, y: bottom },
-						]
-					: [
-							{ x: left, y: top },
-							{ x: right, y: top },
-							{ x: right, y: bottom },
-							{ x: left, y: bottom },
-						];
-		points = localPoints.map((point) => transformCanvasElementPoint(el, point));
+	} else if (el.type === "ellipse") {
+		const arc = getEllipseArcAngles(el);
+		const startAngle = arc?.startAngle ?? 0;
+		const sweepAngle = arc?.sweepAngle ?? 360;
+		const segmentCount = Math.max(32, Math.ceil((sweepAngle / 360) * 128));
+		points = Array.from(
+			{ length: arc ? segmentCount + 1 : segmentCount },
+			(_, index) =>
+				getEllipsePointAtAngle(
+					el,
+					startAngle + (sweepAngle * index) / segmentCount,
+					true,
+				),
+		);
+		closed = !arc;
+	} else {
+		const trim = getCanvasShapeTrim(el);
+		if (trim?.kind === "path") {
+			points = getTrimmedCanvasShapePolyline(el, true);
+			closed = false;
+		} else if (isCanvasTrimmableShape(el)) {
+			points = getCanvasShapeContourPoints(el, true).map(([x, y]) => ({
+				x,
+				y,
+			}));
+		} else {
+			const bbox = getUntransformedBBox(el);
+			const left = bbox.x;
+			const right = bbox.x + bbox.width;
+			const top = bbox.y;
+			const bottom = bbox.y + bbox.height;
+			const centerX = bbox.x + bbox.width / 2;
+			const centerY = bbox.y + bbox.height / 2;
+			const localPoints =
+				el.type === "diamond" || isPolygonVariant(el)
+					? getElementPolygonPoints({
+							...el,
+							x: bbox.x,
+							y: bbox.y,
+							width: bbox.width,
+							height: bbox.height,
+						}).map(([x, y]) => ({ x, y }))
+					: el.type === "triangle"
+						? [
+								{ x: centerX, y: top },
+								{ x: right, y: bottom },
+								{ x: left, y: bottom },
+							]
+						: [
+								{ x: left, y: top },
+								{ x: right, y: top },
+								{ x: right, y: bottom },
+								{ x: left, y: bottom },
+							];
+			points = localPoints.map((point) =>
+				transformCanvasElementPoint(el, point),
+			);
+		}
 	}
 	if (points.length < 2) return [];
 	const segmentCount = closed ? points.length : points.length - 1;
 	return Array.from({ length: segmentCount }, (_, index) => ({
 		elementId: el.id,
 		start: points[index],
+		end: points[(index + 1) % points.length],
+	}));
+}
+
+function getFullShapeContourSnapSegments(el: CanvasElement): SnapSegment[] {
+	if (el.type === "ellipse") {
+		const segmentCount = 128;
+		const points = Array.from({ length: segmentCount }, (_, index) =>
+			getEllipsePointAtAngle(el, (index * 360) / segmentCount, true),
+		);
+		return points.map((start, index) => ({
+			elementId: el.id,
+			start,
+			end: points[(index + 1) % points.length],
+		}));
+	}
+	const points = getCanvasShapeContourPoints(el, true).map(([x, y]) => ({
+		x,
+		y,
+	}));
+	return points.map((start, index) => ({
+		elementId: el.id,
+		start,
 		end: points[(index + 1) % points.length],
 	}));
 }
@@ -654,6 +714,133 @@ function intersectSegments(a: SnapSegment, b: SnapSegment) {
 	const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denominator;
 	if (t < 0 || t > 1 || u < 0 || u > 1) return null;
 	return { x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1) };
+}
+
+function getCollinearSegmentContacts(
+	a: SnapSegment,
+	b: SnapSegment,
+): Array<{ x: number; y: number }> {
+	const epsilon = 1e-6;
+	const candidates = [a.start, a.end, b.start, b.end];
+	return candidates.filter(
+		(candidate, index) =>
+			getDistanceToSegment(a, candidate) <= epsilon &&
+			getDistanceToSegment(b, candidate) <= epsilon &&
+			candidates.findIndex(
+				(other) =>
+					Math.abs(other.x - candidate.x) <= epsilon &&
+					Math.abs(other.y - candidate.y) <= epsilon,
+			) === index,
+	);
+}
+
+function intersectSegmentWithEllipse(
+	ellipse: CanvasElement,
+	segment: SnapSegment,
+): Array<{ x: number; y: number }> {
+	const start = inverseTransformCanvasElementPoint(ellipse, segment.start);
+	const end = inverseTransformCanvasElementPoint(ellipse, segment.end);
+	const centerX = ellipse.x + ellipse.width / 2;
+	const centerY = ellipse.y + ellipse.height / 2;
+	const radiusX = Math.max(Math.abs(ellipse.width) / 2, 0.001);
+	const radiusY = Math.max(Math.abs(ellipse.height) / 2, 0.001);
+	const startX = start.x - centerX;
+	const startY = start.y - centerY;
+	const dx = end.x - start.x;
+	const dy = end.y - start.y;
+	const radiusXSquared = radiusX * radiusX;
+	const radiusYSquared = radiusY * radiusY;
+	const a = (dx * dx) / radiusXSquared + (dy * dy) / radiusYSquared;
+	if (a < 1e-12) return [];
+	const b =
+		(2 * startX * dx) / radiusXSquared + (2 * startY * dy) / radiusYSquared;
+	const c =
+		(startX * startX) / radiusXSquared + (startY * startY) / radiusYSquared - 1;
+	const discriminant = b * b - 4 * a * c;
+	if (discriminant < -1e-9) return [];
+	const root = Math.sqrt(Math.max(0, discriminant));
+	const amounts =
+		root < 1e-9
+			? [-b / (2 * a)]
+			: [(-b - root) / (2 * a), (-b + root) / (2 * a)];
+	return amounts
+		.filter((amount) => amount >= -1e-9 && amount <= 1 + 1e-9)
+		.map((amount) =>
+			transformCanvasElementPoint(ellipse, {
+				x: start.x + dx * Math.max(0, Math.min(1, amount)),
+				y: start.y + dy * Math.max(0, Math.min(1, amount)),
+			}),
+		);
+}
+
+/**
+ * Finds the closest point where another rendered element touches or crosses
+ * the complete source contour of a trimmable shape.
+ */
+export function findClosestCanvasShapeContourIntersection(
+	target: CanvasElement,
+	elements: ReadonlyMap<string, CanvasElement>,
+	queryPoint: { x: number; y: number },
+	threshold = SNAP_POINT_THRESHOLD,
+): SnapAnchor | null {
+	if (!isCanvasTrimmableShape(target)) return null;
+	const targetSegments = getFullShapeContourSnapSegments(target);
+	let best: SnapAnchor | null = null;
+	let bestDistance = Math.max(0, threshold);
+	for (const [id, element] of elements) {
+		if (id === target.id || element.locked) continue;
+		const otherSegments = getElementSnapSegments(element);
+		if (target.type === "ellipse") {
+			for (const otherSegment of otherSegments) {
+				for (const candidate of intersectSegmentWithEllipse(
+					target,
+					otherSegment,
+				)) {
+					const distance = Math.hypot(
+						candidate.x - queryPoint.x,
+						candidate.y - queryPoint.y,
+					);
+					if (distance <= bestDistance) {
+						bestDistance = distance;
+						best = createAnchor(
+							element.id,
+							"intersection",
+							candidate.x,
+							candidate.y,
+						);
+					}
+				}
+			}
+			continue;
+		}
+		for (const targetSegment of targetSegments) {
+			if (getDistanceToSegment(targetSegment, queryPoint) > bestDistance + 2) {
+				continue;
+			}
+			for (const otherSegment of otherSegments) {
+				const intersection = intersectSegments(targetSegment, otherSegment);
+				const candidates = intersection
+					? [intersection]
+					: getCollinearSegmentContacts(targetSegment, otherSegment);
+				for (const candidate of candidates) {
+					const distance = Math.hypot(
+						candidate.x - queryPoint.x,
+						candidate.y - queryPoint.y,
+					);
+					if (distance <= bestDistance) {
+						bestDistance = distance;
+						best = createAnchor(
+							element.id,
+							"intersection",
+							candidate.x,
+							candidate.y,
+						);
+					}
+				}
+			}
+		}
+	}
+	return best;
 }
 
 function getDistanceToSegment(

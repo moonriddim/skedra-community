@@ -8,6 +8,7 @@ import {
 	getEllipseArcAngles,
 	getEllipsePointAtAngle,
 	getFreeformRevisionCloudScallopDepth,
+	getTrimmedCanvasShapePolyline,
 	isPolygonVariant,
 } from "./shape-geometry";
 import type { CanvasElement } from "./types";
@@ -43,6 +44,20 @@ export function hitTest(
 	const hitX = localPoint.x;
 	const hitY = localPoint.y;
 	const bbox = getUntransformedBBox(el);
+	const trimmedShapePoints = getTrimmedCanvasShapePolyline(el);
+	if (trimmedShapePoints.length >= 2) {
+		for (let index = 0; index < trimmedShapePoints.length - 1; index++) {
+			const start = trimmedShapePoints[index];
+			const end = trimmedShapePoints[index + 1];
+			if (
+				pointToLineDistance(hitX, hitY, start.x, start.y, end.x, end.y) <=
+				t + el.strokeWidth + 4
+			) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	switch (el.type) {
 		case "rectangle":

@@ -137,6 +137,8 @@ export type CanvasElementBoundsInput = Pick<
 			| "cornerRadiusPercent"
 			| "arcStartAngle"
 			| "arcEndAngle"
+			| "pathTrimStart"
+			| "pathTrimEnd"
 			| "cloudArcRadius"
 			| "pyramidSections"
 			| "polygonSides"
@@ -233,6 +235,12 @@ export function createCanvasElementFromBoundsInput(
 				? {
 						arcStartAngle: input.arcStartAngle,
 						arcEndAngle: input.arcEndAngle,
+					}
+				: {}),
+			...(input.pathTrimStart !== undefined && input.pathTrimEnd !== undefined
+				? {
+						pathTrimStart: input.pathTrimStart,
+						pathTrimEnd: input.pathTrimEnd,
 					}
 				: {}),
 			...(input.cloudArcRadius !== undefined

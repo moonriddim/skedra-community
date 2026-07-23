@@ -2134,6 +2134,14 @@ export const enMessages = {
 				s: "Resize bottom",
 				se: "Resize bottom right",
 			},
+			ellipseArc: {
+				start: "Move arc start",
+				end: "Move arc end",
+			},
+			shapeTrim: {
+				start: "Move trim start along contour",
+				end: "Move trim end along contour",
+			},
 		},
 		toolbar: {
 			pan: "Pan",
@@ -2509,6 +2517,7 @@ export const enMessages = {
 		contextMenu: {
 			snapSettings: "Object snap",
 			trimEllipse: "Cut circle/ellipse here",
+			trimShape: "Cut shape here",
 			cut: "Cut",
 			copy: "Copy",
 			paste: "Paste",
@@ -2546,6 +2555,10 @@ export const enMessages = {
 		ellipseTrim: {
 			chooseSecondPoint:
 				"Choose second cut point · Shift = long arc · Esc = cancel",
+		},
+		shapeTrim: {
+			chooseSecondPoint:
+				"Choose second cut point · Shift = long path · Esc = cancel",
 		},
 		properties: {
 			listTitle: "List title",
