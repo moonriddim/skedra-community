@@ -79,6 +79,7 @@ jobs:
         run: pnpm test
 
       - name: Test access administration
+        if: ${{ hashFiles('deploy/managed/ops/access-admin/package.json') != '' }}
         run: npm test --prefix deploy/managed/ops/access-admin
 
       - name: Initialize MCP E2E database
