@@ -1,5 +1,10 @@
 # @skedra/react
 
+Stable npm versions are published from Skedra `vX.Y.Z` release tags and use the
+matching `X.Y.Z` version. The source manifest intentionally uses
+`0.0.0-development`; release automation replaces it only in the published
+package.
+
 React SDK for embedding the Skedra canvas without the Skedra app shell.
 
 The package includes the full client-side canvas tooling layer: drawing tools,

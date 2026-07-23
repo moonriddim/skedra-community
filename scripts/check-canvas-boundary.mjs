@@ -765,13 +765,31 @@ if (communityExportSource) {
 		".github/scripts/export-community.mjs",
 		".github/workflows/sync-community.yml",
 		".github/workflows/canvas-sdk.yml",
-		".github/workflows/npm-sdk-release.yml",
 	]) {
 		if (!readRepoFile(relative).includes("packages/canvas-io")) {
 			errors.push(
 				`The shared IO source must be exported and covered by SDK automation: ${relative}.`,
 			);
 		}
+	}
+	const npmSdkReleaseSource = readRepoFile(
+		".github/workflows/npm-sdk-release.yml",
+	);
+	for (const contract of [
+		"tags:",
+		"scripts/release-version.mjs",
+		"pnpm sdk:verify",
+	]) {
+		if (!npmSdkReleaseSource.includes(contract)) {
+			errors.push(
+				`The npm SDK release must stay tag-driven and verify the complete SDK: ${contract}.`,
+			);
+		}
+	}
+	if (npmSdkReleaseSource.includes("branches:")) {
+		errors.push(
+			"The npm SDK release must not publish stable versions from branch pushes.",
+		);
 	}
 }
 for (const relative of hostToolbarSources) {
