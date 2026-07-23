@@ -8,6 +8,8 @@ on:
       - "apps/api/**"
       - "apps/mcp/**"
       - "deploy/db/**"
+      - "deploy/managed/monitoring/**"
+      - "deploy/managed/ops/access-admin/**"
       - "package.json"
       - "packages/db/**"
       - "packages/shared/**"
@@ -75,6 +77,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Test access administration
+        run: npm test --prefix deploy/managed/ops/access-admin
 
       - name: Initialize MCP E2E database
         run: pnpm --filter @skedra/db db:push

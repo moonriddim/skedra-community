@@ -19,6 +19,8 @@ import {
 	isLassoPathLargeEnough,
 	isMultiSelectModifier,
 	resizeCanvasElement,
+	resizeCanvasTextElement,
+	shouldClearCanvasSelectionOnToolActivation,
 	shouldKeepCanvasDrawing,
 } from "@skedra/canvas-core";
 import {
@@ -738,6 +740,9 @@ export function useCanvasEditorPointer({
 			}
 			if (pointerAction !== "draw" && pointerAction !== "text") return;
 
+			if (shouldClearCanvasSelectionOnToolActivation(ui.activeTool)) {
+				uiAdapter.clearSelection();
+			}
 			if (ui.activeTool !== "text") beginHistory();
 			stateRef.current.action = "draw";
 			if (ui.activeTool === "freehand")
@@ -960,17 +965,16 @@ export function useCanvasEditorPointer({
 				state.resizeHandle
 			) {
 				const start = state.resizeStart;
-				const changes = resizeCanvasElement(
-					{
-						x: start.x,
-						y: start.y,
-						width: start.width,
-						height: start.height,
-					},
-					state.resizeHandle,
-					point.snapped.x - state.startCanvasX,
-					point.snapped.y - state.startCanvasY,
-				);
+				const dx = point.snapped.x - state.startCanvasX;
+				const dy = point.snapped.y - state.startCanvasY;
+				const changes =
+					start.type === "text" &&
+					(state.resizeHandle === "nw" ||
+						state.resizeHandle === "ne" ||
+						state.resizeHandle === "sw" ||
+						state.resizeHandle === "se")
+						? resizeCanvasTextElement(start, state.resizeHandle, dx, dy)
+						: resizeCanvasElement(start, state.resizeHandle, dx, dy);
 				const directUpdates = [{ id: start.id, changes }];
 				documentAdapter.updateElements([
 					...directUpdates,
@@ -1244,17 +1248,17 @@ export function useCanvasEditorPointer({
 				 * the adapter immediately on pointer-up can then return the pre-resize
 				 * element. Resolve the definitive bounds from the release point itself.
 				 */
-				const finalBounds = resizeCanvasElement(
-					{
-						x: start.x,
-						y: start.y,
-						width: start.width,
-						height: start.height,
-					},
-					state.resizeHandle ?? "se",
-					point.snapped.x - state.startCanvasX,
-					point.snapped.y - state.startCanvasY,
-				);
+				const handle = state.resizeHandle ?? "se";
+				const dx = point.snapped.x - state.startCanvasX;
+				const dy = point.snapped.y - state.startCanvasY;
+				const finalBounds =
+					start.type === "text" &&
+					(handle === "nw" ||
+						handle === "ne" ||
+						handle === "sw" ||
+						handle === "se")
+						? resizeCanvasTextElement(start, handle, dx, dy)
+						: resizeCanvasElement(start, handle, dx, dy);
 				const directUpdates = [{ id: start.id, changes: finalBounds }];
 				documentAdapter.updateElements([
 					...directUpdates,

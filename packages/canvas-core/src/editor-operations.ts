@@ -64,6 +64,7 @@ import {
 import {
 	type CanvasElement,
 	DEFAULT_FONT_FAMILY,
+	DEFAULT_FONT_SIZE,
 	MAX_ZOOM,
 	MIN_ZOOM,
 	type Viewport,
@@ -116,6 +117,13 @@ export type CanvasDrawingTool =
 	| "arrow"
 	| "freehand"
 	| "frame";
+
+/** Text placement starts a fresh object and must release the previous selection. */
+export function shouldClearCanvasSelectionOnToolActivation(
+	tool: string,
+): boolean {
+	return tool === "text";
+}
 
 export interface CanvasDrawingStyle {
 	stroke: string;
@@ -471,6 +479,47 @@ export function resizeCanvasElement(
 	};
 }
 
+/**
+ * Scales a standalone text element from a corner handle. The opposite corner
+ * stays anchored and the font grows with its bounds, matching Excalidraw-style
+ * text resizing.
+ */
+export function resizeCanvasTextElement(
+	element: Pick<CanvasElement, "x" | "y" | "width" | "height" | "fontSize">,
+	handle: "nw" | "ne" | "sw" | "se",
+	dx: number,
+	dy: number,
+	minimumFontSize = 8,
+): Pick<CanvasElement, "x" | "y" | "width" | "height" | "fontSize"> {
+	const width = Math.max(1, element.width);
+	const height = Math.max(1, element.height);
+	const fontSize = Math.max(1, element.fontSize ?? DEFAULT_FONT_SIZE);
+	const widthScale = (width + (handle.includes("w") ? -dx : dx)) / width;
+	const heightScale = (height + (handle.includes("n") ? -dy : dy)) / height;
+	const requestedScale =
+		Math.abs(widthScale - 1) >= Math.abs(heightScale - 1)
+			? widthScale
+			: heightScale;
+	const minimumScale = Math.max(
+		minimumFontSize / fontSize,
+		5 / width,
+		5 / height,
+	);
+	const scale = Math.max(minimumScale, requestedScale);
+	const nextWidth = width * scale;
+	const nextHeight = height * scale;
+
+	return {
+		x: handle.includes("w") ? element.x + element.width - nextWidth : element.x,
+		y: handle.includes("n")
+			? element.y + element.height - nextHeight
+			: element.y,
+		width: nextWidth,
+		height: nextHeight,
+		fontSize: fontSize * scale,
+	};
+}
+
 export function getCanvasKeyboardResizeChanges(options: {
 	element: CanvasElement;
 	handle: "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
@@ -778,17 +827,23 @@ export function collectCanvasSelectionRectIds(
 	end: CanvasPoint,
 ): Set<string> {
 	const rect = normalizeCanvasRect(start, end);
+	const requiresFullContainment = start.x <= end.x;
 	const ids = new Set<string>();
 	if (rect.width <= 3 && rect.height <= 3) return ids;
 	for (const element of elements) {
 		if (element.locked) continue;
 		const bbox = getBBox(element);
-		if (
+		const fullyContained =
 			bbox.x >= rect.x &&
 			bbox.y >= rect.y &&
 			bbox.x + bbox.width <= rect.x + rect.width &&
-			bbox.y + bbox.height <= rect.y + rect.height
-		) {
+			bbox.y + bbox.height <= rect.y + rect.height;
+		const intersects =
+			bbox.x <= rect.x + rect.width &&
+			bbox.x + bbox.width >= rect.x &&
+			bbox.y <= rect.y + rect.height &&
+			bbox.y + bbox.height >= rect.y;
+		if (requiresFullContainment ? fullyContained : intersects) {
 			ids.add(element.id);
 		}
 	}

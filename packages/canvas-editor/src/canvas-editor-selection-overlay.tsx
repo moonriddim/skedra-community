@@ -28,6 +28,7 @@ const HANDLES: readonly HandlePosition[] = [
 	"s",
 	"se",
 ];
+const TEXT_HANDLES: readonly HandlePosition[] = ["nw", "ne", "sw", "se"];
 
 const CURSORS: Record<HandlePosition, string> = {
 	nw: "nwse-resize",
@@ -185,6 +186,7 @@ export function CanvasEditorSelectionOverlay({
 	}
 	const selectionTransform =
 		transforms.length > 0 ? transforms.join(" ") : undefined;
+	const resizeHandles = single?.type === "text" ? TEXT_HANDLES : HANDLES;
 	const rotateHandleY = bbox.y - 28 / zoom;
 	const rotateLabel =
 		services?.translations?.translate(
@@ -274,7 +276,7 @@ export function CanvasEditorSelectionOverlay({
 					single &&
 					!single.locked &&
 					!editingPathPoints &&
-					HANDLES.map((handle) => {
+					resizeHandles.map((handle) => {
 						const position = getHandlePosition(bbox, handle);
 						const label =
 							services?.translations?.translate(

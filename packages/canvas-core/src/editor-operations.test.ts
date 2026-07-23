@@ -17,6 +17,8 @@ import {
 	planKanbanCardInsertion,
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
+	resizeCanvasTextElement,
+	shouldClearCanvasSelectionOnToolActivation,
 	shouldKeepCanvasDrawing,
 	toCanvasElementMap,
 	translateCanvasElements,
@@ -319,6 +321,91 @@ test("drawing, selection, movement, and keyboard commands use one contract", () 
 		}),
 		"delete-selection",
 	);
+});
+
+test("selection rectangles use window selection left-to-right and crossing selection right-to-left", () => {
+	const partiallyCovered = buildCanvasDrawingElement({
+		id: "partial",
+		tool: "rectangle",
+		start: { x: 40, y: 20 },
+		end: { x: 80, y: 60 },
+		style: { stroke: "#111", fill: "#fff" },
+	});
+	const fullyCovered = buildCanvasDrawingElement({
+		id: "inside",
+		tool: "rectangle",
+		start: { x: 10, y: 20 },
+		end: { x: 30, y: 60 },
+		style: { stroke: "#111", fill: "#fff" },
+	});
+	const touching = buildCanvasDrawingElement({
+		id: "touching",
+		tool: "rectangle",
+		start: { x: 50, y: 70 },
+		end: { x: 80, y: 90 },
+		style: { stroke: "#111", fill: "#fff" },
+	});
+	const outside = buildCanvasDrawingElement({
+		id: "outside",
+		tool: "rectangle",
+		start: { x: 100, y: 20 },
+		end: { x: 120, y: 60 },
+		style: { stroke: "#111", fill: "#fff" },
+	});
+	const elements = [partiallyCovered, fullyCovered, touching, outside];
+
+	assert.deepEqual(
+		collectCanvasSelectionRectIds(elements, { x: 0, y: 0 }, { x: 50, y: 70 }),
+		new Set([fullyCovered.id]),
+	);
+	assert.deepEqual(
+		collectCanvasSelectionRectIds(elements, { x: 50, y: 70 }, { x: 0, y: 0 }),
+		new Set([partiallyCovered.id, fullyCovered.id, touching.id]),
+	);
+});
+
+test("corner resizing scales standalone text and keeps the opposite corner anchored", () => {
+	const text: CanvasElement = {
+		id: "text",
+		type: "text",
+		x: 10,
+		y: 20,
+		width: 100,
+		height: 40,
+		rotation: 0,
+		fill: "transparent",
+		stroke: "#111111",
+		strokeWidth: 1,
+		strokeStyle: "solid",
+		opacity: 100,
+		locked: false,
+		groupId: null,
+		flipX: false,
+		flipY: false,
+		text: "Scale me",
+		fontSize: 20,
+	};
+
+	assert.deepEqual(resizeCanvasTextElement(text, "se", 100, 0), {
+		x: 10,
+		y: 20,
+		width: 200,
+		height: 80,
+		fontSize: 40,
+	});
+	assert.deepEqual(resizeCanvasTextElement(text, "nw", 50, 20), {
+		x: 60,
+		y: 40,
+		width: 50,
+		height: 20,
+		fontSize: 10,
+	});
+});
+
+test("text tool activation releases the previous shape selection", () => {
+	assert.equal(shouldClearCanvasSelectionOnToolActivation("text"), true);
+	assert.equal(shouldClearCanvasSelectionOnToolActivation("select"), false);
+	assert.equal(shouldClearCanvasSelectionOnToolActivation("pan"), false);
 });
 
 test("shared movement expands frame children and mindmap descendants", () => {

@@ -1,5 +1,6 @@
 /** Community document/state adapter for the shared canvas-editor pointer pipeline. */
 
+import { CANVAS_DEFAULT_FONT } from "@/lib/canvas/canvas-defaults";
 import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-defaults";
 import { ganttDateLabel } from "@/lib/templates/gantt";
 import { templateText } from "@/lib/templates/shared";
@@ -7,6 +8,7 @@ import { useThemeStore } from "@/stores/theme";
 import {
 	type CanvasElement,
 	type CanvasScene,
+	DEFAULT_FONT_SIZE,
 	type GanttChartDocument,
 	type GanttChartMutationPlan,
 	applyCanvasMutationPlan,
@@ -440,6 +442,12 @@ export function useCommunityCanvasPointerAdapter({
 					arrowHeadEnd: store.arrowHeadEnd,
 					arrowHeadScale: store.arrowHeadScale,
 					arrowHeadFilled: store.arrowHeadFilled,
+					fontSize: DEFAULT_FONT_SIZE,
+					fontFamily: CANVAS_DEFAULT_FONT,
+					textAlign: "left",
+					fontWeight: "normal",
+					fontStyle: "normal",
+					textDecoration: "none",
 				};
 			},
 			getDefaultElementSize: () => ({

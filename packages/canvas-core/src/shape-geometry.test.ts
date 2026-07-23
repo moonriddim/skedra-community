@@ -85,6 +85,23 @@ test("builds bounded polygon variants and clamps their corner count", () => {
 	);
 	assert.equal(hitTest(octagon, 110, 80), true);
 	assert.equal(hitTest(octagon, 10, 20), false);
+
+	const pentagon: CanvasElement = {
+		...octagon,
+		id: "pentagon",
+		polygonSides: 5,
+	};
+	const pentagonPoints = getElementPolygonPoints(pentagon);
+	const topY = Math.min(...pentagonPoints.map(([, y]) => y));
+	const bottomY = Math.max(...pentagonPoints.map(([, y]) => y));
+	assert.deepEqual(
+		pentagonPoints.filter(([, y]) => Math.abs(y - topY) < 0.001),
+		[[pentagon.x + pentagon.width / 2, pentagon.y]],
+	);
+	assert.equal(
+		pentagonPoints.filter(([, y]) => Math.abs(y - bottomY) < 0.001).length,
+		2,
+	);
 });
 
 test("clamps revision-cloud arc radii to the supported range", () => {

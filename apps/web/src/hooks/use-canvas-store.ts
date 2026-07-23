@@ -45,6 +45,7 @@ import {
 	clampPolygonSides,
 	normalizeCanvasGridSize,
 	normalizeCanvasSnapDivisionCount,
+	shouldClearCanvasSelectionOnToolActivation,
 	snapCanvasCoordinateToGrid,
 	zoomCanvasViewportAtPoint,
 } from "@skedra/canvas-core";
@@ -306,6 +307,9 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 				activeTool: tool,
 				previousTool,
 				editingTextId: null,
+				selectedIds: shouldClearCanvasSelectionOnToolActivation(tool)
+					? new Set()
+					: s.selectedIds,
 				shapePlacementDraft: null,
 				kanbanCardPlacementDraft: null,
 				stickyNotePlacementDraft: null,

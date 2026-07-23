@@ -509,6 +509,21 @@ test("surface transform and selection handles share one renderer", () => {
 		8,
 	);
 
+	const textSelection = renderToStaticMarkup(
+		createElement(CanvasEditorSelectionOverlay, {
+			selected: [{ ...element, id: "text", type: "text", text: "Text" }],
+			zoom: 1,
+			onResizeStart: noop,
+			onResizeKeyDown: noop,
+			onPathPointDragStart: noop,
+			onInsertPathPoint: noop,
+		}),
+	);
+	assert.match(textSelection, /aria-label="Resize nw"/u);
+	assert.match(textSelection, /aria-label="Resize se"/u);
+	assert.doesNotMatch(textSelection, /aria-label="Resize n"/u);
+	assert.equal((textSelection.match(/role="button"/gu) ?? []).length, 4);
+
 	let ganttId = 0;
 	const ganttSelection = renderToStaticMarkup(
 		createElement(CanvasEditorSelectionOverlay, {

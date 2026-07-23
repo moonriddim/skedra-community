@@ -116,11 +116,9 @@ export function getElementPolygonPoints(
 	>,
 ): [number, number][] {
 	const sides = clampPolygonSides(element.polygonSides);
-	return getRegularPolygonPoints(
-		element,
-		sides,
-		element.type === "rectangle" ? "edge-top" : "vertex-top",
-	);
+	const orientation =
+		element.type === "rectangle" && sides % 2 === 0 ? "edge-top" : "vertex-top";
+	return getRegularPolygonPoints(element, sides, orientation);
 }
 
 export function getElementPolygonPointsAttribute(

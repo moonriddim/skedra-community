@@ -68,6 +68,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
 	CANVAS_PATH_MODE_OPTIONS,
 	type CanvasPathModeOption,
@@ -549,24 +550,73 @@ function FontDropdown({
 	onChange: (value: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
-	const ref = useRef<HTMLDivElement>(null);
+	const [menuPosition, setMenuPosition] = useState<{
+		top: number;
+		left: number;
+		maxHeight: number;
+	} | null>(null);
+	const triggerRef = useRef<HTMLDivElement>(null);
+	const menuRef = useRef<HTMLDivElement>(null);
+
 	useEffect(() => {
 		if (!open) return;
 		const handler = (event: PointerEvent) => {
-			if (ref.current && !ref.current.contains(event.target as Node)) {
+			const target = event.target as Node;
+			if (
+				!triggerRef.current?.contains(target) &&
+				!menuRef.current?.contains(target)
+			) {
 				setOpen(false);
 			}
 		};
 		document.addEventListener("pointerdown", handler, true);
 		return () => document.removeEventListener("pointerdown", handler, true);
 	}, [open]);
+
+	useEffect(() => {
+		if (!open) return;
+		const updatePosition = () => {
+			const trigger = triggerRef.current;
+			if (!trigger) return;
+			const rect = trigger.getBoundingClientRect();
+			const viewportPadding = 8;
+			const gap = 8;
+			const menuWidth = 176;
+			const maxHeight = Math.max(
+				120,
+				Math.min(256, window.innerHeight - viewportPadding * 2),
+			);
+			const rightPosition = rect.right + gap;
+			const left =
+				rightPosition + menuWidth <= window.innerWidth - viewportPadding
+					? rightPosition
+					: Math.max(viewportPadding, rect.left - menuWidth - gap);
+			const top = Math.min(
+				Math.max(viewportPadding, rect.top),
+				Math.max(
+					viewportPadding,
+					window.innerHeight - maxHeight - viewportPadding,
+				),
+			);
+			setMenuPosition({ top, left, maxHeight });
+		};
+
+		updatePosition();
+		window.addEventListener("resize", updatePosition);
+		window.addEventListener("scroll", updatePosition, true);
+		return () => {
+			window.removeEventListener("resize", updatePosition);
+			window.removeEventListener("scroll", updatePosition, true);
+		};
+	}, [open]);
+
 	const current =
 		FONT_FAMILIES.find((font) => font.value === value) ?? FONT_FAMILIES[0];
 	return (
-		<div ref={ref} className="relative">
+		<div ref={triggerRef} className="relative">
 			<button
 				type="button"
-				onClick={() => setOpen(!open)}
+				onClick={() => setOpen((currentOpen) => !currentOpen)}
 				className="flex w-full cursor-pointer items-center justify-between gap-1 rounded-md border border-border bg-background px-2 py-1.5 text-card-foreground transition-all hover:border-muted-foreground"
 			>
 				<span
@@ -579,31 +629,38 @@ function FontDropdown({
 					className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
 				/>
 			</button>
-			{open && (
-				<div
-					className="scrollbar-thin absolute top-0 left-[calc(100%+8px)] z-50 max-h-64 w-44 overflow-y-auto rounded-lg border border-border bg-popover py-1 shadow-xl"
-					onWheel={(event) => event.stopPropagation()}
-				>
-					{FONT_FAMILIES.map((font) => (
-						<button
-							key={font.value}
-							type="button"
-							onClick={() => {
-								onChange(font.value);
-								setOpen(false);
-							}}
-							className={`w-full cursor-pointer px-3 py-2 text-left text-[12px] transition-colors hover:bg-accent ${
-								value === font.value
-									? "bg-primary/15 font-medium text-primary"
-									: "text-popover-foreground"
-							}`}
-							style={{ fontFamily: font.value }}
-						>
-							{font.label}
-						</button>
-					))}
-				</div>
-			)}
+			{open &&
+				menuPosition &&
+				typeof document !== "undefined" &&
+				createPortal(
+					<div
+						ref={menuRef}
+						data-text-editor-safe="true"
+						className="scrollbar-thin fixed z-[300] w-44 overflow-y-auto rounded-lg border border-border bg-popover py-1 shadow-xl"
+						style={menuPosition}
+						onWheel={(event) => event.stopPropagation()}
+					>
+						{FONT_FAMILIES.map((font) => (
+							<button
+								key={font.value}
+								type="button"
+								onClick={() => {
+									onChange(font.value);
+									setOpen(false);
+								}}
+								className={`w-full cursor-pointer px-3 py-2 text-left text-[12px] transition-colors hover:bg-accent ${
+									value === font.value
+										? "bg-primary/15 font-medium text-primary"
+										: "text-popover-foreground"
+								}`}
+								style={{ fontFamily: font.value }}
+							>
+								{font.label}
+							</button>
+						))}
+					</div>,
+					document.body,
+				)}
 		</div>
 	);
 }

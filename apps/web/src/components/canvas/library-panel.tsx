@@ -77,6 +77,7 @@ export function LibraryPanel({
 	const [importingFile, setImportingFile] = useState(false);
 	const [installingSlug, setInstallingSlug] = useState<string | null>(null);
 	const [publishOpen, setPublishOpen] = useState(false);
+	const [publishName, setPublishName] = useState("");
 	const [publishSlug, setPublishSlug] = useState("");
 	const [publishDescription, setPublishDescription] = useState("");
 	const [licenseAccepted, setLicenseAccepted] = useState(false);
@@ -170,6 +171,7 @@ export function LibraryPanel({
 
 	const handleCancelCreate = () => {
 		setPublishOpen(false);
+		setPublishName("");
 		setPublishSlug("");
 		setPublishDescription("");
 		if (draftPackageId) {
@@ -231,6 +233,7 @@ export function LibraryPanel({
 		setActivePackage(libraryPackage.id);
 		setPublishOpen(true);
 		setLicenseAccepted(false);
+		setPublishName(libraryPackage.name);
 		setPublishSlug(normalizeLibrarySlug(libraryPackage.name).slice(0, 48));
 		setPublishDescription(libraryPackage.description ?? "");
 		setSubmissionMessage(null);
@@ -281,12 +284,13 @@ export function LibraryPanel({
 
 	const handlePublish = () => {
 		if (!activePackage || activeItems.length === 0 || !licenseAccepted) return;
+		const name = publishName.trim();
 		const slug = publishSlug.trim();
-		if (!slug) return;
+		if (!name || !slug) return;
 		setImportError("");
 		submitMutation.mutate({
 			slug,
-			name: activePackage.name,
+			name,
 			licenseAccepted: true,
 			description:
 				publishDescription.trim() || activePackage.description || undefined,
@@ -650,6 +654,14 @@ export function LibraryPanel({
 													{t("shapeLibrary.publishPackage")}
 												</p>
 												<Input
+													value={publishName}
+													onChange={(e) => setPublishName(e.target.value)}
+													placeholder={t("shapeLibrary.publishNamePlaceholder")}
+													aria-label={t("shapeLibrary.publishNamePlaceholder")}
+													maxLength={120}
+													className="h-9 text-xs"
+												/>
+												<Input
 													value={publishSlug}
 													onChange={(e) => setPublishSlug(e.target.value)}
 													placeholder={t("shapeLibrary.publishSlugPlaceholder")}
@@ -697,6 +709,7 @@ export function LibraryPanel({
 														size="sm"
 														className="h-9 flex-1 text-xs"
 														disabled={
+															!publishName.trim() ||
 															!publishSlug.trim() ||
 															!licenseAccepted ||
 															submitMutation.isPending
