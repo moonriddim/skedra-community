@@ -135,6 +135,8 @@ export type CanvasElementBoundsInput = Pick<
 			| "frameLabel"
 			| "cornerRadius"
 			| "cornerRadiusPercent"
+			| "arcStartAngle"
+			| "arcEndAngle"
 			| "cloudArcRadius"
 			| "pyramidSections"
 			| "polygonSides"
@@ -226,6 +228,12 @@ export function createCanvasElementFromBoundsInput(
 				: {}),
 			...(input.cornerRadiusPercent !== undefined
 				? { cornerRadiusPercent: input.cornerRadiusPercent }
+				: {}),
+			...(input.arcStartAngle !== undefined && input.arcEndAngle !== undefined
+				? {
+						arcStartAngle: input.arcStartAngle,
+						arcEndAngle: input.arcEndAngle,
+					}
 				: {}),
 			...(input.cloudArcRadius !== undefined
 				? { cloudArcRadius: input.cloudArcRadius }

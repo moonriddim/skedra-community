@@ -81,6 +81,28 @@ test("creates API and MCP bounds elements through one canonical mapper", () => {
 	});
 	assert.equal(polygon.polygonSides, 8);
 
+	const arc = createCanvasElementFromBoundsInput(defaults, {
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 180,
+		height: 120,
+		arcStartAngle: 30,
+		arcEndAngle: 145,
+	});
+	assert.equal(arc.arcStartAngle, 30);
+	assert.equal(arc.arcEndAngle, 145);
+	const incompleteArc = createCanvasElementFromBoundsInput(defaults, {
+		type: "ellipse",
+		x: 10,
+		y: 20,
+		width: 180,
+		height: 120,
+		arcStartAngle: 30,
+	});
+	assert.equal(incompleteArc.arcStartAngle, undefined);
+	assert.equal(incompleteArc.arcEndAngle, undefined);
+
 	const arrow = createCanvasElementFromBoundsInput(
 		defaults,
 		{ type: "arrow", x: 0, y: 0, width: 80, height: 40 },
