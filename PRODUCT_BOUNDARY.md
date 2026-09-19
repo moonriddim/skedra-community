@@ -1,11 +1,11 @@
 # Skedra Community Scope
 
-Skedra has a strong open-source Community edition. The goal is simple:
+Skedra has a source-available Community edition. The goal is simple:
 self-hosted Skedra should be useful, inspectable, and trustworthy.
 
-## Open-Source Community Edition
+## Source-Available Community Edition
 
-The Community edition is open source and includes the full self-hostable
+The Community edition is source available and includes the full self-hostable
 workspace needed by individuals and teams:
 
 - Workspace web app and authenticated app shell.
@@ -21,7 +21,7 @@ workspace needed by individuals and teams:
 - Bring-your-own-key and local AI integration points where they are useful for
   self-hosted installs.
 
-The reusable editor packages remain MIT licensed:
+The editor packages use the same Skedra Community License 1.0:
 
 - `packages/canvas-core`: scene model, element types, geometry, hit testing,
   ordering, selection, snapping, path rendering, import helpers, and canvas
@@ -30,11 +30,16 @@ The reusable editor packages remain MIT licensed:
   interaction UI. Path drawing, start snapping, closing, point editing, and path
   mode behavior live here once and are adapted by both Community and SDK.
 - `packages/canvas-react`: shared React/SVG canvas rendering.
+- `packages/canvas-io`: file, clipboard, import/export, and document codecs.
 - `packages/react`: auth-free React canvas SDK, local/controlled state, tool UI,
   factories, templates, and typed workspace integration hooks.
 
-The wider Community workspace source is licensed under `AGPL-3.0-only` unless a
-file or directory has its own license.
+All Skedra-owned Community code, SDK packages, and deployment files use the
+[Skedra Community License 1.0](LICENSE). Self-hosting for personal and internal
+business use and contributions are allowed. Independent products, rebranding,
+and third-party hosted services require a separate written license. Third-party
+material retains its own terms. See [LICENSING.md](LICENSING.md) for examples
+and the preservation of earlier AGPL/MIT rights.
 
 ## Public Repository And Images
 
@@ -42,7 +47,8 @@ The public Skedra source repository contains the Community edition:
 
 - `apps/web`, `apps/api`, `apps/libraries`, and `apps/mcp`.
 - `packages/db`, `packages/shared`, `packages/canvas-core`,
-  `packages/canvas-editor`, `packages/canvas-react`, and `packages/react`.
+  `packages/canvas-editor`, `packages/canvas-io`, `packages/canvas-react`, and
+  `packages/react`.
 - Dockerfiles, Compose files, standalone image scripts, migrations, and release
   workflows for Community self-hosting.
 
@@ -57,4 +63,4 @@ It must not contain:
 ## Rule Of Thumb
 
 If a feature is needed to run a serious self-hosted collaborative workspace, it
-belongs in the open Community edition.
+belongs in the self-hostable Community edition.

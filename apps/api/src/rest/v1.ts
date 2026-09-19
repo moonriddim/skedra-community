@@ -21,7 +21,7 @@ import {
 	parseTeamRolePermissions,
 } from "@skedra/shared";
 import { decryptText, encryptText } from "@skedra/shared/server-crypto";
-import { and, asc, eq, gt, or, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -36,6 +36,10 @@ import {
 } from "../lib/assets";
 import { publishBoardLive } from "../lib/board-live-bus";
 import { membershipValuesFromTeamRole } from "../lib/board-member-access";
+import {
+	canvasUpdateCursorTimestamp,
+	canvasUpdatesAfter,
+} from "../lib/canvas-update-cursor";
 import { db } from "../lib/db";
 import {
 	assertCanAssignTeamRoleForBoard,
@@ -564,6 +568,7 @@ function e2eeKeyHashesEqual(
  */
 boardsRouter.get("/boards/:id/updates", (c) =>
 	withApiScope(c, "boards:read", async () => {
+		c.header("Cache-Control", "private, no-store");
 		try {
 			const id = uuidParam(c, "id");
 			const access = await requireBoardMember(
@@ -575,28 +580,23 @@ boardsRouter.get("/boards/:id/updates", (c) =>
 				Math.max(Number(c.req.query("limit") ?? 500), 1),
 				1000,
 			);
-			const afterId = c.req.query("afterId");
-			const afterCreatedAtRaw = c.req.query("afterCreatedAt");
-			const afterCreatedAt = afterCreatedAtRaw
-				? new Date(afterCreatedAtRaw)
-				: null;
-
-			const where =
-				afterCreatedAt && afterId
-					? and(
-							eq(whiteboardE2eeUpdates.whiteboardId, id),
-							or(
-								gt(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
-								and(
-									eq(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
-									gt(whiteboardE2eeUpdates.id, afterId),
-								),
-							),
-						)
-					: eq(whiteboardE2eeUpdates.whiteboardId, id);
+			const afterId = z
+				.string()
+				.uuid()
+				.optional()
+				.parse(c.req.query("afterId"));
+			const afterCreatedAt = z
+				.string()
+				.datetime()
+				.optional()
+				.parse(c.req.query("afterCreatedAt"));
+			const where = canvasUpdatesAfter(id, afterId, afterCreatedAt);
 
 			const rows = await db.query.whiteboardE2eeUpdates.findMany({
 				where,
+				extras: {
+					cursorCreatedAt: canvasUpdateCursorTimestamp.as("cursor_created_at"),
+				},
 				orderBy: [
 					asc(whiteboardE2eeUpdates.createdAt),
 					asc(whiteboardE2eeUpdates.id),
@@ -613,11 +613,11 @@ boardsRouter.get("/boards/:id/updates", (c) =>
 						access.whiteboard.encryptionMode === "server"
 							? decryptText(row.update, getYjsEncryptionOptions())
 							: row.update,
-					createdAt: row.createdAt.toISOString(),
+					createdAt: row.cursorCreatedAt,
 				})),
 			});
 		} catch (error) {
-			return handleRestRouteError(c, error);
+			return handleRestRouteErrorWithZod(c, error);
 		}
 	}),
 );

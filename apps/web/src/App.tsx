@@ -4,9 +4,10 @@ import { SeoManager } from "@/components/public/seo-manager";
 import { getApiUrl } from "@/lib/api-url";
 import { I18nProvider } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
+import { fetchTrpc, isBoardSyncProcedure } from "@/lib/trpc-fetch";
 import { AuthLayout } from "@/routes/layout";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, splitLink } from "@trpc/client";
 import { Loader2 } from "lucide-react";
 import {
 	Component,
@@ -148,11 +149,17 @@ export function App() {
 	const [trpcClient] = useState(() =>
 		trpc.createClient({
 			links: [
-				httpBatchLink({
-					url: getApiUrl("/api/trpc"),
-					fetch(url, options) {
-						return fetch(url, { ...options, credentials: "include" });
-					},
+				splitLink({
+					// Sync timeouts must not abort unrelated long-running operations.
+					condition: (operation) => isBoardSyncProcedure(operation.path),
+					true: httpBatchLink({
+						url: getApiUrl("/api/trpc"),
+						fetch: fetchTrpc,
+					}),
+					false: httpBatchLink({
+						url: getApiUrl("/api/trpc"),
+						fetch: fetchTrpc,
+					}),
 				}),
 			],
 		}),

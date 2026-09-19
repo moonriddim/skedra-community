@@ -1,7 +1,7 @@
 {
 	"name": "skedra",
 	"private": true,
-	"license": "AGPL-3.0-only",
+	"license": "SEE LICENSE IN LICENSE",
 	"scripts": {
 		"predev": "pnpm --filter @skedra/db db:push",
 		"dev": "turbo dev",

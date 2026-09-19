@@ -1808,6 +1808,9 @@ app.all("/api/trpc/*", (c) =>
 		req: c.req.raw,
 		router: appRouter,
 		createContext: ({ req }) => createContext({ req }),
+		// These responses contain live, access-dependent data. In particular,
+		// cached empty update pages prevent clients from observing later edits.
+		responseMeta: () => ({ headers: { "Cache-Control": "private, no-store" } }),
 	}),
 );
 

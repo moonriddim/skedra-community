@@ -3,19 +3,19 @@
 		"locale": "de",
 		"kind": "about",
 		"title": "Über Skedra Whiteboard – Projekt, Betreiber und Abgrenzung",
-		"description": "Skedra Whiteboard auf skedra.xyz ist ein unabhängiges Open-Source-Whiteboard aus der Schweiz. Erfahre, wer dahintersteht und was zum Projekt gehört.",
+		"description": "Skedra Whiteboard auf skedra.xyz ist ein unabhängiges, selbst hostbares Whiteboard aus der Schweiz. Erfahre, wer dahintersteht und was zum Projekt gehört.",
 		"eyebrow": "Über das Projekt",
-		"h1": "Skedra Whiteboard ist das Open-Source-Whiteboard auf skedra.xyz",
+		"h1": "Skedra Whiteboard ist das selbst hostbare Whiteboard auf skedra.xyz",
 		"lead": "Skedra Whiteboard ist ein unabhängiges, browserbasiertes Infinite Canvas für Ideen, Diagramme und Zusammenarbeit. Der freie Editor funktioniert ohne Konto; Cloud-Funktionen und Self-Hosting sind zusätzliche Optionen.",
-		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
-		"lastModified": "2026-07-14",
+		"updated": "Stand: 19. September 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/en/about",
 		"sections": [
 			{
 				"heading": "Was gehört zu Skedra Whiteboard?",
 				"paragraphs": [
 					"Zum Projekt gehören die Web-Anwendung auf skedra.xyz, Skedra Cloud, der öffentliche Shape-Bibliothekskatalog und die Skedra Community Edition auf GitHub. Boards lassen sich lokal bearbeiten, als Datei sichern oder – optional – verschlüsselt in der Cloud speichern und gemeinsam nutzen.",
-					"Die Community Edition stellt den vollständigen Workspace zum Self-Hosting bereit. Wiederverwendbare Canvas-Pakete werden zusätzlich als eigenständige Open-Source-Bausteine gepflegt."
+					"Die Community Edition stellt den vollständigen Workspace zum Self-Hosting bereit. Auch Canvas-Pakete und SDK stehen unter der Skedra Community License 1.0: Eigennutzung und Beiträge sind erlaubt; eigenständige Produkte und Hosting-Angebote benötigen eine separate Erlaubnis."
 				]
 			},
 			{
@@ -38,8 +38,8 @@
 				"answer": "Nein. Skedra Whiteboard auf skedra.xyz ist ein unabhängiges Online-Whiteboard. Gleichnamige Produkte auf anderen Domains oder in App-Stores sind nicht Teil dieses Angebots."
 			},
 			{
-				"question": "Ist Skedra Whiteboard Open Source?",
-				"answer": "Ja. Die Community Edition ist öffentlich auf GitHub verfügbar und kann auf eigener Infrastruktur betrieben werden."
+				"question": "Unter welcher Lizenz steht Skedra Whiteboard?",
+				"answer": "Skedra ist source-available unter der Skedra Community License 1.0, nicht Open Source. Privates und firmeninternes Self-Hosting sowie Beiträge sind erlaubt. Eigenständige Produkte und Hosting-Angebote für Dritte benötigen eine separate Erlaubnis."
 			}
 		],
 		"related": [
@@ -55,19 +55,19 @@
 		"locale": "en",
 		"kind": "about",
 		"title": "About Skedra Whiteboard – Project, Operator and Identity",
-		"description": "Skedra Whiteboard at skedra.xyz is an independent open-source whiteboard from Switzerland. Learn who operates it and what belongs to the project.",
+		"description": "Skedra Whiteboard at skedra.xyz is an independent self-hostable whiteboard from Switzerland. Learn who operates it and what belongs to the project.",
 		"eyebrow": "About the project",
-		"h1": "Skedra Whiteboard is the open-source whiteboard at skedra.xyz",
+		"h1": "Skedra Whiteboard is the self-hostable whiteboard at skedra.xyz",
 		"lead": "Skedra Whiteboard is an independent browser-based infinite canvas for ideas, diagrams and collaboration. The free editor works without an account; cloud features and self-hosting are additional options.",
-		"updated": "Last updated: July 14, 2026",
-		"lastModified": "2026-07-14",
+		"updated": "Last updated: September 19, 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/about",
 		"sections": [
 			{
 				"heading": "What belongs to Skedra Whiteboard?",
 				"paragraphs": [
 					"The project includes the web application at skedra.xyz, Skedra Cloud, the public shape-library catalog and the Skedra Community Edition on GitHub. Boards can be edited locally, saved as files or optionally stored and shared through encrypted cloud services.",
-					"The Community Edition provides the complete workspace for self-hosting. Reusable canvas packages are also maintained as separate open-source building blocks."
+					"The Community Edition provides the complete workspace for self-hosting. The canvas packages and SDK also use the Skedra Community License 1.0: internal use and contributions are allowed; independent products and hosted offerings require a separate license."
 				]
 			},
 			{
@@ -90,8 +90,8 @@
 				"answer": "No. Skedra Whiteboard at skedra.xyz is an independent online whiteboard. Similarly named products on other domains or in app stores are not part of this service."
 			},
 			{
-				"question": "Is Skedra Whiteboard open source?",
-				"answer": "Yes. The Community Edition is publicly available on GitHub and can be operated on your own infrastructure."
+				"question": "What license does Skedra Whiteboard use?",
+				"answer": "Skedra is source available under the Skedra Community License 1.0, not Open Source. Personal and internal business self-hosting and contributions are allowed. Independent products and third-party hosted offerings require a separate license."
 			}
 		],
 		"related": [
@@ -106,13 +106,13 @@
 	"/guides": {
 		"locale": "de",
 		"kind": "collection",
-		"title": "Whiteboard-Ratgeber: lokal, verschlüsselt und Open Source | Skedra",
+		"title": "Whiteboard-Ratgeber: lokal, verschlüsselt und selbst hostbar | Skedra",
 		"description": "Praxisnahe Ratgeber zu Online-Whiteboards ohne Anmeldung, Verschlüsselung, Self-Hosting, Infinite Canvas und der Wahl des passenden Werkzeugs.",
 		"eyebrow": "Skedra Wissen",
 		"h1": "Ratgeber für digitale Whiteboards und visuelle Zusammenarbeit",
 		"lead": "Diese Inhalte erklären konkrete Entscheidungen rund um lokale Speicherung, Cloud-Zusammenarbeit, Verschlüsselung, Self-Hosting und Infinite-Canvas-Workflows – auf Basis der tatsächlichen Skedra-Architektur.",
-		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
-		"lastModified": "2026-07-14",
+		"updated": "Stand: 19. September 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/en/guides",
 		"sections": [
 			{
@@ -140,7 +140,7 @@
 			},
 			{
 				"href": "/open-source-whiteboard-self-hosted",
-				"label": "Open Source und Self-Hosting"
+				"label": "Quellcode und Self-Hosting"
 			},
 			{ "href": "/infinite-canvas", "label": "Infinite Canvas erklärt" },
 			{
@@ -152,13 +152,13 @@
 	"/en/guides": {
 		"locale": "en",
 		"kind": "collection",
-		"title": "Whiteboard Guides: Local, Encrypted and Open Source | Skedra",
+		"title": "Whiteboard Guides: Local, Encrypted and Self-Hostable | Skedra",
 		"description": "Practical guides to online whiteboards without signup, encryption, self-hosting, infinite canvas workflows and choosing the right tool.",
 		"eyebrow": "Skedra knowledge",
 		"h1": "Guides to digital whiteboards and visual collaboration",
 		"lead": "These guides explain practical choices around local storage, cloud collaboration, encryption, self-hosting and infinite-canvas workflows based on Skedra's real architecture.",
-		"updated": "Last updated: July 14, 2026",
-		"lastModified": "2026-07-14",
+		"updated": "Last updated: September 19, 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/guides",
 		"sections": [
 			{
@@ -186,7 +186,7 @@
 			},
 			{
 				"href": "/en/open-source-whiteboard-self-hosted",
-				"label": "Open source and self-hosting"
+				"label": "Source code and self-hosting"
 			},
 			{ "href": "/en/infinite-canvas", "label": "Infinite canvas explained" },
 			{
@@ -434,19 +434,19 @@
 	"/open-source-whiteboard-self-hosted": {
 		"locale": "de",
 		"kind": "article",
-		"title": "Open-Source-Whiteboard selbst hosten | Skedra Community",
+		"title": "selbst hostbares Whiteboard selbst hosten | Skedra Community",
 		"description": "Skedra Community als selbst gehostetes Online-Whiteboard: Architektur, Docker-Start, Verantwortung und Unterschiede zum verwalteten Cloud-Dienst.",
-		"eyebrow": "Open Source und Self-Hosting",
-		"h1": "Ein Open-Source-Whiteboard auf eigener Infrastruktur betreiben",
+		"eyebrow": "Quellcode und Self-Hosting",
+		"h1": "Ein selbst hostbares Whiteboard auf eigener Infrastruktur betreiben",
 		"lead": "Skedra Community enthält den vollständigen visuellen Workspace, API, Datenbankanbindung und den öffentlichen Bibliothekskatalog. Ein Standalone-Container erleichtert den Einstieg; Compose-Varianten unterstützen getrennte Dienste.",
-		"updated": "Zuletzt aktualisiert: 14. Juli 2026",
-		"lastModified": "2026-07-14",
+		"updated": "Stand: 19. September 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/en/open-source-whiteboard-self-hosted",
 		"sections": [
 			{
 				"heading": "Was enthält die Community Edition?",
 				"paragraphs": [
-					"Die Community Edition ist nicht nur ein statischer Zeicheneditor. Sie umfasst Web-App, API, Konten, Teams, Cloud-Boards, Zusammenarbeit, Bibliotheken und die Datenbankstruktur. Die Anwendung wird unter AGPL-3.0-only veröffentlicht; wiederverwendbare Editor-Pakete besitzen eigene ausgewiesene Lizenzen.",
+					"Die Community Edition ist nicht nur ein statischer Zeicheneditor. Sie umfasst Web-App, API, Konten, Teams, Cloud-Boards, Zusammenarbeit, Bibliotheken und die Datenbankstruktur. Die Anwendung, Editor-Pakete und das SDK stehen unter der Skedra Community License 1.0. Privates und firmeninternes Self-Hosting sowie Beiträge sind erlaubt; eigenständige Produkte und Hosting-Angebote für Dritte benötigen eine separate Erlaubnis.",
 					"Für einen schnellen Test kann ein einzelnes Container-Image Web-App, API und PostgreSQL bündeln. Für produktive Umgebungen sind getrennte Dienste, persistente Volumes, TLS und ein belastbares Backup-Konzept sinnvoll."
 				]
 			},
@@ -471,7 +471,7 @@
 		"faqs": [
 			{
 				"question": "Ist die Skedra Community Edition kostenlos?",
-				"answer": "Der Quellcode ist unter der im Repository angegebenen Open-Source-Lizenz verfügbar. Kosten für Server, Domain, Speicher und Betrieb trägst du selbst."
+				"answer": "Der Quellcode ist unter der Skedra Community License 1.0 für Eigennutzung und Beiträge verfügbar. Kosten für Server, Domain, Speicher und Betrieb trägst du selbst."
 			},
 			{
 				"question": "Gibt es ein einzelnes Docker-Image?",
@@ -500,19 +500,19 @@
 	"/en/open-source-whiteboard-self-hosted": {
 		"locale": "en",
 		"kind": "article",
-		"title": "Self-Host an Open-Source Whiteboard | Skedra Community",
+		"title": "Self-Host Skedra Whiteboard | Skedra Community",
 		"description": "Run Skedra Community as a self-hosted online whiteboard: architecture, Docker setup, operational responsibility and managed-cloud differences.",
-		"eyebrow": "Open source and self-hosting",
-		"h1": "Run an open-source whiteboard on your own infrastructure",
+		"eyebrow": "Source code and self-hosting",
+		"h1": "Run an self-hostable whiteboard on your own infrastructure",
 		"lead": "Skedra Community contains the complete visual workspace, API, database integration and public library catalog. A standalone container simplifies evaluation while Compose variants support separated services.",
-		"updated": "Last updated: July 14, 2026",
-		"lastModified": "2026-07-14",
+		"updated": "Last updated: September 19, 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/open-source-whiteboard-self-hosted",
 		"sections": [
 			{
 				"heading": "What is included in the Community Edition?",
 				"paragraphs": [
-					"The Community Edition is more than a static drawing editor. It includes the web app, API, accounts, teams, cloud boards, collaboration, libraries and database schema. The application is released under AGPL-3.0-only, with reusable editor packages carrying their own documented licenses.",
+					"The Community Edition is more than a static drawing editor. It includes the web app, API, accounts, teams, cloud boards, collaboration, libraries and database schema. The application, editor packages and SDK use the Skedra Community License 1.0. Personal and internal business self-hosting and contributions are allowed; independent products and third-party hosted offerings require a separate license.",
 					"For evaluation, one container image can combine the web app, API and PostgreSQL. Production environments benefit from separated services, persistent volumes, TLS and a tested backup strategy."
 				]
 			},
@@ -537,7 +537,7 @@
 		"faqs": [
 			{
 				"question": "Is Skedra Community free?",
-				"answer": "The source code is available under the license documented in the repository. You remain responsible for server, domain, storage and operational costs."
+				"answer": "The source code is available for internal use and contributions under the Skedra Community License 1.0. You remain responsible for server, domain, storage and operational costs."
 			},
 			{
 				"question": "Is there a single Docker image?",
@@ -683,10 +683,10 @@
 		"title": "Skedra vs. Excalidraw: Welches Whiteboard passt? | Vergleich",
 		"description": "Skedra und Excalidraw fair vergleichen: schneller Zeichenstart, strukturierte Diagramme, Cloud-Workflows, Self-Hosting und Dateiformate.",
 		"eyebrow": "Werkzeuge vergleichen",
-		"h1": "Skedra und Excalidraw: zwei Open-Source-Whiteboards mit anderem Schwerpunkt",
-		"lead": "Beide Werkzeuge ermöglichen visuelles Arbeiten im Browser und stellen Open-Source-Code bereit. Excalidraw ist besonders für seine handgezeichnete Zeichenästhetik bekannt; Skedra verbindet ein Infinite Canvas mit strukturierten Mindmap-, Flowchart-, Kanban-, Team- und Präsentationsabläufen.",
-		"updated": "Zuletzt überprüft: 14. Juli 2026",
-		"lastModified": "2026-07-14",
+		"h1": "Skedra und Excalidraw: zwei Whiteboards mit anderem Schwerpunkt",
+		"lead": "Beide Werkzeuge ermöglichen visuelles Arbeiten im Browser. Skedra ist source-available; Excalidraw ist Open Source. Excalidraw ist besonders für seine handgezeichnete Zeichenästhetik bekannt; Skedra verbindet ein Infinite Canvas mit strukturierten Mindmap-, Flowchart-, Kanban-, Team- und Präsentationsabläufen.",
+		"updated": "Stand: 19. September 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/en/skedra-vs-excalidraw",
 		"sections": [
 			{
@@ -731,7 +731,7 @@
 			},
 			{
 				"question": "Sind beide Projekte selbst hostbar?",
-				"answer": "Beide stellen Open-Source-Code bereit. Die konkrete Server-, Kollaborations- und Betriebsarchitektur unterscheidet sich; prüfe deshalb die jeweilige aktuelle Dokumentation."
+				"answer": "Skedra ist source-available unter der Skedra Community License 1.0; Excalidraw ist Open Source. Die konkrete Server-, Kollaborations- und Betriebsarchitektur unterscheidet sich; prüfe deshalb die jeweilige aktuelle Dokumentation."
 			}
 		],
 		"sources": [
@@ -759,10 +759,10 @@
 		"title": "Skedra vs Excalidraw: Which Whiteboard Fits? | Comparison",
 		"description": "Compare Skedra and Excalidraw fairly across quick drawing, structured diagrams, cloud workflows, self-hosting and file formats.",
 		"eyebrow": "Compare tools",
-		"h1": "Skedra and Excalidraw: two open-source whiteboards with different priorities",
-		"lead": "Both tools support visual work in the browser and publish open-source code. Excalidraw is particularly well known for its hand-drawn visual style, while Skedra combines an infinite canvas with structured mind-map, flowchart, Kanban, team and presentation workflows.",
-		"updated": "Last reviewed: July 14, 2026",
-		"lastModified": "2026-07-14",
+		"h1": "Skedra and Excalidraw: two whiteboards with different priorities",
+		"lead": "Both tools support visual work in the browser. Skedra is source available; Excalidraw is open source. Excalidraw is particularly well known for its hand-drawn visual style, while Skedra combines an infinite canvas with structured mind-map, flowchart, Kanban, team and presentation workflows.",
+		"updated": "Last updated: September 19, 2026",
+		"lastModified": "2026-09-19",
 		"translation": "/skedra-vs-excalidraw",
 		"sections": [
 			{
@@ -807,7 +807,7 @@
 			},
 			{
 				"question": "Can both projects be self-hosted?",
-				"answer": "Both publish open-source code. Their server, collaboration and operational architectures differ, so review each project's current documentation."
+				"answer": "Skedra is source available under the Skedra Community License 1.0; Excalidraw is open source. Their server, collaboration and operational architectures differ, so review each project's current documentation."
 			}
 		],
 		"sources": [

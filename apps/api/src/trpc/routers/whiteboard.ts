@@ -1,3 +1,8 @@
+import {
+	canvasUpdateCursorTimestamp,
+	canvasUpdateTimestamp,
+	canvasUpdatesAfter,
+} from "../../lib/canvas-update-cursor";
 /**
  * Whiteboard/Board-Router – Excalidraw-ähnlich: flache Boards pro User.
  */
@@ -1525,25 +1530,17 @@ export const whiteboardRouter = router({
 		.query(async ({ ctx, input }) => {
 			const access = await requireE2eeUpdateAccess(ctx, input);
 			assertBoardEncryptionMode(access, "e2ee");
-			const afterCreatedAt = input.afterCreatedAt
-				? new Date(input.afterCreatedAt)
-				: null;
-			const where =
-				afterCreatedAt && input.afterId
-					? and(
-							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
-							or(
-								gt(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
-								and(
-									eq(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
-									gt(whiteboardE2eeUpdates.id, input.afterId),
-								),
-							),
-						)
-					: eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId);
+			const where = canvasUpdatesAfter(
+				input.whiteboardId,
+				input.afterId,
+				input.afterCreatedAt,
+			);
 
 			return ctx.db.query.whiteboardE2eeUpdates.findMany({
 				where,
+				extras: {
+					cursorCreatedAt: canvasUpdateCursorTimestamp.as("cursor_created_at"),
+				},
 				orderBy: [
 					asc(whiteboardE2eeUpdates.createdAt),
 					asc(whiteboardE2eeUpdates.id),
@@ -1631,7 +1628,7 @@ export const whiteboardRouter = router({
 				const [cutoff] = await tx
 					.select({
 						id: whiteboardE2eeUpdates.id,
-						createdAt: whiteboardE2eeUpdates.createdAt,
+						createdAt: canvasUpdateCursorTimestamp,
 					})
 					.from(whiteboardE2eeUpdates)
 					.where(
@@ -1656,9 +1653,15 @@ export const whiteboardRouter = router({
 						and(
 							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
 							or(
-								lt(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+								lt(
+									whiteboardE2eeUpdates.createdAt,
+									canvasUpdateTimestamp(cutoff.createdAt),
+								),
 								and(
-									eq(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+									eq(
+										whiteboardE2eeUpdates.createdAt,
+										canvasUpdateTimestamp(cutoff.createdAt),
+									),
 									lte(whiteboardE2eeUpdates.id, input.upToId),
 								),
 							),
@@ -1703,25 +1706,17 @@ export const whiteboardRouter = router({
 		.query(async ({ ctx, input }) => {
 			const access = await requireE2eeUpdateAccess(ctx, input);
 			assertBoardEncryptionMode(access, "server");
-			const afterCreatedAt = input.afterCreatedAt
-				? new Date(input.afterCreatedAt)
-				: null;
-			const where =
-				afterCreatedAt && input.afterId
-					? and(
-							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
-							or(
-								gt(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
-								and(
-									eq(whiteboardE2eeUpdates.createdAt, afterCreatedAt),
-									gt(whiteboardE2eeUpdates.id, input.afterId),
-								),
-							),
-						)
-					: eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId);
+			const where = canvasUpdatesAfter(
+				input.whiteboardId,
+				input.afterId,
+				input.afterCreatedAt,
+			);
 
 			const rows = await ctx.db.query.whiteboardE2eeUpdates.findMany({
 				where,
+				extras: {
+					cursorCreatedAt: canvasUpdateCursorTimestamp.as("cursor_created_at"),
+				},
 				orderBy: [
 					asc(whiteboardE2eeUpdates.createdAt),
 					asc(whiteboardE2eeUpdates.id),
@@ -1818,7 +1813,7 @@ export const whiteboardRouter = router({
 				const [cutoff] = await tx
 					.select({
 						id: whiteboardE2eeUpdates.id,
-						createdAt: whiteboardE2eeUpdates.createdAt,
+						createdAt: canvasUpdateCursorTimestamp,
 					})
 					.from(whiteboardE2eeUpdates)
 					.where(
@@ -1842,9 +1837,15 @@ export const whiteboardRouter = router({
 						and(
 							eq(whiteboardE2eeUpdates.whiteboardId, input.whiteboardId),
 							or(
-								lt(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+								lt(
+									whiteboardE2eeUpdates.createdAt,
+									canvasUpdateTimestamp(cutoff.createdAt),
+								),
 								and(
-									eq(whiteboardE2eeUpdates.createdAt, cutoff.createdAt),
+									eq(
+										whiteboardE2eeUpdates.createdAt,
+										canvasUpdateTimestamp(cutoff.createdAt),
+									),
 									lte(whiteboardE2eeUpdates.id, input.upToId),
 								),
 							),

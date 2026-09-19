@@ -50,7 +50,11 @@ export function useBoardLiveChannel(
 			},
 		);
 
-		const handleReady = () => onConnectedRef.current?.(true);
+		const handleReady = () => {
+			onConnectedRef.current?.(true);
+			// Events lost while disconnected are not replayed by this channel.
+			onEventRef.current();
+		};
 		const handleUpdate = (event: Event) => {
 			if (event instanceof MessageEvent) {
 				try {
@@ -78,6 +82,7 @@ export function useBoardLiveChannel(
 			onConnectedRef.current?.(false);
 			source.removeEventListener("ready", handleReady);
 			source.removeEventListener("update", handleUpdate);
+			source.onerror = null;
 			source.close();
 		};
 	}, [enabled, whiteboardId]);

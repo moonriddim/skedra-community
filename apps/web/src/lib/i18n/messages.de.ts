@@ -177,7 +177,7 @@ export const deMessages = {
 		navigationLabel: "Hauptnavigation",
 		productOverview: "Produkt",
 		pricing: "Preise",
-		openSource: "Open Source",
+		openSource: "Quellcode",
 		existingCloudAccount: "Cloud-Anmeldung",
 		freeWhiteboard: "Free Whiteboard",
 		openMenu: "Menü öffnen",
@@ -281,7 +281,7 @@ export const deMessages = {
 		selfHost: {
 			title: "Skedra selbst hosten",
 			description:
-				"Open Source auf deiner Infrastruktur — volle Datenkontrolle und keine Cloud-Paywall.",
+				"Skedra auf deiner Infrastruktur — volle Datenkontrolle und keine Cloud-Paywall.",
 		},
 		onboarding: {
 			menuHint: "Exportieren, Einstellungen, Sprachen …",

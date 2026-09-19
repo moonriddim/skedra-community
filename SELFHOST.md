@@ -4,19 +4,18 @@ Skedra is a private collaborative whiteboard for teams that want to run their
 visual workspace on their own infrastructure.
 
 This self-host package uses official Skedra Community Docker images built from
-the open-source Skedra codebase.
+the source-available Skedra codebase.
 
-Skedra uses a clear Community/Core license split:
+The Skedra Community License 1.0 covers the workspace app, accounts, teams,
+stored boards, database schema, encrypted collaboration, comments, editor and
+SDK packages, and self-host deployment files. The Community source is available
+in the public repository.
 
-- Skedra Community is open source and includes the workspace app, accounts,
-  teams, stored boards, database schema, encrypted collaboration, comments, and
-  self-host deployment.
-- Skedra Core is the MIT-licensed editor/canvas layer in
-  `packages/canvas-core` and `packages/react`.
-
-The full Community source is mirrored into the public OSS repository. The
-reusable editor packages remain MIT licensed inside `packages/canvas-core` and
-`packages/react`.
+You may self-host and modify Skedra for personal and internal business use,
+and contribute through development forks and pull requests. Offering an
+independent product, rebranded version, or hosted service to third parties
+requires a separate written license, even when the offering is free.
+See the full terms in `LICENSE` (or `SELFHOST_LICENSE` in the source repository).
 
 ## Requirements
 
@@ -305,11 +304,16 @@ The app container internally proxies:
 
 ## License
 
-This self-host package follows the Skedra Community/Core license split:
+The deployment files and Skedra-owned code in the Community images use the
+Skedra Community License 1.0. The release includes the full terms as `LICENSE`.
+You may copy and adapt deployment files for permitted self-hosting.
 
-- The deployment files are MIT licensed so you can copy and adapt them for your server.
-- The official Skedra Community container images are built from open-source
-  Skedra source. Unless a file or directory contains its own license file, that
-  source is licensed under `AGPL-3.0-only`.
-- The reusable editor/core packages are MIT licensed separately in
-  `packages/canvas-core` and `packages/react`.
+Personal and internal business use, internal modifications, and contributions
+are allowed. Independent products, rebranding, and third-party hosted services
+require a separate written license. These restrictions do not apply to your
+original boards and exports or override third-party licenses. Rights already
+granted for earlier AGPL/MIT versions remain unaffected.
+
+For examples and transition details, see
+[LICENSING.md](https://github.com/moonriddim/skedra-community/blob/main/LICENSING.md).
+For separate licensing, contact support@skedra.xyz.

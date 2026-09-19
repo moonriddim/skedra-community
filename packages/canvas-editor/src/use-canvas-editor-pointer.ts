@@ -33,7 +33,6 @@ import {
 	type Dispatch,
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
-	type WheelEvent as ReactWheelEvent,
 	type RefObject,
 	type SetStateAction,
 	useCallback,
@@ -42,6 +41,7 @@ import {
 	useState,
 } from "react";
 import type { CanvasEditorEraserTrailPoint } from "./canvas-editor-eraser-trail-overlay";
+import type { CanvasEditorWheelEvent } from "./canvas-editor-surface";
 import { buildCanvasEditorDrawingElement } from "./drawing-preview";
 import type { CanvasEditorToolId } from "./editor-contract";
 import {
@@ -1585,7 +1585,7 @@ export function useCanvasEditorPointer({
 	);
 
 	const onWheel = useCallback(
-		(event: ReactWheelEvent<SVGSVGElement>) => {
+		(event: CanvasEditorWheelEvent) => {
 			event.preventDefault();
 			const rect = event.currentTarget.getBoundingClientRect();
 			pendingWheelEventsRef.current.push({

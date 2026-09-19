@@ -1,6 +1,7 @@
 # @skedra/canvas-editor
 
-MIT-licensed shared interaction layer for the Skedra canvas.
+Shared interaction layer for the Skedra canvas under the
+[Skedra Community License 1.0](LICENSE).
 
 This internal workspace package contains storage-independent editor controllers,
 React hooks, and interaction components used by both the Community web app and
@@ -24,8 +25,9 @@ reserved space, but viewport breakpoints and responsive behavior stay here so
 the Community app and SDK cannot drift apart.
 
 The package is private because it is bundled into the public SDK rather than
-installed by SDK users as a separate runtime dependency. Its source remains MIT
-licensed.
+installed by SDK users as a separate runtime dependency. Its source uses the same Community
+license: internal use and contributions are allowed; independent products and
+hosted services require a separate written license.
 
 Both products mount the same root and inject only their integrations:
 

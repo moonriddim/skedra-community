@@ -52,7 +52,7 @@ must not see canvas contents.
 ## Self-hosting
 
 The complete web app, API, PostgreSQL database, collaboration stack and MCP
-server are part of the AGPL-3.0 Community Edition:
+server are part of the source-available Community Edition under the Skedra Community License 1.0:
 
 - Repository: `https://github.com/moonriddim/skedra-community`
 - Self-hosting guide: `https://github.com/moonriddim/skedra-community/blob/main/SELFHOST.md`

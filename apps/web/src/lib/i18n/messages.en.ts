@@ -173,7 +173,7 @@ export const enMessages = {
 		navigationLabel: "Main navigation",
 		productOverview: "Product",
 		pricing: "Pricing",
-		openSource: "Open Source",
+		openSource: "Source code",
 		existingCloudAccount: "Cloud sign-in",
 		freeWhiteboard: "Free Whiteboard",
 		openMenu: "Open menu",
@@ -277,7 +277,7 @@ export const enMessages = {
 		selfHost: {
 			title: "Self-host Skedra",
 			description:
-				"Open source on your infrastructure — full data control and no cloud paywall.",
+				"Skedra on your infrastructure — full data control and no cloud paywall.",
 		},
 		onboarding: {
 			menuHint: "Export, settings, languages …",

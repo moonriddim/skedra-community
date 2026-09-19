@@ -284,7 +284,10 @@ export type {
 	CanvasEditorToolbarResponsiveOptions,
 	CanvasEditorToolbarSeparator,
 } from "./canvas-editor-toolbar";
-export type { CanvasEditorSurfaceProps } from "./canvas-editor-surface";
+export type {
+	CanvasEditorSurfaceProps,
+	CanvasEditorWheelEvent,
+} from "./canvas-editor-surface";
 export type {
 	CanvasEditorSelectionOverlayClasses,
 	CanvasEditorSelectionOverlayProps,

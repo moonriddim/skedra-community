@@ -489,7 +489,7 @@ export function SkedraCanvas({
 			ganttAutoFocusScopeRef.current = scope;
 			ganttAutoFocusedIdsRef.current.clear();
 		}
-		if (!sync.isConnected || sync.isReadonly || audienceFrameMode) return;
+		if (!sync.isReady || sync.isReadonly || audienceFrameMode) return;
 		const source = Array.from(sync.elements.values());
 		const today = new Date().toISOString().slice(0, 10);
 		for (const element of source) {
@@ -526,17 +526,13 @@ export function SkedraCanvas({
 		resolvedTheme,
 		sync.applyMutationPlan,
 		sync.elements,
-		sync.isConnected,
+		sync.isReady,
 		sync.isReadonly,
 		whiteboardId,
 	]);
 
 	useEffect(() => {
-		if (
-			!canUsePresenterNotes ||
-			!sync.isConnected ||
-			presenterNotes.isLoading
-		) {
+		if (!canUsePresenterNotes || !sync.isReady || presenterNotes.isLoading) {
 			return;
 		}
 		const ydoc = sync.getYDoc();
@@ -547,7 +543,7 @@ export function SkedraCanvas({
 		presenterNotes.isLoading,
 		presenterNotes.migrateLegacyNotes,
 		sync.getYDoc,
-		sync.isConnected,
+		sync.isReady,
 	]);
 
 	useEffect(() => {
@@ -565,7 +561,7 @@ export function SkedraCanvas({
 		if (!getSaveStateRef) return;
 		getSaveStateRef.current = () => {
 			const currentSync = syncRef.current;
-			if (!currentSync.isConnected) return null;
+			if (!currentSync.isReady) return null;
 			const ydoc = currentSync.getYDoc();
 			if (ydoc) return encodeYDocStateBase64(ydoc);
 			if (
@@ -742,7 +738,7 @@ export function SkedraCanvas({
 	const canvasBackgroundScope = localMode ? "local" : (whiteboardId ?? "none");
 
 	useEffect(() => {
-		if (!sync.isConnected || audienceFrameMode) return;
+		if (!sync.isReady || audienceFrameMode) return;
 
 		const last = canvasBackgroundSyncRef.current;
 		if (!last || last.scope !== canvasBackgroundScope) {
@@ -780,13 +776,13 @@ export function SkedraCanvas({
 		canvasBg,
 		setStoreCanvasBg,
 		sync.canvasBg,
-		sync.isConnected,
+		sync.isReady,
 		sync.setCanvasBg,
 	]);
 	const history = useCanvasHistory({
 		getYDoc: sync.getYDoc,
 		scopeKey: localMode ? "local" : (whiteboardId ?? "none"),
-		isReady: sync.isConnected,
+		isReady: sync.isReady,
 	});
 	const savedViews = useMemo(
 		() => Array.from(sync.views.values()),
@@ -1321,7 +1317,7 @@ export function SkedraCanvas({
 	});
 
 	useEffect(() => {
-		if (!localMode || !sync.isConnected) {
+		if (!localMode || !sync.isReady) {
 			previousLocalElementCountRef.current = null;
 			return;
 		}
@@ -1335,7 +1331,7 @@ export function SkedraCanvas({
 		if (viewport.x !== 0 || viewport.y !== 0 || viewport.zoom !== 1) {
 			resetViewport();
 		}
-	}, [localMode, sync.elements.size, sync.isConnected]);
+	}, [localMode, sync.elements.size, sync.isReady]);
 
 	const addElements = useCanvasAddElements({
 		createElement: sync.createElement,
@@ -1645,7 +1641,12 @@ export function SkedraCanvas({
 				style={{ backgroundColor: canvasBg || "var(--background)" }}
 				onContextMenu={handleCanvasContextMenu}
 			>
-				{!localMode && !sync.isConnected && (
+				{!localMode && sync.isReady && sync.connectionError && (
+					<output className="absolute left-1/2 top-16 z-50 max-w-md -translate-x-1/2 rounded-md border bg-background px-4 py-2 text-sm text-destructive shadow-sm">
+						{sync.connectionError}
+					</output>
+				)}
+				{!localMode && !sync.isReady && (
 					<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
 						<p
 							className={

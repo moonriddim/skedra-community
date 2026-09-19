@@ -1,5 +1,10 @@
 import { createCanvasYjsFrameSync } from "@/hooks/canvas-yjs-frame-sync";
-import { shouldCompactCanvasUpdateLog } from "@/lib/canvas-sync-policy";
+import { restorePendingCanvasUpdates } from "@/hooks/restore-pending-canvas-updates";
+import {
+	CANVAS_LIVE_REFETCH_OPTIONS,
+	shouldCompactCanvasUpdateLog,
+} from "@/lib/canvas-sync-policy";
+import { createCanvasUpdateFlusher } from "@/lib/canvas-update-flusher";
 import { applySkedraFileToYDoc } from "@/lib/canvas/skedra-file-utils";
 import {
 	yjsApplyCanvasMutationPlan,
@@ -87,8 +92,6 @@ export function useServerCanvasSync(
 	const appliedUpdateIdsRef = useRef<Set<string>>(new Set());
 	const compactableUpdateBytesRef = useRef(0);
 	const appliedPendingUpdateIdsRef = useRef<Set<string>>(new Set());
-	const sendQueueRef = useRef(Promise.resolve());
-	const flushQueueRef = useRef(Promise.resolve());
 	const flushTimerRef = useRef<number | null>(null);
 	const clientIdRef = useRef(createClientId());
 	const syncReadyRef = useRef(false);
@@ -98,6 +101,7 @@ export function useServerCanvasSync(
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
 	const [canvasBg, setCanvasBgState] = useState("");
 	const [isConnected, setIsConnected] = useState(false);
+	const [sendError, setSendError] = useState<string | null>(null);
 	const [connectionError, setConnectionError] = useState<string | null>(null);
 	const [updateCursor, setUpdateCursor] = useState<ServerUpdateCursor | null>(
 		null,
@@ -112,6 +116,15 @@ export function useServerCanvasSync(
 		}),
 		[collabShareToken, embedShareToken, presentationShareToken, whiteboardId],
 	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Queue lifetime follows board access and encryption key.
+	const sendQueueRef = useMemo(
+		() => ({ current: Promise.resolve() }),
+		[accessInput],
+	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: A different board must never wait for the old board network request.
+	const flushQueue = useMemo(() => createCanvasUpdateFlusher(), [accessInput]);
+	const activeFlushQueueRef = useRef(flushQueue);
+	activeFlushQueueRef.current = flushQueue;
 	const listInput = useMemo(
 		() => ({
 			...accessInput,
@@ -125,13 +138,16 @@ export function useServerCanvasSync(
 	const appendUpdate = trpc.whiteboard.appendServerUpdate.useMutation();
 	const compactUpdates = trpc.whiteboard.compactServerUpdates.useMutation();
 	const liveConnectedRef = useRef(false);
-	const { data: updates, refetch: refetchUpdates } =
-		trpc.whiteboard.listServerUpdates.useQuery(listInput, {
-			enabled: enabled && !!whiteboardId,
-			refetchInterval: () => (liveConnectedRef.current ? 8000 : 1500),
-			refetchIntervalInBackground: true,
-			retry: 1,
-		});
+	const {
+		data: updates,
+		error: updatesError,
+		refetch: refetchUpdates,
+	} = trpc.whiteboard.listServerUpdates.useQuery(listInput, {
+		enabled: enabled && !!whiteboardId,
+		refetchInterval: () => (liveConnectedRef.current ? 8000 : 1500),
+		refetchIntervalInBackground: true,
+		retry: 1,
+	});
 
 	const isSessionUser =
 		!presentationShareToken && !collabShareToken && !embedShareToken;
@@ -139,7 +155,7 @@ export function useServerCanvasSync(
 		presenceEnabled && !!presentationShareToken;
 	useBoardLiveChannel(whiteboardId, {
 		enabled: enabled && !!whiteboardId && isSessionUser,
-		onEvent: () => void refetchUpdates(),
+		onEvent: () => void refetchUpdates(CANVAS_LIVE_REFETCH_OPTIONS),
 		onCompaction: () => {
 			appliedUpdateIdsRef.current = new Set();
 			compactableUpdateBytesRef.current = 0;
@@ -165,6 +181,7 @@ export function useServerCanvasSync(
 		enabled:
 			enabled &&
 			!!whiteboardId &&
+			presenceEnabled &&
 			(isSessionUser || canUsePresentationPresence),
 		encryptionMode: "server",
 		e2eeKey: null,
@@ -182,38 +199,39 @@ export function useServerCanvasSync(
 			flushTimerRef.current = null;
 		}
 
-		const run = flushQueueRef.current
-			.catch(() => undefined)
-			.then(async () => {
-				let flushedAny = false;
-				for (;;) {
-					const pending = await listPendingServerUpdates(whiteboardId);
-					const batch = createPendingServerUpdateBatch(pending);
-					const first = batch?.records[0];
-					if (!batch || !first) break;
-					await appendUpdate.mutateAsync({
-						...accessInput,
-						clientId: first.clientId,
-						update: batch.update,
-					});
-					await deletePendingServerUpdates(
-						batch.records.map((record) => record.id),
-					);
-					flushedAny = true;
-				}
-				if (flushedAny) setConnectionError(null);
-			})
-			.catch((error) => {
-				setConnectionError(
-					getErrorMessage(
-						error,
-						"Aenderungen sind lokal gespeichert und werden erneut gesendet.",
-					),
+		return flushQueue(async () => {
+			for (;;) {
+				const pending = await listPendingServerUpdates(whiteboardId);
+				const batch = createPendingServerUpdateBatch(pending);
+				const first = batch?.records[0];
+				if (!batch || !first) break;
+				await appendUpdate.mutateAsync({
+					...accessInput,
+					clientId: first.clientId,
+					update: batch.update,
+				});
+				await deletePendingServerUpdates(
+					batch.records.map((record) => record.id),
 				);
-			});
-		flushQueueRef.current = run;
-		return run;
-	}, [accessInput, appendUpdate.mutateAsync, enabled, readonly, whiteboardId]);
+			}
+			if (activeFlushQueueRef.current === flushQueue) setSendError(null);
+		}).catch((error) => {
+			if (activeFlushQueueRef.current !== flushQueue) return;
+			setSendError(
+				getErrorMessage(
+					error,
+					"Aenderungen sind lokal gespeichert und werden erneut gesendet.",
+				),
+			);
+		});
+	}, [
+		accessInput,
+		appendUpdate.mutateAsync,
+		enabled,
+		flushQueue,
+		readonly,
+		whiteboardId,
+	]);
 
 	const schedulePendingUpdateFlush = useCallback(() => {
 		if (flushTimerRef.current != null) return;
@@ -224,18 +242,17 @@ export function useServerCanvasSync(
 	}, [flushPendingUpdates]);
 
 	const applyPendingQueuedUpdates = useCallback(async () => {
-		if (readonly || !ydocRef.current) return;
-		const pending = await listPendingServerUpdates(whiteboardId);
-		for (const queued of pending) {
-			if (appliedPendingUpdateIdsRef.current.has(queued.id)) continue;
-			Y.applyUpdate(
-				ydocRef.current,
-				base64ToBytes(queued.update),
-				PENDING_SERVER_ORIGIN,
-			);
-			appliedPendingUpdateIdsRef.current.add(queued.id);
-		}
-		if (pending.length > 0) syncFromYjs();
+		const ydoc = ydocRef.current;
+		if (readonly || !ydoc) return;
+		await restorePendingCanvasUpdates({
+			ydoc,
+			isCurrent: () => ydocRef.current === ydoc,
+			load: () => listPendingServerUpdates(whiteboardId),
+			decode: (queued) => base64ToBytes(queued.update),
+			appliedIds: appliedPendingUpdateIdsRef.current,
+			origin: PENDING_SERVER_ORIGIN,
+			onRestored: syncFromYjs,
+		});
 	}, [readonly, syncFromYjs, whiteboardId]);
 
 	useEffect(() => {
@@ -250,8 +267,10 @@ export function useServerCanvasSync(
 		appliedUpdateIdsRef.current = new Set();
 		compactableUpdateBytesRef.current = 0;
 		appliedPendingUpdateIdsRef.current = new Set();
+		compactionInFlightRef.current = false;
 		syncReadyRef.current = false;
 		setUpdateCursor(null);
+		setSendError(null);
 		setScene(CanvasScene.empty());
 		setViews(new Map());
 		setCanvasBgState("");
@@ -297,6 +316,10 @@ export function useServerCanvasSync(
 							clientId: clientIdRef.current,
 							update: bytesToBase64(copy),
 						});
+						if (ydocRef.current !== ydoc) {
+							void flushPendingUpdates();
+							return;
+						}
 						appliedPendingUpdateIdsRef.current.add(pending.id);
 						if (copy.byteLength >= SERVER_UPDATE_BATCH_MAX_RAW_BYTES) {
 							void flushPendingUpdates();
@@ -315,7 +338,8 @@ export function useServerCanvasSync(
 							// Report the queueing error; without IndexedDB the update
 							// could not be made durable before the network attempt.
 						}
-						setConnectionError(
+						if (ydocRef.current !== ydoc) return;
+						setSendError(
 							getErrorMessage(
 								error,
 								"Aenderung konnte weder lokal noch auf dem Server gespeichert werden.",
@@ -350,6 +374,7 @@ export function useServerCanvasSync(
 		accessInput,
 		appendUpdate.mutateAsync,
 		schedulePendingUpdateFlush,
+		sendQueueRef,
 		whiteboardId,
 	]);
 
@@ -369,19 +394,23 @@ export function useServerCanvasSync(
 			document.removeEventListener("visibilitychange", retryWhenVisible);
 			window.clearInterval(interval);
 		};
-	}, [enabled, flushPendingUpdates, readonly]);
+	}, [enabled, flushPendingUpdates, readonly, sendQueueRef]);
 
 	useEffect(() => {
 		if (!updates || !ydocRef.current) return;
+		const ydoc = ydocRef.current;
 		let cancelled = false;
+		const isCurrent = () =>
+			!cancelled && ydocRef.current === ydoc && !ydoc.isDestroyed;
 
 		const applyUpdates = async () => {
 			let lastAppliedCursor: ServerUpdateCursor | null = null;
 			try {
 				for (const update of updates) {
-					if (cancelled || appliedUpdateIdsRef.current.has(update.id)) continue;
+					if (!isCurrent()) return;
+					if (appliedUpdateIdsRef.current.has(update.id)) continue;
 					Y.applyUpdate(
-						ydocRef.current as Y.Doc,
+						ydoc,
 						base64ToBytes(update.update),
 						REMOTE_SERVER_ORIGIN,
 					);
@@ -394,10 +423,13 @@ export function useServerCanvasSync(
 					}
 					lastAppliedCursor = {
 						id: update.id,
-						createdAt: new Date(update.createdAt).toISOString(),
+						createdAt:
+							update.cursorCreatedAt ??
+							new Date(update.createdAt).toISOString(),
 					};
 				}
 			} catch (error) {
+				if (!isCurrent()) return;
 				syncReadyRef.current = false;
 				setIsConnected(false);
 				setConnectionError(
@@ -408,7 +440,7 @@ export function useServerCanvasSync(
 				return;
 			}
 
-			if (cancelled) return;
+			if (!isCurrent()) return;
 			if (lastAppliedCursor) setUpdateCursor(lastAppliedCursor);
 			if (updates.length >= SERVER_UPDATE_PAGE_SIZE) {
 				syncReadyRef.current = false;
@@ -418,6 +450,7 @@ export function useServerCanvasSync(
 			try {
 				await applyPendingQueuedUpdates();
 			} catch (error) {
+				if (!isCurrent()) return;
 				syncReadyRef.current = false;
 				setIsConnected(false);
 				setConnectionError(
@@ -429,6 +462,7 @@ export function useServerCanvasSync(
 				return;
 			}
 
+			if (!isCurrent()) return;
 			syncReadyRef.current = true;
 			setIsConnected(true);
 			setConnectionError(null);
@@ -447,28 +481,31 @@ export function useServerCanvasSync(
 				!compactionInFlightRef.current
 			) {
 				await sendQueueRef.current.catch(() => undefined);
+				if (!isCurrent()) return;
 				const pendingBeforeCompaction = await listPendingServerUpdates(
 					whiteboardId,
 				).catch(() => []);
-				if (pendingBeforeCompaction.length > 0) return;
+				if (!isCurrent() || pendingBeforeCompaction.length > 0) return;
 				compactionInFlightRef.current = true;
 				try {
 					await compactUpdates.mutateAsync({
 						...accessInput,
 						clientId: clientIdRef.current,
-						update: bytesToBase64(Y.encodeStateAsUpdate(ydocRef.current)),
+						update: bytesToBase64(Y.encodeStateAsUpdate(ydoc)),
 						upToId: compactionCursor.id,
 					});
+					if (!isCurrent()) return;
 					appliedUpdateIdsRef.current = new Set();
 					compactableUpdateBytesRef.current = 0;
 				} catch (error) {
+					if (!isCurrent()) return;
 					setConnectionError(
 						error instanceof Error
 							? error.message
 							: "Board-Log konnte nicht komprimiert werden.",
 					);
 				} finally {
-					compactionInFlightRef.current = false;
+					if (ydocRef.current === ydoc) compactionInFlightRef.current = false;
 				}
 			}
 		};
@@ -484,6 +521,7 @@ export function useServerCanvasSync(
 		flushPendingUpdates,
 		readonly,
 		syncFromYjs,
+		sendQueueRef,
 		updateCursor,
 		updates,
 		whiteboardId,
@@ -576,14 +614,15 @@ export function useServerCanvasSync(
 
 	return useMemo(
 		() => ({
-			isConnected,
+			isReady: isConnected,
+			isConnected: isConnected && !updatesError && !sendError,
 			isReadonly: readonly || !isConnected,
 			role: (readonly || !isConnected ? "viewer" : "editor") as CanvasRole,
 			scene,
 			elements,
 			views,
 			canvasBg,
-			connectionError,
+			connectionError: updatesError?.message ?? sendError ?? connectionError,
 			remotePresence: presenceApi.remotePresence,
 			localPresence: null as LocalCanvasPresence | null,
 			createElement,
@@ -607,6 +646,8 @@ export function useServerCanvasSync(
 			applyMutationPlan,
 			canvasBg,
 			connectionError,
+			updatesError,
+			sendError,
 			createElement,
 			createView,
 			deleteElement,

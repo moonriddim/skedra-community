@@ -86,7 +86,9 @@ interface CanvasStageProps {
 	onPointerUp: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onPointerCancel: (event: React.PointerEvent<SVGSVGElement>) => void;
 	onLostPointerCapture: (event: React.PointerEvent<SVGSVGElement>) => void;
-	onWheel: (event: React.WheelEvent<SVGSVGElement>) => void;
+	onWheel: NonNullable<
+		React.ComponentProps<typeof CanvasEditorSurface>["onWheel"]
+	>;
 	onPointerLeave: () => void;
 	onDoubleClick: (event: React.MouseEvent<SVGSVGElement>) => void;
 	onElementResizeStart: (

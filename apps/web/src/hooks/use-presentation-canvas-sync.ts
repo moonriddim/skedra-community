@@ -240,6 +240,7 @@ export function usePresentationCanvasSync(options: {
 	const elements = scene.getElementsMap();
 	return useMemo(
 		() => ({
+			isReady: isConnected,
 			isConnected,
 			isReadonly: true,
 			role: "viewer" as const,

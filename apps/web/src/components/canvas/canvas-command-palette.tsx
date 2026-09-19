@@ -136,7 +136,7 @@ export function CanvasCommandPalette({
 }: CanvasCommandPaletteProps) {
 	const { t } = useI18n();
 	const [query, setQuery] = useState("");
-	const [activeId, setActiveId] = useState<string | null>(null);
+	const [requestedActiveId, setActiveId] = useState<string | null>(null);
 	const [lastUsedId, setLastUsedId] = useState<string | null>(() =>
 		typeof window === "undefined"
 			? null
@@ -166,25 +166,21 @@ export function CanvasCommandPalette({
 				: filtered,
 		[filtered, lastUsed, query],
 	);
+	// Resolve a missing selection during render. Competing effects previously
+	// cleared and reselected commands even while the palette was closed. During
+	// rapid viewport updates, those extra commits triggered React error #185.
+	const activeId = open
+		? (navigableCommands.find((command) => command.id === requestedActiveId)
+				?.id ??
+			navigableCommands[0]?.id ??
+			null)
+		: null;
 
 	useEffect(() => {
-		if (!open) {
-			setQuery("");
-			setActiveId(null);
-			return;
-		}
-		setActiveId(lastUsed?.id ?? commands[0]?.id ?? null);
-	}, [commands, lastUsed?.id, open]);
-
-	useEffect(() => {
-		if (
-			activeId &&
-			navigableCommands.some((command) => command.id === activeId)
-		) {
-			return;
-		}
-		setActiveId(navigableCommands[0]?.id ?? null);
-	}, [activeId, navigableCommands]);
+		if (open) return;
+		setQuery("");
+		setActiveId(null);
+	}, [open]);
 
 	const runCommand = (command: CanvasCommand) => {
 		setLastUsedId(command.id);

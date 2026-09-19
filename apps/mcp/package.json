@@ -2,7 +2,7 @@
 	"name": "@skedra/mcp",
 	"version": "0.1.0",
 	"private": true,
-	"license": "AGPL-3.0-only",
+	"license": "SEE LICENSE IN LICENSE",
 	"type": "module",
 	"exports": {
 		".": {

@@ -298,6 +298,24 @@ export function CanvasEditorToolbar({
 	responsive,
 }: CanvasEditorToolbarProps) {
 	const rootRef = useRef<HTMLDivElement>(null);
+	const trackRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const track = trackRef.current;
+		if (!track) return;
+		const handleWheel = (event: WheelEvent) => {
+			if (
+				track.scrollWidth <= track.clientWidth ||
+				Math.abs(event.deltaY) <= Math.abs(event.deltaX)
+			) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			track.scrollLeft += event.deltaY;
+		};
+		track.addEventListener("wheel", handleWheel, { passive: false });
+		return () => track.removeEventListener("wheel", handleWheel);
+	}, []);
 	const services = useOptionalCanvasEditorServices();
 	const compact = useCanvasEditorCompactToolbar(rootRef, responsive);
 	const translate =
@@ -558,22 +576,11 @@ export function CanvasEditorToolbar({
 			onKeyDownCapture={handleCanvasEditorToolbarKeyDown}
 		>
 			<div
+				ref={trackRef}
 				className={mergeClassNames(
 					"canvas-editor__toolbar-track",
 					classes?.track,
 				)}
-				onWheel={(event) => {
-					const track = event.currentTarget;
-					if (
-						track.scrollWidth <= track.clientWidth ||
-						Math.abs(event.deltaY) <= Math.abs(event.deltaX)
-					) {
-						return;
-					}
-					event.preventDefault();
-					event.stopPropagation();
-					track.scrollLeft += event.deltaY;
-				}}
 			>
 				<CanvasEditorToolStrip
 					{...resolvedToolStrip}

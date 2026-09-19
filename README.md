@@ -15,7 +15,7 @@
   <a href="packages/react">React SDK</a>
 </p>
 
-<h2 align="center">Skedra Whiteboard — the open-source visual workspace for people and AI agents.</h2>
+<h2 align="center">Skedra Whiteboard — the source-available visual workspace for people and AI agents.</h2>
 
 <p align="center">
   Local-first. Agent-editable. Collaborative. Self-hostable.
@@ -26,7 +26,7 @@
     <img src="https://github.com/moonriddim/skedra-community/actions/workflows/docker-images.yml/badge.svg" alt="Build status" />
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-AGPL--3.0-13b8a6" alt="AGPL-3.0 license" />
+    <img src="https://img.shields.io/badge/license-Skedra_Community_1.0-13b8a6" alt="Skedra Community License 1.0" />
   </a>
   <a href="https://github.com/moonriddim/skedra-community/pkgs/container/skedra-community-standalone">
     <img src="https://img.shields.io/badge/docker-GHCR-2496ED?logo=docker&logoColor=white" alt="Docker image on GHCR" />
@@ -83,7 +83,7 @@ and updates the same structured elements.
 
 ## Skedra Community
 
-Skedra Community is the complete open-source workspace: the web app, accounts,
+Skedra Community is the complete source-available workspace: the web app, accounts,
 teams, persisted boards, collaboration, comments, libraries, API, database, and
 self-hosting tools.
 
@@ -134,7 +134,8 @@ canvas code changes. Use `pnpm dev:sdk` for the SDK watcher alone and
 
 ## Contributing
 
-Skedra is built in the open, and contributions are welcome.
+Skedra is developed publicly, and contributions are welcome. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md), including the license terms for submitted work.
 
 - Found a bug or have an idea? [Open an issue](https://github.com/moonriddim/skedra-community/issues).
 - Want to improve the code? Fork the repository and open a pull request.
@@ -142,7 +143,14 @@ Skedra is built in the open, and contributions are welcome.
 
 ## License
 
-Skedra Community is licensed under [`AGPL-3.0-only`](LICENSE). The reusable
-[`canvas-core`](packages/canvas-core/LICENSE),
-[`canvas-editor`](packages/canvas-editor/LICENSE), and
-[`react`](packages/react/LICENSE) packages are available under the MIT License.
+Skedra Community, including all Skedra-owned SDK, editor, canvas, and deployment
+code, uses the [Skedra Community License 1.0](LICENSE).
+
+Self-hosting for personal and internal business use, code changes, development
+forks, and pull requests are welcome. Independent products, rebranding, and
+third-party hosted services (free or paid) require a separate written license.
+This is source-available software, not Open Source software. Earlier AGPL/MIT
+grants and third-party licenses remain unaffected.
+
+See [licensing examples and transition details](LICENSING.md) and
+[contribution terms](CONTRIBUTING.md).

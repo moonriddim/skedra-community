@@ -61,6 +61,7 @@ RUN rm -rf /runtime/api/src /runtime/api/dist /runtime/api/.turbo /runtime/api/.
 FROM node:22-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production
+COPY LICENSE /usr/share/doc/skedra/LICENSE
 RUN apk add --no-cache postgresql-client
 COPY --from=api-package /runtime/api ./
 COPY --from=schema-export /schema.sql /app/schema.sql
@@ -71,6 +72,7 @@ EXPOSE 3001
 CMD ["/app/start-with-migrations.sh"]
 
 FROM nginx:1.27-alpine AS web
+COPY LICENSE /usr/share/doc/skedra/LICENSE
 COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY deploy/nginx/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
@@ -78,6 +80,7 @@ COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
 
 FROM nginx:1.27-alpine AS libraries
+COPY LICENSE /usr/share/doc/skedra/LICENSE
 COPY deploy/nginx/libraries.conf /etc/nginx/conf.d/default.conf
 COPY deploy/nginx/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
@@ -87,6 +90,7 @@ EXPOSE 80
 FROM node:22-alpine AS standalone
 WORKDIR /app
 ENV NODE_ENV=production
+COPY LICENSE /usr/share/doc/skedra/LICENSE
 RUN apk add --no-cache nginx postgresql16 postgresql16-client su-exec
 COPY --from=api-package /runtime/api /app/api
 COPY --from=schema-export /schema.sql /app/api/schema.sql

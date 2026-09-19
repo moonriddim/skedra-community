@@ -344,7 +344,7 @@ jobs:
           2. Rename `env.example` to `.env` and adjust passwords, secrets, URLs, and volume paths.
           3. Run `docker compose --env-file .env up -d`.
 
-          The deployment files are MIT licensed. The Skedra Community images are built from the open-source Skedra codebase (AGPL-3.0-only, with MIT editor packages).
+          The deployment files and Skedra Community code, including the editor packages, use the Skedra Community License 1.0 (see the attached LICENSE). Personal and internal business self-hosting and contributions are allowed. Independent products, rebranding, and third-party hosted services require a separate written license. Earlier AGPL/MIT grants and third-party licenses remain unaffected.
 
           Database migrations run inside the API container before the API server starts.
           EOF

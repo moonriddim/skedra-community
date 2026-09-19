@@ -113,13 +113,16 @@ export function useBoardPresence(
 			}
 			const ws = new WebSocket(presenceUrl);
 			wsRef.current = ws;
+			const isCurrent = () => !closed && wsRef.current === ws;
 			ws.onopen = () => {
+				if (!isCurrent()) return;
 				reconnectAttempt = 0;
 				setIsConnected(true);
 				void flushSendRef.current();
 			};
 
 			ws.onmessage = async (event) => {
+				if (!isCurrent()) return;
 				try {
 					const data = typeof event.data === "string" ? event.data : "";
 					if (!data) return;
@@ -127,12 +130,14 @@ export function useBoardPresence(
 						encryptionMode === "e2ee"
 							? decoder.decode(await decryptYjsUpdate(data, e2eeKey as string))
 							: data;
+					if (!isCurrent()) return;
 					const parsed = remoteCanvasPresenceSchema.parse(
 						JSON.parse(json),
 					) as RemoteCanvasPresence;
 					// Eigene Nachrichten ignorieren (sollte der Server schon filtern).
 					if (parsed.clientId === clientIdRef.current) return;
 					setRemoteMap((prev) => {
+						if (!isCurrent()) return prev;
 						const next = new Map(prev);
 						next.set(parsed.clientId, { ...parsed, updatedAt: Date.now() });
 						return next;
@@ -143,7 +148,8 @@ export function useBoardPresence(
 			};
 
 			ws.onclose = (event) => {
-				if (wsRef.current === ws) wsRef.current = null;
+				if (!isCurrent()) return;
+				wsRef.current = null;
 				setIsConnected(false);
 				// Policy violations are permanent (missing session/board access), so
 				// retrying would only flood the console and server.
@@ -217,11 +223,12 @@ export function useBoardPresence(
 
 		try {
 			const json = JSON.stringify(payload);
-			ws.send(
+			const data =
 				encryptionMode === "e2ee"
 					? await encryptYjsUpdate(encoder.encode(json), key as string)
-					: json,
-			);
+					: json;
+			if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+			ws.send(data);
 		} catch {
 			// Senden ist best-effort.
 		}

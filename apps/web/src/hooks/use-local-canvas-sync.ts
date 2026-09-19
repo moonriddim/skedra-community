@@ -243,6 +243,7 @@ export function useLocalCanvasSync(enabled = true) {
 
 	return useMemo(
 		() => ({
+			isReady: enabled && isConnected,
 			isConnected: enabled ? isConnected : false,
 			isReadonly: false,
 			role: "editor" as CanvasRole,

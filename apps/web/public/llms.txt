@@ -20,6 +20,6 @@
 - [Legal notice](https://skedra.xyz/imprint): Operator and contact information.
 - Support: support@skedra.xyz
 
-## Open source
+## Source code and self-hosting
 
-- [Skedra Community repository](https://github.com/moonriddim/skedra-community): Community Edition source code and self-hosting project.
+- [Skedra Community repository](https://github.com/moonriddim/skedra-community): Community Edition source code and self-hosting project under the Skedra Community License 1.0. Personal/internal business use and contributions are allowed; independent products and third-party hosted services require a separate written license.

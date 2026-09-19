@@ -267,8 +267,8 @@ export function McpPage() {
 								<Server className="h-4 w-4 text-primary" /> Remote MCP + OAuth
 							</span>
 							<span className="inline-flex items-center gap-2">
-								<Github className="h-4 w-4 text-primary" /> AGPL Community
-								Edition
+								<Github className="h-4 w-4 text-primary" /> Source-available
+								Community Edition
 							</span>
 						</div>
 					</div>

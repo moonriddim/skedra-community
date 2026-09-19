@@ -20,7 +20,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type * as Y from "yjs";
 
 type CanvasSyncApi = {
-	isConnected: boolean;
+	isReady: boolean;
 	elements: Map<string, CanvasElement>;
 	scene: CanvasScene;
 	views: Map<string, SavedCanvasView>;
@@ -114,7 +114,7 @@ export function useSkedraCanvasEffects({
 			lastAutoFittedWhiteboardIdRef.current = boardKey;
 		}
 
-		if (!sync.isConnected) return;
+		if (!sync.isReady) return;
 
 		if (!viewportRestoredRef.current) {
 			const saved = localMode
@@ -155,13 +155,13 @@ export function useSkedraCanvasEffects({
 		localMode,
 		store,
 		sync.elements.size,
-		sync.isConnected,
+		sync.isReady,
 		sync.scene,
 		whiteboardId,
 	]);
 
 	useEffect(() => {
-		if (!sync.isConnected) return;
+		if (!sync.isReady) return;
 
 		const timer = window.setTimeout(() => {
 			if (localMode) {
@@ -174,7 +174,7 @@ export function useSkedraCanvasEffects({
 		}, 300);
 
 		return () => window.clearTimeout(timer);
-	}, [localMode, store.viewport, sync.isConnected, whiteboardId]);
+	}, [localMode, store.viewport, sync.isReady, whiteboardId]);
 
 	useEffect(() => {
 		if (!focusCanvasPointRef) return;

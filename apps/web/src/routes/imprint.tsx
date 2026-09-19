@@ -30,8 +30,9 @@ export function ImprintPage() {
 			<LegalSection title="Urheberrecht">
 				<p>
 					Inhalte und Gestaltung dieser Website unterliegen dem anwendbaren
-					Urheberrecht. Die Open-Source-Bestandteile von Skedra werden unter den
-					jeweils im Repository ausgewiesenen Lizenzen bereitgestellt.
+					Urheberrecht. Der Skedra-Quellcode und Drittanbieter-Bestandteile
+					werden unter den jeweils im Repository ausgewiesenen Lizenzen
+					bereitgestellt.
 				</p>
 			</LegalSection>
 		</LegalPage>

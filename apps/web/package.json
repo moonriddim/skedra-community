@@ -2,7 +2,7 @@
 	"name": "@skedra/web",
 	"version": "0.1.0",
 	"private": true,
-	"license": "AGPL-3.0-only",
+	"license": "SEE LICENSE IN LICENSE",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -50,6 +50,7 @@
 		"@types/react-dom": "^19.0.0",
 		"@vitejs/plugin-react": "^4.3.0",
 		"fake-indexeddb": "^6.2.5",
+		"happy-dom": "^20.14.5",
 		"tailwindcss": "^4.0.0",
 		"tsx": "^4.19.0",
 		"typescript": "^5.7.0",

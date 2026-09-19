@@ -1,6 +1,9 @@
 export const CANVAS_UPDATE_COMPACT_AFTER_COUNT = 500;
 export const CANVAS_UPDATE_COMPACT_AFTER_BYTES = 1_500_000;
 
+// Frequent live notifications must not repeatedly cancel a slow proxy response.
+export const CANVAS_LIVE_REFETCH_OPTIONS = { cancelRefetch: false } as const;
+
 export interface CanvasUpdateLogSize {
 	updateCount: number;
 	compactableBytes: number;

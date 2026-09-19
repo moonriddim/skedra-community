@@ -1,21 +1,157 @@
-MIT License
+Skedra Community License 1.0
+Version date: 2026-09-19
 
 Copyright (c) 2026 Skedra contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a source-available license, not an Open Source license. It permits
+self-hosting, internal use, and collaborative development of Skedra, but does
+not permit independent products or third-party hosted offerings based on the
+Software without a separate written license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Definitions and scope
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+"Software" means the Skedra-owned code and other material provided with this
+license, including the Community applications, SDK, editor and canvas packages,
+documentation, configuration, build tools, and deployment files. It includes
+modified versions and copyright-protected portions of that material.
+
+"Licensor" means each copyright holder offering their material under this
+license. "You" means the person or organization exercising these permissions.
+"Official Project" means Skedra maintained by Simon Hediger (GitHub:
+moonriddim), with its Community repository at
+https://github.com/moonriddim/skedra-community.
+
+"Internal Use" means use for your own personal activities or your organization's
+own work, including commercial work. Employees, contractors, and invited
+collaborators may participate in your workspaces and boards for that work.
+Publishing or sharing the resulting boards, diagrams, or exports is allowed.
+Internal Use does not include offering a general-purpose whiteboard, editor,
+workspace, SDK, or similar software service to customers or the public.
+
+"Development Fork" means a copy maintained to inspect, test, fix, extend, or
+collaborate on Skedra, including preparing patches and pull requests for the
+Official Project, rather than to establish a separate product or service.
+
+2. Permissions
+
+Subject to this license, each Licensor grants you a worldwide, non-exclusive,
+royalty-free copyright license to:
+
+a. Download, inspect, copy, build, run, and self-host the Software for Internal
+   Use, on your own infrastructure or infrastructure rented for that purpose.
+b. Modify the Software, including its SDK and packages, for Internal Use and
+   development of the Official Project. You need not submit internal changes.
+c. Create and publicly share Development Forks, branches, patches, and pull
+   requests. You may share test builds with people evaluating those changes
+   for Skedra development. Contributions need not be accepted or merged for
+   these development permissions to apply.
+d. Give copies to employees, contractors, and collaborators as needed for the
+   permitted activities, provided the copies retain this license and notices.
+
+You may hire others to install, maintain, or modify an instance solely on your
+behalf and under your control for your Internal Use. They may charge for that
+work. This permission does not allow them to market or operate their own
+Skedra-based hosted service for customers. Supplying general-purpose servers
+or infrastructure alone is not such a service.
+
+3. Restrictions
+
+Except with a separate written license from the relevant rights holders, you
+may not:
+
+a. Publish, distribute, market, license, or sell the Software, a modified
+   version, or its copyright-protected components as an independent product,
+   application, SDK, library, or other software offering. This includes using
+   those components in an independently offered product. The Development Fork
+   and Internal Use permissions in section 2 remain available.
+b. Establish an independent product identity based on the Software, including
+   a renamed, rebranded, white-label, or separately marketed derivative.
+   Keeping the Skedra name does not exempt an independent offering.
+c. Provide the Software or a modified version to third parties as a hosted,
+   managed, SaaS, or other service that gives them access to a substantial part
+   of its functionality, except for the collaboration and development uses
+   expressly permitted above.
+d. Remove or obscure copyright, license, or attribution notices, or claim that
+   your fork or modifications are an official Skedra release or endorsed by
+   the Official Project.
+
+These restrictions apply to free as well as paid offerings. Changing the name,
+interface, deployment method, or packaging does not remove them. Permission to
+use a package internally is not permission to offer it as your own product.
+
+4. Copies, notices, and development
+
+Include this license and retain applicable copyright and third-party notices
+in all copies or substantial portions you share. Mark modified copies as
+modified and identify Development Forks as unofficial Skedra development.
+Internal instance labels may identify your organization, but must not obscure
+the required notices or create a separately offered product identity.
+
+Recipients receive permissions directly from the Licensors under this license.
+Sharing a Development Fork does not give recipients permission to launch an
+independent product or hosted service. Nothing here requires you to transfer
+copyright in your changes or guarantees acceptance of a contribution.
+
+5. Contributions to the Official Project
+
+Unless separately agreed in writing before submission, contributions you
+intentionally submit for inclusion in the Official Project are offered under
+this license. You retain ownership of your contribution and must have the
+rights needed to submit it, identifying any third-party material and terms.
+
+For your contribution, you additionally grant Simon Hediger, as maintainer of
+the Official Project, a worldwide, non-exclusive, royalty-free copyright
+license to use, modify, reproduce, distribute, and make it available as part of
+official Skedra products and services, including commercial Skedra Cloud, and
+to authorize contractors to do that work on the project's behalf. Sections
+2 and 3 do not limit that additional permission. Distribution under this
+additional permission must retain your copyright and applicable third-party
+notices. This is not a copyright assignment or a grant covering work you did
+not submit. Merely hosting a fork does not constitute submission.
+
+6. Third-party material, user content, and earlier versions
+
+This license only covers rights the Licensors are entitled to grant. Dependencies,
+third-party code, fonts, assets, and separately licensed community content
+retain their own licenses; this license does not replace or restrict rights
+granted for that material. In particular, independently submitted shape-library
+content retains its stated license.
+
+Your boards, documents, diagrams, exports, and other original user content do
+not become subject to this license merely because you create them with Skedra.
+You may use and sell that content. This does not license embedded copies of
+the Software beyond the permissions above. Independently developed software
+that does not copy protected Skedra material is outside this license's scope.
+
+This license applies to versions distributed with it. It does not revoke,
+replace, or limit rights already granted under AGPL, MIT, or another license
+for earlier releases or material previously received under those licenses.
+The presence of older commits in a repository does not relicense those commits.
+
+7. Other rights and separate agreements
+
+No trademark rights are granted except use of the Skedra name to identify the
+Software and describe permitted development and self-hosting truthfully.
+All rights not expressly granted are reserved. Rights that applicable law
+provides independently of this license remain unaffected.
+
+For uses outside these permissions, contact support@skedra.xyz. A separate
+written agreement may grant additional rights for material covered by it.
+
+8. Termination
+
+These permissions continue for the duration of the applicable copyright while
+you comply with this license. A breach terminates the permissions granted to
+you under this license. They are reinstated if you remedy a first breach within
+30 days after receiving written notice of it from a Licensor. Termination does
+not affect independent rights in earlier versions or third-party material,
+or the rights of recipients who comply with their own licenses.
+
+9. Warranty and liability
+
+To the fullest extent permitted by applicable law, the Software is provided
+as is, without warranties of any kind, including warranties of merchantability,
+fitness for a particular purpose, title, or non-infringement. The Licensors are
+not liable for claims, damages, or other liability arising from the Software
+or its use, whether in contract, tort, or otherwise. These exclusions do not
+apply where applicable law does not permit them.
