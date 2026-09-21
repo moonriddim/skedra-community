@@ -6,6 +6,7 @@ import { localizePublicPath } from "@/lib/public-path";
 import {
 	ArrowRight,
 	HelpCircle,
+	Home,
 	LogIn,
 	MessageCircle,
 	Save,
@@ -104,6 +105,15 @@ export function GuestWelcomeSplash({
 					</p>
 
 					<ul className="mt-5 hidden space-y-3 text-left font-comic-note text-base lg:block">
+						<li>
+							<Link
+								to={publicPath("/whiteboard")}
+								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
+							>
+								<Home className="h-4 w-4 shrink-0" aria-hidden="true" />
+								{t("guestCanvas.homepage")}
+							</Link>
+						</li>
 						<li>
 							<button
 								type="button"

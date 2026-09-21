@@ -23,6 +23,7 @@ import {
 	FileText,
 	FolderOpen,
 	HelpCircle,
+	Home,
 	KeyRound,
 	Menu,
 	MessageCircle,
@@ -150,6 +151,12 @@ export function GuestCanvasChrome({
 
 						<DropdownMenuSeparator />
 
+						<DropdownMenuItem asChild>
+							<Link to={publicPath("/whiteboard")}>
+								<Home className="mr-2 h-4 w-4" aria-hidden="true" />
+								{t("guestCanvas.homepage")}
+							</Link>
+						</DropdownMenuItem>
 						<DropdownMenuItem asChild>
 							<Link to={publicPath("/pricing")}>
 								<BadgeInfo className="mr-2 h-4 w-4" />
