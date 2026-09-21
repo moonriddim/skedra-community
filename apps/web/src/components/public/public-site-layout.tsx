@@ -15,6 +15,7 @@ import { type ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 
 const GITHUB_URL = "https://github.com/moonriddim/skedra-community";
+const DISCORD_URL = "https://discord.gg/7BqMSy5dy";
 
 export function PublicSiteLayout({ children }: { children: ReactNode }) {
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -175,6 +176,14 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 								rel="noreferrer"
 							>
 								GitHub
+							</a>
+							<a
+								className="hover:text-foreground"
+								href={DISCORD_URL}
+								target="_blank"
+								rel="noreferrer"
+							>
+								{locale === "en" ? "Discord community" : "Discord-Community"}
 							</a>
 						</div>
 					</div>

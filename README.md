@@ -11,6 +11,7 @@
   <a href="https://skedra.xyz">Whiteboard</a> ·
   <a href="https://skedra.xyz/mcp">MCP for AI agents</a> ·
   <a href="https://libraries.skedra.xyz">Libraries</a> ·
+  <a href="https://discord.gg/7BqMSy5dy">Discord</a> ·
   <a href="#self-host-skedra">Self-host</a> ·
   <a href="packages/react">React SDK</a>
 </p>
@@ -138,6 +139,7 @@ Skedra is developed publicly, and contributions are welcome. Please read
 [CONTRIBUTING.md](CONTRIBUTING.md), including the license terms for submitted work.
 
 - Found a bug or have an idea? [Open an issue](https://github.com/moonriddim/skedra-community/issues).
+- Need help or want to share what you are building? [Join the Skedra Discord](https://discord.gg/7BqMSy5dy).
 - Want to improve the code? Fork the repository and open a pull request.
 - Planning a larger change? Start with an issue so we can align on the direction.
 
