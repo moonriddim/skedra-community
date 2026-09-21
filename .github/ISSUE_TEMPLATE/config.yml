@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/moonriddim/skedra-community/blob/main/SECURITY.md
+    about: Follow the security policy to report vulnerabilities privately.
+  - name: Community help and questions
+    url: https://discord.gg/7BqMSy5dy
+    about: Ask for setup help or discuss Skedra with the community.

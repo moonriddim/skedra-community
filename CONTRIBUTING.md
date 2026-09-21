@@ -3,6 +3,10 @@
 Bug reports, fixes, accessibility improvements, and pull requests are welcome.
 For a larger feature, open an issue first to discuss its scope.
 
+Please follow our [Code of Conduct](CODE_OF_CONDUCT.md). Report suspected
+vulnerabilities privately using our [security policy](SECURITY.md), rather than
+opening a public issue.
+
 ## Development and self-hosting
 
 Skedra Community is source available under the [Skedra Community License 1.0](LICENSE).
