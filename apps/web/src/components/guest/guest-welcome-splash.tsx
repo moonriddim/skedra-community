@@ -1,11 +1,13 @@
 import { GuestOnboardingAnnotation } from "@/components/guest/guest-onboarding-annotation";
 import { GuestToolbarHints } from "@/components/guest/guest-toolbar-hints";
+import { DISCORD_URL } from "@/lib/community-links";
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import {
 	ArrowRight,
 	HelpCircle,
 	LogIn,
+	MessageCircle,
 	Save,
 	Server,
 	UserPlus,
@@ -121,6 +123,20 @@ export function GuestWelcomeSplash({
 								<HelpCircle className="h-4 w-4 shrink-0" />
 								{t("guestCanvas.help")}
 							</button>
+						</li>
+						<li>
+							<a
+								href={DISCORD_URL}
+								target="_blank"
+								rel="noreferrer"
+								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
+							>
+								<MessageCircle
+									className="h-4 w-4 shrink-0"
+									aria-hidden="true"
+								/>
+								{t("guestCanvas.discordCommunity")}
+							</a>
 						</li>
 						<li>
 							<button

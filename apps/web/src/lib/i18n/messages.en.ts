@@ -310,6 +310,7 @@ export const enMessages = {
 		exportPdf: "Export PDF",
 		exportPptx: "Export PPTX",
 		infoAndPricing: "Info & pricing",
+		discordCommunity: "Discord community",
 		help: "Help",
 		helpDescription: "Quick tips for guest mode.",
 		helpPan:

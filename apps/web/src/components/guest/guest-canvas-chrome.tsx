@@ -13,6 +13,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCanvasStore } from "@/hooks/use-canvas-store";
+import { DISCORD_URL } from "@/lib/community-links";
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import { useThemeStore } from "@/stores/theme";
@@ -24,6 +25,7 @@ import {
 	HelpCircle,
 	KeyRound,
 	Menu,
+	MessageCircle,
 	MonitorPlay,
 	PanelRightOpen,
 	Save,
@@ -203,6 +205,12 @@ export function GuestCanvasChrome({
 						<DropdownMenuItem onClick={onOpenHelp}>
 							<HelpCircle className="mr-2 h-4 w-4" />
 							{t("guestCanvas.help")}
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild>
+							<a href={DISCORD_URL} target="_blank" rel="noreferrer">
+								<MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+								{t("guestCanvas.discordCommunity")}
+							</a>
 						</DropdownMenuItem>
 
 						<DropdownMenuItem

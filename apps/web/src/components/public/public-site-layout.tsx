@@ -8,6 +8,7 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DISCORD_URL } from "@/lib/community-links";
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import { Github, Languages, Menu, X } from "lucide-react";
@@ -15,7 +16,6 @@ import { type ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 
 const GITHUB_URL = "https://github.com/moonriddim/skedra-community";
-const DISCORD_URL = "https://discord.gg/7BqMSy5dy";
 
 export function PublicSiteLayout({ children }: { children: ReactNode }) {
 	const [menuOpen, setMenuOpen] = useState(false);

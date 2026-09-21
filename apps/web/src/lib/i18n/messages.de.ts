@@ -314,6 +314,7 @@ export const deMessages = {
 		exportPdf: "PDF exportieren",
 		exportPptx: "PPTX exportieren",
 		infoAndPricing: "Infos & Preise",
+		discordCommunity: "Discord-Community",
 		help: "Hilfe",
 		helpDescription: "Kurze Hinweise für den Gastmodus.",
 		helpPan:
