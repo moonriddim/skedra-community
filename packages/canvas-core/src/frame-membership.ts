@@ -235,6 +235,7 @@ export function buildFrameResizeChildUpdates(
 	prevRect: FrameRect,
 	nextRect: FrameRect,
 ): Array<{ id: string; changes: Partial<CanvasElement> }> {
+	if (isPlainCanvasFrame(elements.get(frameId))) return [];
 	if (
 		prevRect.x === nextRect.x &&
 		prevRect.y === nextRect.y &&

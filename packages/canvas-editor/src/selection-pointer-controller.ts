@@ -2,7 +2,7 @@
  * Selektions- und Verschiebe-Logik bei PointerDown (Select/Lasso-Tool).
  */
 
-import { createStackIndexAfter } from "@skedra/canvas-core";
+import { createStackIndexAfter, isPlainCanvasFrame } from "@skedra/canvas-core";
 import { getGanttCanvasScrollbarThumbMeta } from "@skedra/canvas-core";
 import { getGanttChartId } from "@skedra/canvas-core";
 import { getSequenceDiagramId } from "@skedra/canvas-core";
@@ -101,13 +101,13 @@ export function getCanvasEditorContextSelectionIds(
 		}
 		return ids;
 	}
-	if (target.type === "frame") {
+	if (target.type === "frame" && !isPlainCanvasFrame(target)) {
 		for (const [id, element] of elements) {
 			if (element.frameId === target.id) ids.add(id);
 		}
 		return ids;
 	}
-	if (target.frameId) {
+	if (target.frameId && !isPlainCanvasFrame(elements.get(target.frameId))) {
 		ids.add(target.frameId);
 		for (const [id, element] of elements) {
 			if (element.frameId === target.frameId) ids.add(id);
@@ -199,12 +199,12 @@ export function resolveCanvasEditorSelectPointerDown(
 			setSelectedIds(selectionForMove);
 		} else if (!selectedIds.has(hit.id)) {
 			selectionForMove = new Set([hit.id]);
-			if (hit.type === "frame") {
+			if (hit.type === "frame" && !isPlainCanvasFrame(hit)) {
 				for (const [cId, cEl] of elements) {
 					if (cEl.frameId === hit.id) selectionForMove.add(cId);
 				}
 			}
-			if (hit.frameId) {
+			if (hit.frameId && !isPlainCanvasFrame(elements.get(hit.frameId))) {
 				selectionForMove.add(hit.frameId);
 				for (const [cId, cEl] of elements) {
 					if (cEl.frameId === hit.frameId) selectionForMove.add(cId);

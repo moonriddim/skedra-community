@@ -408,7 +408,7 @@ test("text tool activation releases the previous shape selection", () => {
 	assert.equal(shouldClearCanvasSelectionOnToolActivation("pan"), false);
 });
 
-test("shared movement expands frame children and mindmap descendants", () => {
+test("shared movement keeps plain frame contents independent and expands mindmaps", () => {
 	const frame = createBaseCanvasElement(
 		{ createId: () => "frame", stroke: "#111" },
 		{ type: "frame", x: 10, y: 20, width: 300, height: 200 },
@@ -479,12 +479,12 @@ test("shared movement expands frame children and mindmap descendants", () => {
 		applyCanvasElementUpdates(elements, updates),
 	);
 
-	assert.equal(moveStart.has(frameChild.id), true);
+	assert.equal(moveStart.has(frameChild.id), false);
 	assert.equal(moveStart.has(lockedFrameChild.id), false);
 	assert.equal(moveStart.has(child.id), true);
 	assert.deepEqual(
 		{ x: moved.get(frameChild.id)?.x, y: moved.get(frameChild.id)?.y },
-		{ x: frameChild.x + 25, y: frameChild.y - 15 },
+		{ x: frameChild.x, y: frameChild.y },
 	);
 	assert.deepEqual(
 		{ x: moved.get(child.id)?.x, y: moved.get(child.id)?.y },

@@ -19,6 +19,7 @@ export type EditingTextSession = CanvasEditorEditingSession;
 
 interface BuildEditingTextSessionOptions {
 	element: CanvasElement;
+	pyramidSection?: number | null;
 	arrowTextSide: ArrowTextSide | null;
 	arrowTextOrientation: ArrowTextOrientation | null;
 	translate: (key: string) => string;
@@ -26,12 +27,14 @@ interface BuildEditingTextSessionOptions {
 
 export function buildEditingTextSession({
 	element,
+	pyramidSection,
 	arrowTextSide,
 	arrowTextOrientation,
 	translate,
 }: BuildEditingTextSessionOptions): EditingTextSession {
 	return buildCanvasEditorEditingSession({
 		element,
+		pyramidSection,
 		arrowTextSide,
 		arrowTextOrientation,
 		defaultFontFamily: CANVAS_DEFAULT_FONT,

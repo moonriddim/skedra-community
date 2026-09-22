@@ -38,6 +38,9 @@ export function useCanvasTextEditing({
 	const { t } = useI18n();
 	const [pendingText, setPendingText] = useState<PendingText | null>(null);
 	const [editingText, setEditingText] = useState<EditingText | null>(null);
+	const [editingPyramidSection, setEditingPyramidSection] = useState<
+		number | null
+	>(null);
 	const [editingStickyChecklist, setEditingStickyChecklist] = useState<
 		StickyChecklistItem[]
 	>([]);
@@ -159,6 +162,7 @@ export function useCanvasTextEditing({
 				id,
 				buildTextElementUpdate({
 					element: el,
+					pyramidSection: editingPyramidSection,
 					text,
 					size,
 					arrowTextSide: editingArrowTextSide,
@@ -166,12 +170,18 @@ export function useCanvasTextEditing({
 				}),
 			);
 		},
-		[sync, editingArrowTextSide, editingArrowTextOrientation],
+		[
+			sync,
+			editingArrowTextSide,
+			editingArrowTextOrientation,
+			editingPyramidSection,
+		],
 	);
 
 	const handleCloseTextEditor = useCallback(() => {
 		setPendingText(null);
 		setEditingText(null);
+		setEditingPyramidSection(null);
 		setEditingStickyChecklist([]);
 		setEditingArrowTextSide(null);
 		setEditingArrowTextOrientation(null);
@@ -191,6 +201,7 @@ export function useCanvasTextEditing({
 
 		const session = buildEditingTextSession({
 			element: el,
+			pyramidSection: editingPyramidSection,
 			arrowTextSide: editingArrowTextSide,
 			arrowTextOrientation: editingArrowTextOrientation,
 			translate: t,
@@ -205,6 +216,7 @@ export function useCanvasTextEditing({
 		setEditingText(session.editingText);
 	}, [
 		store.editingTextId,
+		editingPyramidSection,
 		sync.elements,
 		editingArrowTextSide,
 		editingArrowTextOrientation,
@@ -212,6 +224,8 @@ export function useCanvasTextEditing({
 	]);
 
 	return {
+		editingPyramidSection,
+		setEditingPyramidSection,
 		pendingText,
 		editingText,
 		editingStickyChecklist,

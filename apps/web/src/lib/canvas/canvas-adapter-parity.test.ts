@@ -244,8 +244,8 @@ test("frame movement, resize, and deletion stay adapter-identical", () => {
 		(element) => element.id === child.id,
 	);
 	assert.ok(movedAndResizedChild);
-	assert.equal(movedAndResizedChild.x, child.x + 35);
-	assert.equal(movedAndResizedChild.y, child.y + 25);
+	assert.equal(movedAndResizedChild.x, child.x);
+	assert.equal(movedAndResizedChild.y, child.y);
 	assert.equal(movedAndResizedChild.width, child.width + 10);
 
 	const afterDeletion = assertAdapterParity(

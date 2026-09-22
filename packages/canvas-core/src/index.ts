@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./align";
 export * from "./canvas-text-layout";
+export * from "./pyramid-text";
 export * from "./corner-radius";
 export * from "./commands";
 export * from "./element-factory";
@@ -39,3 +40,8 @@ export * from "./element-capabilities";
 export * from "./frame-membership";
 export * from "./frame-presets";
 export * from "./templates";
+
+export {
+	buildLineCrossingGaps,
+	getLineCrossingGapSize,
+} from "./line-crossings";

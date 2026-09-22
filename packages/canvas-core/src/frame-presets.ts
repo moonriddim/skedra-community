@@ -112,13 +112,15 @@ export const FRAME_SIZE_PRESETS: readonly FrameSizePreset[] = [
 		category: "desktop",
 	},
 	/* Druckformate (72 dpi Punkte) */
-	{ id: "a4", name: "A4", width: 595, height: 842, category: "print" },
-	{ id: "a3", name: "A3", width: 842, height: 1191, category: "print" },
+	{ id: "a4", name: "A4", width: 842, height: 595, category: "print" },
+	{ id: "a3", name: "A3", width: 1191, height: 842, category: "print" },
+	{ id: "a2", name: "A2", width: 1684, height: 1191, category: "print" },
+	{ id: "a1", name: "A1", width: 2384, height: 1684, category: "print" },
 	{
 		id: "letter",
 		name: "Letter",
-		width: 612,
-		height: 792,
+		width: 792,
+		height: 612,
 		category: "print",
 	},
 	/* Social Media */

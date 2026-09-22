@@ -8,6 +8,7 @@ import {
 
 interface ApplyTextUpdateOptions {
 	element: CanvasElement;
+	pyramidSection?: number | null;
 	text: string;
 	size: { width: number; height: number };
 	arrowTextSide: ArrowTextSide | null;

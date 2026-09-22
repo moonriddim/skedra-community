@@ -2638,6 +2638,7 @@ export const deMessages = {
 			strokeStyle: "Konturstil",
 			arrowType: "Pfeiltyp",
 			pathStyle: "Linienführung",
+			lineCrossingGap: "Kreuzungslücke",
 			cornered: "Ecken",
 			pathClosure: "Form",
 			pathOpen: "Offen",

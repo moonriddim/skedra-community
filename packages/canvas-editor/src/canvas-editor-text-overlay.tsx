@@ -93,6 +93,7 @@ export interface CanvasEditorPendingText {
 
 export interface CanvasEditorEditingText {
 	id: string;
+	pyramidSection?: number;
 	x: number;
 	y: number;
 	width: number;
@@ -540,11 +541,8 @@ export function CanvasEditorTextOverlay({
 				paddingTop: isShapeEditor || isMindmapNodeEditor ? 0 : undefined,
 				paddingBottom: isShapeEditor || isMindmapNodeEditor ? 0 : undefined,
 				caretColor: elTextColor,
-				transform:
-					isArrowEditor && rotationDeg !== 0
-						? `rotate(${rotationDeg}deg)`
-						: undefined,
-				transformOrigin: isArrowEditor ? "center center" : undefined,
+				transform: rotationDeg !== 0 ? `rotate(${rotationDeg}deg)` : undefined,
+				transformOrigin: rotationDeg !== 0 ? "center center" : undefined,
 			}}
 		/>
 	);

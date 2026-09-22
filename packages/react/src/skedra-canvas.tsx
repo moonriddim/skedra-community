@@ -51,6 +51,8 @@ import {
 	getGanttChartSize,
 	getGroupUpdates,
 	getLockUpdates,
+	getPyramidSectionAtPoint,
+	getPyramidSectionTexts,
 	getRotateUpdates,
 	getSequenceDiagramId,
 	isCanvasTextEditableElement,
@@ -690,6 +692,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const [pendingText, setPendingText] =
 			useState<CanvasEditorPendingText | null>(null);
 		const [editingTextId, setEditingTextId] = useState<string | null>(null);
+		const [editingPyramidSection, setEditingPyramidSection] = useState<
+			number | null
+		>(null);
 		const [selectionBox, setSelectionBox] = useState<{
 			start: Point;
 			end: Point;
@@ -833,10 +838,11 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				editingTextElement
 					? buildCanvasEditorEditingSession({
 							element: editingTextElement,
+							pyramidSection: editingPyramidSection,
 							defaultFontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
 						})
 					: null,
-			[editingTextElement],
+			[editingTextElement, editingPyramidSection],
 		);
 		const croppingImage = croppingImageId
 			? (currentElements.find(
@@ -3002,17 +3008,21 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				return;
 			}
 			if (!isCanvasTextEditableElement(hit)) return;
+			const pyramidSection = getPyramidSectionAtPoint(hit, world.x, world.y);
 			if (!textPrompt) {
 				beginHistoryTransaction();
 				setPendingText(null);
+				setEditingPyramidSection(pyramidSection);
 				setEditingTextId(hit.id);
 				setSelectedIds(new Set([hit.id]));
 				return;
 			}
 			const currentText =
-				hit.type === "frame"
-					? (hit.frameLabel ?? hit.text ?? "")
-					: (hit.text ?? "");
+				pyramidSection != null
+					? (getPyramidSectionTexts(hit)[pyramidSection] ?? "")
+					: hit.type === "frame"
+						? (hit.frameLabel ?? hit.text ?? "")
+						: (hit.text ?? "");
 			const nextText = textPrompt({ currentText, element: hit });
 			if (nextText == null) return;
 			commitCanvasElements(
@@ -3023,6 +3033,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								...buildCanvasTextUpdate({
 									element,
 									text: nextText,
+									pyramidSection,
 									fontFamily: "Kalam, Comic Sans MS, Segoe Print, cursive",
 									size:
 										element.type === "text"
@@ -3078,6 +3089,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				if (!element) return;
 				const changes = buildCanvasTextUpdate({
 					element,
+					pyramidSection: editingPyramidSection,
 					text,
 					size,
 					fontFamily:
@@ -3090,7 +3102,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					false,
 				);
 			},
-			[commitCanvasElements, currentElements],
+			[commitCanvasElements, currentElements, editingPyramidSection],
 		);
 
 		const updateInlineStickyNote = useCallback(
@@ -3129,6 +3141,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			if (editingTextId) finishHistoryTransaction();
 			setPendingText(null);
 			setEditingTextId(null);
+			setEditingPyramidSection(null);
 		}, [editingTextId, finishHistoryTransaction]);
 
 		const pickAndInsertImage = useCallback(async () => {
@@ -3925,6 +3938,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								key={element.id}
 								element={element}
 								isEditingText={element.id === editingTextId}
+								editingPyramidSection={editingPyramidSection}
 							/>
 						))}
 						{editorPointer.drawingPreview && (

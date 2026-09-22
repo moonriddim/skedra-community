@@ -7,7 +7,9 @@ import {
 	FRAME_LABEL_OFFSET_X,
 	STICKY_NOTE_TEXT_PADDING,
 	getArrowTextMetrics,
+	getPyramidSectionTextElement,
 	getStickyNoteContent,
+	hasPyramidSectionText,
 	isCanvasCenteredTextShape,
 	isCanvasFrameLabelEditable,
 	isMindmapNode,
@@ -32,6 +34,7 @@ export interface CanvasEditorEditingSession {
 
 export interface BuildCanvasEditorEditingSessionOptions {
 	element: CanvasElement;
+	pyramidSection?: number | null;
 	arrowTextSide?: ArrowTextSide | null;
 	arrowTextOrientation?: ArrowTextOrientation | null;
 	defaultFontFamily?: string;
@@ -43,6 +46,7 @@ export interface BuildCanvasEditorEditingSessionOptions {
 
 export function buildCanvasEditorEditingSession({
 	element,
+	pyramidSection,
 	arrowTextSide,
 	arrowTextOrientation,
 	defaultFontFamily = DEFAULT_FONT_FAMILY,
@@ -51,6 +55,29 @@ export function buildCanvasEditorEditingSession({
 	textPlaceholder = "Text...",
 	arrowTextPlaceholder = "Label...",
 }: BuildCanvasEditorEditingSessionOptions): CanvasEditorEditingSession {
+	if (hasPyramidSectionText(element)) {
+		const sectionElement = getPyramidSectionTextElement(
+			element,
+			pyramidSection ?? 0,
+			true,
+		);
+		const session = buildCanvasEditorEditingSession({
+			element: sectionElement,
+			defaultFontFamily,
+			textPlaceholder,
+		});
+		const paddingX = Math.min(8, sectionElement.width * 0.1);
+		const paddingY = Math.min(4, sectionElement.height * 0.1);
+		return {
+			editingText: {
+				...session.editingText,
+				paddingX,
+				paddingY,
+				rotationDeg: element.rotation,
+				pyramidSection: pyramidSection ?? 0,
+			},
+		};
+	}
 	const isCenteredShape = isCanvasCenteredTextShape(element);
 	const isPath = element.type === "arrow" || element.type === "line";
 	const isKanbanCard = element.customData?.skedraType === "kanban-card";

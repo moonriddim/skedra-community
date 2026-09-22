@@ -42,6 +42,44 @@ test("snap overrides share one mode and tool policy", () => {
 	);
 });
 
+test("pyramid inline sessions edit the selected segment with shared typography", () => {
+	const pyramid = createBaseCanvasElement(
+		{ createId: () => "pyramid", stroke: "#111" },
+		{
+			type: "triangle",
+			x: 100,
+			y: 200,
+			width: 400,
+			height: 320,
+			pyramidSections: 4,
+			fontSize: 18,
+			customData: {
+				pyramidSectionTexts: ["Goal", "Plan", "Work", "Foundation"],
+			},
+		},
+	);
+	for (let section = 0; section < 4; section++) {
+		const session = buildCanvasEditorEditingSession({
+			element: pyramid,
+			pyramidSection: section,
+		});
+		assert.equal(
+			session.editingText.text,
+			pyramid.customData?.pyramidSectionTexts &&
+				(pyramid.customData.pyramidSectionTexts as string[])[section],
+		);
+		assert.equal(session.editingText.y, 200 + section * 80);
+		assert.equal(session.editingText.height, 80);
+		assert.equal(session.editingText.id, pyramid.id);
+		assert.equal(session.editingText.fontSize, 18);
+		assert.equal(session.editingText.variant, "shape");
+	}
+	assert.equal(
+		buildCanvasEditorEditingSession({ element: pyramid }).editingText.text,
+		"Goal",
+	);
+});
+
 function rectangle(
 	id: string,
 	x: number,
@@ -79,7 +117,7 @@ test("selection routing expands groups through the shared controller", () => {
 	assert.deepEqual([...selected].sort(), ["a", "b"]);
 });
 
-test("context selection expands groups and complete frame relationships", () => {
+test("context selection expands groups but keeps plain frame contents independent", () => {
 	const frame = {
 		...rectangle("frame", 0, 0),
 		type: "frame" as const,
@@ -101,7 +139,7 @@ test("context selection expands groups and complete frame relationships", () => 
 
 	assert.deepEqual(
 		[...getCanvasEditorContextSelectionIds(first, elements)].sort(),
-		["a", "b", "frame"],
+		["a"],
 	);
 	assert.deepEqual(
 		[...getCanvasEditorContextSelectionIds(grouped, elements)].sort(),
@@ -484,5 +522,36 @@ test("web and sdk properties consume the same drawing defaults element", () => {
 			style: { stroke: "#123456" },
 		}),
 		null,
+	);
+});
+
+test("clicking a child of a plain frame selects only that child", () => {
+	const frame = rectangle("frame", 0, 0, {
+		type: "frame",
+		width: 500,
+		height: 500,
+	});
+	const line = rectangle("line", 50, 50, { frameId: frame.id });
+	const elements = new Map([frame, line].map((el) => [el.id, el]));
+	let selected = new Set<string>();
+	resolveCanvasEditorSelectPointerDown({
+		e: { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
+		tool: "select",
+		canvas: { x: 60, y: 60 },
+		elements,
+		scene: CanvasScene.from(elements.values()),
+		selectedIds: selected,
+		getSelectedIds: () => selected,
+		updateElement: () => undefined,
+		setSelectedIds: (ids) => {
+			selected = ids;
+		},
+		setSelectionBox: () => undefined,
+		setLassoPath: () => undefined,
+	});
+	assert.deepEqual([...selected], ["line"]);
+	assert.deepEqual(
+		[...getCanvasEditorContextSelectionIds(frame, elements)],
+		["frame"],
 	);
 });

@@ -850,6 +850,34 @@ export function CanvasEditorPropertiesPanel({
 				<section>
 					<h3>{t("canvas.properties.pathAndArrow", "Path and arrow")}</h3>
 					<div className="skedra-sdk__property-grid">
+						{selected.length === 1 && (
+							<label>
+								<span>
+									{t("canvas.properties.lineCrossingGap", "Crossing gap")}
+								</span>
+								<select
+									disabled={disabled}
+									value={Number(custom.lineCrossingGap) || 0}
+									onChange={(event) =>
+										onSetProperties({
+											customData: {
+												...custom,
+												lineCrossingGap: Number(event.target.value),
+											},
+										})
+									}
+								>
+									<option value={0}>
+										{t("canvas.properties.none", "None")}
+									</option>
+									{[8, 16, 24, 32].map((size) => (
+										<option key={size} value={size}>
+											{size} px
+										</option>
+									))}
+								</select>
+							</label>
+						)}
 						{pathDrawMode && onPathDrawModeChange && (
 							<label>
 								<span>{t("canvas.properties.pathDrawMode", "Drawing")}</span>

@@ -124,8 +124,12 @@ test("constraints default to start/start and round-trip through customData", () 
 	});
 });
 
-test("frame resize honors constraints per axis", () => {
-	const screen = frame("screen", { width: 400, height: 300 });
+test("special frame resize honors constraints per axis", () => {
+	const screen = frame("screen", {
+		width: 400,
+		height: 300,
+		customData: { skedraType: "wireframe-screen" },
+	});
 	const anchoredEnd = element("end", {
 		x: 300,
 		y: 0,
@@ -182,7 +186,7 @@ test("frame resize honors constraints per axis", () => {
 	assert.equal(byId.has("anchored"), false);
 });
 
-test("buildFrameSizeUpdates resizes the frame and its children together", () => {
+test("plain frame resize leaves contents independent", () => {
 	const screen = frame("screen", { width: 400, height: 300 });
 	const scaled = element("scaled", {
 		x: 0,
@@ -203,6 +207,5 @@ test("buildFrameSizeUpdates resizes the frame and its children together", () => 
 	const frameUpdate = updates.find((update) => update.id === "screen");
 	const childUpdate = updates.find((update) => update.id === "scaled");
 	assert.deepEqual(frameUpdate?.changes, { width: 200, height: 150 });
-	assert.equal(childUpdate?.changes.width, 200);
-	assert.equal(childUpdate?.changes.height, 150);
+	assert.equal(childUpdate, undefined);
 });

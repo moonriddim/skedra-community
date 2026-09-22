@@ -1020,6 +1020,8 @@ export function SkedraCanvas({
 		handleCommitTextEditor,
 		registerTextEditorCommit,
 		shouldSuppressTextEditOpen,
+		setEditingPyramidSection,
+		editingPyramidSection,
 		setEditingArrowTextSide,
 		setEditingArrowTextOrientation,
 	} = useCanvasTextEditing({ sync, store });
@@ -1292,6 +1294,7 @@ export function SkedraCanvas({
 		getKanbanElementAtPosition,
 		handleDoubleClick,
 	} = useCanvasDoubleClick({
+		setEditingPyramidSection,
 		svgRef,
 		scene: sync.scene,
 		store,
@@ -1786,6 +1789,7 @@ export function SkedraCanvas({
 				)}
 
 				<SkedraCanvasStageSurface
+					editingPyramidSection={editingPyramidSection}
 					svgRef={svgRef}
 					activeTool={store.activeTool}
 					viewport={viewport}

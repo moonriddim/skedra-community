@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { CanvasScene, getCombinedBBox } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import { useMemo } from "react";
+import { getLibraryPreviewBackground } from "./library-preview-background";
 
 interface LibraryItemPreviewProps {
 	elements: CanvasElement[];
@@ -17,13 +18,17 @@ export function LibraryItemPreview({
 	elements,
 	className,
 }: LibraryItemPreviewProps) {
-	const { scene, viewBox } = useMemo(() => {
+	const { scene, viewBox, background } = useMemo(() => {
 		const bbox = getCombinedBBox(elements);
 		const padding = 10;
 		const vb = bbox
 			? `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`
 			: "0 0 48 48";
-		return { scene: CanvasScene.from(elements), viewBox: vb };
+		return {
+			scene: CanvasScene.from(elements),
+			viewBox: vb,
+			background: getLibraryPreviewBackground(elements),
+		};
 	}, [elements]);
 
 	if (elements.length === 0) {
@@ -40,9 +45,10 @@ export function LibraryItemPreview({
 	return (
 		<div
 			className={cn(
-				"flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border border-border/50 bg-[#252525] p-1 dark:bg-[#1a1a1a]",
+				"flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border border-border/50 p-1",
 				className,
 			)}
+			style={{ backgroundColor: background }}
 		>
 			<svg
 				viewBox={viewBox}

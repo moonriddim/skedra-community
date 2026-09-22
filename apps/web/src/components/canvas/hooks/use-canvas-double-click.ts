@@ -10,6 +10,7 @@ import {
 	getArrowTextSideFromPoint,
 	getGanttCanvasScrollbarThumbMeta,
 	getGanttChartId,
+	getPyramidSectionAtPoint,
 	getSequenceDiagramElementMeta,
 	hitTest,
 	isCanvasFrameLabelEditable,
@@ -71,6 +72,7 @@ interface UseCanvasDoubleClickOptions {
 	handleCommitTextEditor: () => void;
 	shouldSuppressTextEditOpen: () => boolean;
 	setEditingArrowTextSide: (side: ArrowTextSide) => void;
+	setEditingPyramidSection: (section: number | null) => void;
 	setKanbanDetailId: (id: string | null) => void;
 	setKanbanListDetailId: (id: string | null) => void;
 }
@@ -224,6 +226,7 @@ export function useCanvasDoubleClick({
 	handleCommitTextEditor,
 	shouldSuppressTextEditOpen,
 	setEditingArrowTextSide,
+	setEditingPyramidSection,
 	setKanbanDetailId,
 	setKanbanListDetailId,
 }: UseCanvasDoubleClickOptions) {
@@ -451,6 +454,9 @@ export function useCanvasDoubleClick({
 					}
 				}
 				if (isTextEditableElement(el)) {
+					setEditingPyramidSection(
+						getPyramidSectionAtPoint(el, canvasX, canvasY),
+					);
 					store.setEditingTextId(el.id);
 					return;
 				}
@@ -468,6 +474,7 @@ export function useCanvasDoubleClick({
 			handleCommitTextEditor,
 			shouldSuppressTextEditOpen,
 			setEditingArrowTextSide,
+			setEditingPyramidSection,
 			setKanbanDetailId,
 			setKanbanListDetailId,
 		],

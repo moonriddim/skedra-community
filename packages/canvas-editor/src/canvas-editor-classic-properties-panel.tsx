@@ -2115,6 +2115,28 @@ function ArrowProperties({
 					</div>
 				</Section>
 			)}
+			{view.isPathElement && view.selected.length === 1 && (
+				<Section label={t("canvas.properties.lineCrossingGap", "Crossing gap")}>
+					<select
+						aria-label={t("canvas.properties.lineCrossingGap", "Crossing gap")}
+						className="w-full rounded border bg-transparent p-1 text-xs"
+						value={Number(view.selected[0].customData?.lineCrossingGap) || 0}
+						onChange={(event) =>
+							view.onSetProperty("customData", {
+								...view.selected[0].customData,
+								lineCrossingGap: Number(event.target.value),
+							})
+						}
+					>
+						<option value={0}>{t("canvas.properties.none", "None")}</option>
+						{[8, 16, 24, 32].map((size) => (
+							<option key={size} value={size}>
+								{size} px
+							</option>
+						))}
+					</select>
+				</Section>
+			)}
 			{view.showPathClosed && (
 				<Section label={t("canvas.properties.pathClosure", "Path closure")}>
 					<div className="flex gap-1">

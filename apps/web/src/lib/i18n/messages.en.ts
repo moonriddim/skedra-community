@@ -2604,6 +2604,7 @@ export const enMessages = {
 			strokeStyle: "Stroke style",
 			arrowType: "Arrow type",
 			pathStyle: "Path style",
+			lineCrossingGap: "Crossing gap",
 			cornered: "Corners",
 			pathClosure: "Shape",
 			pathOpen: "Open",

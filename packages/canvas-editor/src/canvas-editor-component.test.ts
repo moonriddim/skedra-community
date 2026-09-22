@@ -6,6 +6,7 @@ import {
 	createGanttChartElements,
 	createVisualSequenceDiagramElements,
 } from "@skedra/canvas-core";
+import { CanvasRenderer } from "@skedra/canvas-react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CanvasEditorStrokeWidthControl } from "./canvas-editor-classic-properties-panel";
@@ -1045,4 +1046,36 @@ test("sticky checklist renders valid checkbox glyphs", () => {
 	assert.match(markup, /☑/u);
 	assert.match(markup, /☐/u);
 	assert.doesNotMatch(markup, /â˜/u);
+});
+
+test("crossing gaps render transparent SVG masks with the path intact", () => {
+	const vertical: CanvasElement = {
+		...element,
+		id: "vertical",
+		type: "line",
+		points: [
+			[50, 0],
+			[50, 100],
+		],
+		customData: { lineCrossingGap: 16 },
+	};
+	const horizontal: CanvasElement = {
+		...element,
+		id: "horizontal",
+		type: "line",
+		points: [
+			[0, 50],
+			[100, 50],
+		],
+	};
+	const markup = renderToStaticMarkup(
+		createElement(CanvasRenderer, {
+			scene: CanvasScene.from([vertical, horizontal]),
+			selectedIds: new Set<string>(),
+		}),
+	);
+	assert.match(markup, /<mask /);
+	assert.match(markup, /<circle[^>]+cx="50"[^>]+cy="50"[^>]+r="9"/);
+	assert.match(markup, /mask="url\(#/);
+	assert.match(markup, /M 50 0 L 50 100/);
 });

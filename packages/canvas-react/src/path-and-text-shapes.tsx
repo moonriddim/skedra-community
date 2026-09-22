@@ -374,14 +374,23 @@ function ArrowHeadSvg({
 	return null;
 }
 
-export function RectText({ el }: { el: CanvasElement }) {
+export function RectText({
+	el,
+	padding,
+}: { el: CanvasElement; padding?: { x: number; y: number } }) {
 	const { defaultFontFamily, translate } = useCanvasRendererConfig();
 	const stickyPlaceholder = translate("canvas.sticky.notePlaceholder");
 	const isStickyNote = el.customData?.skedraType === "sticky-note";
 	const isCenteredShape = isCanvasCenteredTextShape(el);
 	const isWireframeNode = el.customData?.skedraType === "wireframe-node";
-	const { fontSize, lineHeight, horizontalPadding, verticalPadding } =
-		resolveCanvasRectTextLayout(el);
+	const {
+		fontSize,
+		lineHeight,
+		horizontalPadding: defaultPaddingX,
+		verticalPadding: defaultPaddingY,
+	} = resolveCanvasRectTextLayout(el);
+	const horizontalPadding = padding?.x ?? defaultPaddingX;
+	const verticalPadding = padding?.y ?? defaultPaddingY;
 	const textAlign = isStickyNote
 		? "left"
 		: (el.textAlign ?? (isCenteredShape ? "center" : "left"));

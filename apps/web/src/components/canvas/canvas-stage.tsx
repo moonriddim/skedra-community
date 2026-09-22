@@ -57,6 +57,7 @@ interface CanvasStageProps {
 	gridEnabled: boolean;
 	gridSize: number;
 	editingTextId: string | null;
+	editingPyramidSection?: number | null;
 	remotePresence: RemoteCanvasPresence[];
 	editingView: SavedCanvasView | null;
 	textEditorOpen: boolean;
@@ -140,6 +141,7 @@ export function CanvasStage({
 	gridEnabled,
 	gridSize,
 	editingTextId,
+	editingPyramidSection,
 	remotePresence,
 	editingView,
 	textEditorOpen,
@@ -237,6 +239,7 @@ export function CanvasStage({
 				scene={scene}
 				selectedIds={selectedIds}
 				editingTextId={editingTextId}
+				editingPyramidSection={editingPyramidSection}
 				viewport={viewport}
 				svgSize={svgSize}
 				resolveAssetUrl={resolveAssetUrl}

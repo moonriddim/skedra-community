@@ -6,9 +6,11 @@
 import {
 	type CanvasScene,
 	type Viewport,
+	buildLineCrossingGaps,
+	getBBox,
 	getVisibleCanvasBounds,
 } from "@skedra/canvas-core";
-import { memo, useMemo } from "react";
+import { memo, useId, useMemo } from "react";
 import { ElementShape } from "./element-shape";
 import {
 	type CanvasRendererConfig,
@@ -19,6 +21,7 @@ export interface CanvasRendererProps {
 	scene: CanvasScene;
 	selectedIds: Set<string>;
 	editingTextId?: string | null;
+	editingPyramidSection?: number | null;
 	/** Optional: nur sichtbare Elemente rendern (Viewport-Culling) */
 	viewport?: Viewport | null;
 	svgSize?: { width: number; height: number } | null;
@@ -30,6 +33,7 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 	scene,
 	selectedIds,
 	editingTextId = null,
+	editingPyramidSection,
 	viewport = null,
 	svgSize = null,
 	resolveAssetUrl,
@@ -63,17 +67,64 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 		);
 	}, [editingTextId, scene, selectedIds, svgSize, viewport]);
 
+	const maskPrefix = useId();
+	const crossingGaps = useMemo(() => buildLineCrossingGaps(sorted), [sorted]);
 	return (
 		<CanvasRendererProvider config={config}>
 			<g className="elements-layer">
-				{sorted.map((el) => (
-					<ElementShape
-						key={el.id}
-						element={el}
-						isEditingText={editingTextId === el.id}
-						resolveAssetUrl={resolveAssetUrl}
-					/>
-				))}
+				{sorted.map((el) => {
+					const gaps = crossingGaps.get(el.id);
+					const bounds = getBBox(el);
+					const padding = Math.max(
+						100,
+						el.strokeWidth * 10,
+						(el.fontSize ?? 16) * 4,
+					);
+					const maskId = `${maskPrefix}-gap-${el.id}`;
+					return (
+						<g key={el.id}>
+							{gaps && (
+								<defs>
+									<mask
+										id={maskId}
+										maskUnits="userSpaceOnUse"
+										x={bounds.x - padding}
+										y={bounds.y - padding}
+										width={bounds.width + padding * 2}
+										height={bounds.height + padding * 2}
+										style={{ maskType: "luminance" }}
+									>
+										<rect
+											x={bounds.x - padding}
+											y={bounds.y - padding}
+											width={bounds.width + padding * 2}
+											height={bounds.height + padding * 2}
+											fill="white"
+										/>
+										{gaps.map((gap) => (
+											<circle
+												key={`${gap.x},${gap.y}`}
+												cx={gap.x}
+												cy={gap.y}
+												r={gap.radius}
+												fill="black"
+											/>
+										))}
+									</mask>
+								</defs>
+							)}
+							<g mask={gaps ? `url(#${maskId})` : undefined}>
+								<ElementShape
+									key={el.id}
+									element={el}
+									isEditingText={editingTextId === el.id}
+									editingPyramidSection={editingPyramidSection}
+									resolveAssetUrl={resolveAssetUrl}
+								/>
+							</g>
+						</g>
+					);
+				})}
 			</g>
 		</CanvasRendererProvider>
 	);

@@ -3,6 +3,7 @@
  */
 
 import {
+	clampPyramidSections,
 	getCanvasShapeTrim,
 	getCanvasShapeTrimSvgPath,
 	getCloudSvgPath,
@@ -13,12 +14,14 @@ import {
 	getImageRenderGeometry,
 	getLinePath,
 	getPyramidDividerSegments,
+	getPyramidSectionTextElement,
 	getSvgImportedLineData,
 	getSvgImportedRectData,
 	getSvgImportedStrokeDasharray,
 	getSvgPathElementData,
 	getSvgPathRenderMatrix,
 	getTrianglePointsAttribute,
+	hasPyramidSectionText,
 	isPolygonVariant,
 	roundedDiamondSvgPath,
 	smoothPath,
@@ -41,10 +44,12 @@ import { StickyNoteShape } from "./sticky-note-shape";
 export const ElementShape = memo(function ElementShape({
 	element: el,
 	isEditingText,
+	editingPyramidSection,
 	resolveAssetUrl,
 }: {
 	element: CanvasElement;
 	isEditingText: boolean;
+	editingPyramidSection?: number | null;
 	resolveAssetUrl?: (src: string) => string;
 }) {
 	const { svgIdPrefix } = useCanvasRendererConfig();
@@ -300,7 +305,30 @@ export const ElementShape = memo(function ElementShape({
 							/>
 						))
 					)}
-					{!isEditingText && <RectText el={el} />}
+					{hasPyramidSectionText(el)
+						? Array.from(
+								{ length: clampPyramidSections(el.pyramidSections) },
+								(_, index) => {
+									if (
+										isEditingText &&
+										(editingPyramidSection == null ||
+											editingPyramidSection === index)
+									)
+										return null;
+									const section = getPyramidSectionTextElement(el, index);
+									return (
+										<RectText
+											key={`${el.id}-text-${index}`}
+											el={section}
+											padding={{
+												x: Math.min(8, section.width * 0.1),
+												y: Math.min(4, section.height * 0.1),
+											}}
+										/>
+									);
+								},
+							)
+						: !isEditingText && <RectText el={el} />}
 				</g>
 			);
 		}

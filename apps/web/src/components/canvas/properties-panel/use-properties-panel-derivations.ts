@@ -515,14 +515,8 @@ function derivePropertiesPanelState({
 	const framePresetToolActive =
 		!isEditingTextContext && !hasSelection && activeTool === "frame";
 
-	/* Kinder einfacher Frames: Constraints-Sektion anzeigen. */
-	const frameChildElements = isEditingTextContext
-		? []
-		: selected.filter((el) => {
-				if (!el.frameId || el.type === "frame") return false;
-				const parent = elements.get(el.frameId);
-				return parent != null && isPlainCanvasFrame(parent);
-			});
+	/* Plain frame contents stay independent of frame resizing. */
+	const frameChildElements: CanvasElement[] = [];
 
 	const templateSection = selectedTemplateSection;
 	const templateNotes = hasSelection

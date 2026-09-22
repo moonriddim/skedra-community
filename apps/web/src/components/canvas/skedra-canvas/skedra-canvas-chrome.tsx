@@ -246,7 +246,7 @@ export function SkedraCanvasChrome({
 							type="button"
 							onClick={() => onAiPanelOpenChange(!aiPanelOpen)}
 							aria-expanded={aiPanelOpen}
-							className="absolute bottom-3 left-3 z-40 flex items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-1.5 text-sm font-medium shadow-xl backdrop-blur-md hover:bg-card max-lg:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:min-h-11"
+							className="skedra-canvas-ai-trigger absolute bottom-3 left-3 z-40 flex items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-1.5 text-sm font-medium shadow-xl backdrop-blur-md hover:bg-card"
 						>
 							<Sparkles className="h-4 w-4 text-primary" />
 							{t("whiteboardPage.ai.open")}

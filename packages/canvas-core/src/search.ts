@@ -1,3 +1,5 @@
+import { getPyramidSectionTexts, hasPyramidSectionText } from "./pyramid-text";
+import { clampPyramidSections } from "./shape-geometry";
 import type { CanvasElement } from "./types";
 
 export type CanvasSearchMatchKind = "frame" | "text";
@@ -25,6 +27,12 @@ function getSearchableText(element: CanvasElement): {
 		return text ? { kind: "frame", text: element.frameLabel ?? text } : null;
 	}
 
+	if (hasPyramidSectionText(element)) {
+		const text = getPyramidSectionTexts(element)
+			.slice(0, clampPyramidSections(element.pyramidSections))
+			.join("\n");
+		return text.trim() ? { kind: "text", text } : null;
+	}
 	const text = element.text?.trim();
 	return text ? { kind: "text", text: element.text ?? text } : null;
 }

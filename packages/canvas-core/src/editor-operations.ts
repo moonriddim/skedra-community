@@ -1,4 +1,7 @@
-import { isCanvasFrameLabelEditable } from "./element-capabilities";
+import {
+	isCanvasFrameLabelEditable,
+	isPlainCanvasFrame,
+} from "./element-capabilities";
 import { createBaseCanvasElement } from "./element-factory";
 import {
 	FLOWCHART_BRANCH_GAP,
@@ -49,6 +52,10 @@ import {
 	createStackIndexBeforeElement,
 } from "./ordering";
 import type { ArrowTextOrientation, ArrowTextSide } from "./path-rendering";
+import {
+	buildPyramidSectionTextUpdate,
+	hasPyramidSectionText,
+} from "./pyramid-text";
 import { getSequenceDiagramId } from "./sequence-diagram";
 import {
 	clampCloudArcRadius,
@@ -768,7 +775,7 @@ export function buildCanvasMoveUpdates(
 			}
 		}
 
-		if (element.type === "frame") {
+		if (element.type === "frame" && !isPlainCanvasFrame(element)) {
 			const moveLockedChildren = movingGanttFrameIds.has(id);
 			for (const [childId, child] of elements) {
 				if (
@@ -1289,6 +1296,7 @@ export function planFlowchartStepMutation(
 
 export function buildCanvasTextUpdate(options: {
 	element: CanvasElement;
+	pyramidSection?: number | null;
 	text: string;
 	size?: { width: number; height: number };
 	fontFamily?: string;
@@ -1296,6 +1304,13 @@ export function buildCanvasTextUpdate(options: {
 	arrowTextOrientation?: ArrowTextOrientation | null;
 }): Partial<CanvasElement> {
 	const { element, text } = options;
+	if (hasPyramidSectionText(element)) {
+		return buildPyramidSectionTextUpdate(
+			element,
+			options.pyramidSection ?? 0,
+			text,
+		);
+	}
 	const fontFamily =
 		options.fontFamily ?? element.fontFamily ?? DEFAULT_FONT_FAMILY;
 	if (isKanbanList(element)) return { frameLabel: text };

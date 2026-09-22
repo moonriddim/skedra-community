@@ -52,6 +52,19 @@ test("round-trips polygon sides, triangle sections and cloud arc radii", () => {
 	assert.equal(decodedCloud?.cloudArcRadius, 24);
 });
 
+test("pyramid labels survive document encoding independently, including multiline text", () => {
+	const labels = ["Goal", "Plan\nNext step", "", "Foundation"];
+	const element = shape("triangle", {
+		pyramidSections: 4,
+		customData: { pyramidSectionTexts: labels, other: "keep" },
+	});
+	const decoded = decodeCanvasElement(
+		JSON.parse(JSON.stringify(encodeCanvasElement(element))),
+	);
+	assert.deepEqual(decoded?.customData?.pyramidSectionTexts, labels);
+	assert.equal(decoded?.customData?.other, "keep");
+});
+
 test("round-trips ellipse arc angles as an all-or-nothing pair", () => {
 	const arc = shape("ellipse", { arcStartAngle: 25, arcEndAngle: 220 });
 	const decoded = decodeCanvasElement(encodeCanvasElement(arc));
@@ -103,4 +116,18 @@ test("rejects invalid persisted pyramid section counts", () => {
 	assert.equal(decodeCanvasElement({ ...encoded, pyramidSections: 0 }), null);
 	assert.equal(decodeCanvasElement({ ...encoded, pyramidSections: 2.5 }), null);
 	assert.equal(decodeCanvasElement({ ...encoded, pyramidSections: 13 }), null);
+});
+
+test("crossing gaps survive the native document round-trip", () => {
+	const original = {
+		...shape("rectangle"),
+		type: "line" as const,
+		points: [
+			[0, 0],
+			[100, 100],
+		] as [number, number][],
+		customData: { lineCrossingGap: 16, other: "preserved" },
+	};
+	const decoded = decodeCanvasElement(encodeCanvasElement(original));
+	assert.deepEqual(decoded.customData, original.customData);
 });
