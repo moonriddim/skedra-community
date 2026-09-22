@@ -1,3 +1,13 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Security floors for transitive dependencies still resolved to vulnerable releases.
+overrides:
+  "esbuild@<0.25.0": "0.25.12"
+  "body-parser@>=2.0.0 <2.3.0": "2.3.0"
+  "fast-uri@>=3.0.0 <3.1.6": "3.1.6"
+  "ip-address@<=10.3.0": "10.3.1"
+  "browserslist@<=4.28.6": "4.28.7"
+  "qs@>=2.2.5 <6.16.0": "6.16.0"
+  "baseline-browser-mapping@>=2.0.0 <2.11.0": "2.11.0"

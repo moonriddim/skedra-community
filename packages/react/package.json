@@ -75,6 +75,6 @@
 		"@vitejs/plugin-react": "^4.3.0",
 		"lucide-react": "^0.460.0",
 		"typescript": "^5.7.0",
-		"vite": "^6.4.1"
+		"vite": "^6.4.3"
 	}
 }
