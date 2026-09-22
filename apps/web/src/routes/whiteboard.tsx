@@ -3,12 +3,17 @@ import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import {
+	ArrowDown,
+	ArrowRight,
+	Check,
 	Cloud,
+	Download,
 	FileDown,
 	GitBranch,
 	LayoutTemplate,
 	LockKeyhole,
 	Users,
+	Workflow,
 } from "lucide-react";
 import { Link } from "react-router";
 
@@ -182,34 +187,111 @@ export function WhiteboardPage() {
 	return (
 		<PublicSiteLayout>
 			<article>
-				<header className="relative overflow-hidden px-4 pb-16 pt-16 sm:px-6 sm:pb-24 sm:pt-24">
-					<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,hsl(var(--primary)/0.18),transparent_36%),radial-gradient(circle_at_82%_22%,hsl(var(--accent)/0.65),transparent_30%)]" />
-					<div className="relative mx-auto max-w-4xl text-center">
-						<p className="mx-auto mb-5 inline-flex rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-sm font-medium text-primary">
-							{c.badge}
+				<header className="studio-hero">
+					<div className="studio-container">
+						<p className="studio-eyebrow">
+							<span />{" "}
+							{locale === "de"
+								? "DEIN RAUM FÜR DEN NÄCHSTEN GEDANKEN"
+								: "A SPACE FOR YOUR NEXT BIG THOUGHT"}
 						</p>
-						<h1 className="font-display text-balance text-4xl font-bold tracking-tight sm:text-6xl">
-							{c.title}
-						</h1>
-						<p className="mx-auto mt-6 max-w-3xl text-pretty text-lg leading-8 text-muted-foreground">
-							{c.intro}
-						</p>
-						<div className="mt-8 flex flex-wrap justify-center gap-3">
-							<Button asChild size="lg">
-								<Link to={publicPath("/")}>{c.draw}</Link>
-							</Button>
-							<Button asChild size="lg" variant="outline">
-								<Link to={publicPath("/pricing")}>{c.prices}</Link>
-							</Button>
+						<div className="studio-hero-copy">
+							<h1>
+								{locale === "de" ? "Kopf voll?" : "Mind full?"}
+								<br />
+								<span>{locale === "de" ? "Board auf." : "Board open."}</span>
+							</h1>
+							<div className="studio-hero-intro">
+								<p>
+									{locale === "de"
+										? "Aus losen Gedanken wird ein klares Bild. Skizziere Ideen, verbinde Zusammenhänge und bring dein nächstes Projekt ins Rollen."
+										: "Turn scattered thoughts into a clear picture. Sketch ideas, connect the dots and get your next project moving."}
+								</p>
+								<div className="studio-actions">
+									<Button asChild size="lg">
+										<Link to={publicPath("/")}>
+											{c.draw}
+											<ArrowRight className="h-4 w-4" />
+										</Link>
+									</Button>
+									<a className="studio-text-link" href="#inside-skedra">
+										{locale === "de" ? "Skedra entdecken" : "Explore Skedra"}
+										<ArrowDown className="h-4 w-4" />
+									</a>
+								</div>
+								<p className="studio-fine-print">
+									<Check className="h-3.5 w-3.5" />
+									{c.badge}
+								</p>
+							</div>
 						</div>
-						<p className="mt-5 text-xs text-muted-foreground">{c.updated}</p>
+						<figure className="studio-board" id="inside-skedra">
+							<figcaption className="studio-board-caption">
+								<span>
+									<span className="studio-status-dot" />
+									{locale === "de"
+										? "Von der ersten Idee zum nächsten Schritt"
+										: "From first thought to next step"}
+								</span>
+								<span className="studio-board-tag">MADE IN SKEDRA</span>
+							</figcaption>
+							<img
+								src="/images/skedra-idea-board.png"
+								alt={
+									locale === "de"
+										? "Echter Skedra-Editor mit einem ausgearbeiteten Projektboard: Ideen, verbundene Prozessschritte und Aufgaben"
+										: "Actual Skedra editor with a project board: ideas, connected workflow steps and tasks"
+								}
+								width="1440"
+								height="900"
+								fetchPriority="high"
+							/>
+							<div className="studio-board-bottom">
+								<span>
+									{locale === "de"
+										? "Ein echtes Board. Alles weiterdenkbar."
+										: "A real board. Ready for your next idea."}
+								</span>
+								<a href="/examples/idea-to-launch.skedra" download>
+									<Download className="h-4 w-4" />
+									{locale === "de"
+										? "Beispiel herunterladen"
+										: "Download example"}
+								</a>
+							</div>
+						</figure>
+						<div className="studio-principles">
+							<span>
+								{locale === "de"
+									? "WENIGER HÜRDEN. MEHR IDEEN."
+									: "LESS FRICTION. MORE IDEAS."}
+							</span>
+							<span>
+								<Check />
+								{locale === "de"
+									? "Ohne Konto starten"
+									: "Start without an account"}
+							</span>
+							<span>
+								<Check />
+								{locale === "de" ? "Lokal zeichnen" : "Draw locally"}
+							</span>
+							<span>
+								<Check />
+								{locale === "de"
+									? "Cloud, wenn du sie brauchst"
+									: "Cloud when you need it"}
+							</span>
+						</div>
 					</div>
 				</header>
 
-				<section className="border-y border-border bg-card/45 px-4 py-20 sm:px-6">
+				<section className="studio-features border-y border-border bg-card/45 px-4 py-20 sm:px-6">
 					<div className="mx-auto max-w-6xl">
 						<h2 className="font-display text-3xl font-bold sm:text-4xl">
-							{c.featuresTitle}
+							{locale === "de"
+								? "Gedanken brauchen Platz. Kein Korsett."
+								: "Room for ideas. Space to make them yours."}
 						</h2>
 						<p className="mt-3 max-w-3xl text-lg leading-8 text-muted-foreground">
 							{c.featuresIntro}
@@ -218,11 +300,14 @@ export function WhiteboardPage() {
 							{c.features.map(([title, text], index) => {
 								const Icon = icons[index] ?? LayoutTemplate;
 								return (
-									<section
-										key={title}
-										className="rounded-2xl border border-border bg-background p-6 shadow-sm"
-									>
-										<Icon className="h-6 w-6 text-primary" aria-hidden="true" />
+									<section key={title} className="studio-feature">
+										<div className="studio-feature-top">
+											<Icon
+												className="h-6 w-6 text-primary"
+												aria-hidden="true"
+											/>
+											<span>0{index + 1}</span>
+										</div>
 										<h3 className="mt-4 text-xl font-semibold">{title}</h3>
 										<p className="mt-2 text-sm leading-6 text-muted-foreground">
 											{text}
@@ -304,7 +389,31 @@ export function WhiteboardPage() {
 					</div>
 				</section>
 
-				<section className="px-4 py-20 text-center sm:px-6">
+				<section className="studio-agent studio-container">
+					<div>
+						<p className="studio-eyebrow">
+							<Workflow className="h-4 w-4" /> SKEDRA + MCP
+						</p>
+						<h2>
+							{locale === "de"
+								? "Deine KI denkt mit. Auf deinem Board."
+								: "Your AI thinks with you. On your board."}
+						</h2>
+					</div>
+					<div>
+						<p>
+							{locale === "de"
+								? "Lass deinen AI-Agenten Diagramme erstellen und Boards bearbeiten. Du siehst das Ergebnis direkt in Skedra und entwickelst es weiter."
+								: "Let your AI agent create diagrams and edit boards. See the result in Skedra and take the idea further."}
+						</p>
+						<Link className="studio-text-link" to={publicPath("/mcp")}>
+							{locale === "de" ? "MCP kennenlernen" : "Discover MCP"}
+							<ArrowRight className="h-4 w-4" />
+						</Link>
+					</div>
+				</section>
+
+				<section className="studio-closing px-4 py-20 text-center sm:px-6">
 					<h2 className="font-display text-3xl font-bold sm:text-4xl">
 						{c.ctaTitle}
 					</h2>

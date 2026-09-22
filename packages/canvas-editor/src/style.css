@@ -2156,6 +2156,13 @@
 	display: none;
 }
 
+.canvas-editor__mobile-fit,
+.canvas-editor__mobile-properties-header,
+.canvas-editor__phone-caption,
+.canvas-editor__mobile-style-button.canvas-editor__phone-selection-action {
+	display: none;
+}
+
 .skedra-sdk__properties {
 	display: grid;
 	gap: 0;
@@ -2760,7 +2767,7 @@
 				var(--canvas-editor-safe-right)
 			)
 		);
-		max-height: min(55cqh, 28rem);
+		max-height: min(55cqh, 28rem, calc(100cqh - 14rem));
 		transform: none;
 	}
 
@@ -2859,7 +2866,137 @@
 	}
 }
 
+@container canvas-editor (max-width: 1023px) {
+	.canvas-editor__mobile-fit {
+		position: absolute;
+		top: calc(0.75rem + var(--canvas-editor-safe-top));
+		left: 50%;
+		z-index: 35;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: 2.75rem;
+		padding: 0.5rem 0.75rem;
+		transform: translateX(-50%);
+		border: 1px solid var(--border-color, #d8ded2);
+		border-radius: 0.75rem;
+		background: var(--card, #fffef9);
+		color: var(--card-foreground, #172d29);
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.canvas-editor__mobile-properties-header {
+		position: sticky;
+		top: -0.625rem;
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin: -0.625rem -0.625rem 0;
+		padding: 0.25rem 0.625rem;
+		background: var(--card, #fffef9);
+		border-bottom: 1px solid var(--border-color, #d8ded2);
+	}
+	.canvas-editor__mobile-properties-header button {
+		padding: 0 0.5rem;
+		color: var(--primary, #0f766e);
+		cursor: pointer;
+	}
+	.canvas-editor__color-grid {
+		gap: 0.5rem;
+	}
+	.canvas-editor__color-grid > button,
+	.canvas-editor__color-grid > label {
+		width: 2.75rem;
+		min-width: 2.75rem;
+		height: 2.75rem;
+	}
+}
+
+@container canvas-editor (max-width: 639px) {
+	.canvas-editor__toolbar[data-phone="true"] .canvas-editor__toolbar-track {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+		overflow: visible;
+	}
+	.canvas-editor__toolbar[data-phone="true"] .canvas-editor__toolbar-action {
+		width: 100%;
+		min-width: 0;
+		height: 3rem;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.canvas-editor__toolbar[data-phone="true"]
+		.canvas-editor__toolbar-icon
+		> svg {
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+	.canvas-editor__toolbar-caption {
+		max-width: 100%;
+		overflow: hidden;
+		font-size: 0.5625rem;
+		line-height: 1.2;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.canvas-editor__toolbar-path-select {
+		grid-column: span 3;
+		width: 100%;
+	}
+	.canvas-editor__properties {
+		right: calc(0.75rem + var(--canvas-editor-safe-right));
+		width: auto;
+		max-height: min(42cqh, 24rem);
+		background: var(--card, #fffef9);
+	}
+	.canvas-editor__mobile-style-bar[data-has-selection="true"] > label {
+		display: none;
+	}
+	.canvas-editor__mobile-style-button.canvas-editor__phone-selection-action {
+		display: inline-flex;
+	}
+	.canvas-editor__mobile-style-bar[data-has-selection="true"]
+		.canvas-editor__mobile-style-button {
+		width: 3.75rem;
+		flex-direction: column;
+		gap: 0.25rem;
+		font-size: 0.5625rem;
+	}
+	.canvas-editor__mobile-style-bar[data-has-selection="true"]
+		.canvas-editor__phone-caption {
+		display: inline;
+	}
+	.canvas-editor .skedra-workspace-panel {
+		top: auto;
+		height: min(60cqh, 32rem);
+	}
+	.skedra-workspace-panel > header {
+		gap: 0.25rem;
+		padding: 0.5rem;
+	}
+	.skedra-workspace-panel > header button {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		flex-shrink: 0;
+	}
+	.skedra-workspace-panel > header > [role="tablist"] {
+		min-width: 0;
+		overflow-x: auto;
+	}
+	.skedra-workspace-panel > header > div:last-child {
+		flex-shrink: 0;
+	}
+}
+
 @media (any-pointer: coarse) {
+	.canvas-editor__color-grid > button,
+	.canvas-editor__color-grid > label {
+		width: 2.75rem;
+		min-width: 2.75rem;
+		height: 2.75rem;
+	}
 	.canvas-editor__saved-views-button,
 	.canvas-editor__saved-view-action,
 	.canvas-editor__saved-view-name,

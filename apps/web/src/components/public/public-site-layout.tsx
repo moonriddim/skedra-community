@@ -14,6 +14,7 @@ import { localizePublicPath } from "@/lib/public-path";
 import { Github, Languages, Menu, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import "./public-brand.css";
 
 const GITHUB_URL = "https://github.com/moonriddim/skedra-community";
 
@@ -23,15 +24,15 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 	const publicPath = (path: string) => localizePublicPath(path, locale);
 
 	return (
-		<div className="min-h-screen bg-background text-foreground">
+		<div className="skedra-public min-h-screen bg-background text-foreground">
 			<header className="sticky top-0 z-50 border-b border-border/70 bg-background/90 backdrop-blur-xl">
-				<div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+				<div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
 					<Link to={publicPath("/")} aria-label="Skedra Whiteboard">
 						<BrandLogo markClassName="h-9 w-9" wordmarkClassName="text-xl" />
 					</Link>
 
 					<nav
-						className="hidden items-center gap-1 md:flex"
+						className="hidden items-center gap-1 xl:flex"
 						aria-label={t("publicSite.navigationLabel")}
 					>
 						<Button asChild variant="ghost" size="sm">
@@ -58,8 +59,12 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 						</Button>
 					</nav>
 
-					<div className="hidden items-center gap-2 md:flex">
-						<ThemePicker labelSet="guest" />
+					<div className="hidden items-center gap-2 xl:flex">
+						<ThemePicker
+							labelSet="guest"
+							showLabel={false}
+							className="public-theme-picker"
+						/>
 						<LanguageMenu />
 						<Button asChild variant="ghost" size="sm">
 							<Link to="/login">{t("publicSite.existingCloudAccount")}</Link>
@@ -72,7 +77,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 					<Button
 						variant="ghost"
 						size="icon"
-						className="md:hidden"
+						className="xl:hidden"
 						onClick={() => setMenuOpen((open) => !open)}
 						aria-label={
 							menuOpen ? t("publicSite.closeMenu") : t("publicSite.openMenu")
@@ -88,7 +93,7 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 				</div>
 
 				{menuOpen && (
-					<nav className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-background px-4 py-4 md:hidden">
+					<nav className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-border bg-background px-4 py-4 xl:hidden">
 						<div className="mx-auto grid max-w-6xl gap-2">
 							<Button asChild variant="ghost" className="justify-start">
 								<Link
@@ -128,6 +133,11 @@ export function PublicSiteLayout({ children }: { children: ReactNode }) {
 								</Link>
 							</Button>
 							<LanguageMenu className="justify-start" />
+							<ThemePicker
+								labelSet="guest"
+								showLabel={false}
+								className="public-theme-picker py-2"
+							/>
 							<Button asChild className="justify-start">
 								<Link to={publicPath("/")} onClick={() => setMenuOpen(false)}>
 									{t("publicSite.freeWhiteboard")}

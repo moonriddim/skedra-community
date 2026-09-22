@@ -132,6 +132,15 @@ export function CanvasToolbar({
 		addElements(factory(center.x, center.y));
 	};
 	const activateTool = (tool: CanvasEditorToolId) => {
+		// A drawing tool ends note/card placement and must also dismiss its picker.
+		if (
+			tool !== "sticky-note" &&
+			tool !== "kanban" &&
+			tool !== "eyedropper" &&
+			(store.activePanel === "sticky" || store.activePanel === "kanban")
+		) {
+			store.setActivePanel(null);
+		}
 		if (tool === "eyedropper") store.activateEyedropper("stroke");
 		else if (tool === "sticky-note") store.setActivePanel("sticky");
 		else if (tool === "kanban") store.setActivePanel("kanban");
@@ -441,6 +450,34 @@ export function CanvasToolbar({
 			}}
 			items={items}
 			responsive={{
+				phone: {
+					primaryToolIds: ["pan", "select", "freehand", "text"],
+					overflowItems: items.filter((item) => item.id !== "insert-image"),
+					moreLabel: t("canvas.toolbar.moreShort"),
+					items: [
+						{
+							type: "menu",
+							id: "insert-menu",
+							label: t("canvas.toolbar.insertShort"),
+							active: items.some(
+								(item) =>
+									item.id === "insert-menu" &&
+									item.type === "menu" &&
+									item.active,
+							),
+							icon: <LayoutTemplate className="h-4 w-4" />,
+							items: [
+								{
+									id: "insert-image",
+									label: t("canvas.toolbar.insertImage"),
+									icon: <ImagePlus className="h-4 w-4" />,
+									onSelect: insertImage,
+								},
+								...insertMenuItems,
+							],
+						},
+					],
+				},
 				moreLabel: t("canvas.toolbar.moreTools"),
 				moreIcon: <Shapes className="h-4 w-4" />,
 				popoverClassName: "canvas-editor__toolbar-popover--mobile-more",

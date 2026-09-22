@@ -2194,6 +2194,9 @@ export const enMessages = {
 			insertMenuWorkshops: "Workshops & design",
 			exportMenu: "Export",
 			moreTools: "More tools",
+			moreShort: "More",
+			insertShort: "Insert",
+			panShort: "Move",
 			shapeLibrary: "Shape library",
 			layers: "Layers",
 		},
@@ -2269,6 +2272,7 @@ export const enMessages = {
 		bottomBar: {
 			zoomOut: "Zoom out (-)",
 			resetZoom: "Reset zoom",
+			fitBoard: "Fit board",
 			zoomIn: "Zoom in (+)",
 			objectSnap: "Toggle object snap (F3)",
 			undo: "Undo (Ctrl+Z)",

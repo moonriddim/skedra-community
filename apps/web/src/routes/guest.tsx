@@ -280,16 +280,16 @@ export function GuestCanvasPage() {
 				}
 				onSave={handleSaveClick}
 				onOpenHelp={openHelp}
+				onOpenFile={() => {
+					void canvasFileRef.current?.importSkedra();
+				}}
 				onOpenLiveCollaboration={handleLiveCollaborationClick}
 				isLoggedIn={!!session?.user}
 				managedBilling={publicConfig?.managed !== false}
 			/>
 
 			{!zenMode && (
-				<GuestCanvasFooter
-					onOpenHelp={openHelp}
-					showHelpAnnotation={elementCount === 0}
-				/>
+				<GuestCanvasFooter onOpenHelp={openHelp} showHelpAnnotation={false} />
 			)}
 
 			<GuestLiveCollaborationDialog

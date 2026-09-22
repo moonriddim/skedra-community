@@ -19,6 +19,7 @@ export interface CanvasEditorToolStripClasses {
 }
 
 export interface CanvasEditorToolStripProps {
+	showLabels?: boolean;
 	activeTool: CanvasEditorToolId;
 	onToolSelect: (tool: CanvasEditorToolId) => void;
 	renderIcon: (tool: CanvasEditorToolId) => ReactNode;
@@ -48,6 +49,7 @@ function mergeClassNames(...classNames: Array<string | undefined>) {
 }
 
 export function CanvasEditorToolStrip({
+	showLabels = false,
 	activeTool,
 	onToolSelect,
 	renderIcon,
@@ -140,12 +142,20 @@ export function CanvasEditorToolStrip({
 								data-canvas-toolbar-interactive="true"
 								title={title}
 								aria-label={label}
+								aria-pressed={activeTool === definition.id}
 								disabled={isToolDisabled(definition.id)}
 								onClick={() => onToolSelect(definition.id)}
 							>
 								<span className="canvas-editor__toolbar-icon">
 									{renderIcon(definition.id)}
 								</span>
+								{showLabels && (
+									<span className="canvas-editor__toolbar-caption">
+										{definition.id === "pan"
+											? t("canvas.toolbar.panShort", "Move")
+											: label}
+									</span>
+								)}
 							</button>
 						);
 					})}

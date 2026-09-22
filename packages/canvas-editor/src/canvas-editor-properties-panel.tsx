@@ -74,6 +74,7 @@ export interface CanvasEditorKanbanCardDetails {
 }
 
 export interface CanvasEditorPropertiesPanelProps {
+	onCloseMobile?: () => void;
 	selected: CanvasElement[];
 	mode?: "selection" | "defaults";
 	readOnly?: boolean;
@@ -143,6 +144,7 @@ export interface CanvasEditorPropertiesPanelProps {
 }
 
 export function CanvasEditorPropertiesPanel({
+	onCloseMobile,
 	selected,
 	mode = "selection",
 	readOnly = false,
@@ -198,6 +200,7 @@ export function CanvasEditorPropertiesPanel({
 	if (classicView) {
 		return (
 			<CanvasEditorClassicPropertiesPanel
+				onCloseMobile={onCloseMobile}
 				view={classicView}
 				className={className}
 				style={style}

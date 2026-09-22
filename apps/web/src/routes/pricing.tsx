@@ -73,7 +73,7 @@ export function PricingPage() {
 
 	return (
 		<PublicSiteLayout>
-			<section className="relative overflow-hidden px-4 pb-14 pt-16 sm:px-6 sm:pb-20 sm:pt-24">
+			<section className="pricing-hero relative overflow-hidden">
 				<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_0%,hsl(var(--primary)/0.16),transparent_34%),radial-gradient(circle_at_80%_20%,hsl(var(--accent)/0.7),transparent_30%)]" />
 				<div className="relative mx-auto max-w-4xl text-center">
 					<div className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-sm font-medium text-primary">
@@ -123,6 +123,7 @@ export function PricingPage() {
 							<button
 								type="button"
 								onClick={() => setPeriod("monthly")}
+								aria-pressed={period === "monthly"}
 								className={`rounded-full px-4 py-2 text-sm font-medium transition ${period === "monthly" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
 							>
 								{t("pricingPage.monthly")}
@@ -130,10 +131,13 @@ export function PricingPage() {
 							<button
 								type="button"
 								onClick={() => setPeriod("yearly")}
+								aria-pressed={period === "yearly"}
 								className={`rounded-full px-4 py-2 text-sm font-medium transition ${period === "yearly" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
 							>
 								{t("pricingPage.yearly")}{" "}
-								<span className="ml-1 text-primary">
+								<span
+									className={`ml-1 ${period === "yearly" ? "text-background/80" : "text-primary"}`}
+								>
 									{t("pricingPage.savingsShort")}
 								</span>
 							</button>
@@ -293,7 +297,7 @@ function PricingCard({
 }) {
 	return (
 		<article
-			className={`relative flex flex-col rounded-3xl border p-6 shadow-sm sm:p-8 ${highlight ? "border-primary/50 bg-card ring-1 ring-primary/15" : "border-border bg-card/75"}`}
+			className={`pricing-card relative flex flex-col border p-6 sm:p-8 ${highlight ? "pricing-card--cloud" : "border-border bg-card"}`}
 		>
 			{highlight && (
 				<span className="absolute -top-3 right-6 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">

@@ -244,6 +244,7 @@ export interface CanvasEditorClassicPropertiesView {
 }
 
 interface ClassicPanelProps {
+	onCloseMobile?: () => void;
 	view: CanvasEditorClassicPropertiesView;
 	className?: string;
 	style?: CSSProperties;
@@ -462,7 +463,7 @@ function ColorGrid({
 	t: CanvasEditorPropertiesTranslate;
 }) {
 	return (
-		<div className="flex flex-wrap gap-1">
+		<div className="canvas-editor__color-grid flex flex-wrap gap-1">
 			{colors.map((color) => (
 				<button
 					key={color}
@@ -778,6 +779,7 @@ function FontDropdown({
 }
 
 export function CanvasEditorClassicPropertiesPanel({
+	onCloseMobile,
 	view,
 	className,
 	style,
@@ -799,6 +801,14 @@ export function CanvasEditorClassicPropertiesPanel({
 			aria-disabled={disabled || undefined}
 			onWheel={(event) => event.stopPropagation()}
 		>
+			{onCloseMobile && (
+				<div className="canvas-editor__mobile-properties-header">
+					<strong>{t("canvas.properties.appearance", "Appearance")}</strong>
+					<button type="button" onClick={onCloseMobile}>
+						{t("common.close", "Close")}
+					</button>
+				</div>
+			)}
 			{view.isStickyNoteOnly && <StickyProperties view={view} t={t} />}
 			<KanbanProperties view={view} t={t} />
 			<TemplateProperties view={view} t={t} />

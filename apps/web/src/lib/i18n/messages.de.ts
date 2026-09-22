@@ -2225,6 +2225,9 @@ export const deMessages = {
 			insertMenuWorkshops: "Workshops & Design",
 			exportMenu: "Export",
 			moreTools: "Weitere Werkzeuge",
+			moreShort: "Mehr",
+			insertShort: "Einfügen",
+			panShort: "Hand",
 			shapeLibrary: "Shape-Bibliothek",
 			layers: "Ebenen",
 		},
@@ -2301,6 +2304,7 @@ export const deMessages = {
 		bottomBar: {
 			zoomOut: "Rauszoomen (-)",
 			resetZoom: "Zoom zurücksetzen",
+			fitBoard: "Board einpassen",
 			zoomIn: "Reinzoomen (+)",
 			objectSnap: "Objektfang ein-/ausschalten (F3)",
 			undo: "Rückgängig (Ctrl+Z)",

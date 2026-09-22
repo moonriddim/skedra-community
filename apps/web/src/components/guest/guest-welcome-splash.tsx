@@ -1,187 +1,160 @@
-import { GuestOnboardingAnnotation } from "@/components/guest/guest-onboarding-annotation";
-import { GuestToolbarHints } from "@/components/guest/guest-toolbar-hints";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { useCanvasStore } from "@/hooks/use-canvas-store";
 import { DISCORD_URL } from "@/lib/community-links";
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import {
 	ArrowRight,
+	Cloud,
+	FolderOpen,
 	HelpCircle,
-	Home,
-	LogIn,
-	MessageCircle,
-	Save,
-	Server,
-	UserPlus,
+	PenLine,
+	StickyNote,
 	Users,
 } from "lucide-react";
 import { Link } from "react-router";
+import "./guest-welcome.css";
 
 interface GuestWelcomeSplashProps {
 	visible: boolean;
 	onSave: () => void;
 	onOpenHelp: () => void;
 	onOpenLiveCollaboration: () => void;
+	onOpenFile: () => void;
 	isLoggedIn: boolean;
 	managedBilling: boolean;
 }
 
-/**
- * Willkommens-Overlay mit Pfeil-Hinweisen.
- * Positionen orientieren sich an Hamburger (links 12px) und Toolbar (top 12px, zentriert).
- */
 export function GuestWelcomeSplash({
 	visible,
 	onSave,
 	onOpenHelp,
 	onOpenLiveCollaboration,
+	onOpenFile,
 	isLoggedIn,
 	managedBilling,
 }: GuestWelcomeSplashProps) {
 	const { t, locale } = useI18n();
+	const setActiveTool = useCanvasStore((state) => state.setActiveTool);
+	const setActivePanel = useCanvasStore((state) => state.setActivePanel);
 	const publicPath = (path: string) => localizePublicPath(path, locale);
-
 	if (!visible) return null;
 
 	return (
 		<div className="pointer-events-none absolute inset-0 z-30">
-			{/*
-			 * Menue-Hinweis: Text rechts neben dem Hamburger, Pfeil bogenfoermig nach oben-links
-			 * Ziel: Mitte des Menu-Buttons (~28px, 28px)
-			 */}
-			<GuestOnboardingAnnotation
-				className="left-[52px] top-[44px] hidden lg:flex"
-				label={t("guestCanvas.onboarding.menuHint")}
-				labelPosition="below"
-				labelAlign="left"
-				markerId="guest-menu-arrow"
-				viewBox="0 0 160 96"
-				width={160}
-				height={96}
-				arrowPath="M 148 82 C 118 78, 88 58, 62 38 C 42 22, 28 10, 14 4"
-			/>
-
-			<GuestToolbarHints />
-
-			{/* Zentrale Willkommens-Karte — unterhalb der Top-Hinweise */}
-			<div className="guest-welcome-scroll flex h-full items-center justify-center px-6 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pt-36 max-sm:px-4">
-				<div className="max-w-md text-center max-lg:max-w-[18rem]">
-					<div className="inline-flex max-w-full items-center justify-center gap-2.5">
-						<img
-							src="/logo-mark-transparent-dark.png"
-							alt=""
-							aria-hidden="true"
-							decoding="async"
-							className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(13,188,174,0.25)] lg:h-16 lg:w-16"
-						/>
-						<h1 className="font-comic-note text-2xl font-bold leading-tight tracking-wide text-primary lg:text-5xl">
-							Skedra Online Whiteboard
-						</h1>
-					</div>
-					<p className="mt-4 hidden font-comic-note text-base leading-relaxed text-foreground lg:block">
-						{t("guestCanvas.productDescription")}
+			<div className="studio-welcome-scroll">
+				<section
+					className="studio-welcome"
+					aria-label={
+						locale === "de" ? "Willkommen bei Skedra" : "Welcome to Skedra"
+					}
+				>
+					<BrandLogo markClassName="h-10 w-10" wordmarkClassName="text-2xl" />
+					<p className="studio-welcome-kicker">
+						{locale === "de"
+							? "GROSSE IDEEN FANGEN KLEIN AN."
+							: "BIG IDEAS START SMALL."}
 					</p>
-					<p className="mt-3 hidden font-comic-note text-sm leading-relaxed text-muted-foreground lg:block">
+					<h1>
+						{locale === "de" ? "Was geht dir" : "What's on"}
+						<br />
+						<span>{locale === "de" ? "durch den Kopf?" : "your mind?"}</span>
+					</h1>
+					<p className="studio-welcome-description">
+						{locale === "de"
+							? "Eine Idee, ein Plan, ein erster Strich. Hier ist Platz dafür."
+							: "An idea, a plan, a first sketch. There's room for it here."}
+					</p>
+					<div className="studio-start-actions">
+						<button type="button" onClick={() => setActiveTool("freehand")}>
+							<PenLine />
+							<strong>
+								{locale === "de" ? "Loszeichnen" : "Start drawing"}
+							</strong>
+							<span>
+								{locale === "de" ? "Einfach anfangen" : "Make your first mark"}
+							</span>
+							<ArrowRight />
+						</button>
+						<button type="button" onClick={() => setActivePanel("sticky")}>
+							<StickyNote />
+							<strong>
+								{locale === "de" ? "Ideen sammeln" : "Collect ideas"}
+							</strong>
+							<span>
+								{locale === "de" ? "Mit Sticky Notes" : "With sticky notes"}
+							</span>
+							<ArrowRight />
+						</button>
+						<button type="button" onClick={onOpenFile}>
+							<FolderOpen />
+							<strong>
+								{locale === "de" ? "Board öffnen" : "Open a board"}
+							</strong>
+							<span>
+								{locale === "de" ? "Datei importieren" : "Import a file"}
+							</span>
+							<ArrowRight />
+						</button>
+					</div>
+					<div className="studio-welcome-cloud">
+						<div>
+							<Cloud />
+							<span>
+								{locale === "de"
+									? "Gemeinsam wird mehr daraus."
+									: "Better ideas, together."}
+							</span>
+						</div>
+						<button type="button" onClick={onOpenLiveCollaboration}>
+							{locale === "de" ? "Zusammenarbeiten" : "Collaborate"}
+							<ArrowRight />
+						</button>
+					</div>
+					<p className="studio-storage-note">
 						{t("guestCanvas.storageWarning")}
 					</p>
-					<Link
-						to={publicPath("/open-source-whiteboard-self-hosted")}
-						className="pointer-events-auto mt-5 hidden w-full items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-left transition-colors hover:border-primary/55 hover:bg-primary/10 lg:flex"
+					<nav
+						className="studio-welcome-links"
+						aria-label={
+							locale === "de" ? "Mehr über Skedra" : "More about Skedra"
+						}
 					>
-						<span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
-							<Server className="h-5 w-5" />
-						</span>
-						<span className="min-w-0 flex-1">
-							<span className="block font-comic-note text-base font-bold text-foreground">
-								{t("guestCanvas.selfHost.title")}
-							</span>
-							<span className="mt-0.5 block font-comic-note text-xs leading-relaxed text-muted-foreground">
-								{t("guestCanvas.selfHost.description")}
-							</span>
-						</span>
-						<ArrowRight className="h-4 w-4 shrink-0 text-primary" />
-					</Link>
-					<p className="mt-4 font-comic-note text-sm leading-relaxed text-muted-foreground lg:hidden">
-						{t("guestCanvas.startDrawingHint")}
-					</p>
-
-					<ul className="mt-5 hidden space-y-3 text-left font-comic-note text-base lg:block">
-						<li>
-							<Link
-								to={publicPath("/whiteboard")}
-								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
-							>
-								<Home className="h-4 w-4 shrink-0" aria-hidden="true" />
-								{t("guestCanvas.homepage")}
-							</Link>
-						</li>
-						<li>
-							<button
-								type="button"
-								onClick={onSave}
-								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
-							>
-								<Save className="h-4 w-4 shrink-0" />
-								{t("guestCanvas.saveToCloud")}
-							</button>
-						</li>
-						<li>
-							<button
-								type="button"
-								onClick={onOpenHelp}
-								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
-							>
-								<HelpCircle className="h-4 w-4 shrink-0" />
-								{t("guestCanvas.help")}
-							</button>
-						</li>
-						<li>
-							<a
-								href={DISCORD_URL}
-								target="_blank"
-								rel="noreferrer"
-								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
-							>
-								<MessageCircle
-									className="h-4 w-4 shrink-0"
-									aria-hidden="true"
-								/>
-								{t("guestCanvas.discordCommunity")}
-							</a>
-						</li>
-						<li>
-							<button
-								type="button"
-								onClick={onOpenLiveCollaboration}
-								className="pointer-events-auto inline-flex items-center gap-2.5 text-foreground hover:text-primary hover:underline"
-							>
-								<Users className="h-4 w-4 shrink-0" />
-								{t("guestCanvas.liveCollaboration.menuLabel")}
-							</button>
-						</li>
+						<Link to={publicPath("/whiteboard")}>
+							{locale === "de" ? "Skedra entdecken" : "Discover Skedra"}
+						</Link>
+						<button type="button" onClick={onOpenHelp}>
+							<HelpCircle />
+							{t("guestCanvas.help")}
+						</button>
+						<button type="button" onClick={onSave}>
+							{t("guestCanvas.saveToCloud")}
+						</button>
+						<a href={DISCORD_URL} target="_blank" rel="noreferrer">
+							<Users />
+							Community
+						</a>
 						{!isLoggedIn && (
-							<>
-								<li>
-									<Link
-										to={`${managedBilling ? publicPath("/pricing") : "/register"}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`}
-										className="pointer-events-auto inline-flex items-center gap-2.5 text-primary hover:underline"
-									>
-										<UserPlus className="h-4 w-4 shrink-0" />
-										{t("guestCanvas.signUp")}
-									</Link>
-								</li>
-								<li>
-									<Link
-										to={`${managedBilling ? publicPath("/pricing") : "/login"}?redirect=${encodeURIComponent(publicPath("/"))}`}
-										className="pointer-events-auto inline-flex items-center gap-2.5 text-muted-foreground hover:text-foreground hover:underline"
-									>
-										<LogIn className="h-4 w-4 shrink-0" />
-										{t("guestCanvas.signIn")}
-									</Link>
-								</li>
-							</>
+							<Link
+								to={`/login?redirect=${encodeURIComponent(publicPath("/"))}`}
+							>
+								{t("guestCanvas.signIn")}
+							</Link>
 						)}
-					</ul>
-				</div>
+						{!isLoggedIn && (
+							<Link to={managedBilling ? publicPath("/pricing") : "/register"}>
+								{t("guestCanvas.signUp")}
+							</Link>
+						)}
+					</nav>
+					<Link
+						className="studio-selfhost"
+						to={publicPath("/open-source-whiteboard-self-hosted")}
+					>
+						{t("guestCanvas.selfHost.title")}
+						<ArrowRight />
+					</Link>
+				</section>
 			</div>
 		</div>
 	);

@@ -13,16 +13,25 @@ import {
 	type CanvasElement,
 	type CanvasMutationPlan,
 	type KanbanAssignmentOptions,
+	computeViewportForBounds,
+	getCombinedBBox,
 	getSequenceDiagramElementMeta,
 } from "@skedra/canvas-core";
 import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
-import { PaintBucket, Pencil, SlidersHorizontal } from "lucide-react";
+import {
+	Copy,
+	PaintBucket,
+	Pencil,
+	SlidersHorizontal,
+	Trash2,
+} from "lucide-react";
 import {
 	type ComponentProps,
 	Suspense,
 	lazy,
 	memo,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -72,6 +81,7 @@ type KeyboardPanelApi = Pick<
 	| "bringToFront"
 	| "sendToBack"
 	| "copySelection"
+	| "duplicateSelection"
 	| "addLink"
 	| "flipHorizontal"
 	| "flipVertical"
@@ -186,6 +196,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 }: SkedraCanvasToolPanelsProps) {
 	const { t } = useI18n();
 	const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
+	const mobileStyleRef = useRef<HTMLDivElement>(null);
 	const panelStore = useCanvasStore(
 		useShallow((state) => ({
 			activePanel: state.activePanel,
@@ -204,6 +215,48 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 	);
 	const activeTool = panelStore.activeTool;
 	const elementsRef = useRef(sync.elements);
+	// Reveal the selection above the phone sheet once when it opens. This only
+	// changes the camera; element coordinates and undo history stay untouched.
+	useLayoutEffect(() => {
+		if (!mobilePropertiesOpen || editingTextId || pendingText) return;
+		const root = mobileStyleRef.current?.closest(".canvas-editor");
+		const sheet = root?.querySelector(
+			".canvas-editor__properties--mobile-open",
+		);
+		if (!root || !sheet) return;
+		const rect = root.getBoundingClientRect();
+		if (rect.width > 639) return;
+		const top = 72;
+		const height = sheet.getBoundingClientRect().top - rect.top - top - 12;
+		if (height < 80) return;
+		const state = useCanvasStore.getState();
+		const bounds = getCombinedBBox(
+			Array.from(state.selectedIds).flatMap((id) => {
+				const element = elementsRef.current.get(id);
+				return element ? [element] : [];
+			}),
+		);
+		if (!bounds) return;
+		const current = state.viewport;
+		if (
+			bounds.x * current.zoom + current.x >= 12 &&
+			(bounds.x + bounds.width) * current.zoom + current.x <= rect.width - 12 &&
+			bounds.y * current.zoom + current.y >= top &&
+			(bounds.y + bounds.height) * current.zoom + current.y <= top + height
+		)
+			return;
+		const fitted = computeViewportForBounds(
+			{ width: rect.width, height },
+			bounds,
+			24,
+		);
+		const zoom = Math.min(current.zoom, fitted.zoom);
+		state.setViewport({
+			x: rect.width / 2 - (bounds.x + bounds.width / 2) * zoom,
+			y: top + height / 2 - (bounds.y + bounds.height / 2) * zoom,
+			zoom,
+		});
+	}, [mobilePropertiesOpen, editingTextId, pendingText]);
 	useEffect(() => {
 		elementsRef.current = sync.elements;
 	}, [sync.elements]);
@@ -248,10 +301,39 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 			{showProperties && (
 				<>
 					<div
+						ref={mobileStyleRef}
 						className="canvas-editor__mobile-style-bar"
+						data-has-selection={selectedIds.size > 0 || undefined}
 						role="toolbar"
 						aria-label={t("canvas.properties.appearance")}
 					>
+						{selectedIds.size > 0 && (
+							<>
+								<button
+									type="button"
+									className="canvas-editor__mobile-style-button canvas-editor__phone-selection-action"
+									onClick={keyboard.duplicateSelection}
+									aria-label={t("canvas.commandPalette.duplicate")}
+								>
+									<Copy aria-hidden="true" />
+									<span>{t("canvas.commandPalette.duplicate")}</span>
+								</button>
+								<button
+									type="button"
+									className="canvas-editor__mobile-style-button canvas-editor__phone-selection-action"
+									onClick={() => {
+										stopUndoCapture();
+										deleteElementsWithKanbanReflow(Array.from(selectedIds));
+										panelStore.clearSelection();
+										setMobilePropertiesOpen(false);
+									}}
+									aria-label={t("canvas.properties.delete")}
+								>
+									<Trash2 aria-hidden="true" />
+									<span>{t("canvas.properties.delete")}</span>
+								</button>
+							</>
+						)}
 						<label
 							className="canvas-editor__mobile-style-button"
 							title={t("canvas.properties.stroke")}
@@ -304,9 +386,13 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 							aria-expanded={mobilePropertiesOpen}
 						>
 							<SlidersHorizontal aria-hidden="true" />
+							<span className="canvas-editor__phone-caption">
+								{t("canvas.properties.appearance")}
+							</span>
 						</button>
 					</div>
 					<PropertiesPanel
+						onCloseMobile={() => setMobilePropertiesOpen(false)}
 						className={
 							mobilePropertiesOpen
 								? "canvas-editor__properties--mobile-open"

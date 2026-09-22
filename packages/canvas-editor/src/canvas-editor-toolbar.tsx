@@ -119,6 +119,13 @@ export interface CanvasEditorToolbarResponsiveOptions {
 	moreIcon: ReactNode;
 	popoverClassName?: string;
 	hideToolLock?: boolean;
+	/** Optional phone layout; the existing compact/tablet layout stays intact. */
+	phone?: {
+		primaryToolIds: readonly CanvasEditorToolId[];
+		items?: readonly CanvasEditorToolbarItem[];
+		overflowItems?: readonly CanvasEditorToolbarItem[];
+		moreLabel: string;
+	};
 }
 
 export const DEFAULT_CANVAS_EDITOR_COMPACT_TOOL_IDS = [
@@ -218,20 +225,19 @@ function useCanvasEditorCompactToolbar(
 	rootRef: React.RefObject<HTMLDivElement | null>,
 	responsive: CanvasEditorToolbarResponsiveOptions | undefined,
 ) {
-	const [compact, setCompact] = useState(false);
+	const [width, setWidth] = useState(Number.POSITIVE_INFINITY);
 	const enabled = responsive != null;
 	const breakpoint = responsive?.breakpoint ?? 1023;
 	useLayoutEffect(() => {
 		if (!enabled || !rootRef.current) {
-			setCompact(false);
+			setWidth(Number.POSITIVE_INFINITY);
 			return;
 		}
 		const container =
 			rootRef.current.closest<HTMLElement>(".canvas-editor") ??
 			rootRef.current.parentElement;
 		if (!container) return;
-		const update = () =>
-			setCompact(container.getBoundingClientRect().width <= breakpoint);
+		const update = () => setWidth(container.getBoundingClientRect().width);
 		update();
 		const observer =
 			typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
@@ -241,8 +247,11 @@ function useCanvasEditorCompactToolbar(
 			observer?.disconnect();
 			window.removeEventListener("resize", update);
 		};
-	}, [breakpoint, enabled, rootRef]);
-	return compact;
+	}, [enabled, rootRef]);
+	return {
+		compact: width <= breakpoint,
+		phone: width <= 639 && !!responsive?.phone,
+	};
 }
 
 function focusMenuItem(
@@ -317,18 +326,24 @@ export function CanvasEditorToolbar({
 		return () => track.removeEventListener("wheel", handleWheel);
 	}, []);
 	const services = useOptionalCanvasEditorServices();
-	const compact = useCanvasEditorCompactToolbar(rootRef, responsive);
+	const { compact, phone } = useCanvasEditorCompactToolbar(rootRef, responsive);
 	const translate =
 		toolStrip.translate ??
 		services?.translations?.translate ??
 		((_key: string, fallback: string) => fallback);
 	const primaryToolIds = new Set(
-		responsive?.primaryToolIds ?? DEFAULT_CANVAS_EDITOR_COMPACT_TOOL_IDS,
+		(phone ? responsive?.phone?.primaryToolIds : responsive?.primaryToolIds) ??
+			DEFAULT_CANVAS_EDITOR_COMPACT_TOOL_IDS,
 	);
+	const phoneItems = phone ? (responsive?.phone?.items ?? []) : [];
+	const overflowItems = (
+		phone ? (responsive?.phone?.overflowItems ?? items) : items
+	).filter((item) => !phoneItems.some((primary) => primary.id === item.id));
 	const baseIncludeTool = toolStrip.includeTool ?? (() => true);
 	const resolvedToolStrip = compact
 		? {
 				...toolStrip,
+				showLabels: phone,
 				includeTool: (
 					definition: (typeof CANVAS_EDITOR_TOOL_DEFINITIONS)[number],
 				) => baseIncludeTool(definition) && primaryToolIds.has(definition.id),
@@ -348,7 +363,7 @@ export function CanvasEditorToolbar({
 		compact && responsive
 			? buildCompactMenuItems({
 					toolStrip,
-					items,
+					items: overflowItems,
 					primaryToolIds,
 					translate,
 				})
@@ -356,10 +371,12 @@ export function CanvasEditorToolbar({
 	const resolvedItems: readonly CanvasEditorToolbarItem[] =
 		compact && responsive
 			? [
+					...phoneItems,
 					{
 						type: "menu",
 						id: "compact-more",
-						label: responsive.moreLabel,
+						label:
+							(phone && responsive.phone?.moreLabel) || responsive.moreLabel,
 						icon: responsive.moreIcon,
 						items: compactMenuItems,
 						active:
@@ -369,7 +386,7 @@ export function CanvasEditorToolbar({
 										(definition) => definition.id === toolStrip.activeTool,
 									) ?? CANVAS_EDITOR_TOOL_DEFINITIONS[0],
 								)) ||
-							items.some(
+							overflowItems.some(
 								(item) =>
 									(item.type === "action" || item.type === "menu") &&
 									item.active,
@@ -569,6 +586,7 @@ export function CanvasEditorToolbar({
 			className={mergeClassNames("canvas-editor__toolbar", classes?.root)}
 			data-menu-open={activeMenu ? "true" : undefined}
 			data-compact={compact || undefined}
+			data-phone={phone || undefined}
 			role="toolbar"
 			onPointerMove={handleCanvasEditorToolbarPointerMove}
 			onPointerLeave={handleCanvasEditorToolbarPointerLeave}
@@ -641,6 +659,11 @@ export function CanvasEditorToolbar({
 								onClick={() => runAndClose(item.onSelect)}
 							>
 								<span className="canvas-editor__toolbar-icon">{item.icon}</span>
+								{phone && (
+									<span className="canvas-editor__toolbar-caption">
+										{item.label}
+									</span>
+								)}
 							</button>
 						);
 					}
@@ -688,6 +711,11 @@ export function CanvasEditorToolbar({
 								}}
 							>
 								<span className="canvas-editor__toolbar-icon">{item.icon}</span>
+								{phone && (
+									<span className="canvas-editor__toolbar-caption">
+										{item.label}
+									</span>
+								)}
 							</button>
 						</div>
 					);

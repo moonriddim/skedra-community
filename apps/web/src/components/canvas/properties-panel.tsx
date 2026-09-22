@@ -31,6 +31,7 @@ const WEB_PROPERTIES_PANEL_STYLE = {
 } as CSSProperties;
 
 interface PropertiesPanelProps {
+	onCloseMobile?: () => void;
 	className?: string;
 	elements: Map<string, CanvasElement>;
 	selectedIds: Set<string>;
@@ -74,6 +75,7 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({
+	onCloseMobile,
 	className,
 	elements,
 	selectedIds,
@@ -179,6 +181,7 @@ export function PropertiesPanel({
 
 	return (
 		<CanvasEditorPropertiesPanel
+			onCloseMobile={onCloseMobile}
 			className={className}
 			selected={editorSelection}
 			mode={panel.hasInspectionTarget ? "selection" : "defaults"}
