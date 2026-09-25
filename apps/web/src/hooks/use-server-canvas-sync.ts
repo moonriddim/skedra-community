@@ -2,6 +2,9 @@ import { createCanvasYjsFrameSync } from "@/hooks/canvas-yjs-frame-sync";
 import { restorePendingCanvasUpdates } from "@/hooks/restore-pending-canvas-updates";
 import {
 	CANVAS_LIVE_REFETCH_OPTIONS,
+	createSyncPayloadTooLargeError,
+	getCanvasUpdatePollInterval,
+	getCompactionRetryDelayMs,
 	shouldCompactCanvasUpdateLog,
 } from "@/lib/canvas-sync-policy";
 import { createCanvasUpdateFlusher } from "@/lib/canvas-update-flusher";
@@ -38,6 +41,7 @@ import type {
 import { CanvasScene } from "@skedra/canvas-core";
 import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
 import type { CanvasRole } from "@skedra/shared";
+import { BOARD_SYNC_UPDATE_MAX_CHARS } from "@skedra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import type { LocalCanvasPresence } from "./canvas-sync-types";
@@ -96,6 +100,10 @@ export function useServerCanvasSync(
 	const clientIdRef = useRef(createClientId());
 	const syncReadyRef = useRef(false);
 	const compactionInFlightRef = useRef(false);
+	// Backoff-Zustand der Komprimierung: Fehlschläge in Folge und frühester
+	// Zeitpunkt (ms seit Epoch) für den nächsten Versuch.
+	const compactionFailuresRef = useRef(0);
+	const compactionRetryAtRef = useRef(0);
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
@@ -138,16 +146,24 @@ export function useServerCanvasSync(
 	const appendUpdate = trpc.whiteboard.appendServerUpdate.useMutation();
 	const compactUpdates = trpc.whiteboard.compactServerUpdates.useMutation();
 	const liveConnectedRef = useRef(false);
+	// Größenbegrenzte Seiten: Ein großes, unkomprimiertes Log wird in mehreren
+	// Requests geladen statt in einem, der über langsame Proxys abbricht.
 	const {
-		data: updates,
+		data: updatePage,
 		error: updatesError,
 		refetch: refetchUpdates,
-	} = trpc.whiteboard.listServerUpdates.useQuery(listInput, {
+	} = trpc.whiteboard.listServerUpdatePage.useQuery(listInput, {
 		enabled: enabled && !!whiteboardId,
-		refetchInterval: () => (liveConnectedRef.current ? 8000 : 1500),
+		refetchInterval: () =>
+			getCanvasUpdatePollInterval({
+				liveConnected: liveConnectedRef.current,
+				hidden: document.visibilityState === "hidden",
+			}),
 		refetchIntervalInBackground: true,
 		retry: 1,
 	});
+	const updates = updatePage?.updates;
+	const hasMoreUpdates = updatePage?.hasMore ?? false;
 
 	const isSessionUser =
 		!presentationShareToken && !collabShareToken && !embedShareToken;
@@ -205,6 +221,14 @@ export function useServerCanvasSync(
 				const batch = createPendingServerUpdateBatch(pending);
 				const first = batch?.records[0];
 				if (!batch || !first) break;
+				// Nicht hochladen, was die API sicher ablehnt: Das würde bei jedem
+				// Retry (alle 5 s) erneut MB-weise Upload erzeugen.
+				if (batch.update.length > BOARD_SYNC_UPDATE_MAX_CHARS) {
+					throw createSyncPayloadTooLargeError(
+						batch.update.length,
+						BOARD_SYNC_UPDATE_MAX_CHARS,
+					);
+				}
 				await appendUpdate.mutateAsync({
 					...accessInput,
 					clientId: first.clientId,
@@ -262,12 +286,20 @@ export function useServerCanvasSync(
 			return;
 		}
 
-		const ydoc = new Y.Doc({ gc: false });
+		// Standard-GC von Yjs: Überschriebene Werte (jeder Drag-Frame, jeder
+		// Tastendruck im Textfeld) werden aus dem Zustand entfernt. Mit
+		// `gc: false` blieb jede Zwischenversion für immer im Board-Zustand und
+		// in jedem Komprimierungs-Snapshot. Nichts liest diese Historie; Undo/Redo
+		// arbeitet mit eigenen Deltas (canvas-undo), und der MCP-Server nutzt für
+		// dieselben Dokumente ebenfalls die Standard-GC.
+		const ydoc = new Y.Doc();
 		ydocRef.current = ydoc;
 		appliedUpdateIdsRef.current = new Set();
 		compactableUpdateBytesRef.current = 0;
 		appliedPendingUpdateIdsRef.current = new Set();
 		compactionInFlightRef.current = false;
+		compactionFailuresRef.current = 0;
+		compactionRetryAtRef.current = 0;
 		syncReadyRef.current = false;
 		setUpdateCursor(null);
 		setSendError(null);
@@ -408,7 +440,19 @@ export function useServerCanvasSync(
 			try {
 				for (const update of updates) {
 					if (!isCurrent()) return;
-					if (appliedUpdateIdsRef.current.has(update.id)) continue;
+					const cursor = {
+						id: update.id,
+						createdAt:
+							update.cursorCreatedAt ??
+							new Date(update.createdAt).toISOString(),
+					};
+					if (appliedUpdateIdsRef.current.has(update.id)) {
+						// Auch bereits bekannte Zeilen schieben den Cursor weiter,
+						// sonst könnte eine Seite aus lauter bekannten Zeilen das
+						// Weiterblättern dauerhaft blockieren.
+						lastAppliedCursor = cursor;
+						continue;
+					}
 					Y.applyUpdate(
 						ydoc,
 						base64ToBytes(update.update),
@@ -421,12 +465,7 @@ export function useServerCanvasSync(
 					if (hasBaseUpdate) {
 						compactableUpdateBytesRef.current += update.update.length;
 					}
-					lastAppliedCursor = {
-						id: update.id,
-						createdAt:
-							update.cursorCreatedAt ??
-							new Date(update.createdAt).toISOString(),
-					};
+					lastAppliedCursor = cursor;
 				}
 			} catch (error) {
 				if (!isCurrent()) return;
@@ -442,7 +481,8 @@ export function useServerCanvasSync(
 
 			if (!isCurrent()) return;
 			if (lastAppliedCursor) setUpdateCursor(lastAppliedCursor);
-			if (updates.length >= SERVER_UPDATE_PAGE_SIZE) {
+			// Weitere Seiten folgen: Der geänderte Cursor lädt sie sofort nach.
+			if (hasMoreUpdates) {
 				syncReadyRef.current = false;
 				setIsConnected(false);
 				return;
@@ -478,7 +518,9 @@ export function useServerCanvasSync(
 					updateCount: appliedUpdateIdsRef.current.size,
 					compactableBytes: compactableUpdateBytesRef.current,
 				}) &&
-				!compactionInFlightRef.current
+				!compactionInFlightRef.current &&
+				// Nach Fehlschlägen erst nach Ablauf des Backoffs erneut versuchen.
+				Date.now() >= compactionRetryAtRef.current
 			) {
 				await sendQueueRef.current.catch(() => undefined);
 				if (!isCurrent()) return;
@@ -486,19 +528,33 @@ export function useServerCanvasSync(
 					whiteboardId,
 				).catch(() => []);
 				if (!isCurrent() || pendingBeforeCompaction.length > 0) return;
+				const snapshot = bytesToBase64(Y.encodeStateAsUpdate(ydoc));
+				if (snapshot.length > BOARD_SYNC_UPDATE_MAX_CHARS) {
+					// Der Snapshot würde abgelehnt. Das Log bleibt dann unkomprimiert,
+					// wird aber weiterhin in größenbegrenzten Seiten geladen.
+					compactionRetryAtRef.current =
+						Date.now() + getCompactionRetryDelayMs(Number.POSITIVE_INFINITY);
+					return;
+				}
 				compactionInFlightRef.current = true;
 				try {
 					await compactUpdates.mutateAsync({
 						...accessInput,
 						clientId: clientIdRef.current,
-						update: bytesToBase64(Y.encodeStateAsUpdate(ydoc)),
+						update: snapshot,
 						upToId: compactionCursor.id,
 					});
 					if (!isCurrent()) return;
 					appliedUpdateIdsRef.current = new Set();
 					compactableUpdateBytesRef.current = 0;
+					compactionFailuresRef.current = 0;
+					compactionRetryAtRef.current = 0;
 				} catch (error) {
 					if (!isCurrent()) return;
+					compactionFailuresRef.current += 1;
+					compactionRetryAtRef.current =
+						Date.now() +
+						getCompactionRetryDelayMs(compactionFailuresRef.current);
 					setConnectionError(
 						error instanceof Error
 							? error.message
@@ -522,6 +578,7 @@ export function useServerCanvasSync(
 		readonly,
 		syncFromYjs,
 		sendQueueRef,
+		hasMoreUpdates,
 		updateCursor,
 		updates,
 		whiteboardId,

@@ -1,4 +1,5 @@
 import { SubscriptionPaywall } from "@/components/billing/subscription-paywall";
+import { InstallationStatisticsSetup } from "@/components/settings/system-installation-statistics";
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -46,7 +47,7 @@ export function AuthLayout() {
 		return <SubscriptionPaywall />;
 	}
 
-	return (
+	const content = (
 		<div className="flex h-screen overflow-hidden bg-background max-lg:h-dvh">
 			<main
 				className={`min-h-0 flex-1 ${isBoardRoute ? "overflow-hidden" : "overflow-y-auto"}`}
@@ -54,5 +55,12 @@ export function AuthLayout() {
 				<Outlet />
 			</main>
 		</div>
+	);
+	return session?.user && billing.data?.available === false ? (
+		<InstallationStatisticsSetup key={session.user.id}>
+			{content}
+		</InstallationStatisticsSetup>
+	) : (
+		content
 	);
 }

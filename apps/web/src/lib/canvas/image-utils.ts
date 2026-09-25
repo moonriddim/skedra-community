@@ -24,6 +24,15 @@ export interface PickedImage {
 	storage?: "inline" | "object";
 }
 
+/** Steuert, wie eine ausgewählte Bilddatei gelesen wird. */
+export interface ImageReadOptions {
+	/**
+	 * SVG inline lassen und den Quelltext mitliefern. Der Canvas-Einfügen-Dialog
+	 * wandelt SVGs bevorzugt in Formen um und lädt nur bei Misserfolg hoch.
+	 */
+	keepSvgInline?: boolean;
+}
+
 export interface ImageUploadOptions {
 	whiteboardId?: string;
 	objectStorageEnabled?: boolean;
@@ -35,6 +44,7 @@ export interface ImageUploadOptions {
 
 export async function pickImageFile(
 	uploadOptions?: ImageUploadOptions,
+	readOptions?: ImageReadOptions,
 ): Promise<PickedImage | null> {
 	return new Promise((resolve) => {
 		const input = document.createElement("input");
@@ -59,7 +69,7 @@ export async function pickImageFile(
 				}
 
 				try {
-					const result = await readImageFile(file, uploadOptions);
+					const result = await readImageFile(file, uploadOptions, readOptions);
 					cleanup();
 					resolve(result);
 				} catch {
@@ -121,6 +131,7 @@ export async function pickImageFiles(
 async function readImageFile(
 	file: File,
 	uploadOptions?: ImageUploadOptions,
+	readOptions?: ImageReadOptions,
 ): Promise<PickedImage> {
 	if (
 		uploadOptions?.objectStorageEnabled &&
@@ -133,6 +144,30 @@ async function readImageFile(
 		file.type.toLowerCase() === "image/svg+xml" ||
 		file.name.toLowerCase().endsWith(".svg");
 	if (isSvg) {
+		// Ohne Umwandlung in Formen (z. B. Kanban-Cover) wird das SVG wie ein
+		// Rasterbild als verschlüsseltes Asset gespeichert statt als data:-URL im
+		// Board. Angezeigt wird es nur als Bild (<img>/<image>); siehe
+		// `createDecryptedAssetUrl` für den Schutz vor Skripten im SVG.
+		if (!readOptions?.keepSvgInline) {
+			const uploaded = await uploadEncryptedCanvasAsset(
+				file,
+				uploadOptions,
+			).catch(() => null);
+			if (uploaded) {
+				const dimensions = await loadCanvasImageBlobDimensions(file).catch(
+					() => ({ width: 0, height: 0 }),
+				);
+				return {
+					src: uploaded.src,
+					assetId: uploaded.assetId,
+					width: dimensions.width,
+					height: dimensions.height,
+					name: file.name,
+					sizeBytes: file.size,
+					storage: "object",
+				};
+			}
+		}
 		return {
 			src: await canvasBlobToDataUrl(file),
 			width: 0,

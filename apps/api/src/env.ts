@@ -77,6 +77,7 @@ const envSchema = z
 			.default("change-me-to-a-random-secret-min-32-chars"),
 		DATA_ENCRYPTION_SECRET: z.string().min(32).optional(),
 		SKEDRA_DEPLOYMENT_MODE: z.enum(["selfhost", "managed"]).default("selfhost"),
+		SKEDRA_INSTALLATION_STATS_RECEIVER_ENABLED: optionalBoolean,
 		APP_URL: z.string().default("http://localhost:5174"),
 		/** Öffentlicher Katalog (apps/libraries), z. B. http://localhost:5175 */
 		LIBRARIES_URL: z.string().default("http://localhost:5175"),

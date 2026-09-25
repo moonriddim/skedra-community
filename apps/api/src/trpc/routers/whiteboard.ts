@@ -2,6 +2,7 @@ import {
 	canvasUpdateCursorTimestamp,
 	canvasUpdateTimestamp,
 	canvasUpdatesAfter,
+	listCanvasUpdatePage,
 } from "../../lib/canvas-update-cursor";
 /**
  * Whiteboard/Board-Router – Excalidraw-ähnlich: flache Boards pro User.
@@ -34,6 +35,8 @@ import {
 	whiteboardPresentationAccessModeSchema,
 } from "@skedra/shared";
 import {
+	BOARD_SYNC_PAGE_MAX_CHARS,
+	BOARD_SYNC_UPDATE_MAX_CHARS,
 	accessLevelFromPermissions,
 	parseTeamRolePermissions,
 } from "@skedra/shared";
@@ -256,7 +259,8 @@ function assertBoardEncryptionMode(
 	}
 }
 
-const serverUpdateSchema = z.string().min(1).max(4_000_000);
+// Gemeinsames Limit mit dem Client: Snapshots enthalten den ganzen Board-Zustand.
+const serverUpdateSchema = z.string().min(1).max(BOARD_SYNC_UPDATE_MAX_CHARS);
 
 function encryptServerUpdate(update: string) {
 	return encryptText(update, getYjsEncryptionOptions());
@@ -1555,12 +1559,36 @@ export const whiteboardRouter = router({
 			});
 		}),
 
+	/**
+	 * Wie `listE2eeUpdates`, aber zusätzlich nach Größe begrenzt und mit
+	 * `hasMore`. `listE2eeUpdates` bleibt für bereits geöffnete ältere Tabs.
+	 */
+	listE2eeUpdatePage: publicProcedure
+		.input(
+			e2eeAccessInputSchema.extend({
+				afterId: z.string().uuid().optional(),
+				afterCreatedAt: z.string().datetime().optional(),
+				limit: z.number().min(1).max(1000).default(500),
+			}),
+		)
+		.query(async ({ ctx, input }) => {
+			const access = await requireE2eeUpdateAccess(ctx, input);
+			assertBoardEncryptionMode(access, "e2ee");
+			return listCanvasUpdatePage(ctx.db, {
+				whiteboardId: input.whiteboardId,
+				afterId: input.afterId,
+				afterCreatedAt: input.afterCreatedAt,
+				limit: input.limit,
+				maxChars: BOARD_SYNC_PAGE_MAX_CHARS,
+			});
+		}),
+
 	appendE2eeUpdate: publicProcedure
 		.input(
 			e2eeAccessInputSchema.extend({
 				clientId: z.string().min(8).max(120),
 				keyHash: e2eeKeyHashSchema,
-				update: z.string().min(1).max(4_000_000),
+				update: z.string().min(1).max(BOARD_SYNC_UPDATE_MAX_CHARS),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -1610,7 +1638,7 @@ export const whiteboardRouter = router({
 			e2eeAccessInputSchema.extend({
 				clientId: z.string().min(8).max(120),
 				keyHash: e2eeKeyHashSchema,
-				update: z.string().min(1).max(4_000_000),
+				update: z.string().min(1).max(BOARD_SYNC_UPDATE_MAX_CHARS),
 				upToId: z.string().uuid(),
 			}),
 		)
@@ -1734,6 +1762,37 @@ export const whiteboardRouter = router({
 				...row,
 				update: decryptServerUpdate(row.update),
 			}));
+		}),
+
+	/**
+	 * Wie `listServerUpdates`, aber zusätzlich nach Größe begrenzt und mit
+	 * `hasMore`. `listServerUpdates` bleibt für bereits geöffnete ältere Tabs.
+	 */
+	listServerUpdatePage: publicProcedure
+		.input(
+			e2eeAccessInputSchema.extend({
+				afterId: z.string().uuid().optional(),
+				afterCreatedAt: z.string().datetime().optional(),
+				limit: z.number().min(1).max(1000).default(500),
+			}),
+		)
+		.query(async ({ ctx, input }) => {
+			const access = await requireE2eeUpdateAccess(ctx, input);
+			assertBoardEncryptionMode(access, "server");
+			const page = await listCanvasUpdatePage(ctx.db, {
+				whiteboardId: input.whiteboardId,
+				afterId: input.afterId,
+				afterCreatedAt: input.afterCreatedAt,
+				limit: input.limit,
+				maxChars: BOARD_SYNC_PAGE_MAX_CHARS,
+			});
+			return {
+				hasMore: page.hasMore,
+				updates: page.updates.map((row) => ({
+					...row,
+					update: decryptServerUpdate(row.update),
+				})),
+			};
 		}),
 
 	appendServerUpdate: publicProcedure

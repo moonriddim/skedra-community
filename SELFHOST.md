@@ -17,6 +17,55 @@ independent product, rebranded version, or hosted service to third parties
 requires a separate written license, even when the offering is free.
 See the full terms in `LICENSE` (or `SELFHOST_LICENSE` in the source repository).
 
+## Voluntary installation statistics
+
+Installation statistics are **off until the instance administrator chooses Yes**.
+After the administrator first signs in, a setup screen asks whether to contribute,
+with equally presented **Yes / No options and neither preselected**. Save either
+choice to continue; both allow full use of Skedra. Other users and managed-cloud
+accounts are not asked. Existing self-hosted installations see the same question
+on the administrator's next sign-in until a choice has been saved.
+
+Change the saved choice anytime in **Settings → System → Installation statistics**.
+It is stored in your database and survives restarts. No environment variable or
+restart is required. Choosing No prevents subsequent reports; a request already
+in flight may finish. A missing decision is never interpreted as permission.
+The earlier environment switch `SKEDRA_INSTALLATION_STATS_ENABLED` no longer
+enables reporting; the administrator's saved choice is the sole opt-in.
+
+The server sends an HTTPS POST to
+`https://skedra.xyz/api/installation-statistics` within about one minute after
+the initial Yes is saved, then approximately once per day. The **entire JSON payload** is:
+
+```json
+{"month":"2026-09","monthlyId":"34ab816a-d6dc-4f3b-bb70-012c891ed2e8"}
+```
+
+The ID is randomly generated and shared by replicas through your local database.
+It survives restarts, but is replaced with a fresh, unrelated random ID each UTC
+calendar month. No permanent ID is sent. The report contains no users, user
+counts, email addresses, domain names, versions, boards or usage events. There
+are no browser cookies or browser-side statistics requests for this feature.
+The local scheduling row is not a history; its ID is replaced at the next report
+in a new month. If disabled, the last local row remains until reporting resumes.
+
+The receiver counts each monthly ID once. It keeps only that month's
+deduplication IDs plus aggregate monthly counts, with an hourly cleanup of
+previous-month IDs while the central API is running (also on startup).
+The supplied central backup script excludes these identifier rows. Disabling
+reporting does not subtract an already counted installation from the aggregate.
+The number describes **reporting installations**, not people or actual usage.
+Nonparticipants, offline servers, database resets/clones and unverified reports
+mean it is only an approximate measure of voluntary participation.
+
+Network requests necessarily expose a source IP to the receiving infrastructure,
+including its hosting/CDN providers; this feature must not be described as
+guaranteed anonymous. The application does not store the IP or request headers
+in its statistics tables. The supplied receiver Nginx configuration disables
+request logging for this route and strips forwarded client headers. See the
+Skedra [privacy notice](https://skedra.xyz/privacy) for the controller, hosting
+providers and contact information.
+
 ## Requirements
 
 - Docker Engine with Docker Compose

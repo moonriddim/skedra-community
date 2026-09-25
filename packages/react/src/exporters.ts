@@ -4,6 +4,7 @@ import {
 	exportSkedraPng as exportSharedPng,
 	exportSkedraPptx as exportSharedPptx,
 	exportSkedraSvg as exportSharedSvg,
+	exportSkedraSvgWithImages as exportSharedSvgWithImages,
 	exportSkedraVisual as exportSharedVisual,
 	getSkedraFrameExportFilename as getSharedFrameExportFilename,
 	measureSkedraExportBounds as measureSharedExportBounds,
@@ -47,6 +48,14 @@ export function exportSkedraSvg(
 	options: SkedraVisualExportOptions = {},
 ): Blob {
 	return exportSharedSvg(svgElement, options);
+}
+
+/** SVG-Export mit als data:-URL eingebetteten Bildern (eigenständige Datei). */
+export function exportSkedraSvgWithImages(
+	svgElement: SVGSVGElement,
+	options: SkedraVisualExportOptions = {},
+): Promise<Blob> {
+	return exportSharedSvgWithImages(svgElement, options);
 }
 
 export function exportSkedraPng(

@@ -73,3 +73,42 @@ test("does not repeatedly compact a large snapshot without new delta bytes", () 
 		false,
 	);
 });
+
+test("failed compactions back off exponentially up to the maximum", async () => {
+	const {
+		CANVAS_COMPACTION_RETRY_BASE_MS,
+		CANVAS_COMPACTION_RETRY_MAX_MS,
+		getCompactionRetryDelayMs,
+	} = await import("./canvas-sync-policy");
+	assert.equal(getCompactionRetryDelayMs(1), CANVAS_COMPACTION_RETRY_BASE_MS);
+	assert.equal(
+		getCompactionRetryDelayMs(2),
+		CANVAS_COMPACTION_RETRY_BASE_MS * 2,
+	);
+	assert.equal(getCompactionRetryDelayMs(20), CANVAS_COMPACTION_RETRY_MAX_MS);
+	assert.equal(
+		getCompactionRetryDelayMs(Number.POSITIVE_INFINITY),
+		CANVAS_COMPACTION_RETRY_MAX_MS,
+	);
+});
+
+test("hidden tabs without a live channel poll less often", async () => {
+	const {
+		CANVAS_UPDATE_POLL_HIDDEN_MS,
+		CANVAS_UPDATE_POLL_LIVE_MS,
+		CANVAS_UPDATE_POLL_MS,
+		getCanvasUpdatePollInterval,
+	} = await import("./canvas-sync-policy");
+	assert.equal(
+		getCanvasUpdatePollInterval({ liveConnected: true, hidden: false }),
+		CANVAS_UPDATE_POLL_LIVE_MS,
+	);
+	assert.equal(
+		getCanvasUpdatePollInterval({ liveConnected: false, hidden: false }),
+		CANVAS_UPDATE_POLL_MS,
+	);
+	assert.equal(
+		getCanvasUpdatePollInterval({ liveConnected: false, hidden: true }),
+		CANVAS_UPDATE_POLL_HIDDEN_MS,
+	);
+});

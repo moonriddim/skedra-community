@@ -58,14 +58,84 @@ interface RasterizedCanvas {
 const EXPORT_UI_SELECTOR =
 	"[data-ui-only], [data-skedra-ui], .skedra-sdk__selection, .skedra-sdk__lasso, .skedra-sdk__laser, .skedra-sdk__selected-outline";
 
+/**
+ * Synchroner SVG-Export. Bilder behalten ihre aktuellen URLs; bei blob:-URLs
+ * (z. B. entschlüsselte Assets) ist die Datei außerhalb der Sitzung daher ohne
+ * Bilder. Für Downloads `exportSkedraSvgWithImages` verwenden.
+ */
 export function exportSkedraSvg(
 	svgElement: SVGSVGElement,
 	options: SkedraVisualExportOptions = {},
 ): Blob {
 	const prepared = prepareSvg(svgElement, options);
-	return new Blob([new XMLSerializer().serializeToString(prepared.svg)], {
+	return serializeSvgBlob(prepared.svg);
+}
+
+/**
+ * SVG-Export mit eingebetteten Bildern: Jedes <image> wird als data:-URL in
+ * die Datei geschrieben, damit sie eigenständig funktioniert.
+ */
+export async function exportSkedraSvgWithImages(
+	svgElement: SVGSVGElement,
+	options: SkedraVisualExportOptions = {},
+): Promise<Blob> {
+	const prepared = prepareSvg(svgElement, options);
+	await embedSvgImages(prepared.svg);
+	return serializeSvgBlob(prepared.svg);
+}
+
+function serializeSvgBlob(svg: SVGSVGElement) {
+	return new Blob([new XMLSerializer().serializeToString(svg)], {
 		type: "image/svg+xml;charset=utf-8",
 	});
+}
+
+const XLINK_NS = "http://www.w3.org/1999/xlink";
+
+/** Liest eine Blob-Antwort als base64-data:-URL (in Blöcken, ohne Stack-Überlauf). */
+async function blobToDataUrl(blob: Blob): Promise<string> {
+	const bytes = new Uint8Array(await blob.arrayBuffer());
+	let binary = "";
+	for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+		binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+	}
+	const type = blob.type || "application/octet-stream";
+	return `data:${type};base64,${btoa(binary)}`;
+}
+
+/**
+ * Ersetzt die Quellen aller <image>-Elemente durch data:-URLs.
+ *
+ * Ein als Bild geladenes SVG (für PNG/PDF/PPTX über <img> gerastert) darf aus
+ * Sicherheitsgründen keine externen Ressourcen nachladen – auch keine
+ * blob:-URLs. Ohne Einbetten fehlten hochgeladene Bilder deshalb in diesen
+ * Exporten, und exportierte SVG-Dateien verwiesen auf nicht mehr gültige
+ * blob:-URLs. Nicht ladbare Bilder bleiben unverändert.
+ */
+export async function embedSvgImages(svg: SVGSVGElement) {
+	const cache = new Map<string, Promise<string | null>>();
+	const load = (href: string) => {
+		let pending = cache.get(href);
+		if (!pending) {
+			pending = fetch(href, { credentials: "include" })
+				.then((response) => (response.ok ? response.blob() : null))
+				.then((blob) => (blob ? blobToDataUrl(blob) : null))
+				.catch(() => null);
+			cache.set(href, pending);
+		}
+		return pending;
+	};
+	await Promise.all(
+		Array.from(svg.querySelectorAll("image"), async (image) => {
+			const href =
+				image.getAttribute("href") ?? image.getAttributeNS(XLINK_NS, "href");
+			if (!href || href.startsWith("data:")) return;
+			const dataUrl = await load(href);
+			if (!dataUrl) return;
+			image.setAttribute("href", dataUrl);
+			image.removeAttributeNS(XLINK_NS, "href");
+		}),
+	);
 }
 
 export async function exportSkedraPng(
@@ -120,7 +190,7 @@ export async function exportSkedraVisual(
 ): Promise<Blob> {
 	switch (format) {
 		case "svg":
-			return exportSkedraSvg(svgElement, options);
+			return exportSkedraSvgWithImages(svgElement, options);
 		case "png":
 			return exportSkedraPng(svgElement, options);
 		case "pdf":
@@ -232,6 +302,8 @@ async function rasterizeSvg(
 	options: SkedraVisualExportOptions,
 ): Promise<RasterizedCanvas> {
 	const prepared = prepareSvg(svgElement, options);
+	// Ohne Einbetten lädt das gerasterte SVG keine blob:-/Asset-Bilder.
+	await embedSvgImages(prepared.svg);
 	const scale = Math.max(0.25, options.scale ?? 2);
 	const source = new XMLSerializer().serializeToString(prepared.svg);
 	const usesDataUrl = prepared.svg.querySelector("foreignObject") != null;

@@ -28,6 +28,14 @@ interface UseCommunityCanvasKeyboardAdapterOptions {
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
 	getPastePoint?: () => { x: number; y: number };
+	/** Siehe `useCanvasKeyboardOperations`: Vorbereitung eingefügter Inhalte. */
+	prepareImportedElements?: Parameters<
+		typeof useCanvasKeyboardOperations
+	>[0]["prepareImportedElements"];
+	/** Siehe `useCanvasKeyboardOperations`: Bilder beim Kopieren einbetten. */
+	portableCopy?: Parameters<
+		typeof useCanvasKeyboardOperations
+	>[0]["portableCopy"];
 	undo: () => void;
 	redo: () => void;
 	actions?: CanvasKeyboardActions;
@@ -42,6 +50,8 @@ export function useCommunityCanvasKeyboardAdapter({
 	deleteElements,
 	updateElements,
 	getPastePoint,
+	prepareImportedElements,
+	portableCopy,
 	undo,
 	redo,
 	actions,
@@ -53,6 +63,8 @@ export function useCommunityCanvasKeyboardAdapter({
 		deleteElements,
 		updateElements,
 		getPastePoint,
+		prepareImportedElements,
+		portableCopy,
 	});
 
 	const getClipboardState = () => ({

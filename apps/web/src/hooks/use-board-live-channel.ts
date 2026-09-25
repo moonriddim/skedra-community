@@ -8,9 +8,15 @@
  *
  * EventSource reconnectet bei Verbindungsabbruch automatisch. Cookies (Session)
  * werden per `withCredentials` mitgeschickt — passend zur same-origin-API.
+ *
+ * Versteckte Tabs schließen die Verbindung nach kurzer Zeit (siehe
+ * `createVisibilityGatedConnection`), damit sie über HTTP/1.1 keinen der wenigen
+ * Verbindungs-Slots pro Origin blockieren. Bis zum Reconnect übernimmt Polling;
+ * das `ready`-Event nach dem Reconnect lädt verpasste Updates nach.
  */
 
 import { getApiUrl } from "@/lib/api-url";
+import { createVisibilityGatedConnection } from "@/lib/visibility-gated-connection";
 import { useEffect, useRef } from "react";
 
 const LIVE_EVENT_DEBOUNCE_MS = 100;
@@ -41,49 +47,55 @@ export function useBoardLiveChannel(
 
 	useEffect(() => {
 		if (!enabled || !whiteboardId) return;
-		let eventTimer: number | null = null;
 
-		const source = new EventSource(
-			getApiUrl(`/api/boards/${whiteboardId}/live`),
-			{
-				withCredentials: true,
-			},
-		);
+		/** Öffnet eine EventSource und liefert die zugehörige Aufräumfunktion. */
+		const connect = () => {
+			let eventTimer: number | null = null;
+			const source = new EventSource(
+				getApiUrl(`/api/boards/${whiteboardId}/live`),
+				{
+					withCredentials: true,
+				},
+			);
 
-		const handleReady = () => {
-			onConnectedRef.current?.(true);
-			// Events lost while disconnected are not replayed by this channel.
-			onEventRef.current();
-		};
-		const handleUpdate = (event: Event) => {
-			if (event instanceof MessageEvent) {
-				try {
-					const payload = JSON.parse(event.data) as { type?: unknown };
-					if (payload.type === "compact") onCompactionRef.current?.();
-				} catch {
-					// The durable refetch below remains the source of truth.
-				}
-			}
-			if (eventTimer != null) return;
-			eventTimer = window.setTimeout(() => {
-				eventTimer = null;
+			const handleReady = () => {
+				onConnectedRef.current?.(true);
+				// Events lost while disconnected are not replayed by this channel.
 				onEventRef.current();
-			}, LIVE_EVENT_DEBOUNCE_MS);
-		};
-		const handleError = () => onConnectedRef.current?.(false);
+			};
+			const handleUpdate = (event: Event) => {
+				if (event instanceof MessageEvent) {
+					try {
+						const payload = JSON.parse(event.data) as { type?: unknown };
+						if (payload.type === "compact") onCompactionRef.current?.();
+					} catch {
+						// The durable refetch below remains the source of truth.
+					}
+				}
+				if (eventTimer != null) return;
+				eventTimer = window.setTimeout(() => {
+					eventTimer = null;
+					onEventRef.current();
+				}, LIVE_EVENT_DEBOUNCE_MS);
+			};
+			const handleError = () => onConnectedRef.current?.(false);
 
-		source.addEventListener("ready", handleReady);
-		source.addEventListener("update", handleUpdate);
-		// "ping"-Heartbeats halten die Verbindung offen — keine Aktion nötig.
-		source.onerror = handleError;
+			source.addEventListener("ready", handleReady);
+			source.addEventListener("update", handleUpdate);
+			// "ping"-Heartbeats halten die Verbindung offen — keine Aktion nötig.
+			source.onerror = handleError;
 
-		return () => {
-			if (eventTimer != null) window.clearTimeout(eventTimer);
-			onConnectedRef.current?.(false);
-			source.removeEventListener("ready", handleReady);
-			source.removeEventListener("update", handleUpdate);
-			source.onerror = null;
-			source.close();
+			return () => {
+				if (eventTimer != null) window.clearTimeout(eventTimer);
+				// Ohne Live-Kanal wechselt der Sync auf Polling.
+				onConnectedRef.current?.(false);
+				source.removeEventListener("ready", handleReady);
+				source.removeEventListener("update", handleUpdate);
+				source.onerror = null;
+				source.close();
+			};
 		};
+
+		return createVisibilityGatedConnection({ connect });
 	}, [enabled, whiteboardId]);
 }

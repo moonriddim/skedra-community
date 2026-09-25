@@ -20,6 +20,12 @@ import { usePresentationCanvasSync } from "@/hooks/use-presentation-canvas-sync"
 import { usePresentationPublisher } from "@/hooks/use-presentation-publisher";
 import { usePresenterNotes } from "@/hooks/use-presenter-notes";
 import { useServerCanvasSync } from "@/hooks/use-server-canvas-sync";
+import {
+	embedPreparedClipboardAssets,
+	hasRestorableClipboardAssets,
+	prepareClipboardAssets,
+	restoreClipboardAssetRefs,
+} from "@/lib/canvas/asset-clipboard-cache";
 import type { AssetAccessTokens } from "@/lib/canvas/asset-urls";
 import { getCanvasElementFactoryDefaults } from "@/lib/canvas/canvas-factory-defaults";
 import { mergeElementCustomData } from "@/lib/canvas/custom-data-utils";
@@ -32,6 +38,14 @@ import {
 	exportSVG,
 } from "@/lib/canvas/export-utils";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
+import {
+	externalizeInlineImageElements,
+	hasExternalizableInlineImages,
+} from "@/lib/canvas/inline-image-assets";
+import {
+	collectAssetReferences,
+	embedEncryptedAssetReferences,
+} from "@/lib/canvas/portable-assets";
 import type { SkedraCanvasFileActions } from "@/lib/canvas/skedra-file-utils";
 import {
 	getStickyNoteContent,
@@ -452,6 +466,46 @@ export function SkedraCanvas({
 			whiteboardId,
 		],
 	);
+	// Fremde Inhalte (Paste, Datei-Import, Bibliothek) können große base64-Bilder
+	// enthalten. Diese werden vor dem Einfügen als Assets hochgeladen, damit sie
+	// nicht als data:-URL im Board-Dokument landen.
+	// Beim Einfügen aus der Zwischenablage kommen Bilder aus diesem Board als
+	// data:-URL zurück (siehe asset-clipboard-cache): Sie werden wieder zu den
+	// ursprünglichen Verweisen. Bilder aus anderen Boards werden hochgeladen.
+	const importedElementsPreparation = useMemo(
+		() => ({
+			needsPreparation: (elements: CanvasElement[]) =>
+				hasRestorableClipboardAssets(elements, whiteboardId) ||
+				(!!imageUploadOptions.objectStorageEnabled &&
+					hasExternalizableInlineImages(elements)),
+			prepare: (elements: CanvasElement[]) =>
+				externalizeInlineImageElements(
+					restoreClipboardAssetRefs(elements, whiteboardId),
+					imageUploadOptions,
+				),
+		}),
+		[imageUploadOptions, whiteboardId],
+	);
+	// Inhalte, die das Board verlassen (Datei-Export, Bibliothek), bekommen ihre
+	// Bilder eingebettet: Asset-Verweise funktionieren nur in diesem Board.
+	const embedBoardAssets = useCallback(
+		<T,>(value: T) =>
+			embedEncryptedAssetReferences(value, {
+				whiteboardId,
+				e2eeKey,
+				tokens: assetAccessTokens,
+			}),
+		[assetAccessTokens, e2eeKey, whiteboardId],
+	);
+	// Kopieren: vorbereitete Bilder sofort einbetten, sonst kurz danach nachladen.
+	const portableCopy = useMemo(
+		() => ({
+			embedSync: (elements: CanvasElement[]) =>
+				embedPreparedClipboardAssets(elements, whiteboardId),
+			embedAsync: (elements: CanvasElement[]) => embedBoardAssets(elements),
+		}),
+		[embedBoardAssets, whiteboardId],
+	);
 	const resolveAssetUrl = useEncryptedAssetUrls({
 		elements: sync.elements,
 		whiteboardId,
@@ -631,6 +685,20 @@ export function SkedraCanvas({
 		})),
 	);
 	const store = { ...storeRef.current, ...storeSlice } as CanvasStoreState;
+	/** Startet die Platzierung, nachdem eingebettete Bilder ausgelagert wurden. */
+	const startElementPlacementWithAssets = useCallback(
+		(elements: CanvasElement[]) => {
+			if (!importedElementsPreparation.needsPreparation(elements)) {
+				store.startElementPlacement(elements);
+				return;
+			}
+			void importedElementsPreparation
+				.prepare(elements)
+				.catch(() => elements)
+				.then(store.startElementPlacement);
+		},
+		[importedElementsPreparation, store.startElementPlacement],
+	);
 	const {
 		viewport,
 		selectedIds,
@@ -891,6 +959,8 @@ export function SkedraCanvas({
 		whiteboardId,
 		canvasFileRef,
 		onImportApplied: resetViewsOnImport,
+		prepareImportedElements: importedElementsPreparation.prepare,
+		prepareExportedElements: embedBoardAssets,
 	});
 	const activeView = activeViewId
 		? (sync.views.get(activeViewId) ?? null)
@@ -1088,6 +1158,24 @@ export function SkedraCanvas({
 	}, [effectivePresentationPreparationMode]);
 
 	const selectedEls = sync.scene.getSelectedElements(selectedIds);
+	// Bilder der Auswahl vorab für die Zwischenablage vorbereiten, damit sie
+	// beim Kopieren synchron eingebettet werden können.
+	const selectedAssetRefsKey = useMemo(() => {
+		const refs = new Set<string>();
+		for (const id of selectedIds) {
+			const element = sync.elements.get(id);
+			if (element) collectAssetReferences(element, refs);
+		}
+		return [...refs].sort().join("\n");
+	}, [selectedIds, sync.elements]);
+	useEffect(() => {
+		if (!selectedAssetRefsKey) return;
+		void prepareClipboardAssets(selectedAssetRefsKey.split("\n"), {
+			whiteboardId,
+			e2eeKey,
+			tokens: assetAccessTokens,
+		});
+	}, [assetAccessTokens, e2eeKey, selectedAssetRefsKey, whiteboardId]);
 	const selectedMindmapNode =
 		selectedEls.length === 1 && isMindmapNode(selectedEls[0])
 			? selectedEls[0]
@@ -1212,6 +1300,8 @@ export function SkedraCanvas({
 		deleteElements: deleteElementsWithKanbanReflow,
 		updateElements: sync.updateElements,
 		getPastePoint: getCanvasPastePoint,
+		prepareImportedElements: importedElementsPreparation,
+		portableCopy,
 		undo: history.undo,
 		redo: history.redo,
 		actions: {
@@ -1467,7 +1557,7 @@ export function SkedraCanvas({
 		async (format) => {
 			const svg = svgRef.current;
 			if (!svg) return;
-			if (format === "svg") exportSVG(svg);
+			if (format === "svg") await exportSVG(svg);
 			else if (format === "png") await exportPNG(svg);
 			else if (format === "pdf") await exportPDF(svg);
 			else await exportPPTX(svg);
@@ -1713,7 +1803,7 @@ export function SkedraCanvas({
 					editingArrowTextSide={editingArrowTextSide}
 					editingArrowTextOrientation={editingArrowTextOrientation}
 					getViewportCenter={getViewportCenter}
-					addElements={store.startElementPlacement}
+					addElements={startElementPlacementWithAssets}
 					fitElementsToViewport={fitElementsToViewport}
 					handleUpdatePendingText={handleUpdatePendingText}
 					handleUpdateEditingText={handleUpdateEditingText}
@@ -1768,7 +1858,8 @@ export function SkedraCanvas({
 									selectedElements={Array.from(selectedIds)
 										.map((id) => sync.elements.get(id))
 										.filter((element): element is CanvasElement => !!element)}
-									onInsertElements={store.startElementPlacement}
+									onInsertElements={startElementPlacementWithAssets}
+									prepareElementsForLibrary={embedBoardAssets}
 									getViewportCenter={getViewportCenter}
 									onClose={handleCloseWorkspacePanel}
 								/>

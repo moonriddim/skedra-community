@@ -2,6 +2,7 @@ import { BillingSettings } from "@/components/settings/billing-settings";
 import { ProfileAccountSecurity } from "@/components/settings/profile-account-security";
 import { ProfileImageEditor } from "@/components/settings/profile-image-editor";
 import { SystemCallSettings } from "@/components/settings/system-call-settings";
+import { SystemInstallationStatistics } from "@/components/settings/system-installation-statistics";
 import { SystemObjectStorageSettings } from "@/components/settings/system-object-storage-settings";
 import { SystemSmtpSettings } from "@/components/settings/system-smtp-settings";
 import { UserPreferencesCard } from "@/components/settings/user-preferences-card";
@@ -947,6 +948,7 @@ export function ApiKeysSettingsPage() {
 
 					{activeTab === "system" && (
 						<div className="space-y-6 animate-in fade-in-50 duration-200">
+							<SystemInstallationStatistics />
 							<SystemSmtpSettings />
 							<SystemObjectStorageSettings />
 							<SystemCallSettings />

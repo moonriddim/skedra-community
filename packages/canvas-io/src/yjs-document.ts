@@ -35,15 +35,44 @@ function cloneYValue(value: unknown) {
 	return JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * Vergleicht einen gespeicherten Y.Map-Wert mit einem neuen JSON-Wert.
+ * Verschachtelte Y-Typen gelten nie als gleich; sie werden weiterhin ersetzt.
+ */
+function isSameStoredValue(current: unknown, next: unknown) {
+	if (current === next) return true;
+	if (
+		current == null ||
+		next == null ||
+		typeof current !== "object" ||
+		typeof next !== "object" ||
+		current instanceof Y.AbstractType
+	) {
+		return false;
+	}
+	return JSON.stringify(current) === JSON.stringify(next);
+}
+
+/**
+ * Schreibt nur Schlüssel, deren Wert sich wirklich ändert.
+ *
+ * Jedes `Y.Map.set` erzeugt einen neuen Eintrag im Update-Log und – auch mit
+ * Garbage Collection – einen bleibenden Tombstone, selbst wenn der Wert gleich
+ * bleibt. Editoren schicken oft ganze Teilobjekte (z. B. Text plus unveränderte
+ * Höhe bei jedem Tastendruck). Unveränderte Schlüssel zu überspringen spart
+ * Datenvolumen und verhindert, dass eine lokale Aktion eine gleichzeitige
+ * Änderung eines anderen Clients an genau diesem Schlüssel überschreibt.
+ */
 export function applyPartialUpdatesToYMap(
 	yMap: Y.Map<unknown>,
 	updates: Record<string, unknown>,
 ) {
 	for (const [key, value] of Object.entries(updates)) {
 		if (value === undefined) {
-			yMap.delete(key);
+			if (yMap.has(key)) yMap.delete(key);
 			continue;
 		}
+		if (yMap.has(key) && isSameStoredValue(yMap.get(key), value)) continue;
 		yMap.set(key, cloneYValue(value));
 	}
 }

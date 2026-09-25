@@ -894,6 +894,29 @@ CREATE INDEX IF NOT EXISTS "growth_events_event_created_idx"
 CREATE INDEX IF NOT EXISTS "growth_events_visitor_created_idx"
 	ON "growth_events" ("visitor_hash", "created_at");
 
+-- Installation statistics are opt-in and separate from product analytics.
+CREATE TABLE IF NOT EXISTS "installation_statistics_consent" (
+	"id" text PRIMARY KEY NOT NULL,
+	"enabled" boolean NOT NULL,
+	"decided_at" timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "installation_statistics_state" (
+	"id" text PRIMARY KEY NOT NULL,
+	"month" text NOT NULL,
+	"monthly_id" uuid NOT NULL,
+	"next_report_at" timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "installation_statistics_reports" (
+	"month" text NOT NULL,
+	"monthly_id" uuid NOT NULL,
+	PRIMARY KEY ("month", "monthly_id")
+);
+CREATE TABLE IF NOT EXISTS "installation_statistics_months" (
+	"month" text PRIMARY KEY NOT NULL,
+	"installations" integer NOT NULL
+);
+-- End installation statistics tables.
+
 -- Managed upgrades can add the analytics read privilege without failing
 -- Community installations where the private Ops role does not exist. The
 -- managed role name is intentionally not assumed: existing installations may
@@ -904,6 +927,7 @@ DECLARE
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'skedra_ops_metrics') THEN
 		GRANT SELECT ON TABLE growth_events TO skedra_ops_metrics;
+		GRANT SELECT ON TABLE installation_statistics_months TO skedra_ops_metrics;
 	END IF;
 
 	FOR metrics_role IN
@@ -921,6 +945,10 @@ BEGIN
 	LOOP
 		EXECUTE format(
 			'GRANT SELECT ON TABLE public.growth_events TO %I',
+			metrics_role.rolname
+		);
+		EXECUTE format(
+			'GRANT SELECT ON TABLE public.installation_statistics_months TO %I',
 			metrics_role.rolname
 		);
 	END LOOP;

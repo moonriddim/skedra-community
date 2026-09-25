@@ -1,6 +1,27 @@
 import type { TranslationParams, TranslationTree } from "./messages";
 
 export const enMessages = {
+	installationStatistics: {
+		setup: "Set up Skedra · Voluntary participation",
+		title: "Contribute to installation statistics?",
+		description:
+			"Help us estimate how many self-hosted installations use Skedra. If you choose Yes, your server sends only the month and a random identifier that changes monthly to skedra.xyz, approximately once per day. No user counts, names, board content or usage events. No cookies for these statistics.",
+		network:
+			"The receiving hosting and network infrastructure technically sees the source IP. The statistics do not store it.",
+		privacy: "Privacy notice",
+		yes: "Yes, contribute",
+		no: "No, do not contribute",
+		changeLater:
+			"Both options allow full use of Skedra. You can change your decision anytime in Settings → System. Nothing is sent without a saved Yes.",
+		continue: "Save choice and continue",
+		save: "Save choice",
+		saving: "Saving …",
+		saved: "Choice saved.",
+		saveError:
+			"Your choice could not be saved. Please try again. The previous setting remains in effect.",
+		loadError: "The installation statistics setting could not be loaded.",
+		retry: "Try again",
+	},
 	mindmapStudio: {
 		title: "Mind map",
 		empty: "Empty mind map",
@@ -394,7 +415,7 @@ export const enMessages = {
 			"Choose a passphrase for the encrypted .skedra file (at least 8 characters). Skedra cannot recover it.",
 		encryptedImportPassphrasePrompt:
 			"Enter the passphrase for this encrypted .skedra file.",
-		errorTitle: "Could not load file",
+		errorTitle: "File problem",
 		errors: {
 			invalidJson: "The file does not contain valid JSON.",
 			invalidFormat: "This is not a valid .skedra file.",
@@ -405,6 +426,8 @@ export const enMessages = {
 				"Your browser does not support encrypted .skedra files.",
 			decryptFailed:
 				"The encrypted .skedra file could not be decrypted. Check the passphrase.",
+			assetsNotEmbedded:
+				"{count} image(s) could not be embedded in the file and are missing from the export. Check your connection and try again.",
 			unknown: "An error occurred while loading the file.",
 		},
 	},
@@ -3007,6 +3030,10 @@ export const enMessages = {
 			publishFailed: "Publishing failed.",
 			saveFailed: "The package could not be saved online.",
 			cancelled: "Cancelled.",
+			imagesNotEmbedded:
+				"The images in the selection could not be loaded and embedded. Check your connection and try again.",
+			itemTooLarge:
+				"The selection including its images is too large for the library (about 1 MB max). Use smaller images or fewer elements.",
 			unknown: "Import failed.",
 		},
 	},

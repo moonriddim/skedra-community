@@ -60,3 +60,45 @@ test("encodes a presentation frame as a reusable canvas snapshot", () => {
 	assert.equal(snapshot.canvasBg, "#f8fafc");
 	restored.destroy();
 });
+
+test("partial updates skip unchanged values so they add no Yjs history", () => {
+	const doc = new Y.Doc();
+	const yElement = objectToYMap({
+		x: 10,
+		height: 40,
+		text: "Hi",
+		points: [
+			[0, 0],
+			[5, 5],
+		],
+	});
+	doc.getMap<Y.Map<unknown>>("elementsMap").set("text", yElement);
+	let updates = 0;
+	doc.on("update", () => updates++);
+
+	// Nothing changes: no update may be emitted at all.
+	doc.transact(() =>
+		applyPartialUpdatesToYMap(yElement, {
+			x: 10,
+			height: 40,
+			points: [
+				[0, 0],
+				[5, 5],
+			],
+			missing: undefined,
+		}),
+	);
+	assert.equal(updates, 0);
+
+	// Only the changed key is written.
+	let changedKeys: string[] = [];
+	yElement.observe((event) => {
+		changedKeys = [...event.keysChanged];
+	});
+	doc.transact(() =>
+		applyPartialUpdatesToYMap(yElement, { text: "Hi!", height: 40 }),
+	);
+	assert.equal(updates, 1);
+	assert.deepEqual(changedKeys, ["text"]);
+	doc.destroy();
+});

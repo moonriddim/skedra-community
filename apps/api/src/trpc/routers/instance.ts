@@ -6,6 +6,10 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "../../env";
 import {
+	getInstallationStatisticsStatus,
+	saveInstallationStatisticsChoice,
+} from "../../lib/installation-statistics-consent";
+import {
 	encryptLiveKitApiSecret,
 	encryptSmtpPassword,
 	getEnvLiveKitConfigStatus,
@@ -25,7 +29,7 @@ import {
 	getObjectStorageStatus,
 	updateObjectStorageSettings,
 } from "../../lib/object-storage";
-import { protectedProcedure, router } from "../init";
+import { authenticatedProcedure, protectedProcedure, router } from "../init";
 
 const smtpInputSchema = z.object({
 	useCustomSmtp: z.boolean(),
@@ -74,6 +78,26 @@ function requireSelfHostedDeployment() {
 }
 
 export const instanceRouter = router({
+	getInstallationStatistics: authenticatedProcedure.query(({ ctx }) =>
+		getInstallationStatisticsStatus(
+			ctx.db,
+			ctx.user.id,
+			env.SKEDRA_DEPLOYMENT_MODE,
+		),
+	),
+	setInstallationStatistics: authenticatedProcedure
+		.input(
+			z.object({ enabled: z.boolean(), initialSetup: z.boolean() }).strict(),
+		)
+		.mutation(({ ctx, input }) =>
+			saveInstallationStatisticsChoice(
+				ctx.db,
+				ctx.user.id,
+				env.SKEDRA_DEPLOYMENT_MODE,
+				input.enabled,
+				input.initialSetup,
+			),
+		),
 	getMailStatus: protectedProcedure.query(async ({ ctx }) => {
 		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);

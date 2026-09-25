@@ -47,6 +47,31 @@ interface UseCanvasKeyboardOperationsOptions {
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
 	getPastePoint?: () => { x: number; y: number };
+	/**
+	 * Optionaler asynchroner Schritt vor dem Einfügen fremder Inhalte, z. B. um
+	 * eingebettete Bilder als Assets hochzuladen. Wird nur aufgerufen, wenn
+	 * `needsPreparation` für die eingefügten Elemente `true` liefert; sonst bleibt
+	 * das Einfügen synchron.
+	 */
+	prepareImportedElements?: {
+		needsPreparation: (elements: CanvasElement[]) => boolean;
+		prepare: (elements: CanvasElement[]) => Promise<CanvasElement[]>;
+	};
+	/**
+	 * Macht kopierte Elemente boardübergreifend nutzbar, indem Bilder als
+	 * data:-URL in die System-Zwischenablage kommen. `embedSync` nutzt bereits
+	 * vorbereitete Bilder; fehlt noch etwas, schreibt `embedAsync` die
+	 * Zwischenablage kurz danach vollständig neu.
+	 */
+	portableCopy?: {
+		embedSync: (elements: CanvasElement[]) => {
+			value: CanvasElement[];
+			missing: number;
+		};
+		embedAsync: (
+			elements: CanvasElement[],
+		) => Promise<{ value: CanvasElement[]; failed: number }>;
+	};
 }
 
 export function useCanvasKeyboardOperations({
@@ -55,9 +80,14 @@ export function useCanvasKeyboardOperations({
 	deleteElements,
 	updateElements,
 	getPastePoint,
+	prepareImportedElements,
+	portableCopy,
 }: UseCanvasKeyboardOperationsOptions) {
 	const storeRef = useCanvasStoreRef();
 	const clipboardRef = useRef<CanvasElement[]>([]);
+	// Zählt Kopiervorgänge, damit ein verspätetes Nachschreiben nie eine neuere
+	// Kopie überschreibt.
+	const copyGenerationRef = useRef(0);
 	const formatClipboardRef = useRef<CanvasElementFormat | null>(null);
 
 	const getSelected = useCallback(() => {
@@ -80,20 +110,41 @@ export function useCanvasKeyboardOperations({
 		(dataTransfer?: Pick<DataTransfer, "setData">) => {
 			const sel = getSelected();
 			if (sel.length === 0) return [];
+			// Die interne Zwischenablage (Duplizieren, Einfügen im selben Board)
+			// behält die Asset-Verweise; nur die System-Zwischenablage bekommt
+			// eingebettete Bilder.
 			clipboardRef.current = sel;
+			const generation = ++copyGenerationRef.current;
+			const portable = portableCopy?.embedSync(sel) ?? {
+				value: sel,
+				missing: 0,
+			};
+			const canWriteText =
+				typeof navigator !== "undefined" && !!navigator.clipboard?.writeText;
 			if (dataTransfer) {
-				writeCanvasClipboardDataTransfer(dataTransfer, sel);
-			} else if (
-				typeof navigator !== "undefined" &&
-				navigator.clipboard?.writeText
-			) {
+				writeCanvasClipboardDataTransfer(dataTransfer, portable.value);
+			} else if (canWriteText) {
 				void navigator.clipboard
-					.writeText(serializeExcalidrawClipboard(sel))
+					.writeText(serializeExcalidrawClipboard(portable.value))
+					.catch(() => undefined);
+			}
+			// Noch nicht vorbereitete Bilder (sehr schnell nach dem Auswählen
+			// kopiert): nachladen und die Zwischenablage als Text neu schreiben.
+			if (portableCopy && portable.missing > 0 && canWriteText) {
+				void portableCopy
+					.embedAsync(sel)
+					.then(({ value, failed }) => {
+						if (copyGenerationRef.current !== generation) return;
+						if (failed >= portable.missing) return;
+						return navigator.clipboard.writeText(
+							serializeExcalidrawClipboard(value),
+						);
+					})
 					.catch(() => undefined);
 			}
 			return sel;
 		},
-		[getSelected],
+		[getSelected, portableCopy],
 	);
 
 	const pasteClipboard = useCallback(
@@ -128,14 +179,27 @@ export function useCanvasKeyboardOperations({
 				createId: nanoid,
 				offset: getCanvasPasteOffset(imported, getPastePoint?.()),
 			});
-			for (const element of cloned.elements) createElement(element);
-			storeRef.current.setSelectedIds(
-				new Set(cloned.elements.map((element) => element.id)),
-			);
-			clipboardRef.current = cloned.elements;
+			const insert = (prepared: CanvasElement[]) => {
+				for (const element of prepared) createElement(element);
+				storeRef.current.setSelectedIds(
+					new Set(prepared.map((element) => element.id)),
+				);
+				clipboardRef.current = prepared;
+			};
+			if (prepareImportedElements?.needsPreparation(cloned.elements)) {
+				// Z. B. Excalidraw-Paste mit Bildern: erst hochladen, dann einfügen,
+				// damit die base64-Daten gar nicht erst ins Board-Log gelangen.
+				// Bei einem Fehler wird unverändert (inline) eingefügt.
+				void prepareImportedElements
+					.prepare(cloned.elements)
+					.catch(() => cloned.elements)
+					.then(insert);
+				return true;
+			}
+			insert(cloned.elements);
 			return true;
 		},
-		[createElement, elements, getPastePoint, storeRef],
+		[createElement, elements, getPastePoint, prepareImportedElements, storeRef],
 	);
 	const pasteTextFromClipboard = useCallback(
 		(text: string) =>

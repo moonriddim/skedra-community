@@ -18,6 +18,7 @@ import type { WSContext } from "hono/ws";
 import type Stripe from "stripe";
 import { z } from "zod";
 import { env } from "./env";
+import { createInstallationStatisticsApp } from "./installation-statistics";
 import {
 	AssetObjectNotFoundError,
 	AssetStorageUnavailableError,
@@ -46,6 +47,7 @@ import {
 	growthEventInputSchema,
 	recordGrowthEvent,
 } from "./lib/growth-events";
+import { startInstallationStatistics } from "./lib/installation-statistics";
 import { initializeObjectStorage } from "./lib/object-storage";
 import { getBoardAccess } from "./lib/permissions";
 import {
@@ -91,6 +93,10 @@ import { restApp } from "./rest";
 import { appRouter, createContext } from "./trpc";
 
 const app = new Hono();
+app.route(
+	"/api/installation-statistics",
+	createInstallationStatisticsApp(db, env),
+);
 
 if (isStripeBillingConfigured()) {
 	/**
@@ -1830,12 +1836,14 @@ async function startServer() {
 
 	// WebSocket-Upgrades (Presence) an den Node-Server anhängen.
 	injectWebSocket(server);
+	const stopInstallationStatistics = startInstallationStatistics(db, env);
 
 	let shutdownStarted = false;
 
 	async function shutdown(signal: NodeJS.Signals) {
 		if (shutdownStarted) return;
 		shutdownStarted = true;
+		await stopInstallationStatistics();
 		console.log(`[Skedra API] ${signal} received, shutting down.`);
 
 		for (const client of wss.clients) {

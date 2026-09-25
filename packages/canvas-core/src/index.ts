@@ -7,6 +7,7 @@ export * from "./commands";
 export * from "./element-factory";
 export * from "./excalidraw-import";
 export * from "./flowchart";
+export * from "./freehand-points";
 export * from "./gantt";
 export * from "./geometry";
 export * from "./geometry-bbox";

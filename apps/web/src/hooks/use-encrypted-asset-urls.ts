@@ -1,5 +1,6 @@
 import {
 	type AssetAccessTokens,
+	createDecryptedAssetUrl,
 	getLocalEncryptedAssetPreview,
 	parseEncryptedAssetReference,
 	withAssetAccessParams,
@@ -119,8 +120,10 @@ export function useEncryptedAssetUrls(input: {
 						reference: parsed.reference,
 					});
 					if (cancelled) return;
-					const objectUrl = URL.createObjectURL(
-						new Blob([plaintext], { type: parsed.reference.mimeType }),
+					// SVG als data:-URL, Rasterbilder als blob:-URL (Sicherheit).
+					const objectUrl = createDecryptedAssetUrl(
+						plaintext,
+						parsed.reference.mimeType,
 					);
 					objectUrlsRef.current.set(source, objectUrl);
 					setRevision((value) => value + 1);

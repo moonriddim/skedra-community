@@ -140,7 +140,44 @@ export function parseEncryptedAssetReference(src: string): {
 	}
 }
 
+/** SVG kann Skripte enthalten; siehe `createDecryptedAssetUrl`. */
+export function isSvgMimeType(mimeType: string) {
+	return mimeType.split(";")[0].trim().toLowerCase() === "image/svg+xml";
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+	let binary = "";
+	for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+		binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+	}
+	return btoa(binary);
+}
+
+/**
+ * Erzeugt die lokale Anzeige-URL für ein entschlüsseltes Asset.
+ *
+ * Rasterbilder bekommen eine blob:-URL (speicherschonend). SVGs bekommen eine
+ * data:-URL: Eine blob:-URL erbt die Origin der App. Würde jemand ein
+ * präpariertes SVG über „Bild in neuem Tab öffnen“ direkt aufrufen, liefen
+ * dessen Skripte mit Zugriff auf die Sitzung. data:-URLs haben eine eigene,
+ * undurchsichtige Origin, und Browser blockieren die direkte Navigation dorthin.
+ * Als <img>/<image> eingebunden führt ein SVG ohnehin keine Skripte aus.
+ * `URL.revokeObjectURL` ist für data:-URLs ein harmloser No-op.
+ */
+export function createDecryptedAssetUrl(
+	plaintext: ArrayBuffer,
+	mimeType: string,
+) {
+	if (isSvgMimeType(mimeType)) {
+		return `data:image/svg+xml;base64,${bytesToBase64(new Uint8Array(plaintext))}`;
+	}
+	return URL.createObjectURL(new Blob([plaintext], { type: mimeType }));
+}
+
 export function registerLocalEncryptedAssetPreview(src: string, file: File) {
+	// Keine same-origin-blob:-URL für SVGs (siehe `createDecryptedAssetUrl`);
+	// die Anzeige entschlüsselt das hochgeladene Asset dann regulär.
+	if (isSvgMimeType(file.type)) return;
 	const previous = localEncryptedAssetPreviews.get(src);
 	if (previous) URL.revokeObjectURL(previous);
 	localEncryptedAssetPreviews.set(src, URL.createObjectURL(file));

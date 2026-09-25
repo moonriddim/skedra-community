@@ -2,6 +2,9 @@ import { createCanvasYjsFrameSync } from "@/hooks/canvas-yjs-frame-sync";
 import { restorePendingCanvasUpdates } from "@/hooks/restore-pending-canvas-updates";
 import {
 	CANVAS_LIVE_REFETCH_OPTIONS,
+	createSyncPayloadTooLargeError,
+	getCanvasUpdatePollInterval,
+	getCompactionRetryDelayMs,
 	shouldCompactCanvasUpdateLog,
 } from "@/lib/canvas-sync-policy";
 import { createCanvasUpdateFlusher } from "@/lib/canvas-update-flusher";
@@ -41,6 +44,7 @@ import type {
 import { CanvasScene } from "@skedra/canvas-core";
 import type { CanvasSkedraFile as SkedraFile } from "@skedra/canvas-io/file";
 import type { CanvasRole } from "@skedra/shared";
+import { BOARD_SYNC_UPDATE_MAX_CHARS } from "@skedra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import type { LocalCanvasPresence } from "./canvas-sync-types";
@@ -105,6 +109,10 @@ export function useE2eeCanvasSync(
 	const clientIdRef = useRef(createClientId());
 	const decryptionReadyRef = useRef(false);
 	const compactionInFlightRef = useRef(false);
+	// Backoff-Zustand der Komprimierung: Fehlschläge in Folge und frühester
+	// Zeitpunkt (ms seit Epoch) für den nächsten Versuch.
+	const compactionFailuresRef = useRef(0);
+	const compactionRetryAtRef = useRef(0);
 	const [scene, setScene] = useState(() => CanvasScene.empty());
 	const elements = scene.getElementsMap();
 	const [views, setViews] = useState<Map<string, SavedCanvasView>>(new Map());
@@ -153,16 +161,24 @@ export function useE2eeCanvasSync(
 	// Fallback-Polling; ohne Live-Kanal (z. B. Gäste) bleibt es beim engen Poll.
 	const liveConnectedRef = useRef(false);
 
+	// Größenbegrenzte Seiten: Ein großes, unkomprimiertes Log wird in mehreren
+	// Requests geladen statt in einem, der über langsame Proxys abbricht.
 	const {
-		data: updates,
+		data: updatePage,
 		error: updatesError,
 		refetch: refetchUpdates,
-	} = trpc.whiteboard.listE2eeUpdates.useQuery(listInput, {
+	} = trpc.whiteboard.listE2eeUpdatePage.useQuery(listInput, {
 		enabled: enabled && !!e2eeKey && !!whiteboardId,
-		refetchInterval: () => (liveConnectedRef.current ? 8000 : 1500),
+		refetchInterval: () =>
+			getCanvasUpdatePollInterval({
+				liveConnected: liveConnectedRef.current,
+				hidden: document.visibilityState === "hidden",
+			}),
 		refetchIntervalInBackground: true,
 		retry: 1,
 	});
+	const updates = updatePage?.updates;
+	const hasMoreUpdates = updatePage?.hasMore ?? false;
 
 	// Nur eingeloggte Nutzer bekommen den SSE-Live-Kanal; Share-Links bleiben
 	// für Dokument-Updates beim Polling. Presentation-Viewer dürfen separat in
@@ -232,6 +248,14 @@ export function useE2eeCanvasSync(
 				const batch = await createPendingE2eeUpdateBatch(pending, e2eeKey);
 				const first = batch?.records[0];
 				if (!batch || !first) break;
+				// Nicht hochladen, was die API sicher ablehnt: Das würde bei jedem
+				// Retry (alle 5 s) erneut MB-weise Upload erzeugen.
+				if (batch.update.length > BOARD_SYNC_UPDATE_MAX_CHARS) {
+					throw createSyncPayloadTooLargeError(
+						batch.update.length,
+						BOARD_SYNC_UPDATE_MAX_CHARS,
+					);
+				}
 				await appendUpdate.mutateAsync({
 					...accessInput,
 					clientId: first.clientId,
@@ -295,12 +319,20 @@ export function useE2eeCanvasSync(
 			return;
 		}
 
-		const ydoc = new Y.Doc({ gc: false });
+		// Standard-GC von Yjs: Überschriebene Werte (jeder Drag-Frame, jeder
+		// Tastendruck im Textfeld) werden aus dem Zustand entfernt. Mit
+		// `gc: false` blieb jede Zwischenversion für immer im Board-Zustand und
+		// in jedem Komprimierungs-Snapshot. Nichts liest diese Historie; Undo/Redo
+		// arbeitet mit eigenen Deltas (canvas-undo), und der MCP-Server nutzt für
+		// dieselben Dokumente ebenfalls die Standard-GC.
+		const ydoc = new Y.Doc();
 		ydocRef.current = ydoc;
 		appliedUpdateIdsRef.current = new Set();
 		compactableUpdateBytesRef.current = 0;
 		appliedPendingUpdateIdsRef.current = new Set();
 		compactionInFlightRef.current = false;
+		compactionFailuresRef.current = 0;
+		compactionRetryAtRef.current = 0;
 		decryptionReadyRef.current = false;
 		setUpdateCursor(null);
 		setSendError(null);
@@ -476,7 +508,18 @@ export function useE2eeCanvasSync(
 			let lastAppliedCursor: E2eeUpdateCursor | null = null;
 			for (const update of updates) {
 				if (!isCurrent()) return;
-				if (appliedUpdateIdsRef.current.has(update.id)) continue;
+				const cursor = {
+					id: update.id,
+					createdAt:
+						update.cursorCreatedAt ?? new Date(update.createdAt).toISOString(),
+				};
+				if (appliedUpdateIdsRef.current.has(update.id)) {
+					// Auch bereits bekannte Zeilen schieben den Cursor weiter, sonst
+					// könnte eine Seite aus lauter bekannten Zeilen das Weiterblättern
+					// dauerhaft blockieren.
+					lastAppliedCursor = cursor;
+					continue;
+				}
 				try {
 					const decrypted = await decryptYjsUpdate(update.update, e2eeKey);
 					if (!isCurrent()) return;
@@ -488,12 +531,7 @@ export function useE2eeCanvasSync(
 					if (hasBaseUpdate) {
 						compactableUpdateBytesRef.current += update.update.length;
 					}
-					lastAppliedCursor = {
-						id: update.id,
-						createdAt:
-							update.cursorCreatedAt ??
-							new Date(update.createdAt).toISOString(),
-					};
+					lastAppliedCursor = cursor;
 				} catch {
 					if (!isCurrent()) return;
 					decryptionReadyRef.current = false;
@@ -508,7 +546,8 @@ export function useE2eeCanvasSync(
 			if (lastAppliedCursor) {
 				setUpdateCursor(lastAppliedCursor);
 			}
-			if (updates.length >= E2EE_UPDATE_PAGE_SIZE) {
+			// Weitere Seiten folgen: Der geänderte Cursor lädt sie sofort nach.
+			if (hasMoreUpdates) {
 				decryptionReadyRef.current = false;
 				setIsConnected(false);
 				setConnectionError(null);
@@ -544,7 +583,9 @@ export function useE2eeCanvasSync(
 					updateCount: appliedUpdateIdsRef.current.size,
 					compactableBytes: compactableUpdateBytesRef.current,
 				}) &&
-				!compactionInFlightRef.current
+				!compactionInFlightRef.current &&
+				// Nach Fehlschlägen erst nach Ablauf des Backoffs erneut versuchen.
+				Date.now() >= compactionRetryAtRef.current
 			) {
 				await sendQueueRef.current.catch(() => undefined);
 				if (!isCurrent()) return;
@@ -558,6 +599,13 @@ export function useE2eeCanvasSync(
 					const keyHash = await createE2eeKeyHash(e2eeKey);
 					const encrypted = await encryptYjsUpdate(snapshotUpdate, e2eeKey);
 					if (!isCurrent()) return;
+					if (encrypted.length > BOARD_SYNC_UPDATE_MAX_CHARS) {
+						// Der Snapshot würde abgelehnt. Das Log bleibt unkomprimiert,
+						// wird aber weiterhin in größenbegrenzten Seiten geladen.
+						compactionRetryAtRef.current =
+							Date.now() + getCompactionRetryDelayMs(Number.POSITIVE_INFINITY);
+						return;
+					}
 					await compactUpdates.mutateAsync({
 						...accessInput,
 						clientId: clientIdRef.current,
@@ -568,8 +616,14 @@ export function useE2eeCanvasSync(
 					if (!isCurrent()) return;
 					appliedUpdateIdsRef.current = new Set();
 					compactableUpdateBytesRef.current = 0;
+					compactionFailuresRef.current = 0;
+					compactionRetryAtRef.current = 0;
 				} catch (error) {
 					if (!isCurrent()) return;
+					compactionFailuresRef.current += 1;
+					compactionRetryAtRef.current =
+						Date.now() +
+						getCompactionRetryDelayMs(compactionFailuresRef.current);
 					setConnectionError(
 						error instanceof Error
 							? error.message
@@ -594,6 +648,7 @@ export function useE2eeCanvasSync(
 		readonly,
 		syncFromYjs,
 		sendQueueRef,
+		hasMoreUpdates,
 		updateCursor,
 		updates,
 		whiteboardId,

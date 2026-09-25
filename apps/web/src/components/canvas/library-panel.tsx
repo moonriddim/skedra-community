@@ -48,7 +48,21 @@ interface LibraryPanelProps {
 	getViewportCenter: () => { x: number; y: number };
 	onClose: () => void;
 	embedded?: boolean;
+	/**
+	 * Bettet board-gebundene Bild-Verweise ein, bevor Elemente in die
+	 * Bibliothek wandern. Bibliotheken werden in anderen Boards genutzt und
+	 * veröffentlicht; dort wären Asset-Verweise dieses Boards nicht ladbar.
+	 */
+	prepareElementsForLibrary?: (
+		elements: CanvasElement[],
+	) => Promise<{ value: CanvasElement[]; failed: number }>;
 }
+
+/**
+ * Obergrenze pro Bibliotheks-Eintrag (JSON-Zeichen). Die Bibliothek liegt im
+ * localStorage (typisch ~5 MB gesamt); eingebettete Fotos würden ihn sprengen.
+ */
+const LIBRARY_ITEM_MAX_CHARS = 1_000_000;
 
 const SCROLL_AREA_CLASS =
 	"flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-5 [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30 hover:scrollbar-thumb-muted-foreground/45";
@@ -61,6 +75,7 @@ export function LibraryPanel({
 	getViewportCenter,
 	onClose,
 	embedded = false,
+	prepareElementsForLibrary,
 }: LibraryPanelProps) {
 	const floatingPanel = useCanvasEditorFloatingPanel<HTMLDivElement>({
 		disabled: embedded,
@@ -156,9 +171,22 @@ export function LibraryPanel({
 		[getViewportCenter, onInsertElements],
 	);
 
-	const handleAddSelection = () => {
+	const handleAddSelection = async () => {
 		if (selectedElements.length === 0) return;
-		addToActivePackage(selectedElements);
+		setImportError("");
+		const prepared = prepareElementsForLibrary
+			? await prepareElementsForLibrary(selectedElements)
+			: { value: selectedElements, failed: 0 };
+		// Lieber ablehnen als einen Eintrag speichern, dessen Bilder woanders fehlen.
+		if (prepared.failed > 0) {
+			setImportError(t("shapeLibrary.errors.imagesNotEmbedded"));
+			return;
+		}
+		if (JSON.stringify(prepared.value).length > LIBRARY_ITEM_MAX_CHARS) {
+			setImportError(t("shapeLibrary.errors.itemTooLarge"));
+			return;
+		}
+		addToActivePackage(prepared.value);
 		setDraftPackageId(null);
 	};
 
@@ -555,7 +583,7 @@ export function LibraryPanel({
 										type="button"
 										size="sm"
 										disabled={selectedElements.length === 0}
-										onClick={handleAddSelection}
+										onClick={() => void handleAddSelection()}
 										className="h-8 gap-1.5 px-3 text-xs"
 										title={t("shapeLibrary.addSelection")}
 									>

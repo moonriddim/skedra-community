@@ -1,6 +1,28 @@
 import type { TranslationParams, TranslationTree } from "./messages";
 
 export const deMessages = {
+	installationStatistics: {
+		setup: "Skedra einrichten · Freiwillige Teilnahme",
+		title: "Zur Installationsstatistik beitragen?",
+		description:
+			"Hilf uns einzuschätzen, wie viele Selfhost-Installationen Skedra verwenden. Bei Ja sendet dein Server ungefähr einmal täglich nur den Monat und eine zufällige, monatlich wechselnde Kennung an skedra.xyz. Keine Nutzerzahlen, Namen, Boardinhalte oder Nutzungsereignisse. Keine Cookies für diese Statistik.",
+		network:
+			"Die empfangende Hosting- und Netzwerkinfrastruktur sieht technisch die Absender-IP. Die Statistik speichert diese nicht.",
+		privacy: "Datenschutzhinweise",
+		yes: "Ja, beitragen",
+		no: "Nein, nicht beitragen",
+		changeLater:
+			"Beide Optionen erlauben die volle Nutzung von Skedra. Du kannst deine Entscheidung jederzeit unter Einstellungen → System ändern. Ohne gespeichertes Ja wird nichts gesendet.",
+		continue: "Auswahl speichern und fortfahren",
+		save: "Auswahl speichern",
+		saving: "Wird gespeichert …",
+		saved: "Auswahl gespeichert.",
+		saveError:
+			"Die Auswahl konnte nicht gespeichert werden. Bitte versuche es erneut. Die bisherige Einstellung bleibt bestehen.",
+		loadError:
+			"Die Installationsstatistik-Einstellung konnte nicht geladen werden.",
+		retry: "Erneut versuchen",
+	},
 	mindmapStudio: {
 		title: "Mindmap",
 		empty: "Leere Mindmap",
@@ -401,7 +423,7 @@ export const deMessages = {
 			"Lege eine Passphrase für die verschlüsselte .skedra-Datei fest (mindestens 8 Zeichen). Skedra kann sie nicht wiederherstellen.",
 		encryptedImportPassphrasePrompt:
 			"Gib die Passphrase für diese verschlüsselte .skedra-Datei ein.",
-		errorTitle: "Datei konnte nicht geladen werden",
+		errorTitle: "Problem mit der Datei",
 		errors: {
 			invalidJson: "Die Datei enthält kein gültiges JSON.",
 			invalidFormat: "Dies ist keine gültige .skedra-Datei.",
@@ -412,6 +434,8 @@ export const deMessages = {
 				"Dein Browser unterstützt verschlüsselte .skedra-Dateien nicht.",
 			decryptFailed:
 				"Die verschlüsselte .skedra-Datei konnte nicht entschlüsselt werden. Prüfe die Passphrase.",
+			assetsNotEmbedded:
+				"{count} Bild(er) konnten nicht in die Datei eingebettet werden und fehlen im Export. Prüfe die Verbindung und versuche es erneut.",
 			unknown: "Beim Laden der Datei ist ein Fehler aufgetreten.",
 		},
 	},
@@ -3046,6 +3070,10 @@ export const deMessages = {
 			publishFailed: "Veröffentlichen fehlgeschlagen.",
 			saveFailed: "Das Paket konnte nicht online gespeichert werden.",
 			cancelled: "Abgebrochen.",
+			imagesNotEmbedded:
+				"Die Bilder der Auswahl konnten nicht geladen und eingebettet werden. Prüfe die Verbindung und versuche es erneut.",
+			itemTooLarge:
+				"Die Auswahl ist mit ihren Bildern zu groß für die Bibliothek (max. ca. 1 MB). Verkleinere die Bilder oder speichere weniger Elemente.",
 			unknown: "Import fehlgeschlagen.",
 		},
 	},

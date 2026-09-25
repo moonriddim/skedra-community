@@ -13,6 +13,7 @@ import {
 	type SnapGuide,
 	type SnapPointIndicator,
 	type Viewport,
+	appendFreehandPoint,
 	buildCanvasBindingSyncUpdates,
 	buildFrameDropUpdates,
 	buildFrameResizeChildUpdates,
@@ -1127,10 +1128,15 @@ export function useCanvasEditorPointer({
 			if (state.action !== "draw") return;
 
 			if (ui.activeTool === "freehand") {
-				state.freehandPoints.push([
+				// Gerastert und ohne unsichtbare Mini-Bewegungen speichern: halbiert
+				// die Größe eines Strichs im Board-Dokument (siehe freehand-points).
+				const appended = appendFreehandPoint(
+					state.freehandPoints,
 					point.raw.x - state.startCanvasX,
 					point.raw.y - state.startCanvasY,
-				]);
+					ui.viewport.zoom,
+				);
+				if (!appended) return;
 				setDrawingPreview((preview) =>
 					preview ? { ...preview, points: [...state.freehandPoints] } : null,
 				);

@@ -280,6 +280,42 @@ export function PrivacyPage() {
 				<GrowthAnalyticsPrivacyControls />
 			</LegalSection>
 
+			<LegalSection title="15a. Freiwillige Selfhost-Installationsstatistik">
+				<p>
+					Instanz-Admins können bei der Ersteinrichtung freiwillig zwischen Ja
+					und Nein zur Installationsstatistik wählen. Nichts ist vorausgewählt.
+					Ohne gespeichertes Ja bleibt die Statistik ausgeschaltet und ist für
+					den Betrieb nicht erforderlich. Bei Aktivierung übermittelt der Server
+					ungefähr einmal täglich ausschliesslich den aktuellen UTC-Monat und
+					eine zufällige, monatlich neu erzeugte Kennung an skedra.xyz.
+					Nutzerzahlen, Namen, E-Mail-Adressen, Boardinhalte und
+					Nutzungsereignisse werden dabei nicht übertragen; es werden keine
+					Browser-Cookies gesetzt.
+				</p>
+				<p>
+					Zweck ist die ungefähre Zahl freiwillig meldender Installationen pro
+					Monat. Die Kennung verhindert Mehrfachzählungen innerhalb desselben
+					Monats und wird nicht mit Konten oder Kennungen anderer Monate
+					verknüpft. Kennungen vergangener Monate werden bei laufendem
+					Empfangsserver stündlich und bei dessen Neustart bereinigt. Dauerhaft
+					bleiben nur monatliche Gesamtzahlen. Die vorgesehenen
+					Statistik-Backups enthalten keine Kennungen. Betreiber können weitere
+					Meldungen jederzeit unter Einstellungen → System durch Speichern von
+					Nein beenden. Ein Neustart ist nicht nötig; eine bereits laufende
+					Meldung kann noch abgeschlossen werden. Bereits gebildete Gesamtzahlen
+					bleiben erhalten.
+				</p>
+				<p>
+					Die empfangende Hosting- und Netzwerkinfrastruktur verarbeitet
+					technisch die Absender-IP. Die Statistik speichert diese nicht und
+					erstellt keine Personenprofile. Die unten genannten Hosting- und
+					Sicherheitsanbieter können Verbindungsdaten für die Bereitstellung und
+					Sicherheit verarbeiten. Die Übermittlung wird deshalb nicht als
+					garantiert anonym bezeichnet. Verantwortlicher und Kontakt sind oben
+					angegeben.
+				</p>
+			</LegalSection>
+
 			<LegalSection title="16. Empfänger und Bekanntgaben ins Ausland">
 				<p>
 					Je nach verwendeter Funktion können Daten an folgende Kategorien und

@@ -10,6 +10,7 @@ export {
 	exportSkedraPng,
 	exportSkedraPptx,
 	exportSkedraSvg,
+	exportSkedraSvgWithImages,
 	exportSkedraVisual,
 	getSkedraFrameExportFilename,
 } from "./exporters.js";

@@ -7,7 +7,7 @@ import {
 	serializeSkedraClipboard,
 } from "@skedra/canvas-core";
 import { decodeCanvasElement } from "./codecs.js";
-import { exportSkedraPng, exportSkedraSvg } from "./exporters.js";
+import { exportSkedraPng, exportSkedraSvgWithImages } from "./exporters.js";
 
 export const SKEDRA_CLIPBOARD_MIME =
 	"application/vnd.skedra.clipboard+json" as const;
@@ -150,7 +150,7 @@ export function copySkedraVisualToClipboard(
 	const blob =
 		format === "png"
 			? exportSkedraPng(svgElement)
-			: exportSkedraSvg(svgElement);
+			: exportSkedraSvgWithImages(svgElement);
 	return writeCanvasVisualBlobToClipboard(format, blob);
 }
 

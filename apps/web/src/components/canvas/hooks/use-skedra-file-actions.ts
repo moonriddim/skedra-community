@@ -50,6 +50,21 @@ interface UseSkedraFileActionsOptions {
 	whiteboardId?: string;
 	canvasFileRef?: React.MutableRefObject<SkedraCanvasFileActions | null>;
 	onImportApplied?: () => void;
+	/**
+	 * Wird vor dem Übernehmen einer importierten Datei aufgerufen, z. B. um
+	 * eingebettete Bilder (Excalidraw-Dateien) als Assets hochzuladen.
+	 */
+	prepareImportedElements?: (
+		elements: CanvasElement[],
+	) => Promise<CanvasElement[]>;
+	/**
+	 * Wird vor jedem Datei-Export aufgerufen. Bettet Bilder ein, die nur als
+	 * board-gebundener Asset-Verweis vorliegen, damit die Datei auch außerhalb
+	 * dieses Boards vollständig ist. `failed` = nicht einbettbare Bilder.
+	 */
+	prepareExportedElements?: (
+		elements: CanvasElement[],
+	) => Promise<{ value: CanvasElement[]; failed: number }>;
 }
 
 export function useSkedraFileActions({
@@ -61,6 +76,8 @@ export function useSkedraFileActions({
 	whiteboardId,
 	canvasFileRef,
 	onImportApplied,
+	prepareImportedElements,
+	prepareExportedElements,
 }: UseSkedraFileActionsOptions) {
 	const { t } = useI18n();
 	const pendingImportRef = useRef<SkedraFile | null>(null);
@@ -68,7 +85,16 @@ export function useSkedraFileActions({
 	const [fileError, setFileError] = useState("");
 
 	const applySkedraImport = useCallback(
-		(file: SkedraFile) => {
+		async (sourceFile: SkedraFile) => {
+			// Bilder vor dem Import auslagern; scheitert das, bleibt die Datei, wie sie ist.
+			const file = prepareImportedElements
+				? {
+						...sourceFile,
+						elements: await prepareImportedElements(sourceFile.elements).catch(
+							() => sourceFile.elements,
+						),
+					}
+				: sourceFile;
 			sync.loadSkedraFile(file);
 			const { canvasBg, viewport } = readSkedraFileAppState(file);
 			if (canvasBg != null) {
@@ -95,12 +121,27 @@ export function useSkedraFileActions({
 			clearSelection,
 			history,
 			onImportApplied,
+			prepareImportedElements,
 		],
 	);
 
+	/** Elemente für den Export, mit eingebetteten Bildern (siehe Option). */
+	const getPortableElements = useCallback(async () => {
+		if (!prepareExportedElements) return sync.elements;
+		const { value, failed } = await prepareExportedElements(
+			Array.from(sync.elements.values()),
+		);
+		// Der Export läuft trotzdem; fehlende Bilder werden nur gemeldet.
+		if (failed > 0) {
+			setFileError(t("skedraFile.errors.assetsNotEmbedded", { count: failed }));
+		}
+		return new Map(value.map((element) => [element.id, element] as const));
+	}, [prepareExportedElements, sync.elements, t]);
+
 	const handleExportSkedra = useCallback(
-		(filename?: string) => {
-			const file = buildSkedraFile(sync.elements, sync.views, {
+		async (filename?: string) => {
+			setFileError("");
+			const file = buildSkedraFile(await getPortableElements(), sync.views, {
 				canvasBg: store.canvasBg,
 				viewport: store.viewport,
 			});
@@ -109,12 +150,14 @@ export function useSkedraFileActions({
 				typeof filename === "string" ? filename : undefined,
 			);
 		},
-		[sync.elements, sync.views, store.canvasBg, store.viewport],
+		[getPortableElements, sync.views, store.canvasBg, store.viewport],
 	);
 
 	const handleExportExcalidraw = useCallback(
-		(filename?: string) => {
-			const file = buildExcalidrawFile(sync.elements, {
+		async (filename?: string) => {
+			setFileError("");
+			// Excalidraw übernimmt Bilder nur, wenn sie als data:-URL vorliegen.
+			const file = buildExcalidrawFile(await getPortableElements(), {
 				canvasBg: store.canvasBg,
 				viewport: store.viewport,
 			});
@@ -123,7 +166,7 @@ export function useSkedraFileActions({
 				typeof filename === "string" ? filename : undefined,
 			);
 		},
-		[sync.elements, store.canvasBg, store.viewport],
+		[getPortableElements, store.canvasBg, store.viewport],
 	);
 
 	const handleExportEncryptedSkedra = useCallback(
@@ -139,7 +182,7 @@ export function useSkedraFileActions({
 			}
 
 			try {
-				const file = buildSkedraFile(sync.elements, sync.views, {
+				const file = buildSkedraFile(await getPortableElements(), sync.views, {
 					canvasBg: store.canvasBg,
 					viewport: store.viewport,
 				});
@@ -156,7 +199,7 @@ export function useSkedraFileActions({
 				setFileError(t(key));
 			}
 		},
-		[sync.elements, sync.views, store.canvasBg, store.viewport, t],
+		[getPortableElements, sync.views, store.canvasBg, store.viewport, t],
 	);
 
 	const handleImportSkedra = useCallback(async () => {
@@ -171,7 +214,7 @@ export function useSkedraFileActions({
 				setImportDialogOpen(true);
 				return;
 			}
-			applySkedraImport(file);
+			await applySkedraImport(file);
 		} catch (error) {
 			if (error instanceof SkedraFileError && error.message === "cancelled")
 				return;
@@ -189,7 +232,7 @@ export function useSkedraFileActions({
 			setImportDialogOpen(false);
 			return;
 		}
-		applySkedraImport(file);
+		void applySkedraImport(file);
 		pendingImportRef.current = null;
 		setImportDialogOpen(false);
 	}, [applySkedraImport]);

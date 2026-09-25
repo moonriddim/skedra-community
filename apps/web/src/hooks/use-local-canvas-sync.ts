@@ -75,7 +75,13 @@ export function useLocalCanvasSync(enabled = true) {
 	useEffect(() => {
 		if (!enabled) return;
 
-		const ydoc = new Y.Doc({ gc: false });
+		// Standard-GC von Yjs: Überschriebene Werte (jeder Drag-Frame, jeder
+		// Tastendruck im Textfeld) werden aus dem Zustand entfernt. Mit
+		// `gc: false` blieb jede Zwischenversion für immer im Board-Zustand und
+		// in jedem Komprimierungs-Snapshot. Nichts liest diese Historie; Undo/Redo
+		// arbeitet mit eigenen Deltas (canvas-undo), und der MCP-Server nutzt für
+		// dieselben Dokumente ebenfalls die Standard-GC.
+		const ydoc = new Y.Doc();
 		ydocRef.current = ydoc;
 
 		const pendingTemplateState = takePendingTemplateStateBase64();

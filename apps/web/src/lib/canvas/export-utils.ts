@@ -5,15 +5,16 @@ import {
 	exportSkedraPdf,
 	exportSkedraPng,
 	exportSkedraPptx,
-	exportSkedraSvg,
+	exportSkedraSvgWithImages,
 	getSkedraFrameExportFilename,
 } from "@skedra/canvas-io/exporters";
 
-export function exportSVG(
+export async function exportSVG(
 	svgElement: SVGSVGElement,
 	filename = "skedra-whiteboard.svg",
 ) {
-	downloadBlob(exportSkedraSvg(svgElement), filename);
+	// Bilder einbetten: blob:-URLs der Sitzung wären in der Datei ungültig.
+	downloadBlob(await exportSkedraSvgWithImages(svgElement), filename);
 }
 
 export async function exportPNG(

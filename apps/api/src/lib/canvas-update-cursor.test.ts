@@ -8,6 +8,7 @@ import {
 	canvasUpdateCursorTimestamp,
 	canvasUpdateTimestamp,
 	canvasUpdatesAfter,
+	listCanvasUpdatePage,
 } from "./canvas-update-cursor";
 
 test("PostgreSQL cursors preserve microseconds across paging and compaction", async (t) => {
@@ -111,5 +112,68 @@ test("PostgreSQL cursors preserve microseconds across paging and compaction", as
 		(await list(undefined, undefined, 10)).length,
 		2,
 		"cursor queries remain scoped to the requested board",
+	);
+});
+
+test("update pages are capped by payload size and report whether more rows follow", async (t) => {
+	const pg = new PGlite();
+	t.after(() => pg.close());
+	await pg.exec(`create table whiteboard_e2ee_updates (
+		id uuid primary key, whiteboard_id uuid not null, client_id text not null,
+		user_id text, "update" text not null, created_at timestamp not null
+	)`);
+	const db = drizzle(pg, { schema: { whiteboardE2eeUpdates } });
+	const board = "00000000-0000-4000-8000-000000000001";
+	// Payload lengths: an oversized first row, then three small rows.
+	const lengths = [50, 10, 10, 10];
+	const ids = lengths.map(
+		(_, index) =>
+			`00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+	);
+	for (const [index, length] of lengths.entries()) {
+		await db.insert(whiteboardE2eeUpdates).values({
+			id: ids[index],
+			whiteboardId: board,
+			clientId: "test",
+			update: "x".repeat(length),
+			createdAt: canvasUpdateTimestamp(`2026-09-25T12:00:0${index}.000000Z`),
+		});
+	}
+	// The helper only needs the query/select API shared by both drivers.
+	const database = db as unknown as Parameters<typeof listCanvasUpdatePage>[0];
+	const pages: Array<{ ids: string[]; hasMore: boolean }> = [];
+	let cursor: { id: string; cursorCreatedAt: string } | undefined;
+	for (let i = 0; i < 5; i++) {
+		const page = await listCanvasUpdatePage(database, {
+			whiteboardId: board,
+			afterId: cursor?.id,
+			afterCreatedAt: cursor?.cursorCreatedAt,
+			limit: 10,
+			maxChars: 25,
+		});
+		pages.push({
+			ids: page.updates.map((row) => row.id),
+			hasMore: page.hasMore,
+		});
+		cursor = page.updates.at(-1) ?? cursor;
+		if (!page.hasMore) break;
+	}
+	assert.deepEqual(pages, [
+		// A row larger than the budget is still delivered alone.
+		{ ids: [ids[0]], hasMore: true },
+		// 10 + 10 fit into 25 characters; the third small row does not.
+		{ ids: [ids[1], ids[2]], hasMore: true },
+		{ ids: [ids[3]], hasMore: false },
+	]);
+
+	// The row limit still applies independently of the size budget.
+	const limited = await listCanvasUpdatePage(database, {
+		whiteboardId: board,
+		limit: 1,
+		maxChars: 1_000,
+	});
+	assert.deepEqual(
+		{ ids: limited.updates.map((row) => row.id), hasMore: limited.hasMore },
+		{ ids: [ids[0]], hasMore: true },
 	);
 });

@@ -111,7 +111,16 @@ test("two clients recover delayed updates and cached board navigation", async (t
 												releaseRead = resolve;
 											});
 										}
-										results.push({ result: { data: rows } });
+										// Emulates the API's size budget: one row per page, so
+										// every multi-row load has to follow `hasMore`.
+										results.push({
+											result: {
+												data: {
+													updates: rows.slice(0, 1),
+													hasMore: rows.length > 1,
+												},
+											},
+										});
 									}
 								}
 								return new Response(JSON.stringify(results), {

@@ -14,3 +14,4 @@ export * from "./ai-model-filter";
 export * from "./kanban-ai";
 export * from "./ai-generation";
 export * from "./team-role-permissions";
+export * from "./board-sync-limits";

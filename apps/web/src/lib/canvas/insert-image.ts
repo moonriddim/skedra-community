@@ -12,6 +12,7 @@ import { nanoid } from "nanoid";
 import type { CanvasThemeState } from "./canvas-defaults";
 import { getCanvasElementFactoryDefaults } from "./canvas-factory-defaults";
 import { type ImageUploadOptions, pickImageFile } from "./image-utils";
+import { externalizeInlineImageElements } from "./inline-image-assets";
 
 export async function pickAndBuildImageElements(
 	center: {
@@ -21,7 +22,9 @@ export async function pickAndBuildImageElements(
 	theme?: CanvasThemeState,
 	uploadOptions?: ImageUploadOptions,
 ): Promise<CanvasElement[]> {
-	const picked = await pickImageFile(uploadOptions);
+	// SVGs zuerst inline lesen: Lassen sie sich in Formen umwandeln, braucht es
+	// gar keinen Upload.
+	const picked = await pickImageFile(uploadOptions, { keepSvgInline: true });
 	if (!picked) return [];
 	if (picked.svgText) {
 		const imported = parseSvgToCanvasElements(picked.svgText, {
@@ -32,7 +35,10 @@ export async function pickAndBuildImageElements(
 			maxHeight: 360,
 			sourceName: picked.name,
 		});
-		if (imported) return imported.elements;
+		// Eingebettete Rasterbilder im SVG werden als Assets ausgelagert.
+		if (imported) {
+			return externalizeInlineImageElements(imported.elements, uploadOptions);
+		}
 	}
 
 	const fitted = fitImageSize(picked.width, picked.height, 480, 360);
@@ -54,5 +60,7 @@ export async function pickAndBuildImageElements(
 		};
 	}
 
-	return [element];
+	// Nicht umwandelbares SVG (oder kein Speicher beim Lesen): als Asset
+	// hochladen, sofern möglich; sonst bleibt es inline.
+	return externalizeInlineImageElements([element], uploadOptions);
 }

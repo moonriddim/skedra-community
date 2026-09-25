@@ -26,6 +26,10 @@ const scanRoots = [
 
 const allowedWebCanvasFiles = new Set([
 	"api-elements.ts",
+	// Browser/API adapters for encrypted board assets (upload, embedding for
+	// export/clipboard); no canvas geometry or element logic.
+	"asset-clipboard-cache.ts",
+	"asset-clipboard-cache.test.ts",
 	"asset-urls.ts",
 	// Browser file picking / API upload adapters; shared MIME rules live in canvas-core.
 	"attachment-utils.ts",
@@ -41,8 +45,11 @@ const allowedWebCanvasFiles = new Set([
 	"canvas-viewport-storage.ts",
 	"color-picker-utils.ts",
 	"custom-data-utils.ts",
+	"export-images.test.ts",
 	"export-utils.ts",
 	"image-utils.ts",
+	"inline-image-assets.test.ts",
+	"inline-image-assets.ts",
 	"insert-image.ts",
 	"kanban-due-status.ts",
 	"kanban-options.ts",
@@ -54,6 +61,8 @@ const allowedWebCanvasFiles = new Set([
 	"library-site-url.ts",
 	"library-utils.ts",
 	"local-canvas-storage.ts",
+	"portable-assets.test.ts",
+	"portable-assets.ts",
 	"preview.ts",
 	"skedra-file-utils.test.ts",
 	"skedra-file-utils.ts",
