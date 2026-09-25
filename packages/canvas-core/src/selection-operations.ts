@@ -244,6 +244,7 @@ export function cloneCanvasSelection(options: {
 			"mindmapTreeId",
 			"sequenceDiagramId",
 			"templateSectionId",
+			"kanbanRow",
 		] as const) {
 			const value = element.customData?.[key];
 			if (typeof value === "string" && !logicalIdMap.has(value)) {
@@ -458,6 +459,7 @@ function remapCustomDataReferences(
 		"mindmapTreeId",
 		"sequenceDiagramId",
 		"templateSectionId",
+		"kanbanRow",
 	]) {
 		const current = remapped[key];
 		if (typeof current === "string" && logicalIdMap.has(current)) {

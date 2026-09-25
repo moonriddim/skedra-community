@@ -1,11 +1,16 @@
 import type { RemoteCanvasPresence } from "@/hooks/canvas-sync-types";
+import { useI18n } from "@/lib/i18n";
 import type { BBox } from "@skedra/canvas-core";
 import type {
 	SnapGuide,
 	SnapPointIndicator,
 	SnapPointOptions,
 } from "@skedra/canvas-core";
-import { CanvasScene } from "@skedra/canvas-core";
+import {
+	CanvasScene,
+	collectMindmapDescendantIds,
+	getMindmapNodeMeta,
+} from "@skedra/canvas-core";
 import { getCanvasSelectionSnapPointIndicators } from "@skedra/canvas-core";
 import type {
 	CanvasElement,
@@ -13,6 +18,7 @@ import type {
 	CanvasSearchMatch,
 	EllipseArcEndpoint,
 	HandlePosition,
+	KanbanDropTarget,
 	LaserTrail,
 	SavedCanvasView,
 	SelectionBox,
@@ -27,6 +33,7 @@ import {
 	type CanvasEditorEraserTrailPoint,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
+	CanvasEditorKanbanDropOverlay,
 	CanvasEditorSavedViewDraft,
 	CanvasEditorSavedViewOverlay,
 	CanvasEditorSelectionGestureOverlay,
@@ -65,7 +72,11 @@ interface CanvasStageProps {
 	lassoPath: [number, number][] | null;
 	viewDraft: BBox | null;
 	drawingPreview: CanvasElement | null;
+	onExpandMindmap?: (id: string) => void;
+	mindmapDropTarget?: { nodeId: string; parentId: string } | null;
+	elementPlacementPreview?: CanvasElement[] | null;
 	pathStartSnap: CanvasPathStartSnapState | null;
+	kanbanDropTarget: KanbanDropTarget | null;
 	snapGuides: SnapGuide[];
 	snapPointIndicators: SnapPointIndicator[];
 	selectedSnapOptions?: SnapPointOptions | null;
@@ -149,7 +160,11 @@ export function CanvasStage({
 	lassoPath,
 	viewDraft,
 	drawingPreview,
+	elementPlacementPreview,
+	mindmapDropTarget,
+	onExpandMindmap,
 	pathStartSnap,
+	kanbanDropTarget,
 	snapGuides,
 	snapPointIndicators,
 	selectedSnapOptions = null,
@@ -180,10 +195,16 @@ export function CanvasStage({
 	onViewResizeStart,
 }: CanvasStageProps) {
 	const canvasCommands = useCanvasCommands();
+	const { t } = useI18n();
 	const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
 	const previewScene = useMemo(
-		() => (drawingPreview ? CanvasScene.from([drawingPreview]) : null),
-		[drawingPreview],
+		() =>
+			elementPlacementPreview
+				? CanvasScene.from(elementPlacementPreview)
+				: drawingPreview
+					? CanvasScene.from([drawingPreview])
+					: null,
+		[drawingPreview, elementPlacementPreview],
 	);
 	const selectedElements = useMemo(
 		() =>
@@ -308,10 +329,83 @@ export function CanvasStage({
 				<CanvasEditorSavedViewDraft bounds={viewDraft} zoom={viewport.zoom} />
 			)}
 
+			{scene
+				.getDisplayElements()
+				.filter(
+					(el) => getMindmapNodeMeta(el) && el.customData?.mindmapCollapsed,
+				)
+				.map((node) => {
+					const count = collectMindmapDescendantIds(node.id, elements).size - 1;
+					if (!count) return null;
+					return (
+						<foreignObject
+							key={`collapsed-${node.id}`}
+							x={node.x + node.width - 14 / viewport.zoom}
+							y={node.y + node.height + 5 / viewport.zoom}
+							width={52 / viewport.zoom}
+							height={28 / viewport.zoom}
+							data-ui-only="true"
+						>
+							<button
+								type="button"
+								disabled={readOnly}
+								style={{
+									fontSize: 12 / viewport.zoom,
+									height: 24 / viewport.zoom,
+									paddingInline: 6 / viewport.zoom,
+									borderRadius: 12 / viewport.zoom,
+								}}
+								className="border border-border bg-background text-foreground shadow-sm"
+								aria-label={t("mindmapStudio.hidden", { count })}
+								onPointerDown={(event) => event.stopPropagation()}
+								onClick={(event) => {
+									event.stopPropagation();
+									onExpandMindmap?.(node.id);
+								}}
+							>
+								+{count}
+							</button>
+						</foreignObject>
+					);
+				})}
+			{mindmapDropTarget &&
+				(() => {
+					const parent = scene.getElement(mindmapDropTarget.parentId);
+					const node = scene.getElement(mindmapDropTarget.nodeId);
+					if (!parent || !node) return null;
+					return (
+						<g
+							pointerEvents="none"
+							data-ui-only="true"
+							stroke="#6366f1"
+							strokeWidth={2 / viewport.zoom}
+						>
+							<rect
+								x={parent.x - 6 / viewport.zoom}
+								y={parent.y - 6 / viewport.zoom}
+								width={parent.width + 12 / viewport.zoom}
+								height={parent.height + 12 / viewport.zoom}
+								rx={10}
+								fill="#6366f1"
+								fillOpacity={0.12}
+							/>
+							<path
+								d={`M ${parent.x + parent.width / 2} ${parent.y + parent.height / 2} L ${node.x + node.width / 2} ${node.y + node.height / 2}`}
+								strokeDasharray={`${6 / viewport.zoom} ${4 / viewport.zoom}`}
+							/>
+						</g>
+					);
+				})()}
 			{previewScene && (
-				<g data-ui-only="true" data-skedra-ui="drawing-preview">
+				<g
+					data-ui-only="true"
+					data-skedra-ui="drawing-preview"
+					pointerEvents="none"
+					opacity={elementPlacementPreview ? 0.65 : 1}
+				>
 					<CanvasRenderer
 						scene={previewScene}
+						config={{ interactive: false }}
 						selectedIds={new Set()}
 						resolveAssetUrl={resolveAssetUrl}
 					/>
@@ -347,6 +441,10 @@ export function CanvasStage({
 				points={visibleSnapPointIndicators}
 				zoom={viewport.zoom}
 				origin={transformOrigin}
+			/>
+			<CanvasEditorKanbanDropOverlay
+				target={kanbanDropTarget}
+				zoom={viewport.zoom}
 			/>
 		</CanvasEditorSurface>
 	);

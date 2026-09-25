@@ -1,3 +1,4 @@
+import { buildKanbanQuickEditUpdates } from "@skedra/canvas-core";
 /**
  * SkedraCanvas: Eigenes SVG-basiertes Whiteboard mit Echtzeit-Sync.
  * Respektiert das App-Theme (dark/light) ueber CSS-Variablen.
@@ -1007,6 +1008,8 @@ export function SkedraCanvas({
 		editingText,
 		editingStickyChecklist,
 		editingStickyNoteMode,
+		editingStickyFocus,
+		beginStickyNoteEditing,
 		editingArrowTextSide,
 		editingArrowTextOrientation,
 		textEditorOpen,
@@ -1124,6 +1127,7 @@ export function SkedraCanvas({
 		setHoveredMindmapButtonId,
 	} = useMindmapCanvasTool({
 		sync,
+		stopUndoCapture: history.stopCapturing,
 		store,
 		viewport,
 		selectedMindmapNode,
@@ -1231,6 +1235,7 @@ export function SkedraCanvas({
 			flowchartCreateStep: handleFlowchartCreateStep,
 			flowchartNavigate: handleFlowchartNavigate,
 			mindmapCreateSibling: createMindmapSibling,
+			mindmapCreateChild: createMindmapChild,
 			openCommandPalette: () => store.setCommandPaletteOpen(true),
 			openCanvasSearch: () => store.setCanvasSearchOpen(true),
 		},
@@ -1294,6 +1299,7 @@ export function SkedraCanvas({
 		getKanbanElementAtPosition,
 		handleDoubleClick,
 	} = useCanvasDoubleClick({
+		addTemplateStickyNote,
 		setEditingPyramidSection,
 		svgRef,
 		scene: sync.scene,
@@ -1384,6 +1390,24 @@ export function SkedraCanvas({
 		sync.setPresenceActiveView(activeViewId);
 	}, [activeViewId, presenterMode, sync.setPresenceActiveView]);
 
+	const updateKanbanCardInline = useCallback<
+		NonNullable<CanvasCommands["updateKanbanCard"]>
+	>(
+		(id, edit) => {
+			if (sync.isReadonly || presentationMode || store.activeTool !== "select")
+				return;
+			const updates = buildKanbanQuickEditUpdates(sync.elements, id, edit);
+			if (updates.length) sync.updateElements(updates);
+		},
+		[
+			sync.isReadonly,
+			sync.elements,
+			sync.updateElements,
+			presentationMode,
+			store.activeTool,
+		],
+	);
+
 	const openKanbanCard = useCallback(
 		(id: string) => {
 			setKanbanDetailId(id);
@@ -1465,6 +1489,14 @@ export function SkedraCanvas({
 
 	const canvasCommands = useMemo<CanvasCommands>(
 		() => ({
+			updateKanbanCard:
+				!presentationMode && !sync.isReadonly && store.activeTool === "select"
+					? updateKanbanCardInline
+					: undefined,
+			editStickyNote:
+				!presentationMode && !sync.isReadonly && store.activeTool === "select"
+					? beginStickyNoteEditing
+					: undefined,
 			openHelp: () => setHelpDialogOpen(true),
 			exportVisual,
 			exportFrame,
@@ -1488,6 +1520,11 @@ export function SkedraCanvas({
 		}),
 		[
 			addFlowchartStep,
+			beginStickyNoteEditing,
+			updateKanbanCardInline,
+			presentationMode,
+			sync.isReadonly,
+			store.activeTool,
 			addKanbanCard,
 			addTemplateStickyNote,
 			createMindmapChild,
@@ -1553,6 +1590,7 @@ export function SkedraCanvas({
 		getElementAtPosition,
 		getKanbanElementAtPosition,
 		clearMindmapHoverLeaveTimeout,
+		activeMindmapNode,
 		setHoveredMindmapNodeId,
 		setHoveredMindmapButtonId,
 		scheduleMindmapHoverClear,
@@ -1675,7 +1713,7 @@ export function SkedraCanvas({
 					editingArrowTextSide={editingArrowTextSide}
 					editingArrowTextOrientation={editingArrowTextOrientation}
 					getViewportCenter={getViewportCenter}
-					addElements={addElements}
+					addElements={store.startElementPlacement}
 					fitElementsToViewport={fitElementsToViewport}
 					handleUpdatePendingText={handleUpdatePendingText}
 					handleUpdateEditingText={handleUpdateEditingText}
@@ -1730,7 +1768,7 @@ export function SkedraCanvas({
 									selectedElements={Array.from(selectedIds)
 										.map((id) => sync.elements.get(id))
 										.filter((element): element is CanvasElement => !!element)}
-									onInsertElements={addElements}
+									onInsertElements={store.startElementPlacement}
 									getViewportCenter={getViewportCenter}
 									onClose={handleCloseWorkspacePanel}
 								/>
@@ -1805,8 +1843,21 @@ export function SkedraCanvas({
 					textEditorOpen={textEditorOpen}
 					viewDraft={viewDraft}
 					drawingPreview={pointerHandlers.drawingPreview}
+					elementPlacementPreview={pointerHandlers.elementPlacementPreview}
+					mindmapDropTarget={pointerHandlers.mindmapDropTarget}
+					onExpandMindmap={(id) => {
+						const node = sync.elements.get(id);
+						if (!node || node.locked) return;
+						history.stopCapturing();
+						sync.updateElement(id, {
+							customData: { ...node.customData, mindmapCollapsed: false },
+						});
+						history.stopCapturing();
+						store.setSelectedIds(new Set([id]));
+					}}
 					eraserTrail={pointerHandlers.eraserTrail}
 					pathStartSnap={pointerHandlers.pathStartSnap}
+					kanbanDropTarget={pointerHandlers.kanbanDropTarget}
 					croppingElement={croppingElement}
 					ellipseTrimPreview={
 						ellipseTrim.preview
@@ -1933,6 +1984,8 @@ export function SkedraCanvas({
 				/>
 
 				<SkedraCanvasEditLayer
+					onApplyMutationPlan={sync.applyMutationPlan}
+					onHistoryBoundary={history.stopCapturing}
 					store={store}
 					svgRef={svgRef}
 					viewport={viewport}
@@ -1943,6 +1996,7 @@ export function SkedraCanvas({
 					readOnly={sync.isReadonly}
 					textEditorOpen={textEditorOpen}
 					textEditing={{
+						editingStickyFocus,
 						pendingText,
 						editingText,
 						editingStickyChecklist,
@@ -1958,6 +2012,7 @@ export function SkedraCanvas({
 					onCopyCanvasAsSvg={() => copyCanvasToClipboard("svg")}
 					liveStickyNoteEditor={liveStickyNoteEditor}
 					createMindmapSibling={createMindmapSibling}
+					createMindmapChild={createMindmapChild}
 					deleteElementsWithKanbanReflow={deleteElementsWithKanbanReflow}
 					elements={sync.elements}
 					onStartShapeTrim={ellipseTrim.start}

@@ -144,7 +144,7 @@ async function readImageFile(
 		};
 	}
 	const dimensions = await loadCanvasImageBlobDimensions(file);
-	const uploaded = await uploadEncryptedImageAsset(file, uploadOptions);
+	const uploaded = await uploadEncryptedCanvasAsset(file, uploadOptions);
 	if (uploaded) {
 		return {
 			src: uploaded.src,
@@ -167,7 +167,7 @@ async function readImageFile(
 	};
 }
 
-async function uploadEncryptedImageAsset(
+export async function uploadEncryptedCanvasAsset(
 	file: File,
 	options?: ImageUploadOptions,
 ): Promise<{ src: string; assetId: string } | null> {

@@ -54,6 +54,7 @@ export SKEDRA_REGISTRATION_MODE
 export SKEDRA_LIBRARY_CATALOG_MODE
 export SKEDRA_LIBRARY_CATALOG_API_URL
 export SKEDRA_LIBRARY_SUBMIT_URL
+export SKEDRA_OBJECT_STORAGE_PATH="${SKEDRA_OBJECT_STORAGE_PATH:-$DATA_DIR/assets}"
 
 write_config() {
 	config_file="$1"
@@ -70,7 +71,10 @@ write_config /usr/share/skedra/web/config.js
 write_config /usr/share/skedra/libraries/config.js
 
 mkdir -p "$PGDATA" /run/postgresql /run/nginx
-chown -R postgres:postgres "$DATA_DIR" /run/postgresql
+# Uploaded files may be a separate NAS mount. PostgreSQL only needs its own
+# directory; do not walk or change ownership of every asset on each restart.
+chown postgres:postgres "$DATA_DIR" /run/postgresql
+chown -R postgres:postgres "$PGDATA"
 
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
 	echo "[skedra] Initializing embedded PostgreSQL database."

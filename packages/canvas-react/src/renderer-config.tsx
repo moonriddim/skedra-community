@@ -14,6 +14,16 @@ export interface CanvasRendererDueStatus {
 }
 
 export interface CanvasRendererActions {
+	updateKanbanCard?: (
+		id: string,
+		changes: {
+			title?: string;
+			priority?: "low" | "medium" | "high" | "urgent" | null;
+			dueDate?: string | null;
+			toggleChecklistItem?: string;
+		},
+	) => void;
+	editStickyNote?: (id: string, target?: string) => void;
 	openKanbanCard: (id: string) => void;
 	addKanbanCard: (listId: string) => void;
 	addTemplateSticky: (sectionId: string) => void;
@@ -21,6 +31,7 @@ export interface CanvasRendererActions {
 }
 
 export interface CanvasRendererConfig {
+	templateNoteCounts?: Readonly<Record<string, number>>;
 	defaultFontFamily?: string;
 	toolFontFamily?: string;
 	kanbanFontFamily?: string;
@@ -44,6 +55,15 @@ interface ResolvedCanvasRendererConfig
 const noop = () => undefined;
 
 const FALLBACK_LABELS: Record<string, string> = {
+	"canvas.kanban.editTitle": "Edit card title",
+	"canvas.kanban.details": "Details",
+	"canvas.kanban.priority": "Priority",
+	"canvas.kanban.noPriority": "No priority",
+	"canvas.kanban.low": "Low",
+	"canvas.kanban.medium": "Medium",
+	"canvas.kanban.high": "High",
+	"canvas.kanban.urgent": "Urgent",
+	"canvas.kanban.dueDate": "Due date",
 	"canvas.kanban.attachmentCount": "{count} attachments",
 	"canvas.kanban.moreTasks": "+{count} more",
 	"canvas.kanban.newCard": "New card",
@@ -54,6 +74,17 @@ const FALLBACK_LABELS: Record<string, string> = {
 	"canvas.sticky.itemPlaceholder": "List item...",
 	"canvas.sticky.notePlaceholder": "Note...",
 	"canvas.templateTools.addNote": "Add note",
+	"canvas.templateTools.emptyHint": "Double-click here to capture an idea",
+	"canvas.templateTools.rename": "Double-click to rename",
+	"canvas.templateTools.noteCount": "{count} notes",
+	"canvas.templateTools.prompts.celebrate": "What went well?",
+	"canvas.templateTools.prompts.friction": "What held us back?",
+	"canvas.templateTools.prompts.commitment": "What will we try next?",
+	"canvas.templateTools.prompts.strengths": "What are we good at?",
+	"canvas.templateTools.prompts.weaknesses": "Where can we improve?",
+	"canvas.templateTools.prompts.opportunities":
+		"What could we take advantage of?",
+	"canvas.templateTools.prompts.threats": "What could get in our way?",
 	"kanbanStatus.done": "Done",
 	"kanbanStatus.due": "Due",
 	"kanbanStatus.dueSoon": "Due soon",
@@ -143,6 +174,7 @@ function defaultGetUserInitials(name: string): string {
 }
 
 const DEFAULT_CONFIG: ResolvedCanvasRendererConfig = {
+	templateNoteCounts: {},
 	defaultFontFamily: '"Kalam", "Architects Daughter", "Segoe Print", cursive',
 	toolFontFamily: '"Kalam", "Architects Daughter", "Segoe Print", cursive',
 	kanbanFontFamily: "system-ui, sans-serif",

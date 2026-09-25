@@ -41,7 +41,7 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 }: CanvasRendererProps) {
 	const sorted = useMemo(() => {
 		if (!viewport || !svgSize || svgSize.width <= 0 || svgSize.height <= 0) {
-			return scene.getSortedElements();
+			return scene.getDisplayElements();
 		}
 
 		const visibleBounds = getVisibleCanvasBounds(
@@ -55,6 +55,9 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 		const editingElement = scene.getElement(editingTextId);
 		if (
 			!editingElement ||
+			!scene
+				.getDisplayElements()
+				.some((element) => element.id === editingTextId) ||
 			visible.some((element) => element.id === editingTextId)
 		) {
 			return visible;
@@ -68,9 +71,22 @@ export const CanvasRenderer = memo(function CanvasRenderer({
 	}, [editingTextId, scene, selectedIds, svgSize, viewport]);
 
 	const maskPrefix = useId();
+	const templateNoteCounts = useMemo(() => {
+		const counts: Record<string, number> = {};
+		for (const element of scene.getSortedElements()) {
+			if (element.frameId && element.customData?.skedraType === "sticky-note") {
+				counts[element.frameId] = (counts[element.frameId] ?? 0) + 1;
+			}
+		}
+		return counts;
+	}, [scene]);
+	const rendererConfig = useMemo(
+		() => ({ ...config, templateNoteCounts }),
+		[config, templateNoteCounts],
+	);
 	const crossingGaps = useMemo(() => buildLineCrossingGaps(sorted), [sorted]);
 	return (
-		<CanvasRendererProvider config={config}>
+		<CanvasRendererProvider config={rendererConfig}>
 			<g className="elements-layer">
 				{sorted.map((el) => {
 					const gaps = crossingGaps.get(el.id);

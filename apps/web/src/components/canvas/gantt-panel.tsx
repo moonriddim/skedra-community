@@ -27,7 +27,6 @@ import {
 	getGanttChartDocument,
 	getGanttChartId,
 	getGanttChartMeta,
-	getGanttChartSize,
 } from "@skedra/canvas-core";
 import { CanvasEditorGanttStudio } from "@skedra/canvas-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -191,13 +190,7 @@ export function GanttPanel({
 	);
 
 	const createChart = () => {
-		const size = getGanttChartSize();
-		const center = frame
-			? {
-					x: frame.x + frame.width + 80 + size.width / 2,
-					y: frame.y + size.height / 2,
-				}
-			: getViewportCenter();
+		const center = getViewportCenter();
 		const nextNumber = charts.length + 1;
 		const defaultTitle = t("canvas.toolbar.insertGantt");
 		const created = createGanttTemplate(center.x, center.y, {
@@ -213,13 +206,7 @@ export function GanttPanel({
 					}
 				: element,
 		);
-		const root = created[0];
 		onInsertElements(created);
-		if (root) {
-			setActiveChartId(root.id);
-			onSelectIds(new Set([root.id]));
-		}
-		onFitElements(created);
 	};
 
 	return (

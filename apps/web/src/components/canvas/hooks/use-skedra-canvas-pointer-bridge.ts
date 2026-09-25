@@ -3,7 +3,10 @@
  */
 
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
-import { getGanttCanvasScrollbarThumbMeta } from "@skedra/canvas-core";
+import {
+	getGanttCanvasScrollbarThumbMeta,
+	isMindmapEdge,
+} from "@skedra/canvas-core";
 import {
 	type CanvasEditorBeginAuxiliaryPointerGesture,
 	canvasEditorToolSupportsSnapOverride,
@@ -46,6 +49,7 @@ interface UseSkedraCanvasPointerBridgeOptions {
 	cancelViewInteraction: () => boolean;
 	pointerHandlers: PointerGestureHandlers;
 	elements: Map<string, CanvasElement>;
+	activeMindmapNode: CanvasElement | null;
 	getEventElement: (target: EventTarget | null) => CanvasElement | null;
 	getElementAtPosition: (
 		canvasX: number,
@@ -81,6 +85,7 @@ export function useSkedraCanvasPointerBridge({
 	cancelViewInteraction,
 	pointerHandlers,
 	elements,
+	activeMindmapNode,
 	getEventElement,
 	getElementAtPosition,
 	getKanbanElementAtPosition,
@@ -397,8 +402,27 @@ export function useSkedraCanvasPointerBridge({
 				(event.clientY - rect.top - store.viewport.y) / store.viewport.zoom;
 			const hoveredElement =
 				getEventElement(event.target) ?? getElementAtPosition(canvasX, canvasY);
-			const hoveredMindmap =
+			let hoveredMindmap =
 				hoveredElement && isMindmapNode(hoveredElement) ? hoveredElement : null;
+			// Keep the path from the whole node to its floating + buttons hoverable.
+			// These margins include the 32px buttons and stay constant on screen.
+			if (
+				!hoveredMindmap &&
+				(!hoveredElement || isMindmapEdge(hoveredElement)) &&
+				activeMindmapNode &&
+				canvasX >= activeMindmapNode.x - 40 / store.viewport.zoom &&
+				canvasX <=
+					activeMindmapNode.x +
+						activeMindmapNode.width +
+						40 / store.viewport.zoom &&
+				canvasY >= activeMindmapNode.y - 40 / store.viewport.zoom &&
+				canvasY <=
+					activeMindmapNode.y +
+						activeMindmapNode.height +
+						40 / store.viewport.zoom
+			) {
+				hoveredMindmap = activeMindmapNode;
+			}
 			const hoveredMindmapId = hoveredMindmap?.id ?? null;
 			clearMindmapHoverLeaveTimeout();
 			setHoveredMindmapNodeId(hoveredMindmapId);
@@ -409,6 +433,7 @@ export function useSkedraCanvasPointerBridge({
 			setPresenceCursor({ x: canvasX, y: canvasY });
 		},
 		[
+			activeMindmapNode,
 			clearMindmapHoverLeaveTimeout,
 			getElementAtPosition,
 			getEventElement,

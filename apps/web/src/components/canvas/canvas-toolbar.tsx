@@ -3,20 +3,20 @@
  */
 
 import { useCanvasStore } from "@/hooks/use-canvas-store";
+import { getMindmapNodeThemeOptions } from "@/lib/canvas/canvas-factory-defaults";
 import type { ImageUploadOptions } from "@/lib/canvas/image-utils";
 import { pickAndBuildImageElements } from "@/lib/canvas/insert-image";
 import { useI18n } from "@/lib/i18n";
 import { createFlowchartTemplate } from "@/lib/templates/flowchart";
 import { createGanttTemplate } from "@/lib/templates/gantt";
-import { createMindmapTemplate } from "@/lib/templates/mindmap";
 import { createRetrospectiveTemplate } from "@/lib/templates/retrospective";
 import { createSwotTemplate } from "@/lib/templates/swot";
 import { useThemeStore } from "@/stores/theme";
 import {
 	type CanvasElement,
+	createMindmapFromOutline,
 	findGanttChartElement,
 	getGanttChartMeta,
-	getGanttChartSize,
 } from "@skedra/canvas-core";
 import {
 	type CanvasEditorToolId,
@@ -61,6 +61,7 @@ import {
 	Workflow,
 	Zap,
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { useShallow } from "zustand/react/shallow";
 
 interface CanvasToolbarProps {
@@ -125,7 +126,16 @@ export function CanvasToolbar({
 	);
 	const { t } = useI18n();
 	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
-	const insertAtCenter = (
+	const placeEmptyMindmap = () => {
+		addElements(
+			createMindmapFromOutline(
+				t("mindmapStudio.mainTopic"),
+				nanoid,
+				getMindmapNodeThemeOptions({ resolvedTheme }),
+			),
+		);
+	};
+	const prepareTemplate = (
 		factory: (x: number, y: number) => CanvasElement[],
 	) => {
 		const center = getViewportCenter();
@@ -145,8 +155,7 @@ export function CanvasToolbar({
 		else if (tool === "sticky-note") store.setActivePanel("sticky");
 		else if (tool === "kanban") store.setActivePanel("kanban");
 		else if (tool === "mindmap") {
-			const center = getViewportCenter();
-			addElements(createMindmapTemplate(center.x, center.y, { resolvedTheme }));
+			placeEmptyMindmap();
 		} else store.setActiveTool(tool);
 	};
 	const insertImage = async () => {
@@ -157,26 +166,13 @@ export function CanvasToolbar({
 		);
 		if (elements.length > 0) {
 			addElements(elements);
-			store.setSelectedIds(new Set(elements.map((element) => element.id)));
 		}
 	};
 	const createNewGantt = () => {
 		const existingCount = Array.from(elements.values()).filter(
 			(element) => getGanttChartMeta(element) !== null,
 		).length;
-		const selectedElement = Array.from(store.selectedIds)
-			.map((id) => elements.get(id))
-			.find((element): element is CanvasElement => element !== undefined);
-		const selectedChart = selectedElement
-			? findGanttChartElement(elements.values(), selectedElement)
-			: null;
-		const size = getGanttChartSize();
-		const center = selectedChart
-			? {
-					x: selectedChart.x + selectedChart.width + 80 + size.width / 2,
-					y: selectedChart.y + size.height / 2,
-				}
-			: getViewportCenter();
+		const center = getViewportCenter();
 		const defaultTitle = t("canvas.toolbar.insertGantt");
 		const created = createGanttTemplate(center.x, center.y, {
 			resolvedTheme,
@@ -192,8 +188,6 @@ export function CanvasToolbar({
 				: element,
 		);
 		addElements(created);
-		if (created[0]) store.setSelectedIds(new Set([created[0].id]));
-		if (store.activePanel !== "gantt") store.setActivePanel("gantt");
 	};
 	const insertMenuItems: CanvasEditorToolbarMenuItem[] = [
 		{
@@ -227,12 +221,7 @@ export function CanvasToolbar({
 			id: "mindmap",
 			label: t("canvas.toolbar.insertMindmap"),
 			icon: <GitBranch className="h-4 w-4" />,
-			onSelect: () => {
-				const center = getViewportCenter();
-				addElements(
-					createMindmapTemplate(center.x, center.y, { resolvedTheme }),
-				);
-			},
+			onSelect: placeEmptyMindmap,
 		},
 		{
 			id: "flowchart",
@@ -258,13 +247,6 @@ export function CanvasToolbar({
 			id: "gantt",
 			label: t("canvas.toolbar.insertGantt"),
 			icon: <ChartGantt className="h-4 w-4" />,
-			secondaryActions: [
-				{
-					id: "gantt-new",
-					label: t("ganttStudio.newChart"),
-					onSelect: createNewGantt,
-				},
-			],
 			onSelect: () => {
 				const selected = Array.from(store.selectedIds)
 					.map((id) => elements.get(id))
@@ -300,13 +282,13 @@ export function CanvasToolbar({
 			id: "retrospective",
 			label: t("canvas.toolbar.insertRetrospective"),
 			icon: <History className="h-4 w-4" />,
-			onSelect: () => insertAtCenter(createRetrospectiveTemplate),
+			onSelect: () => prepareTemplate(createRetrospectiveTemplate),
 		},
 		{
 			id: "swot",
 			label: t("canvas.toolbar.insertSwot"),
 			icon: <Table2 className="h-4 w-4" />,
-			onSelect: () => insertAtCenter(createSwotTemplate),
+			onSelect: () => prepareTemplate(createSwotTemplate),
 		},
 	];
 	const exportMenuItems: CanvasEditorToolbarMenuItem[] = [

@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Check, Cloud, Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
-type ObjectStorageProvider = "inline" | "s3";
+type ObjectStorageProvider = "inline" | "s3" | "filesystem";
 type ObjectStoragePreset = "custom" | "r2" | "ovh" | "aws";
 
 export function SystemObjectStorageSettings() {
@@ -31,7 +31,7 @@ export function SystemObjectStorageSettings() {
 	useEffect(() => {
 		if (!status) return;
 		setUseCustomObjectStorage(status.useCustomObjectStorage);
-		setProvider(status.objectStorageProvider === "s3" ? "s3" : "inline");
+		setProvider(status.objectStorageProvider);
 		setPreset(
 			status.objectStoragePreset === "r2" ||
 				status.objectStoragePreset === "ovh" ||
@@ -140,6 +140,12 @@ export function SystemObjectStorageSettings() {
 					{t("systemSettings.objectStorageCard.activeSource")}: {sourceLabel}
 					{status?.bucket ? ` - ${status.bucket}` : ""}
 				</p>
+				{status?.provider === "filesystem" ? (
+					<p className="mt-1 break-all text-muted-foreground">
+						{t("systemSettings.objectStorageCard.providers.filesystem")}:{" "}
+						{status.filesystemPath}
+					</p>
+				) : null}
 			</div>
 
 			<label className="flex items-start gap-3 text-sm">
@@ -175,26 +181,30 @@ export function SystemObjectStorageSettings() {
 							<option value="s3">
 								{t("systemSettings.objectStorageCard.providers.s3")}
 							</option>
-						</select>
-					</Field>
-
-					<Field label={t("systemSettings.objectStorageCard.preset")}>
-						<select
-							className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-							value={preset}
-							disabled={provider !== "s3"}
-							onChange={(event) =>
-								handlePresetChange(event.target.value as ObjectStoragePreset)
-							}
-						>
-							<option value="r2">Cloudflare R2</option>
-							<option value="ovh">OVH Object Storage</option>
-							<option value="aws">AWS S3</option>
-							<option value="custom">
-								{t("systemSettings.objectStorageCard.presets.custom")}
+							<option value="filesystem" disabled={!status?.filesystemPath}>
+								{t("systemSettings.objectStorageCard.providers.filesystem")}
 							</option>
 						</select>
 					</Field>
+
+					{provider === "s3" ? (
+						<Field label={t("systemSettings.objectStorageCard.preset")}>
+							<select
+								className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+								value={preset}
+								onChange={(event) =>
+									handlePresetChange(event.target.value as ObjectStoragePreset)
+								}
+							>
+								<option value="r2">Cloudflare R2</option>
+								<option value="ovh">OVH Object Storage</option>
+								<option value="aws">AWS S3</option>
+								<option value="custom">
+									{t("systemSettings.objectStorageCard.presets.custom")}
+								</option>
+							</select>
+						</Field>
+					) : null}
 
 					{provider === "s3" ? (
 						<>
@@ -278,6 +288,16 @@ export function SystemObjectStorageSettings() {
 								{t("systemSettings.objectStorageCard.forcePathStyle")}
 							</label>
 						</>
+					) : null}
+					{provider === "filesystem" || !status?.filesystemPath ? (
+						<div className="text-sm text-muted-foreground sm:col-span-2">
+							<p>{t("systemSettings.objectStorageCard.filesystemHint")}</p>
+							{provider === "filesystem" && status?.filesystemPath ? (
+								<p className="mt-1 break-all font-mono">
+									{status.filesystemPath}
+								</p>
+							) : null}
+						</div>
 					) : null}
 				</div>
 			) : null}

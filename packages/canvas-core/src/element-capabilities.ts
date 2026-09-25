@@ -51,7 +51,11 @@ export function isCanvasFrameLabelEditable(
 ): boolean {
 	if (!element || element.type !== "frame") return false;
 	const skedraType = element.customData?.skedraType;
-	return skedraType == null || skedraType === "wireframe-screen";
+	return (
+		skedraType == null ||
+		skedraType === "wireframe-screen" ||
+		skedraType === "template-section"
+	);
 }
 
 /**
@@ -60,8 +64,17 @@ export function isCanvasFrameLabelEditable(
  * geschaetzt (kein DOM-Zugriff noetig, damit der Hit-Test host-neutral bleibt).
  */
 export function getFrameLabelHitBox(
-	element: Pick<CanvasElement, "x" | "y" | "width" | "frameLabel" | "text">,
+	element: Pick<CanvasElement, "x" | "y" | "width" | "frameLabel" | "text"> &
+		Partial<Pick<CanvasElement, "customData">>,
 ): { x: number; y: number; width: number; height: number } {
+	if (element.customData?.skedraType === "template-section") {
+		return {
+			x: element.x + 18,
+			y: element.y + 10,
+			width: Math.max(40, element.width - 80),
+			height: 32,
+		};
+	}
 	const label = element.frameLabel || element.text || "Frame";
 	/* ~0.66em mittlere Zeichenbreite bei system-ui, plus etwas Klick-Puffer. */
 	const estimatedWidth =

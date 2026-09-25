@@ -52,7 +52,7 @@ const callsInputSchema = z.object({
 
 const objectStorageInputSchema = z.object({
 	useCustomObjectStorage: z.boolean(),
-	provider: z.enum(["inline", "s3"]),
+	provider: z.enum(["inline", "s3", "filesystem"]),
 	preset: z.enum(["custom", "r2", "ovh", "aws"]),
 	endpoint: z.string().url().optional(),
 	region: z.string().max(80).optional(),
@@ -221,10 +221,13 @@ export const instanceRouter = router({
 			isAdmin: true,
 			objectStorageSettingsEditable: true,
 			useCustomObjectStorage: settings.useCustomObjectStorage,
-			objectStorageProvider:
-				settings.objectStorageProvider === "s3"
-					? ("s3" as const)
-					: envStatus.provider,
+			objectStorageProvider: settings.useCustomObjectStorage
+				? settings.objectStorageProvider === "s3" ||
+					settings.objectStorageProvider === "filesystem"
+					? settings.objectStorageProvider
+					: ("inline" as const)
+				: envStatus.provider,
+			filesystemPath: env.SKEDRA_OBJECT_STORAGE_PATH ?? null,
 			objectStoragePreset:
 				storedPreset === "r2" ||
 				storedPreset === "ovh" ||

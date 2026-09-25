@@ -15,9 +15,14 @@ import {
 	LASER_MIN_POINT_DISTANCE,
 	isLaserTrailVisible,
 } from "@/lib/canvas/laser-utils";
+import {
+	type ElementPlacementDraft,
+	createElementPlacementDraft,
+} from "@skedra/canvas-core";
 import type {
 	ArrowHead,
 	ArrowMode,
+	CanvasElement,
 	CanvasObjectSnapMode,
 	FlowchartNodeKind,
 	KanbanPriority,
@@ -158,6 +163,9 @@ export interface CanvasStoreState {
 	stickyNotePlacementDraft: StickyNotePlacementDraft | null;
 	setStickyNotePlacementDraft: (draft: StickyNotePlacementDraft | null) => void;
 	clearStickyNotePlacementDraft: () => void;
+	elementPlacementDraft: ElementPlacementDraft | null;
+	startElementPlacement: (elements: CanvasElement[]) => void;
+	clearElementPlacementDraft: () => void;
 	flowchartInsertKind: FlowchartNodeKind;
 	setFlowchartInsertKind: (kind: FlowchartNodeKind) => void;
 
@@ -313,6 +321,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 				shapePlacementDraft: null,
 				kanbanCardPlacementDraft: null,
 				stickyNotePlacementDraft: null,
+				elementPlacementDraft: null,
 			};
 		}),
 
@@ -448,6 +457,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	shapePlacementDraft: null,
 	setShapePlacementDraft: (draft) =>
 		set({
+			elementPlacementDraft: null,
 			shapePlacementDraft: draft
 				? {
 						...draft,
@@ -459,12 +469,24 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 	clearShapePlacementDraft: () => set({ shapePlacementDraft: null }),
 	kanbanCardPlacementDraft: null,
 	setKanbanCardPlacementDraft: (draft) =>
-		set({ kanbanCardPlacementDraft: draft }),
+		set({ kanbanCardPlacementDraft: draft, elementPlacementDraft: null }),
 	clearKanbanCardPlacementDraft: () => set({ kanbanCardPlacementDraft: null }),
 	stickyNotePlacementDraft: null,
 	setStickyNotePlacementDraft: (draft) =>
-		set({ stickyNotePlacementDraft: draft }),
+		set({ stickyNotePlacementDraft: draft, elementPlacementDraft: null }),
 	clearStickyNotePlacementDraft: () => set({ stickyNotePlacementDraft: null }),
+	elementPlacementDraft: null,
+	startElementPlacement: (elements) => {
+		const draft = createElementPlacementDraft(elements);
+		if (!draft) return;
+		get().setActiveTool("select");
+		set({
+			elementPlacementDraft: draft,
+			activePanel: null,
+			selectedIds: new Set(),
+		});
+	},
+	clearElementPlacementDraft: () => set({ elementPlacementDraft: null }),
 	flowchartInsertKind: "step",
 	setFlowchartInsertKind: (kind) => set({ flowchartInsertKind: kind }),
 
@@ -476,7 +498,10 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
 	activePanel: null,
 	setActivePanel: (panel) =>
-		set((s) => ({ activePanel: s.activePanel === panel ? null : panel })),
+		set((s) => ({
+			activePanel: s.activePanel === panel ? null : panel,
+			...(panel ? { elementPlacementDraft: null } : {}),
+		})),
 
 	editingTextId: null,
 	setEditingTextId: (id) => set({ editingTextId: id }),

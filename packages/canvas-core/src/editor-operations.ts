@@ -26,12 +26,15 @@ import {
 } from "./gantt";
 import { getBBox } from "./geometry";
 import {
+	type KanbanDropTarget,
 	buildKanbanDeletionReflowUpdates,
+	buildKanbanListReflowUpdates,
 	buildKanbanReflowUpdates,
 	elementCenter,
 	findListAtPoint,
 	isKanbanCard,
 	isKanbanList,
+	resolveKanbanDropTarget,
 } from "./kanban";
 import {
 	buildMindmapEdgeChanges,
@@ -1124,23 +1127,53 @@ export function planCanvasDeletion(
 export function buildKanbanDropUpdates(
 	elements: Map<string, CanvasElement>,
 	movedIds: Iterable<string>,
+	dropPoint?: CanvasPoint,
 ): CanvasElementUpdate[] {
+	const moved = new Set(movedIds);
 	const movedCards = new Set<string>();
 	const targetByCard = new Map<string, string | null>();
-	for (const id of movedIds) {
+	const placements = new Map<string, KanbanDropTarget>();
+	for (const id of moved) {
 		const card = elements.get(id);
-		if (!card || !isKanbanCard(card)) continue;
+		if (!card || !isKanbanCard(card) || card.locked) continue;
+		// Moving a whole column must preserve its children, even over another list.
+		if (card.frameId && moved.has(card.frameId)) continue;
 		movedCards.add(id);
-		const centerX = card.x + card.width / 2;
-		const centerY = card.y + card.height / 2;
+	}
+	for (const id of movedCards) {
+		const card = elements.get(id);
+		if (!card) continue;
+		// The release point also reaches short/empty lists when a tall card's
+		// center extends below them. Multiple cards retain their relative targets.
+		const point =
+			movedCards.size === 1 && dropPoint ? dropPoint : elementCenter(card);
+		const placement =
+			movedCards.size === 1 && dropPoint
+				? resolveKanbanDropTarget(elements, moved, point)
+				: null;
+		if (placement) placements.set(id, placement);
 		targetByCard.set(
 			id,
-			findListAtPoint(elements, centerX, centerY)?.id ?? null,
+			movedCards.size === 1 && dropPoint
+				? (placement?.listId ?? null)
+				: (findListAtPoint(elements, point.x, point.y)?.id ?? null),
 		);
 	}
 	return movedCards.size > 0
-		? buildKanbanReflowUpdates(elements, movedCards, targetByCard)
-		: [];
+		? buildKanbanReflowUpdates(
+				elements,
+				movedCards,
+				targetByCard,
+				movedCards.size === 1 && dropPoint
+					? new Map([...movedCards].map((id) => [id, dropPoint.y]))
+					: undefined,
+				placements,
+			)
+		: [...moved].flatMap((id) =>
+				isKanbanList(elements.get(id))
+					? buildKanbanListReflowUpdates(elements, id)
+					: [],
+			);
 }
 
 export function buildTemplateDropUpdates(
@@ -1362,14 +1395,18 @@ export function planMindmapChildMutation(
 ): CanvasMutationPlan | null {
 	const parent = options.elements.get(options.parentId);
 	const parentMeta = getMindmapNodeMeta(parent);
-	if (!parent || !parentMeta) return null;
+	if (!parent || parent.locked || !parentMeta) return null;
 	const placement = planMindmapChildInsertion({
 		parent,
 		elements: options.elements,
 		direction: options.direction,
 		position: options.position,
 	});
-	if (!placement) return null;
+	if (
+		!placement ||
+		placement.shifts.some((patch) => options.elements.get(patch.id)?.locked)
+	)
+		return null;
 	return buildMindmapInsertionMutation({
 		...options,
 		parent,
@@ -1389,12 +1426,12 @@ export function planMindmapSiblingMutation(
 ): CanvasMutationPlan | null {
 	const node = options.elements.get(options.nodeId);
 	const nodeMeta = getMindmapNodeMeta(node);
-	if (!node || !nodeMeta) return null;
+	if (!node || node.locked || !nodeMeta) return null;
 	if (nodeMeta.mindmapParentId == null) {
 		return planMindmapChildMutation({
 			...options,
 			parentId: node.id,
-			direction: options.position === "before" ? "left" : "right",
+			direction: options.position === "before" ? "left" : undefined,
 			preserveParentSelection: options.preserveAnchorSelection,
 		});
 	}
@@ -1404,7 +1441,13 @@ export function planMindmapSiblingMutation(
 		position: options.position,
 	});
 	const parent = options.elements.get(nodeMeta.mindmapParentId);
-	if (!placement || !parent) return null;
+	if (
+		!placement ||
+		!parent ||
+		parent.locked ||
+		placement.shifts.some((patch) => options.elements.get(patch.id)?.locked)
+	)
+		return null;
 	return buildMindmapInsertionMutation({
 		...options,
 		parent,
@@ -1466,7 +1509,22 @@ function buildMindmapInsertionMutation(
 	const selectedId = options.selectedId ?? node.id;
 	return {
 		create: [node, edge],
-		update: options.updates,
+		update: [
+			...options.updates,
+			...(options.parent.customData?.mindmapCollapsed === true
+				? [
+						{
+							id: options.parent.id,
+							changes: {
+								customData: {
+									...options.parent.customData,
+									mindmapCollapsed: false,
+								},
+							},
+						},
+					]
+				: []),
+		],
 		deleteIds: [],
 		selectedIds: [selectedId],
 		editingTextId:

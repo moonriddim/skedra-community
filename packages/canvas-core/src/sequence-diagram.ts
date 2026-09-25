@@ -173,6 +173,8 @@ export interface SequenceDiagramElementMeta extends Record<string, unknown> {
 	sequenceEventIndex?: number;
 	sequenceMessageKind?: SequenceVisualMessageKind;
 	sequenceFragmentKind?: SequenceVisualFragmentKind;
+	/** Owning block for branch dividers and their labels. */
+	sequenceFragmentEventIndex?: number;
 }
 
 export type SequenceVisualPreset = "blank" | "checkout";
@@ -211,6 +213,7 @@ export interface SequenceDiagramSummary {
 	title: string | null;
 	participants: SequenceDiagramParticipantSummary[];
 	messages: SequenceDiagramMessageSummary[];
+	fragments: { eventIndex: number; label: string; elementId: string }[];
 	bounds: { x: number; y: number; width: number; height: number };
 	eventTop: number;
 	nextEventY: number;
@@ -254,6 +257,16 @@ export interface UpdateSequenceDiagramMessageOptions
 }
 
 export interface DeleteSequenceDiagramMessageOptions
+	extends SequenceDiagramMutationBaseOptions {
+	eventIndex: number;
+}
+
+export interface MoveSequenceDiagramMessageOptions
+	extends DeleteSequenceDiagramMessageOptions {
+	direction: "up" | "down";
+}
+
+export interface DeleteSequenceDiagramFragmentOptions
 	extends SequenceDiagramMutationBaseOptions {
 	eventIndex: number;
 }
@@ -1108,6 +1121,8 @@ export function layoutSequenceDiagram(
 						strokeStyle: "dashed",
 						customData: sequenceMeta(diagramId, "fragment-divider", {
 							sequenceEventIndex: eventIndex,
+							sequenceFragmentEventIndex:
+								openBlocks.at(-1)?.position.eventIndex,
 						}),
 					},
 				),
@@ -1126,6 +1141,7 @@ export function layoutSequenceDiagram(
 					fontWeight: "bold",
 					customData: sequenceMeta(diagramId, "fragment-label", {
 						sequenceEventIndex: eventIndex,
+						sequenceFragmentEventIndex: openBlocks.at(-1)?.position.eventIndex,
 					}),
 				}),
 			);
@@ -1667,6 +1683,30 @@ export function getSequenceDiagramSummaries(
 			title,
 			participants,
 			messages,
+			fragments: diagramElements
+				.flatMap((element) => {
+					const meta = getSequenceDiagramElementMeta(element);
+					if (
+						meta?.sequenceRole !== "fragment" ||
+						typeof meta.sequenceEventIndex !== "number"
+					)
+						return [];
+					const label = diagramElements.find((candidate) => {
+						const labelMeta = getSequenceDiagramElementMeta(candidate);
+						return (
+							labelMeta?.sequenceRole === "fragment-label" &&
+							labelMeta.sequenceEventIndex === meta.sequenceEventIndex
+						);
+					});
+					return [
+						{
+							eventIndex: meta.sequenceEventIndex,
+							label: label?.text || meta.sequenceFragmentKind || "Block",
+							elementId: element.id,
+						},
+					];
+				})
+				.sort((left, right) => left.eventIndex - right.eventIndex),
 			bounds: {
 				x: minX,
 				y: minY,
@@ -2114,6 +2154,119 @@ export function planSequenceDiagramMessageUpdate(
 		deleteIds: existing.map(({ id }) => id),
 		selectedIds: create.map(({ id }) => id),
 	};
+}
+
+/** Move a message and its label together, retaining IDs used by editing and undo. */
+export function planSequenceDiagramMessageMove(
+	options: MoveSequenceDiagramMessageOptions,
+): CanvasMutationPlan | null {
+	const diagramElements = getDiagramElements(
+		options.elements.values(),
+		options.diagramId,
+	);
+	const summary = getSequenceDiagramSummaries(diagramElements)[0];
+	if (!summary) return null;
+	const index = summary.messages.findIndex(
+		(message) => message.eventIndex === options.eventIndex,
+	);
+	if (index < 0) return null;
+	const targetIndex = index + (options.direction === "up" ? -1 : 1);
+	if (targetIndex < 0 || targetIndex >= summary.messages.length) return null;
+	const first = summary.messages[Math.min(index, targetIndex)];
+	const second = summary.messages[Math.max(index, targetIndex)];
+	const rowElements = (eventIndex: number) =>
+		diagramElements.filter((element) => {
+			const meta = getSequenceDiagramElementMeta(element);
+			return (
+				meta?.sequenceEventIndex === eventIndex &&
+				(meta.sequenceRole === "message" ||
+					meta.sequenceRole === "message-label")
+			);
+		});
+	const firstRow = rowElements(first.eventIndex);
+	const secondRow = rowElements(second.eventIndex);
+	const firstTop = Math.min(...firstRow.map((element) => element.y));
+	const firstBottom = Math.max(...firstRow.map(sequenceElementBottom));
+	const secondTop = Math.min(...secondRow.map((element) => element.y));
+	const secondBottom = Math.max(...secondRow.map(sequenceElementBottom));
+	// Keep the gap and combined row height, including taller self calls.
+	const gap = Math.max(8, secondTop - firstBottom);
+	const firstOffset = secondBottom - secondTop + gap;
+	const secondOffset = firstTop - secondTop;
+	return {
+		create: [],
+		update: [
+			...firstRow.map((element) => ({
+				id: element.id,
+				changes: { y: element.y + firstOffset },
+			})),
+			...secondRow.map((element) => ({
+				id: element.id,
+				changes: { y: element.y + secondOffset },
+			})),
+		],
+		deleteIds: [],
+		selectedIds: [summary.messages[index].messageElementId],
+	};
+}
+
+/** Remove the frame and its own branch labels/dividers, preserving its contents. */
+export function planSequenceDiagramFragmentDeletion(
+	options: DeleteSequenceDiagramFragmentOptions,
+): CanvasMutationPlan | null {
+	const diagramElements = getDiagramElements(
+		options.elements.values(),
+		options.diagramId,
+	);
+	const frames = diagramElements.filter(
+		(element) =>
+			getSequenceDiagramElementMeta(element)?.sequenceRole === "fragment",
+	);
+	const frame = frames.find(
+		(element) =>
+			getSequenceDiagramElementMeta(element)?.sequenceEventIndex ===
+			options.eventIndex,
+	);
+	if (!frame) return null;
+	const deleteIds = diagramElements
+		.filter((element) => {
+			const meta = getSequenceDiagramElementMeta(element);
+			if (
+				!meta ||
+				!["fragment", "fragment-label", "fragment-divider"].includes(
+					meta.sequenceRole,
+				)
+			)
+				return false;
+			if (meta.sequenceEventIndex === options.eventIndex) return true;
+			if (meta.sequenceRole === "fragment") return false;
+			if (meta.sequenceFragmentEventIndex !== undefined)
+				return meta.sequenceFragmentEventIndex === options.eventIndex;
+			// Legacy imports have no owner metadata. Main labels belong to their
+			// matching frame; branch labels/dividers belong to the innermost frame.
+			const matchingFrame = frames.find(
+				(candidate) =>
+					getSequenceDiagramElementMeta(candidate)?.sequenceEventIndex ===
+					meta.sequenceEventIndex,
+			);
+			if (matchingFrame) return matchingFrame.id === frame.id;
+			const owner = frames
+				.filter(
+					(candidate) =>
+						element.x >= candidate.x - 1 &&
+						sequenceElementRight(element) <=
+							sequenceElementRight(candidate) + 1 &&
+						element.y >= candidate.y &&
+						sequenceElementBottom(element) <= sequenceElementBottom(candidate),
+				)
+				.sort(
+					(left, right) =>
+						left.width * left.height - right.width * right.height,
+				)[0];
+			return owner?.id === frame.id;
+		})
+		.map(({ id }) => id);
+	return { create: [], update: [], deleteIds, selectedIds: [] };
 }
 
 export function planSequenceDiagramMessageDeletion(

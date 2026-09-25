@@ -27,6 +27,9 @@ const scanRoots = [
 const allowedWebCanvasFiles = new Set([
 	"api-elements.ts",
 	"asset-urls.ts",
+	// Browser file picking / API upload adapters; shared MIME rules live in canvas-core.
+	"attachment-utils.ts",
+	"attachment-utils.test.ts",
 	"canvas-adapter-parity.test.ts",
 	"canvas-codecs.test.ts",
 	"canvas-codecs.ts",

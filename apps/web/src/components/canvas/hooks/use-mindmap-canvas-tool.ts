@@ -22,6 +22,7 @@ import type { CanvasStore, CanvasSync } from "../canvas-tool-types";
 
 interface UseMindmapCanvasToolOptions {
 	sync: CanvasSync;
+	stopUndoCapture: () => void;
 	store: CanvasStore;
 	viewport: Viewport;
 	selectedMindmapNode: CanvasElement | null;
@@ -39,6 +40,7 @@ interface MindmapButtonModel {
 
 export function useMindmapCanvasTool({
 	sync,
+	stopUndoCapture,
 	store,
 	viewport,
 	selectedMindmapNode,
@@ -86,6 +88,7 @@ export function useMindmapCanvasTool({
 
 	const createMindmapChild = useCallback(
 		(parentId: string, options?: MindmapChildOptions) => {
+			if (sync.isReadonly) return;
 			const plan = planMindmapChildMutation({
 				parentId,
 				elements: sync.elements,
@@ -98,17 +101,27 @@ export function useMindmapCanvasTool({
 				startEditing: options?.startEditing,
 			});
 			if (!plan) return;
+			stopUndoCapture();
 			executeCanvasMutationPlan(plan, {
 				...sync,
 				setSelectedIds: store.setSelectedIds,
 				setEditingTextId: store.setEditingTextId,
 			});
+			stopUndoCapture();
 		},
-		[resolvedTheme, store.setEditingTextId, store.setSelectedIds, sync, t],
+		[
+			resolvedTheme,
+			store.setEditingTextId,
+			store.setSelectedIds,
+			sync,
+			t,
+			stopUndoCapture,
+		],
 	);
 
 	const createMindmapSibling = useCallback(
 		(nodeId: string, options?: MindmapSiblingOptions) => {
+			if (sync.isReadonly) return;
 			const plan = planMindmapSiblingMutation({
 				nodeId,
 				elements: sync.elements,
@@ -120,13 +133,22 @@ export function useMindmapCanvasTool({
 				startEditing: options?.startEditing,
 			});
 			if (!plan) return;
+			stopUndoCapture();
 			executeCanvasMutationPlan(plan, {
 				...sync,
 				setSelectedIds: store.setSelectedIds,
 				setEditingTextId: store.setEditingTextId,
 			});
+			stopUndoCapture();
 		},
-		[resolvedTheme, store.setEditingTextId, store.setSelectedIds, sync, t],
+		[
+			resolvedTheme,
+			store.setEditingTextId,
+			store.setSelectedIds,
+			sync,
+			t,
+			stopUndoCapture,
+		],
 	);
 
 	useEffect(() => {
@@ -160,6 +182,7 @@ export function useMindmapCanvasTool({
 		!presentationMode &&
 		!sync.isReadonly &&
 		activeMindmapNode &&
+		!activeMindmapNode.locked &&
 		!textEditorOpen &&
 		activeMindmapMeta
 			? (() => {
@@ -173,15 +196,15 @@ export function useMindmapCanvasTool({
 						key: `mindmap-${direction}`,
 						left:
 							direction === "left"
-								? activeMindmapLeftX
+								? activeMindmapLeftX - 22
 								: direction === "right"
-									? activeMindmapRightX
+									? activeMindmapRightX + 22
 									: activeMindmapCenterX,
 						top:
 							direction === "up"
-								? activeMindmapTopY
+								? activeMindmapTopY - 22
 								: direction === "down"
-									? activeMindmapBottomY
+									? activeMindmapBottomY + 22
 									: activeMindmapCenterY,
 						title:
 							direction === "left"
@@ -194,8 +217,8 @@ export function useMindmapCanvasTool({
 						onClick: () =>
 							createMindmapChild(activeMindmapNode.id, {
 								direction,
-								preserveParentSelection: true,
-								startEditing: false,
+								preserveParentSelection: false,
+								startEditing: true,
 							}),
 					}));
 				})()

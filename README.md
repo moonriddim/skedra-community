@@ -106,11 +106,14 @@ docker run -d \
   --name skedra \
   -p 3000:80 \
   -v skedra_data:/data \
+  -e SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem \
   ghcr.io/moonriddim/skedra-community-standalone:latest
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Your boards, database, and
-instance secrets are kept in the `skedra_data` volume.
+Open [http://localhost:3000](http://localhost:3000). Your database, uploaded files,
+and instance secrets are kept in the `skedra_data` volume. New uploads are stored
+separately from PostgreSQL in `/data/assets`; you can also mount a TrueNAS dataset
+or VPS directory, or configure S3-compatible storage.
 
 For Docker Compose, production domains, external storage, LiveKit, updates, and
 backups, follow the [self-hosting guide](SELFHOST.md).

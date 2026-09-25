@@ -126,3 +126,65 @@ test("SWOT layout normalization is idempotent", () => {
 
 	assert.deepEqual(buildTemplateSectionLayoutSyncUpdates(elements), []);
 });
+
+test("growing template notes retain their height, avoid overlap and leave room for the add action", () => {
+	for (const id of ["retrospective", "swot"] as const) {
+		const factory = defaults();
+		const template = createCanvasTemplateElements({
+			id,
+			x: 0,
+			y: 0,
+			defaults: factory,
+		});
+		const section = template.find((element) => getTemplateSectionMeta(element));
+		assert.ok(section);
+		const all = [...template];
+		for (let index = 0; index < 5; index++) {
+			const note = createCanvasTemplateStickyNote({
+				defaults: factory,
+				section,
+				existingElements: all,
+				text: "A longer thought",
+			});
+			assert.ok(note);
+			if (index === 0) note.height = 270;
+			all.push(note);
+		}
+		const elements = new Map(all.map((element) => [element.id, element]));
+		for (const update of buildTemplateSectionLayoutSyncUpdates(elements)) {
+			const current = elements.get(update.id);
+			if (current) elements.set(update.id, { ...current, ...update.changes });
+		}
+		const notes = [...elements.values()].filter(
+			(element) => element.frameId === section.id,
+		);
+		assert.equal(notes[0].height, 270);
+		assert.ok(notes[2].y >= notes[0].y + notes[0].height + 18);
+		const bottom = Math.max(...notes.map((note) => note.y + note.height));
+		const frame = elements.get(section.id);
+		assert.ok(frame);
+		assert.ok(frame.y + frame.height - bottom >= 60);
+		assert.deepEqual(buildTemplateSectionLayoutSyncUpdates(elements), []);
+	}
+});
+
+test("SWOT axes match positive and negative columns and internal and external rows", () => {
+	const template = createCanvasTemplateElements({
+		id: "swot",
+		x: 0,
+		y: 0,
+		defaults: defaults(),
+	});
+	const role = (name: string) => {
+		const element = template.find(
+			(element) => element.customData?.templateLayoutRole === name,
+		);
+		assert.ok(element);
+		return element;
+	};
+	assert.equal(role("label-support").x, role("strengths").x);
+	assert.equal(role("label-risk").x, role("weaknesses").x);
+	assert.ok(role("label-internal").y > role("strengths").y);
+	assert.ok(role("label-internal").y < role("opportunities").y);
+	assert.ok(role("label-external").y > role("opportunities").y);
+});

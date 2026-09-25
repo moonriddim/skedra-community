@@ -1,6 +1,7 @@
 import { getApiUrl } from "@/lib/api-url";
 import { base64UrlToBytes, bytesToBase64Url } from "@/lib/e2ee";
 import type { EncryptedAssetReference } from "@skedra/canvas-core";
+import { isCanvasAttachmentMimeType } from "@skedra/canvas-core";
 
 export interface AssetAccessTokens {
 	presentationShareToken?: string;
@@ -85,7 +86,10 @@ export function buildEncryptedAssetReference(
 	url: string,
 	reference: EncryptedAssetReference,
 ) {
-	const parsedUrl = new URL(url, getApiUrl("/") || window.location.origin);
+	const parsedUrl = new URL(
+		url,
+		new URL(getApiUrl("/"), window.location.origin),
+	);
 	const hash = new URLSearchParams(parsedUrl.hash.replace(/^#/u, ""));
 	hash.set(
 		ENCRYPTED_ASSET_FRAGMENT_KEY,
@@ -121,7 +125,7 @@ export function parseEncryptedAssetReference(src: string): {
 			!new RegExp(`^${UUID_PATTERN}$`, "i").test(parsed.assetId) ||
 			typeof parsed.iv !== "string" ||
 			typeof parsed.mimeType !== "string" ||
-			!parsed.mimeType.startsWith("image/") ||
+			!isCanvasAttachmentMimeType(parsed.mimeType) ||
 			(parsed.key !== undefined && typeof parsed.key !== "string")
 		) {
 			return null;

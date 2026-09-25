@@ -2,7 +2,6 @@ import type { CanvasElement, SavedCanvasView } from "@skedra/canvas-core";
 import {
 	BookmarkPlus,
 	Magnet,
-	PanelsTopLeft,
 	Redo2,
 	Scan,
 	StickyNote,
@@ -11,7 +10,7 @@ import {
 	ZoomIn,
 	ZoomOut,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useOptionalCanvasEditorServices } from "./canvas-editor";
 import {
 	type CanvasEditorSavedViewPreviewRenderer,
@@ -89,6 +88,8 @@ const FALLBACKS = {
 	controls: "Canvas and saved view controls",
 } as const;
 
+const VIEWS_EXPANDED_STORAGE_KEY = "skedra:saved-views-expanded";
+
 export function CanvasEditorSavedViewsBar({
 	canUndo,
 	canRedo,
@@ -122,19 +123,25 @@ export function CanvasEditorSavedViewsBar({
 	canUsePresenterNotes = true,
 	renderPreview,
 }: CanvasEditorSavedViewsBarProps) {
+	const [viewsExpanded, setViewsExpanded] = useState(false);
+	useEffect(() => {
+		try {
+			setViewsExpanded(
+				window.localStorage.getItem(VIEWS_EXPANDED_STORAGE_KEY) === "true",
+			);
+		} catch {
+			// Keep the default when browser storage is unavailable.
+		}
+	}, []);
 	const services = useOptionalCanvasEditorServices();
 	const t = (key: string, fallback: string) =>
 		services?.translations?.translate(key, fallback) ?? fallback;
 	const zoomPercent = Math.round(zoom * 100);
 	const splitIndex = Math.ceil(views.length / 2);
-	const leftViews =
-		!showViews || (presentationMode && !presenterMode)
-			? []
-			: views.slice(0, splitIndex);
-	const rightViews =
-		!showViews || (presentationMode && !presenterMode)
-			? []
-			: views.slice(splitIndex);
+	const viewsVisible =
+		showViews && (presentationMode ? presenterMode : viewsExpanded);
+	const leftViews = viewsVisible ? views.slice(0, splitIndex) : [];
+	const rightViews = viewsVisible ? views.slice(splitIndex) : [];
 	const canManageViews = !presentationMode && !readOnly;
 	const labels = presentationPreparationMode
 		? {
@@ -214,7 +221,7 @@ export function CanvasEditorSavedViewsBar({
 				<SavedViewsRail
 					align="end"
 					views={leftViews}
-					showCapturingHint={showViews && isCapturingView}
+					showCapturingHint={viewsVisible && isCapturingView}
 					capturingLabel={t(
 						presentationPreparationMode
 							? "canvas.bottomBar.capturingSlide"
@@ -293,8 +300,30 @@ export function CanvasEditorSavedViewsBar({
 							{showViews && (
 								<>
 									<span className="canvas-editor__saved-views-divider" />
-									<span className="canvas-editor__saved-views-label">
-										<PanelsTopLeft size={14} />
+									<button
+										type="button"
+										className="canvas-editor__saved-views-button canvas-editor__saved-views-label"
+										data-control="toggle-views"
+										data-active={viewsExpanded || undefined}
+										data-canvas-toolbar-interactive="true"
+										aria-pressed={viewsExpanded}
+										onClick={() => {
+											if (viewsExpanded) {
+												if (isCapturingView) onCancelCaptureView();
+												if (editingViewId) onStopEditView();
+											}
+											const expanded = !viewsExpanded;
+											setViewsExpanded(expanded);
+											try {
+												window.localStorage.setItem(
+													VIEWS_EXPANDED_STORAGE_KEY,
+													String(expanded),
+												);
+											} catch {
+												// The toggle still works for this session without storage.
+											}
+										}}
+									>
 										{t(
 											presentationPreparationMode
 												? "canvas.bottomBar.slides"
@@ -303,7 +332,7 @@ export function CanvasEditorSavedViewsBar({
 												? FALLBACKS.slides
 												: FALLBACKS.views,
 										)}
-									</span>
+									</button>
 									{!readOnly && (
 										<BarButton
 											control="save-view"
@@ -323,11 +352,14 @@ export function CanvasEditorSavedViewsBar({
 														? FALLBACKS.createSlide
 														: FALLBACKS.saveView,
 											)}
-											onClick={
-												isCapturingView
-													? onCancelCaptureView
-													: onStartCaptureView
-											}
+											onClick={() => {
+												if (isCapturingView) {
+													onCancelCaptureView();
+												} else {
+													setViewsExpanded(true);
+													onStartCaptureView();
+												}
+											}}
 										>
 											{isCapturingView ? (
 												<X size={16} />

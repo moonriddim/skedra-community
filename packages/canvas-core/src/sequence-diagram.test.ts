@@ -9,9 +9,11 @@ import {
 	parseSequenceDiagram,
 	planSequenceDiagramActivationInsertion,
 	planSequenceDiagramEdit,
+	planSequenceDiagramFragmentDeletion,
 	planSequenceDiagramFragmentInsertion,
 	planSequenceDiagramMessageDeletion,
 	planSequenceDiagramMessageInsertion,
+	planSequenceDiagramMessageMove,
 	planSequenceDiagramMessageUpdate,
 	planSequenceDiagramParticipantInsertion,
 	tryCreateSequenceDiagramElements,
@@ -428,3 +430,192 @@ test("summarizes, updates and deletes visual messages by semantic event", () => 
 	[summary] = getSequenceDiagramSummaries(elementMap.values());
 	assert.equal(summary.messages.length, 0);
 });
+
+test("moves message rows including self calls without changing their identity or geometry", () => {
+	const factoryDefaults = defaults();
+	const created = createSequenceDiagramElements({
+		source:
+			"sequenceDiagram\nparticipant A\nparticipant B\nA->>B: First\nB->>B: Self call\nB-->>A: Last",
+		x: 100,
+		y: 100,
+		defaults: factoryDefaults,
+	});
+	const original = new Map(created.map((element) => [element.id, element]));
+	const [summary] = getSequenceDiagramSummaries(created);
+	const options = { diagramId: summary.id, defaults: factoryDefaults };
+	const eventIndex = summary.messages[1].eventIndex;
+	const plan = planSequenceDiagramMessageMove({
+		...options,
+		elements: original,
+		eventIndex,
+		direction: "up",
+	});
+	assert.ok(plan);
+	const moved = applyPlan(original, plan);
+	const [after] = getSequenceDiagramSummaries(moved.values());
+	assert.deepEqual(
+		after.messages.map((message) => message.label),
+		["Self call", "First", "Last"],
+	);
+	assert.equal(after.messages[0].eventIndex, eventIndex);
+	const firstArrow = moved.get(after.messages[0].messageElementId);
+	const nextLabel = moved.get(after.messages[1].labelElementId ?? "");
+	assert.ok(firstArrow && nextLabel);
+	assert.ok(
+		firstArrow.y + firstArrow.height < nextLabel.y,
+		"self call must leave space for the next label",
+	);
+	for (const [id, element] of moved) {
+		assert.deepEqual(
+			{ ...element, y: original.get(id)?.y },
+			original.get(id),
+			"only the row position changes",
+		);
+	}
+	const reverse = planSequenceDiagramMessageMove({
+		...options,
+		elements: moved,
+		eventIndex,
+		direction: "down",
+	});
+	assert.ok(reverse);
+	assert.deepEqual(
+		applyPlan(moved, reverse),
+		original,
+		"moving back restores the same layout",
+	);
+	assert.equal(
+		planSequenceDiagramMessageMove({
+			...options,
+			elements: original,
+			eventIndex: summary.messages[0].eventIndex,
+			direction: "up",
+		}),
+		null,
+	);
+	assert.equal(
+		planSequenceDiagramMessageMove({
+			...options,
+			elements: original,
+			eventIndex: summary.messages[2].eventIndex,
+			direction: "down",
+		}),
+		null,
+	);
+	assert.equal(
+		planSequenceDiagramMessageMove({
+			...options,
+			elements: original,
+			eventIndex: -1,
+			direction: "up",
+		}),
+		null,
+	);
+});
+
+test("deletes an empty condition with its label and divider while retaining participants", () => {
+	const factoryDefaults = defaults();
+	let elements = new Map(
+		createVisualSequenceDiagramElements({
+			preset: "blank",
+			x: 0,
+			y: 0,
+			defaults: factoryDefaults,
+		}).map((element) => [element.id, element]),
+	);
+	const [summary] = getSequenceDiagramSummaries(elements.values());
+	const insertion = planSequenceDiagramFragmentInsertion({
+		elements,
+		diagramId: summary.id,
+		defaults: factoryDefaults,
+		kind: "alt",
+		label: "gesund",
+	});
+	assert.ok(insertion);
+	elements = applyPlan(elements, insertion);
+	const fragment = getSequenceDiagramSummaries(elements.values())[0]
+		.fragments[0];
+	assert.equal(fragment.label, "alt [gesund]");
+	const deletion = planSequenceDiagramFragmentDeletion({
+		elements,
+		diagramId: summary.id,
+		defaults: factoryDefaults,
+		eventIndex: fragment.eventIndex,
+	});
+	assert.ok(deletion);
+	assert.deepEqual(
+		new Set(deletion.deleteIds),
+		new Set(insertion.create.map(({ id }) => id)),
+	);
+	const remaining = applyPlan(elements, deletion);
+	assert.equal(
+		getSequenceDiagramSummaries(remaining.values())[0].fragments.length,
+		0,
+	);
+	assert.equal(
+		getSequenceDiagramSummaries(remaining.values())[0].participants.length,
+		3,
+	);
+	assert.equal(
+		planSequenceDiagramFragmentDeletion({
+			elements: remaining,
+			diagramId: summary.id,
+			defaults: factoryDefaults,
+			eventIndex: fragment.eventIndex,
+		}),
+		null,
+	);
+});
+
+for (const legacy of [false, true]) {
+	test(`deletes only the selected imported block and its own branches${legacy ? " (legacy metadata)" : ""}`, () => {
+		const factoryDefaults = defaults();
+		const created = createSequenceDiagramElements({
+			source:
+				"sequenceDiagram\nparticipant A\nparticipant B\nalt Outer\nA->>B: Request\nalt Inner\nB-->>A: Yes\nelse Inner no\nB-->>A: No\nend\nelse Outer no\nA->>B: Retry\nend",
+			x: 0,
+			y: 0,
+			defaults: factoryDefaults,
+		}).map((element) => {
+			if (!legacy || !element.customData) return element;
+			const customData = { ...element.customData };
+			customData.sequenceFragmentEventIndex = undefined;
+			return { ...element, customData };
+		});
+		const elements = new Map(created.map((element) => [element.id, element]));
+		const [summary] = getSequenceDiagramSummaries(created);
+		const outer = summary.fragments.find(
+			(fragment) => fragment.label === "alt Outer",
+		);
+		const inner = summary.fragments.find(
+			(fragment) => fragment.label === "alt Inner",
+		);
+		assert.ok(outer && inner);
+		const deletion = planSequenceDiagramFragmentDeletion({
+			elements,
+			diagramId: summary.id,
+			eventIndex: outer.eventIndex,
+			defaults: factoryDefaults,
+		});
+		assert.ok(deletion);
+		assert.equal(
+			deletion.deleteIds.length,
+			4,
+			"outer frame, heading, else divider and else label",
+		);
+		const remaining = applyPlan(elements, deletion);
+		const [after] = getSequenceDiagramSummaries(remaining.values());
+		assert.deepEqual(after.fragments, [inner]);
+		assert.deepEqual(after.messages, summary.messages, "messages stay intact");
+		assert.ok(
+			[...remaining.values()].some(
+				(element) => element.text === "else Inner no",
+			),
+		);
+		assert.ok(
+			![...remaining.values()].some(
+				(element) => element.text === "else Outer no",
+			),
+		);
+	});
+}

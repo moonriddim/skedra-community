@@ -1,9 +1,12 @@
 import {
+	KANBAN_CARD_COVER_HEIGHT,
 	normalizeKanbanAttachments,
 	normalizeKanbanChecklist,
 	normalizeKanbanCoverImage,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
+import { KanbanInlineTitle } from "./kanban-inline-title";
+import { KanbanQuickActions } from "./kanban-quick-actions";
 import { useCanvasRendererConfig } from "./renderer-config";
 
 export function KanbanCardShape({
@@ -20,12 +23,15 @@ export function KanbanCardShape({
 	const {
 		actions,
 		formatDateTime,
-		getDueStatus,
 		getUserInitials,
 		interactive,
 		kanbanFontFamily,
+		svgIdPrefix,
 		translate,
 	} = useCanvasRendererConfig();
+	const canEdit = interactive && !el.locked && !!actions.updateKanbanCard;
+	const stopInteraction = (event: React.SyntheticEvent) =>
+		event.stopPropagation();
 	const priority = el.customData?.priority as
 		| "low"
 		| "medium"
@@ -45,8 +51,6 @@ export function KanbanCardShape({
 						: null;
 	const description = (el.customData?.description as string | undefined) || "";
 	const startDate = el.customData?.startDate as string | null | undefined;
-	const dueDate = el.customData?.dueDate as string | null | undefined;
-	const dueComplete = Boolean(el.customData?.dueComplete);
 	const assigneeName =
 		typeof el.customData?.assigneeName === "string"
 			? el.customData.assigneeName
@@ -77,28 +81,22 @@ export function KanbanCardShape({
 	const completedChecklistItems = checklist.filter(
 		(item) => item.completed,
 	).length;
-	const dueStatus = getDueStatus(dueDate, dueComplete);
 	const w = Math.max(1, el.width);
 	const h = Math.max(1, el.height);
 	const attachmentCountLabel = translate("canvas.kanban.attachmentCount", {
 		count: attachments.length,
 	});
 	const hasCoverImage = coverImage != null;
-	const contentX = hasCoverImage ? el.x : el.x + (priorityVar ? 18 : 12);
-	const contentY = hasCoverImage ? el.y : el.y + 8;
-	const contentWidth = hasCoverImage
-		? w
-		: Math.max(1, w - (priorityVar ? 30 : 24));
-	const contentHeight = hasCoverImage ? h : Math.max(1, h - 12);
-	const mutedTextColor = hasCoverImage
-		? "rgba(255, 255, 255, 0.82)"
-		: "var(--kanban-card-muted)";
-	const defaultBadgeBg = hasCoverImage
-		? "rgba(15, 23, 42, 0.58)"
-		: "var(--kanban-due-default-bg)";
-	const badgeBorder = hasCoverImage
-		? "1px solid rgba(255, 255, 255, 0.14)"
-		: undefined;
+	const contentX = el.x + (priorityVar ? 18 : 12);
+	const contentY = el.y + (hasCoverImage ? KANBAN_CARD_COVER_HEIGHT + 10 : 8);
+	const contentWidth = Math.max(1, w - (priorityVar ? 30 : 24));
+	const contentHeight = Math.max(
+		1,
+		h - (hasCoverImage ? KANBAN_CARD_COVER_HEIGHT + 14 : 12),
+	);
+	const mutedTextColor = "var(--kanban-card-muted)";
+	const defaultBadgeBg = "var(--kanban-due-default-bg)";
+	const badgeBorder = undefined;
 	const openDetail = (event: React.MouseEvent) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -141,7 +139,31 @@ export function KanbanCardShape({
 					style={{ fill: priorityVar }}
 				/>
 			)}
+			{coverImage && (
+				<foreignObject
+					data-kanban-cover="true"
+					x={el.x}
+					y={el.y}
+					width={w}
+					height={KANBAN_CARD_COVER_HEIGHT}
+					pointerEvents="none"
+				>
+					<img
+						src={coverImageSrc}
+						alt={coverImage.name}
+						style={{
+							width: "100%",
+							height: "100%",
+							objectFit: "cover",
+							objectPosition: `${coverImage.position.x}% ${coverImage.position.y}%`,
+							display: "block",
+							borderRadius: "8px 8px 0 0",
+						}}
+					/>
+				</foreignObject>
+			)}
 			<foreignObject
+				data-kanban-content="true"
 				x={contentX}
 				y={contentY}
 				width={contentWidth}
@@ -157,81 +179,66 @@ export function KanbanCardShape({
 						gap: 8,
 						position: "relative",
 						overflow: "hidden",
-						borderRadius: hasCoverImage ? 8 : undefined,
+
 						boxSizing: "border-box",
-						padding: hasCoverImage
-							? `12px 12px 12px ${priorityVar ? 18 : 12}px`
-							: undefined,
-						justifyContent: hasCoverImage ? "flex-end" : undefined,
+
 						fontFamily: el.fontFamily ?? kanbanFontFamily,
-						color: hasCoverImage ? "#ffffff" : "var(--kanban-card-text)",
+						color: "var(--kanban-card-text)",
 					}}
-					onDoubleClick={(event) => {
-						/* Doppelklick in foreignObject erreicht den SVG-Handler oft nicht. */
-						openDetail(event);
-					}}
+					onDoubleClick={
+						interactive
+							? (event) => {
+									/* Doppelklick in foreignObject erreicht den SVG-Handler oft nicht. */
+									openDetail(event);
+								}
+							: undefined
+					}
 				>
-					{coverImage && (
-						<>
-							<img
-								src={coverImageSrc}
-								alt={coverImage.name}
-								style={{
-									position: "absolute",
-									inset: 0,
-									width: "100%",
-									height: "100%",
-									objectFit: "cover",
-									display: "block",
-								}}
-							/>
-							<div
-								style={{
-									position: "absolute",
-									inset: 0,
-									background:
-										"linear-gradient(180deg, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0.32) 42%, rgba(15, 23, 42, 0.82) 100%)",
-								}}
-							/>
-						</>
-					)}
 					<div
 						style={{
 							display: "flex",
 							flexDirection: "column",
 							minWidth: 0,
-							flex: hasCoverImage ? "0 1 auto" : 1,
+							flex: 1,
 							gap: 8,
 							position: "relative",
 							zIndex: 1,
-							textShadow: hasCoverImage
-								? "0 1px 8px rgba(2, 6, 23, 0.72)"
-								: undefined,
 						}}
 					>
 						<div
+							onPointerDown={canEdit ? stopInteraction : undefined}
+							onPointerUp={canEdit ? stopInteraction : undefined}
+							onClick={canEdit ? stopInteraction : undefined}
+							onDoubleClick={canEdit ? stopInteraction : undefined}
+							onKeyDown={canEdit ? stopInteraction : undefined}
 							style={{
 								fontSize: el.fontSize ?? 14,
 								fontWeight: 700,
 								whiteSpace: "pre-wrap",
 								wordBreak: "break-word",
 								lineHeight: 1.3,
-								display: "-webkit-box",
-								WebkitLineClamp: hasCoverImage ? 2 : 2,
+								display: canEdit ? "block" : "-webkit-box",
+								WebkitLineClamp: 2,
 								WebkitBoxOrient: "vertical",
-								overflow: "hidden",
-								alignSelf: hasCoverImage ? "flex-start" : undefined,
+								overflow: canEdit ? "visible" : "hidden",
+								minHeight: 40,
+								flexShrink: 0,
+
 								maxWidth: "100%",
-								padding: hasCoverImage ? "3px 7px" : undefined,
-								borderRadius: hasCoverImage ? 7 : undefined,
-								background: hasCoverImage ? "rgba(2, 6, 23, 0.38)" : undefined,
-								border: hasCoverImage
-									? "1px solid rgba(255, 255, 255, 0.14)"
-									: undefined,
-								backdropFilter: hasCoverImage ? "blur(4px)" : undefined,
 							}}
 						>
-							{el.text || translate("canvas.kanban.newCard")}
+							{canEdit ? (
+								<KanbanInlineTitle
+									title={el.text ?? ""}
+									placeholder={translate("canvas.kanban.newCard")}
+									label={translate("canvas.kanban.editTitle")}
+									onSave={(title) =>
+										actions.updateKanbanCard?.(el.id, { title })
+									}
+								/>
+							) : (
+								el.text || translate("canvas.kanban.newCard")
+							)}
 						</div>
 						{description && (
 							<div
@@ -253,23 +260,76 @@ export function KanbanCardShape({
 						{checklistPreview.length > 0 && (
 							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
 								{checklistPreview.map((item) => (
-									<div
+									<label
+										htmlFor={
+											canEdit
+												? `${svgIdPrefix}-kanban-check-${el.id}-${item.id}`
+												: undefined
+										}
 										key={item.id}
+										onPointerDown={canEdit ? stopInteraction : undefined}
+										onPointerUp={canEdit ? stopInteraction : undefined}
+										onClick={canEdit ? stopInteraction : undefined}
+										onKeyDown={canEdit ? stopInteraction : undefined}
+										onDoubleClick={canEdit ? stopInteraction : undefined}
 										style={{
 											display: "flex",
 											alignItems: "center",
 											gap: 6,
-											fontSize: 11,
+											fontSize: 14,
 											color: item.completed
 												? mutedTextColor
-												: hasCoverImage
-													? "#ffffff"
-													: "var(--kanban-card-text)",
+												: "var(--kanban-card-text)",
 										}}
 									>
-										<span style={{ fontSize: 12 }}>
-											{item.completed ? "☑" : "☐"}
-										</span>
+										{canEdit ? (
+											<input
+												type="checkbox"
+												id={`${svgIdPrefix}-kanban-check-${el.id}-${item.id}`}
+												checked={item.completed}
+												aria-label={item.text}
+												onPointerDown={stopInteraction}
+												onPointerUp={stopInteraction}
+												onDoubleClick={stopInteraction}
+												onKeyDown={stopInteraction}
+												onClick={stopInteraction}
+												onChange={() =>
+													actions.updateKanbanCard?.(el.id, {
+														toggleChecklistItem: item.id,
+													})
+												}
+												style={{
+													width: 24,
+													height: 24,
+													flexShrink: 0,
+													padding: 0,
+													border: "1px solid currentColor",
+													borderRadius: 6,
+													background: item.completed
+														? "var(--kanban-due-complete-bg)"
+														: "transparent",
+													color: "inherit",
+													fontSize: 22,
+													cursor: "pointer",
+													touchAction: "manipulation",
+													margin: 6,
+													accentColor: "#14b8a6",
+												}}
+											/>
+										) : (
+											<span
+												style={{
+													width: 36,
+													height: 36,
+													display: "inline-flex",
+													alignItems: "center",
+													justifyContent: "center",
+													fontSize: 22,
+												}}
+											>
+												{item.completed ? "☑" : "☐"}
+											</span>
+										)}
 										<span
 											style={{
 												textDecoration: item.completed
@@ -282,7 +342,7 @@ export function KanbanCardShape({
 										>
 											{item.text}
 										</span>
-									</div>
+									</label>
 								))}
 								{remainingChecklistItems > 0 && (
 									<div style={{ fontSize: 10, color: mutedTextColor }}>
@@ -296,7 +356,6 @@ export function KanbanCardShape({
 						{(assigneeName ||
 							roleName ||
 							startDate ||
-							dueDate ||
 							checklist.length > 0 ||
 							attachments.length > 0) && (
 							<div
@@ -330,14 +389,10 @@ export function KanbanCardShape({
 												width: 16,
 												height: 16,
 												borderRadius: 999,
-												background: hasCoverImage
-													? "rgba(255, 255, 255, 0.16)"
-													: "var(--kanban-list-header-bg)",
+												background: "var(--kanban-list-header-bg)",
 												fontSize: 9,
 												fontWeight: 700,
-												color: hasCoverImage
-													? "#ffffff"
-													: "var(--kanban-card-text)",
+												color: "var(--kanban-card-text)",
 												flexShrink: 0,
 											}}
 										>
@@ -364,9 +419,7 @@ export function KanbanCardShape({
 											gap: 4,
 											padding: "2px 6px",
 											borderRadius: 999,
-											background: hasCoverImage
-												? "rgba(15, 23, 42, 0.58)"
-												: `${roleColor}18`,
+											background: `${roleColor}18`,
 											border: badgeBorder,
 											maxWidth: "100%",
 										}}
@@ -409,26 +462,6 @@ export function KanbanCardShape({
 										<span>
 											{translate("canvas.kanban.start")}{" "}
 											{formatDateTime(startDate)}
-										</span>
-									</div>
-								)}
-								{dueDate && (
-									<div
-										style={{
-											fontSize: 10,
-											color: dueStatus.textColor,
-											display: "flex",
-											alignItems: "center",
-											gap: 4,
-											padding: "2px 6px",
-											borderRadius: 999,
-											background: dueStatus.background,
-											border: badgeBorder,
-										}}
-									>
-										<span>{dueStatus.icon}</span>
-										<span>
-											{dueStatus.label} {formatDateTime(dueDate)}
 										</span>
 									</div>
 								)}
@@ -479,6 +512,7 @@ export function KanbanCardShape({
 								)}
 							</div>
 						)}
+						<KanbanQuickActions element={el} editable={canEdit} />
 					</div>
 				</div>
 			</foreignObject>

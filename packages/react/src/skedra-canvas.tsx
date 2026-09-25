@@ -1,4 +1,8 @@
 import {
+	buildKanbanQuickEditUpdates,
+	buildStickyNoteFontSizeChange,
+} from "@skedra/canvas-core";
+import {
 	type CanvasMutationPlan,
 	CanvasScene,
 	DEFAULT_CANVAS_SNAP_DIVISION_COUNT,
@@ -21,7 +25,6 @@ import {
 	buildFlowchartNodeKindChanges,
 	buildFrameResizeChildUpdates,
 	buildGanttChartMutationPlan,
-	buildKanbanDropUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
 	buildTemplateDropUpdates,
@@ -71,8 +74,12 @@ import {
 	planMindmapChildMutation,
 	planMindmapSiblingMutation,
 	planSequenceDiagramActivationInsertion,
+	planSequenceDiagramFragmentDeletion,
 	planSequenceDiagramFragmentInsertion,
+	planSequenceDiagramMessageDeletion,
 	planSequenceDiagramMessageInsertion,
+	planSequenceDiagramMessageMove,
+	planSequenceDiagramMessageUpdate,
 	planSequenceDiagramParticipantInsertion,
 	snapCanvasPointToGrid,
 	toCanvasElementMap,
@@ -90,6 +97,7 @@ import {
 	CanvasEditorGanttStudio,
 	CanvasEditorGridOverlay,
 	CanvasEditorImageCropOverlay,
+	CanvasEditorKanbanDropOverlay,
 	CanvasEditorSavedViewDraft,
 	CanvasEditorSavedViewOverlay,
 	CanvasEditorSavedViewsBar,
@@ -103,6 +111,7 @@ import {
 	CanvasEditorTextOverlay,
 	CanvasEditorToolbar,
 	CanvasPathStartSnapIndicator,
+	applyActiveStickyFontSize,
 	buildCanvasEditorDefaultsElement,
 	buildCanvasEditorEditingSession,
 	canvasEditorToolSupportsSnapOverride,
@@ -692,6 +701,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		const [pendingText, setPendingText] =
 			useState<CanvasEditorPendingText | null>(null);
 		const [editingTextId, setEditingTextId] = useState<string | null>(null);
+		const [editingStickyFocus, setEditingStickyFocus] = useState<
+			string | undefined
+		>();
 		const [editingPyramidSection, setEditingPyramidSection] = useState<
 			number | null
 		>(null);
@@ -1777,11 +1789,20 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 
 		const setSelectionProperties = useCallback(
 			(properties: Partial<CanvasElement>) => {
+				if (
+					editingTextId &&
+					properties.fontSize !== undefined &&
+					applyActiveStickyFontSize(editingTextId, properties.fontSize)
+				)
+					return;
 				const updates = selectedElements.flatMap((element) => {
 					const ownUpdate = {
 						id: element.id,
 						changes: {
 							...properties,
+							...(properties.fontSize !== undefined
+								? buildStickyNoteFontSizeChange(element, properties.fontSize)
+								: {}),
 							...(element.type === "cloud" &&
 							properties.cloudArcRadius !== undefined
 								? buildCloudArcRadiusChanges(element, properties.cloudArcRadius)
@@ -1819,7 +1840,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				});
 				applySelectedUpdates(updates);
 			},
-			[applySelectedUpdates, elementMap, selectedElements],
+			[applySelectedUpdates, elementMap, selectedElements, editingTextId],
 		);
 
 		const copySelectionFormat = useCallback(() => {
@@ -1894,12 +1915,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						)
 						.map((element) => ({
 							id: element.id,
-							changes: {
-								fontSize: Math.max(
-									8,
-									Math.min(128, (element.fontSize ?? 16) + delta),
-								),
-							},
+							changes: buildStickyNoteFontSizeChange(
+								element,
+								Math.max(6, Math.min(256, (element.fontSize ?? 16) + delta)),
+							),
 						})),
 				);
 			},
@@ -2605,10 +2624,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			},
 			finishMove: (moveStart) => {
 				const liveMap = toCanvasElementMap(currentElements);
-				const updates = [
-					...buildKanbanDropUpdates(liveMap, moveStart.keys()),
-					...buildTemplateDropUpdates(liveMap, moveStart.keys()),
-				];
+				const updates = buildTemplateDropUpdates(liveMap, moveStart.keys());
 				if (updates.length > 0) {
 					commitCanvasElements(
 						applyCanvasElementUpdates(currentElements, updates),
@@ -3001,7 +3017,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			const hit = scene.getElementAtPosition(world.x, world.y, {
 				tolerance: 6 / viewport.zoom,
 			});
-			if (!hit) return;
+			if (!hit || hit.locked) return;
+			if (
+				hit.customData?.skedraType === "template-section" &&
+				world.y > hit.y + 48
+			) {
+				insertTemplateSticky(hit.id);
+				return;
+			}
 			if (hit.type === "image" && !readOnly) {
 				setCroppingImageId(hit.id);
 				setSelectedIds(new Set([hit.id]));
@@ -3111,6 +3134,9 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				mode: CanvasEditorStickyNoteMode,
 				text: string,
 				checklist: CanvasEditorStickyChecklistItem[],
+				typography?: import("@skedra/canvas-core").StickyNoteTypography & {
+					height?: number;
+				},
 			) => {
 				const element = currentElements.find(
 					(candidate) => candidate.id === id,
@@ -3122,11 +3148,14 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 							? {
 									...candidate,
 									text,
+									...(typography?.height ? { height: typography.height } : {}),
 									customData: {
 										...(candidate.customData ?? {}),
 										skedraType: "sticky-note",
 										stickyNoteMode: mode,
 										stickyChecklist: checklist,
+										stickyTextFontSizes: typography?.textFontSizes,
+										stickyTitleFontSize: typography?.titleFontSize,
 									},
 								}
 							: candidate,
@@ -3138,6 +3167,7 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 		);
 
 		const closeInlineTextEditor = useCallback(() => {
+			setEditingStickyFocus(undefined);
 			if (editingTextId) finishHistoryTransaction();
 			setPendingText(null);
 			setEditingTextId(null);
@@ -3413,7 +3443,8 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						element.id === sectionId &&
 						element.customData?.skedraType === "template-section",
 				);
-				if (!section) return null;
+				if (!section || section.locked || readOnly || tool !== "select")
+					return null;
 				const note = createCanvasTemplateStickyNote({
 					defaults: getSkedraElementFactoryDefaults({ theme, createId }),
 					section,
@@ -3433,9 +3464,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 					}),
 				);
 				setSelectedIds(new Set([stacked.id]));
+				setEditingTextId(stacked.id);
 				return stacked;
 			},
-			[commitCanvasElements, currentElements, theme],
+			[commitCanvasElements, currentElements, theme, readOnly, tool],
 		);
 
 		const toggleStickyChecklistItem = useCallback(
@@ -3472,6 +3504,30 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				interactive: !readOnly,
 				svgIdPrefix,
 				actions: {
+					updateKanbanCard:
+						!readOnly && tool === "select"
+							? (id, edit) =>
+									applySelectedUpdates(
+										buildKanbanQuickEditUpdates(
+											new Map(
+												currentElements.map((element) => [element.id, element]),
+											),
+											id,
+											edit,
+										),
+									)
+							: undefined,
+					openKanbanCard: (id) => setSelectedIds(new Set([id])),
+					editStickyNote:
+						!readOnly && tool === "select"
+							? (id, target) => {
+									flushSync(() => {
+										setEditingStickyFocus(target);
+										setSelectedIds(new Set([id]));
+										setEditingTextId(id);
+									});
+								}
+							: undefined,
 					addKanbanCard: insertKanbanCard,
 					addTemplateSticky: insertTemplateSticky,
 					toggleStickyChecklistItem,
@@ -3479,7 +3535,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 			}),
 			[
 				insertKanbanCard,
+				applySelectedUpdates,
+				currentElements,
 				insertTemplateSticky,
+				tool,
 				readOnly,
 				svgIdPrefix,
 				toggleStickyChecklistItem,
@@ -4053,6 +4112,10 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 						points={editorPointer.eraserTrail}
 						zoom={viewport.zoom}
 					/>
+					<CanvasEditorKanbanDropOverlay
+						target={editorPointer.kanbanDropTarget}
+						zoom={viewport.zoom}
+					/>
 					{laserTrail && laserTrail.points.length > 1 && (
 						<polyline
 							className="skedra-sdk__laser"
@@ -4178,6 +4241,34 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								}),
 							)
 						}
+						onUpdateMessage={(diagramId, input) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramMessageUpdate({
+									...input,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+								}),
+							)
+						}
+						onDeleteMessage={(diagramId, eventIndex) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramMessageDeletion({
+									eventIndex,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+								}),
+							)
+						}
 						onAddFragment={(diagramId, input) =>
 							applySequenceDiagramMutation(
 								planSequenceDiagramFragmentInsertion({
@@ -4193,9 +4284,40 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 								}),
 							)
 						}
+						onMoveMessage={(diagramId, eventIndex, direction) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramMessageMove({
+									elements: elementMap,
+									diagramId,
+									eventIndex,
+									direction,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+								}),
+							)
+						}
+						onDeleteFragment={(diagramId, eventIndex) =>
+							applySequenceDiagramMutation(
+								planSequenceDiagramFragmentDeletion({
+									eventIndex,
+									elements: elementMap,
+									diagramId,
+									defaults: getSkedraElementFactoryDefaults({
+										theme,
+										createId,
+									}),
+									appearance: getSkedraSequenceDiagramAppearance({ theme }),
+								}),
+							)
+						}
 						onInsert={(source) => {
-							insertSequenceDiagram(source);
-							setSequenceDiagramOpen(false);
+							return (
+								insertSequenceDiagram(source)
+									.map(getSequenceDiagramId)
+									.find(Boolean) ?? undefined
+							);
 						}}
 						onClose={() => setSequenceDiagramOpen(false)}
 					/>
@@ -4300,9 +4422,12 @@ export const SkedraCanvas = forwardRef<SkedraCanvasApi, SkedraCanvasProps>(
 				{(pendingText || editingSession) &&
 					(editingSession?.editingText.variant === "sticky-note" ? (
 						<CanvasEditorStickyNoteOverlay
+							key={`${editingSession.editingText.id}-${editingSession.stickyNoteMode}`}
 							editing={editingSession.editingText}
 							stickyNoteMode={editingSession.stickyNoteMode ?? "note"}
 							stickyChecklist={editingSession.stickyChecklist ?? []}
+							initialFocus={editingStickyFocus}
+							onViewportChange={setViewport}
 							viewport={viewport}
 							svgRef={svgRef}
 							onUpdateStickyNote={updateInlineStickyNote}

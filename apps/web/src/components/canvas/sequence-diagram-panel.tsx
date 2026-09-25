@@ -10,10 +10,13 @@ import {
 	applyCanvasMutationPlan,
 	createSequenceDiagramElements,
 	createVisualSequenceDiagramElements,
+	getSequenceDiagramId,
 	planSequenceDiagramActivationInsertion,
+	planSequenceDiagramFragmentDeletion,
 	planSequenceDiagramFragmentInsertion,
 	planSequenceDiagramMessageDeletion,
 	planSequenceDiagramMessageInsertion,
+	planSequenceDiagramMessageMove,
 	planSequenceDiagramMessageUpdate,
 	planSequenceDiagramParticipantInsertion,
 } from "@skedra/canvas-core";
@@ -26,6 +29,7 @@ import { useEffect, useRef } from "react";
 interface SequenceDiagramPanelProps {
 	elements: Map<string, CanvasElement>;
 	selectedElements: CanvasElement[];
+	onInsertElements: (elements: CanvasElement[]) => void;
 	onApplyMutationPlan: (plan: CanvasMutationPlan) => void;
 	onHistoryBoundary: () => void;
 	onSelectIds: (ids: Set<string>) => void;
@@ -39,6 +43,7 @@ const SEQUENCE_PANEL_CANVAS_OFFSET_X = 240;
 export function SequenceDiagramPanel({
 	elements,
 	selectedElements,
+	onInsertElements,
 	onApplyMutationPlan,
 	onHistoryBoundary,
 	onSelectIds,
@@ -112,12 +117,7 @@ export function SequenceDiagramPanel({
 					defaults,
 					appearance,
 				});
-				applyMutation({
-					create: created,
-					update: [],
-					deleteIds: [],
-					selectedIds: created.map(({ id }) => id),
-				});
+				onInsertElements(created);
 			}}
 			onAddParticipant={(diagramId, input) =>
 				applyMutation(
@@ -155,6 +155,29 @@ export function SequenceDiagramPanel({
 			onDeleteMessage={(diagramId, eventIndex) =>
 				applyMutation(
 					planSequenceDiagramMessageDeletion({
+						elements: elementsRef.current,
+						diagramId,
+						eventIndex,
+						defaults,
+						appearance,
+					}),
+				)
+			}
+			onMoveMessage={(diagramId, eventIndex, direction) =>
+				applyMutation(
+					planSequenceDiagramMessageMove({
+						elements: elementsRef.current,
+						diagramId,
+						eventIndex,
+						direction,
+						defaults,
+						appearance,
+					}),
+				)
+			}
+			onDeleteFragment={(diagramId, eventIndex) =>
+				applyMutation(
+					planSequenceDiagramFragmentDeletion({
 						elements: elementsRef.current,
 						diagramId,
 						eventIndex,
@@ -201,6 +224,7 @@ export function SequenceDiagramPanel({
 					deleteIds: [],
 					selectedIds: created.map(({ id }) => id),
 				});
+				return created.map(getSequenceDiagramId).find(Boolean) ?? undefined;
 			}}
 			onClose={onClose}
 		/>

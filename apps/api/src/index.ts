@@ -46,6 +46,7 @@ import {
 	growthEventInputSchema,
 	recordGrowthEvent,
 } from "./lib/growth-events";
+import { initializeObjectStorage } from "./lib/object-storage";
 import { getBoardAccess } from "./lib/permissions";
 import {
 	countPresentationAudience,
@@ -1815,6 +1816,7 @@ app.all("/api/trpc/*", (c) =>
 );
 
 async function startServer() {
+	await initializeObjectStorage(db);
 	const migratedProfileImages = await migrateStoredProfileImages(db);
 	if (migratedProfileImages > 0) {
 		console.log(

@@ -5,7 +5,7 @@ export const assetsRouter = router({
 	getUploadConfig: publicProcedure.query(async ({ ctx }) => {
 		const status = await getObjectStorageStatus(ctx.db);
 		return {
-			enabled: status.configured && status.provider === "s3",
+			enabled: status.configured && status.provider !== "inline",
 			source: status.source,
 			provider: status.provider,
 			preset: status.preset,

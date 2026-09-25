@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n";
 import {
 	type ArrowTextOrientation,
 	type ArrowTextSide,
+	type StickyNoteTypography,
 	isCanvasTextEditableElement,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
@@ -38,6 +39,21 @@ export function useCanvasTextEditing({
 	const { t } = useI18n();
 	const [pendingText, setPendingText] = useState<PendingText | null>(null);
 	const [editingText, setEditingText] = useState<EditingText | null>(null);
+	const [editingStickyFocus, setEditingStickyFocus] = useState<
+		string | undefined
+	>();
+	const beginStickyNoteEditing = useCallback(
+		(id: string, target?: string) => {
+			const element = sync.elements.get(id);
+			if (!element || element.locked || sync.isReadonly) return;
+			flushSync(() => {
+				setEditingStickyFocus(target);
+				store.setSelectedIds(new Set([id]));
+				store.setEditingTextId(id);
+			});
+		},
+		[store, sync],
+	);
 	const [editingPyramidSection, setEditingPyramidSection] = useState<
 		number | null
 	>(null);
@@ -136,12 +152,16 @@ export function useCanvasTextEditing({
 			mode: StickyNoteMode,
 			text: string,
 			checklist: StickyChecklistItem[],
+			typography?: StickyNoteTypography & { height?: number },
 		) => {
 			const el = sync.elements.get(id);
 			if (!el) return;
 			sync.updateElement(id, {
 				text,
+				...(typography?.height ? { height: typography.height } : {}),
 				customData: mergeElementCustomData(el.customData, {
+					stickyTextFontSizes: typography?.textFontSizes,
+					stickyTitleFontSize: typography?.titleFontSize,
 					skedraType: "sticky-note",
 					stickyNoteMode: mode,
 					stickyChecklist:
@@ -179,6 +199,7 @@ export function useCanvasTextEditing({
 	);
 
 	const handleCloseTextEditor = useCallback(() => {
+		setEditingStickyFocus(undefined);
 		setPendingText(null);
 		setEditingText(null);
 		setEditingPyramidSection(null);
@@ -224,6 +245,8 @@ export function useCanvasTextEditing({
 	]);
 
 	return {
+		editingStickyFocus,
+		beginStickyNoteEditing,
 		editingPyramidSection,
 		setEditingPyramidSection,
 		pendingText,

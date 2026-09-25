@@ -22,6 +22,7 @@ import {
 	getSvgPathRenderMatrix,
 	getTrianglePointsAttribute,
 	hasPyramidSectionText,
+	isMindmapNode,
 	isPolygonVariant,
 	roundedDiamondSvgPath,
 	smoothPath,
@@ -152,6 +153,17 @@ export const ElementShape = memo(function ElementShape({
 					data-gantt-scroll-thumb={isGanttScrollThumb ? "true" : undefined}
 					style={isGanttScrollThumb ? { cursor: "grab" } : undefined}
 				>
+					{isMindmapNode(el) && (
+						<rect
+							x={el.x}
+							y={el.y}
+							width={el.width}
+							height={el.height}
+							fill="transparent"
+							pointerEvents="all"
+							data-ui-only="true"
+						/>
+					)}
 					{roughLayers ? (
 						roughLayers.fillHtml ? (
 							<RoughGeometryLayers el={el} layers={roughLayers} dash={dash} />

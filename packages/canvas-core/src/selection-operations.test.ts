@@ -30,6 +30,28 @@ function rectangle(id: string, x: number, width = 20) {
 	);
 }
 
+test("cloned Kanban rows remain together without joining the original row", () => {
+	const first = {
+		...rectangle("first", 0),
+		customData: { skedraType: "kanban-card", kanbanRow: "row" },
+	};
+	const second = {
+		...rectangle("second", 30),
+		customData: { ...first.customData },
+	};
+	let sequence = 0;
+	const cloned = cloneCanvasSelection({
+		elements: [first, second],
+		createId: () => `copy-${sequence++}`,
+	}).elements;
+	assert.notEqual(cloned[0].customData?.kanbanRow, "row");
+	assert.equal(
+		cloned[0].customData?.kanbanRow,
+		cloned[1].customData?.kanbanRow,
+	);
+	assert.equal(first.customData.kanbanRow, "row");
+});
+
 test("centers pasted selections at the requested canvas point", () => {
 	const elements = [rectangle("a", 10, 20), rectangle("b", 70, 40)];
 

@@ -19,6 +19,7 @@ import {
 	buildCanvasElementFormatUpdates,
 	buildSendBackwardUpdates,
 	buildSendToBackUpdates,
+	buildStickyNoteFontSizeChange,
 	cloneCanvasSelection,
 	cloneTransformedCanvasSelection,
 	createSelectionFrame,
@@ -392,9 +393,10 @@ export function useCanvasKeyboardOperations({
 				)
 				.map((el) => ({
 					id: el.id,
-					changes: {
-						fontSize: Math.max(8, Math.min(128, (el.fontSize ?? 16) + delta)),
-					},
+					changes: buildStickyNoteFontSizeChange(
+						el,
+						Math.max(6, Math.min(256, (el.fontSize ?? 16) + delta)),
+					),
 				}));
 			if (updates.length > 0) updateElements(updates);
 		},

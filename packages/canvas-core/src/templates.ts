@@ -639,19 +639,19 @@ function createSwotTemplate(options: CanvasTemplateOptions) {
 				templateLayoutRole: role,
 			},
 		});
-	textLabel("swot.internalFactors", leftX, topY - 38, "label-internal");
-	textLabel("swot.externalSignals", rightX, topY - 38, "label-external");
+	textLabel("swot.supportAxis", leftX, topY - 38, "label-support");
+	textLabel("swot.riskAxis", rightX, topY - 38, "label-risk");
 	textLabel(
-		"swot.supportAxis",
+		"swot.internalFactors",
 		leftX - 138,
 		topY + height / 2 - 12,
-		"label-support",
+		"label-internal",
 	);
 	textLabel(
-		"swot.riskAxis",
+		"swot.externalSignals",
 		leftX - 138,
 		bottomY + height / 2 - 12,
-		"label-risk",
+		"label-external",
 	);
 	builder.addArrow(
 		[
@@ -881,19 +881,26 @@ export function createCanvasTemplateStickyNote(options: {
 	);
 	const column = notes.length % columns;
 	const row = Math.floor(notes.length / columns);
+	let rowOffset = 0;
+	for (let index = 0; index < row; index++) {
+		rowOffset +=
+			Math.max(
+				noteHeight,
+				...notes
+					.slice(index * columns, (index + 1) * columns)
+					.map((note) => note.height),
+			) + TEMPLATE_SECTION_GAP;
+	}
 	return createStickyNoteElement(options.defaults, {
 		x:
 			options.section.x +
 			TEMPLATE_SECTION_PADDING_X +
 			column * (noteWidth + TEMPLATE_SECTION_GAP),
-		y:
-			options.section.y +
-			paddingTop +
-			row * (noteHeight + TEMPLATE_SECTION_GAP),
+		y: options.section.y + paddingTop + rowOffset,
 		color: options.color ?? sectionDefaults.stickyColor,
 		width: noteWidth,
 		height: noteHeight,
-		fontSize: noteHeight < 160 ? 18 : undefined,
+		fontSize: noteHeight < 160 ? 16 : undefined,
 		stroke: sectionDefaults.accent,
 		text: options.text,
 		frameId: options.section.id,
@@ -986,25 +993,30 @@ export function buildTemplateSectionLayoutSyncUpdates(
 			? TEMPLATE_SECTION_PADDING_TOP
 			: TEMPLATE_SECTION_PADDING_TOP_COMPACT;
 		let maxBottom = section.y + meta.templateBaseHeight;
+		let rowY = section.y + paddingTop;
+		let rowHeight = 0;
 		notes.forEach((note, index) => {
 			const x =
 				section.x +
 				TEMPLATE_SECTION_PADDING_X +
 				(index % columns) * (noteWidth + TEMPLATE_SECTION_GAP);
-			const y =
-				section.y +
-				paddingTop +
-				Math.floor(index / columns) * (noteHeight + TEMPLATE_SECTION_GAP);
-			maxBottom = Math.max(maxBottom, y + noteHeight + TEMPLATE_SECTION_GAP);
+			if (index > 0 && index % columns === 0) {
+				rowY += rowHeight + TEMPLATE_SECTION_GAP;
+				rowHeight = 0;
+			}
+			const y = rowY;
+			const height = Math.max(noteHeight, note.height);
+			rowHeight = Math.max(rowHeight, height);
+			maxBottom = Math.max(maxBottom, y + height + 60);
 			if (
 				note.x !== x ||
 				note.y !== y ||
 				note.width !== noteWidth ||
-				note.height !== noteHeight
+				note.height !== height
 			) {
 				updates.push({
 					id: note.id,
-					changes: { x, y, width: noteWidth, height: noteHeight },
+					changes: { x, y, width: noteWidth, height },
 				});
 			}
 		});
@@ -1196,23 +1208,29 @@ function buildSwotLayoutUpdates(
 		const element = roles.get(role)?.[0];
 		if (element) updates.push({ id: element.id, changes });
 	};
-	setPosition("label-internal", {
+	setPosition("label-support", {
 		x: strengths.x,
 		y: topY - 38,
 		width: strengths.width,
+		textAlign: "center",
 	});
-	setPosition("label-external", {
+	setPosition("label-risk", {
 		x: weaknesses.x,
 		y: topY - 38,
 		width: weaknesses.width,
+		textAlign: "center",
 	});
-	setPosition("label-support", {
+	setPosition("label-internal", {
 		x: strengths.x - 138,
 		y: topY + strengths.height / 2 - 12,
+		width: 120,
+		textAlign: "left",
 	});
-	setPosition("label-risk", {
+	setPosition("label-external", {
 		x: opportunities.x - 138,
 		y: bottomY + opportunities.height / 2 - 12,
+		width: 120,
+		textAlign: "left",
 	});
 	setPosition(
 		"axis-horizontal",

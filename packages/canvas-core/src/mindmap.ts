@@ -708,6 +708,14 @@ export function planMindmapChildInsertion({
 	if (!parentMeta) return null;
 	const resolveRootDirection = (): MindmapDirection => {
 		if (requestedDirection) return requestedDirection;
+		const layout = parent.customData?.mindmapLayout;
+		if (
+			layout === "left" ||
+			layout === "right" ||
+			layout === "down" ||
+			layout === "up"
+		)
+			return layout;
 		const leftChildren = getMindmapChildNodes(parent.id, "left", elements);
 		const rightChildren = getMindmapChildNodes(parent.id, "right", elements);
 		if (leftChildren.length === rightChildren.length) {

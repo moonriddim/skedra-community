@@ -1,3 +1,5 @@
+import { readCanvasAttachmentFile } from "@/lib/canvas/attachment-utils";
+import { KanbanAttachmentPreview } from "./kanban-attachment-preview";
 /**
  * Detail-Dialog fuer Kanban-Karten.
  * Bearbeitet Titel, Beschreibung, Prioritaet, Faelligkeitsdatum/-zeit
@@ -25,7 +27,6 @@ import { PickerInput } from "@/components/ui/picker-input";
 import {
 	type ImageUploadOptions,
 	pickImageFile,
-	pickImageFiles,
 } from "@/lib/canvas/image-utils";
 import {
 	formatKanbanDateTime,
@@ -36,9 +37,11 @@ import { useI18n } from "@/lib/i18n";
 import type {
 	KanbanCardAttachment,
 	KanbanChecklistItem,
+	KanbanCoverImage,
 	KanbanPriority,
 } from "@skedra/canvas-core";
 import {
+	KANBAN_CARD_COVER_HEIGHT,
 	computeKanbanCardHeight,
 	normalizeKanbanAttachments,
 	normalizeKanbanChecklist,
@@ -50,6 +53,7 @@ import {
 } from "@skedra/canvas-core";
 import { buildKanbanReflowUpdates } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
+import { CanvasEditorKanbanCoverPosition } from "@skedra/canvas-editor";
 import {
 	Calendar,
 	CheckSquare,
@@ -60,19 +64,20 @@ import {
 	GripVertical,
 	ImagePlus,
 	ImageUp,
-	Plus,
 	Trash2,
 	Users,
 	X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { KanbanChecklistEditor } from "./kanban-checklist-editor";
 
 interface KanbanCardDetailDialogProps {
 	element: CanvasElement | null;
 	elements: Map<string, CanvasElement>;
 	assignmentOptions?: KanbanAssignmentOptions;
 	onClose: () => void;
+	onOpenMindmapSource?: (id: string) => void;
 	onUpdate: (id: string, changes: Partial<CanvasElement>) => void;
 	onUpdateElements: (
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
@@ -89,6 +94,7 @@ export function KanbanCardDetailDialog({
 	elements,
 	assignmentOptions,
 	onClose,
+	onOpenMindmapSource,
 	onUpdate,
 	onUpdateElements,
 	onDelete,
@@ -97,6 +103,26 @@ export function KanbanCardDetailDialog({
 	resolveAssetUrl,
 }: KanbanCardDetailDialogProps) {
 	const { t } = useI18n();
+	const [dialogViewport, setDialogViewport] = useState(() => ({
+		height: window.visualViewport?.height ?? window.innerHeight,
+		top: window.visualViewport?.offsetTop ?? 0,
+	}));
+	useEffect(() => {
+		const viewport = window.visualViewport;
+		const update = () =>
+			setDialogViewport({
+				height: viewport?.height ?? window.innerHeight,
+				top: viewport?.offsetTop ?? 0,
+			});
+		viewport?.addEventListener("resize", update);
+		viewport?.addEventListener("scroll", update);
+		window.addEventListener("resize", update);
+		return () => {
+			viewport?.removeEventListener("resize", update);
+			viewport?.removeEventListener("scroll", update);
+			window.removeEventListener("resize", update);
+		};
+	}, []);
 	const kanbanPriorities = getKanbanPriorities();
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
@@ -108,18 +134,28 @@ export function KanbanCardDetailDialog({
 	const [dueDate, setDueDate] = useState("");
 	const [dueTime, setDueTime] = useState("");
 	const [dueComplete, setDueComplete] = useState(false);
-	const [coverImage, setCoverImage] = useState<KanbanCardAttachment | null>(
-		null,
-	);
+	const [coverImage, setCoverImage] = useState<KanbanCoverImage | null>(null);
 	const [checklist, setChecklist] = useState<KanbanChecklistItem[]>([]);
 	const [attachments, setAttachments] = useState<KanbanCardAttachment[]>([]);
+	const attachmentInput = useRef<HTMLInputElement>(null);
+	const uploadGeneration = useRef(0);
+	const [uploading, setUploading] = useState(false);
+	const [uploadError, setUploadError] = useState("");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Discard uploads started for a different card.
+	useEffect(() => {
+		uploadGeneration.current++;
+		setUploading(false);
+		setUploadError("");
+		return () => {
+			uploadGeneration.current++;
+		};
+	}, [element?.id]);
 	const [draggedAttachmentId, setDraggedAttachmentId] = useState<string | null>(
 		null,
 	);
 	const [dragOverAttachmentId, setDragOverAttachmentId] = useState<
 		string | null
 	>(null);
-	const [newChecklistItem, setNewChecklistItem] = useState("");
 	const [hideCompleted, setHideCompleted] = useState(false);
 	const [expandedSections, setExpandedSections] = useState<
 		Record<KanbanDialogSection, boolean>
@@ -177,7 +213,6 @@ export function KanbanCardDetailDialog({
 		setCoverImage(nextCoverImage);
 		setAttachments(nextAttachments);
 		setChecklist(nextChecklist);
-		setNewChecklistItem("");
 		setHideCompleted(false);
 		setExpandedSections({
 			cover: Boolean(nextCoverImage),
@@ -221,6 +256,7 @@ export function KanbanCardDetailDialog({
 				assignmentBadges,
 			}),
 			customData: {
+				...element.customData,
 				skedraType: "kanban-card",
 				description: nextDescription,
 				priority,
@@ -310,25 +346,6 @@ export function KanbanCardDetailDialog({
 		onClose();
 	};
 
-	const handleAddChecklistItems = () => {
-		const items = newChecklistItem
-			.split(/\r?\n/)
-			.map((item) => item.trim())
-			.filter(Boolean)
-			.map(
-				(text) =>
-					({
-						id: createChecklistItemId(),
-						text,
-						completed: false,
-					}) satisfies KanbanChecklistItem,
-			);
-
-		if (items.length === 0) return;
-		setChecklist((current) => [...current, ...items]);
-		setNewChecklistItem("");
-	};
-
 	const completedChecklistItems = checklist.filter(
 		(item) => item.completed,
 	).length;
@@ -336,9 +353,6 @@ export function KanbanCardDetailDialog({
 		checklist.length > 0
 			? Math.round((completedChecklistItems / checklist.length) * 100)
 			: 0;
-	const visibleChecklist = hideCompleted
-		? checklist.filter((item) => !item.completed)
-		: checklist;
 	const dueStatusPreview = getKanbanDueStatus(
 		buildDueDateValue(dueDate, dueTime),
 		dueComplete,
@@ -380,6 +394,11 @@ export function KanbanCardDetailDialog({
 	const coverImagePreviewSrc = coverImage
 		? (resolveAssetUrl?.(coverImage.src) ?? coverImage.src)
 		: "";
+	const recommendedCoverWidth = Math.max(1024, Math.ceil(element.width * 2));
+	const recommendedCoverHeight = Math.round(
+		(recommendedCoverWidth * KANBAN_CARD_COVER_HEIGHT) /
+			Math.max(1, element.width),
+	);
 
 	const handlePickCover = async () => {
 		const picked = await pickImageFile(imageUploadOptions);
@@ -390,22 +409,39 @@ export function KanbanCardDetailDialog({
 			name: picked.name,
 			width: picked.width,
 			height: picked.height,
+			position: { x: 50, y: 50 },
 		});
 	};
 
-	const handlePickAttachment = async () => {
-		const picked = await pickImageFiles(imageUploadOptions);
-		if (picked.length === 0) return;
-		setAttachments((current) => [
-			...current,
-			...picked.map((image) => ({
-				id: createAttachmentId(),
-				src: image.src,
-				name: image.name,
-				width: image.width,
-				height: image.height,
-			})),
-		]);
+	const handleAttachmentFiles = async (files: File[]) => {
+		if (!files.length) return;
+		const generation = ++uploadGeneration.current;
+		setUploading(true);
+		setUploadError("");
+		const results = await Promise.allSettled(
+			files.map((file) => readCanvasAttachmentFile(file, imageUploadOptions)),
+		);
+		if (uploadGeneration.current !== generation) return;
+		const picked = results.flatMap((result) =>
+			result.status === "fulfilled"
+				? [{ id: createAttachmentId(), ...result.value }]
+				: [],
+		);
+		setAttachments((current) => [...current, ...picked]);
+		const failed = results.flatMap((result, index) =>
+			result.status === "rejected" ? [files[index].name] : [],
+		);
+		if (failed.length)
+			setUploadError(
+				t("kanbanCardDialog.attachmentUploadError", {
+					names: failed.join(", "),
+					limit: Math.round(
+						(imageUploadOptions?.maxImageBytes ?? 10 * 1024 * 1024) /
+							(1024 * 1024),
+					),
+				}),
+			);
+		setUploading(false);
 	};
 
 	const handleRemoveAttachment = (attachmentId: string) => {
@@ -448,15 +484,40 @@ export function KanbanCardDetailDialog({
 				if (!open) onClose();
 			}}
 		>
-			<DialogContent className="max-h-[86vh] max-w-2xl gap-0 overflow-hidden p-0">
-				<div className="m-3 max-h-[calc(86vh-1.5rem)] overflow-x-hidden overflow-y-auto rounded-md px-2 py-2 pr-4 [scrollbar-gutter:stable] sm:m-4 sm:max-h-[calc(86vh-2rem)] sm:pr-5">
-					<DialogHeader className="space-y-1 pr-8">
-						<DialogTitle className="text-base">
-							{t("kanbanCardDialog.title")}
-						</DialogTitle>
-					</DialogHeader>
-
-					<div className="space-y-3">
+			<DialogContent
+				onOpenAutoFocus={(event) => event.preventDefault()}
+				style={{
+					maxHeight: dialogViewport.height - 24,
+					top: dialogViewport.top + dialogViewport.height / 2,
+				}}
+				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0 max-lg:overflow-hidden max-lg:p-0 max-sm:p-0"
+			>
+				<DialogHeader className="shrink-0 border-b border-border px-4 py-5 pr-16 text-left">
+					<DialogTitle className="text-base">
+						{t("kanbanCardDialog.title")}
+					</DialogTitle>
+				</DialogHeader>
+				{typeof element?.customData?.mindmapSourceId === "string" &&
+					elements.has(element.customData.mindmapSourceId) &&
+					onOpenMindmapSource && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() =>
+								onOpenMindmapSource(
+									element.customData?.mindmapSourceId as string,
+								)
+							}
+						>
+							{t("mindmapStudio.source")}:{" "}
+							{elements.get(element.customData.mindmapSourceId)?.text}
+						</Button>
+					)}
+				<div
+					data-kanban-dialog-scroll="true"
+					className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4"
+				>
+					<div className="min-w-0 space-y-4">
 						<div className="space-y-1.5">
 							<Label htmlFor="kanban-title">
 								{t("kanbanCardDialog.cardTitle")}
@@ -466,7 +527,6 @@ export function KanbanCardDetailDialog({
 								value={title}
 								onChange={(e) => setTitle(e.target.value)}
 								placeholder={t("kanbanCardDialog.cardTitlePlaceholder")}
-								autoFocus
 							/>
 						</div>
 
@@ -497,20 +557,44 @@ export function KanbanCardDetailDialog({
 										type="button"
 										variant="outline"
 										onClick={() => setCoverImage(null)}
+										aria-label={`${t("common.delete")} ${t("kanbanCardDialog.cover")}`}
 									>
 										<X className="h-4 w-4" />
 									</Button>
 								)}
 							</div>
+							<p className="text-xs leading-relaxed text-muted-foreground">
+								{t("kanbanCardDialog.coverRecommendedSize", {
+									width: recommendedCoverWidth,
+									height: recommendedCoverHeight,
+								})}
+							</p>
 							{coverImage ? (
 								<div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-									<img
+									<CanvasEditorKanbanCoverPosition
+										key={coverImage.id}
 										src={coverImagePreviewSrc}
 										alt={coverImage.name}
-										className="h-28 w-full object-cover"
+										imageWidth={coverImage.width}
+										imageHeight={coverImage.height}
+										aspectRatio={
+											Math.max(1, element.width) / KANBAN_CARD_COVER_HEIGHT
+										}
+										position={coverImage.position}
+										onChange={(position) =>
+											setCoverImage((current) =>
+												current ? { ...current, position } : null,
+											)
+										}
+										labels={{
+											hint: t("kanbanCardDialog.coverPositionHint"),
+											horizontal: t("kanbanCardDialog.coverPositionHorizontal"),
+											vertical: t("kanbanCardDialog.coverPositionVertical"),
+											center: t("kanbanCardDialog.coverPositionCenter"),
+										}}
 									/>
-									<div className="flex items-center justify-between gap-2 border-t border-border/70 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm">
-										<div className="flex items-center gap-2">
+									<div className="flex flex-wrap items-center gap-2 border-t border-border/70 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
+										<div className="flex min-w-0 items-center gap-2 break-all">
 											<ImageUp className="h-3.5 w-3.5" />
 											<span>
 												{t("kanbanCardDialog.activeCover", {
@@ -701,86 +785,11 @@ export function KanbanCardDetailDialog({
 								</div>
 							)}
 
-							<div className="space-y-1.5">
-								<textarea
-									value={newChecklistItem}
-									onChange={(e) => setNewChecklistItem(e.target.value)}
-									placeholder={t("kanbanCardDialog.checkpointPlaceholder")}
-									rows={2}
-									className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
-								/>
-								<div className="flex justify-end">
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={handleAddChecklistItems}
-										disabled={!newChecklistItem.trim()}
-									>
-										<Plus className="h-4 w-4" />
-										{t("kanbanCardDialog.addCheckpoint")}
-									</Button>
-								</div>
-							</div>
-
-							{visibleChecklist.length > 0 ? (
-								<div className="space-y-1.5">
-									{visibleChecklist.map((item) => (
-										<div
-											key={item.id}
-											className="flex items-start gap-2 rounded-md border border-border bg-background px-2.5 py-1.5"
-										>
-											<input
-												type="checkbox"
-												checked={item.completed}
-												onChange={(e) => {
-													const completed = e.target.checked;
-													setChecklist((current) =>
-														current.map((entry) =>
-															entry.id === item.id
-																? { ...entry, completed }
-																: entry,
-														),
-													);
-												}}
-												className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary/50"
-											/>
-											<Input
-												value={item.text}
-												onChange={(e) => {
-													const text = e.target.value;
-													setChecklist((current) =>
-														current.map((entry) =>
-															entry.id === item.id ? { ...entry, text } : entry,
-														),
-													);
-												}}
-												className={`h-9 ${item.completed ? "text-muted-foreground line-through" : ""}`}
-											/>
-											<Button
-												type="button"
-												variant="ghost"
-												size="icon"
-												onClick={() =>
-													setChecklist((current) =>
-														current.filter((entry) => entry.id !== item.id),
-													)
-												}
-											>
-												<Trash2 className="h-4 w-4" />
-											</Button>
-										</div>
-									))}
-								</div>
-							) : checklist.length > 0 ? (
-								<p className="text-sm text-muted-foreground">
-									{t("kanbanCardDialog.allCompletedHidden")}
-								</p>
-							) : (
-								<p className="text-sm text-muted-foreground">
-									{t("kanbanCardDialog.noCheckpoints")}
-								</p>
-							)}
+							<KanbanChecklistEditor
+								items={checklist}
+								onChange={setChecklist}
+								hideCompleted={hideCompleted}
+							/>
 						</CollapsibleDialogSection>
 
 						<CollapsibleDialogSection
@@ -796,21 +805,45 @@ export function KanbanCardDetailDialog({
 									: t("kanbanCardDialog.attachmentsDescription")
 							}
 						>
+							<input
+								ref={attachmentInput}
+								data-kanban-attachment-upload="true"
+								type="file"
+								multiple
+								className="hidden"
+								onChange={(event) => {
+									const files = Array.from(event.target.files ?? []);
+									event.target.value = "";
+									void handleAttachmentFiles(files);
+								}}
+							/>
+							{uploadError && (
+								<p
+									role="alert"
+									className="break-words text-sm text-destructive"
+								>
+									{uploadError}
+								</p>
+							)}
 							<div className="flex gap-2">
 								<Button
 									type="button"
 									variant="outline"
-									onClick={handlePickAttachment}
+									onClick={() => attachmentInput.current?.click()}
+									disabled={uploading}
 									className="flex-1"
 								>
 									<ImagePlus className="h-4 w-4" />
-									{t("kanbanCardDialog.addAttachments")}
+									{uploading
+										? t("kanbanCardDialog.uploadingAttachments")
+										: t("kanbanCardDialog.addAttachments")}
 								</Button>
 								{attachments.length > 0 && (
 									<Button
 										type="button"
 										variant="outline"
 										onClick={() => setAttachments([])}
+										aria-label={`${t("common.delete")} ${t("kanbanCardDialog.attachments")}`}
 									>
 										<X className="h-4 w-4" />
 									</Button>
@@ -855,12 +888,11 @@ export function KanbanCardDetailDialog({
 												}}
 												className={`overflow-hidden rounded-lg border bg-background transition-colors ${dragOverAttachmentId === attachment.id ? "border-primary ring-1 ring-primary/40" : "border-border"} ${draggedAttachmentId === attachment.id ? "opacity-60" : "opacity-100"}`}
 											>
-												<img
-													src={
+												<KanbanAttachmentPreview
+													attachment={attachment}
+													resolvedSrc={
 														resolveAssetUrl?.(attachment.src) ?? attachment.src
 													}
-													alt={attachment.name}
-													className="h-20 w-full object-cover"
 												/>
 												<div className="space-y-1.5 p-2.5">
 													<div className="flex items-center justify-between gap-2">
@@ -876,6 +908,7 @@ export function KanbanCardDetailDialog({
 													</div>
 													<div className="flex justify-end">
 														<Button
+															aria-label={`${t("common.delete")} ${attachment.name}`}
 															type="button"
 															variant="ghost"
 															size="icon"
@@ -1097,24 +1130,32 @@ export function KanbanCardDetailDialog({
 							</label>
 						</div>
 					</div>
-
-					<DialogFooter className="flex-row justify-between gap-2 pt-3 sm:justify-between">
-						<Button
-							variant="ghost"
-							onClick={handleDelete}
-							className="text-destructive hover:text-destructive"
-						>
-							<Trash2 className="h-4 w-4 mr-1.5" />
-							{t("common.delete")}
-						</Button>
-						<div className="flex gap-2">
-							<Button variant="outline" onClick={onClose}>
-								{t("common.cancel")}
-							</Button>
-							<Button onClick={handleSave}>{t("common.save")}</Button>
-						</div>
-					</DialogFooter>
 				</div>
+				<DialogFooter className="grid shrink-0 grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-t border-border bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:grid-cols-[auto_1fr_auto] sm:space-x-0">
+					<Button
+						variant="ghost"
+						onClick={handleDelete}
+						aria-label={t("common.delete")}
+						className="min-w-0 px-2 text-destructive hover:text-destructive"
+					>
+						<Trash2 className="h-4 w-4 mr-1.5" />
+						<span className="hidden sm:inline">{t("common.delete")}</span>
+					</Button>
+					<Button
+						className="min-w-0 px-2 sm:justify-self-end"
+						variant="outline"
+						onClick={onClose}
+					>
+						{t("common.cancel")}
+					</Button>
+					<Button
+						className="min-w-0 px-2"
+						disabled={uploading}
+						onClick={handleSave}
+					>
+						{t("common.save")}
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);
@@ -1194,10 +1235,6 @@ function splitDueDateValue(value: string): { date: string; time: string } {
 function buildDueDateValue(date: string, time: string): string | null {
 	if (!date) return null;
 	return time ? `${date}T${time}` : date;
-}
-
-function createChecklistItemId(): string {
-	return `check-${nanoid(10)}`;
 }
 
 function createAttachmentId(): string {

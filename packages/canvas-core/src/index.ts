@@ -16,6 +16,7 @@ export * from "./history-delta";
 export * from "./image-crop";
 export * from "./kanban";
 export * from "./mindmap";
+export * from "./mindmap-structure";
 export * from "./ordering";
 export * from "./path-rendering";
 export * from "./path-drawing";
@@ -45,3 +46,10 @@ export {
 	buildLineCrossingGaps,
 	getLineCrossingGapSize,
 } from "./line-crossings";
+
+export {
+	getCanvasAttachmentMimeType,
+	isCanvasAttachmentMimeType,
+} from "./attachment-types";
+
+export * from "./element-placement";

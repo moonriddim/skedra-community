@@ -15,7 +15,6 @@ interface WireframePanelProps {
 	elements: Map<string, CanvasElement>;
 	selectedElements: CanvasElement[];
 	onInsertElements: (elements: CanvasElement[]) => void;
-	onFitElements: (elements: CanvasElement[]) => void;
 	getViewportCenter: () => { x: number; y: number };
 	onClose: () => void;
 }
@@ -24,7 +23,6 @@ export function WireframePanel({
 	elements,
 	selectedElements,
 	onInsertElements,
-	onFitElements,
 	getViewportCenter,
 	onClose,
 }: WireframePanelProps) {
@@ -49,7 +47,6 @@ export function WireframePanel({
 					text: templateText,
 				});
 				onInsertElements(created);
-				onFitElements(created);
 			}}
 			onInsertComponent={(component, target) => {
 				const point = target?.point ?? getViewportCenter();

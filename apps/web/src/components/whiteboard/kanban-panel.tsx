@@ -36,20 +36,15 @@ export function KanbanPanel({
 	const { t } = useI18n();
 	const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
 	const priorities = getKanbanPriorities();
-	const offset = () => ({
-		dx: Math.random() * 40 - 20,
-		dy: Math.random() * 40 - 20,
-	});
 
 	const handleAddBoard = () => {
 		const center = getViewportCenter();
-		const { dx, dy } = offset();
 		onAdd(
 			createKanbanBoardElements(
 				getCanvasElementFactoryDefaults({ resolvedTheme }),
 				{
-					x: center.x - 450 + dx,
-					y: center.y - 200 + dy,
+					x: center.x - 450,
+					y: center.y - 200,
 					lists: getDefaultKanbanBoardLists(),
 					defaultCardTitle: getDefaultKanbanCardTitle(),
 				},
@@ -59,13 +54,12 @@ export function KanbanPanel({
 
 	const handleAddList = () => {
 		const center = getViewportCenter();
-		const { dx, dy } = offset();
 		onAdd(
 			createKanbanListElements(
 				getCanvasElementFactoryDefaults({ resolvedTheme }),
 				{
-					x: center.x - 140 + dx,
-					y: center.y - 150 + dy,
+					x: center.x - 140,
+					y: center.y - 150,
 					name: getDefaultKanbanListName(),
 					cardTitles: [getDefaultKanbanCardTitle()],
 				},

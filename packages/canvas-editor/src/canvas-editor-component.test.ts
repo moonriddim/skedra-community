@@ -56,6 +56,26 @@ const element: CanvasElement = {
 
 const noop = () => undefined;
 
+test("Kanban selections stay movable but expose no resize or rotation handles", () => {
+	for (const skedraType of ["kanban-card", "kanban-list"]) {
+		const markup = renderToStaticMarkup(
+			createElement(CanvasEditorSelectionOverlay, {
+				selected: [{ ...element, customData: { skedraType } }],
+				zoom: 1,
+				onResizeStart: noop,
+				onResizeKeyDown: noop,
+				onRotateStart: noop,
+				onRotateKeyDown: noop,
+				onPathPointDragStart: noop,
+				onInsertPathPoint: noop,
+			}),
+		);
+		assert.match(markup, /data-skedra-ui="selection"/u);
+		assert.doesNotMatch(markup, /role="button"/u);
+		assert.doesNotMatch(markup, /coarse-pointer-target/u);
+	}
+});
+
 test("sequence diagram panel validates source through canvas-core", () => {
 	const validMarkup = renderToStaticMarkup(
 		createElement(CanvasEditorSequenceDiagramPanel, {
@@ -82,7 +102,7 @@ test("sequence diagram panel validates source through canvas-core", () => {
 	assert.match(invalidMarkup, /disabled=""/u);
 });
 
-test("sequence diagram panel defaults to the plain-language builder", () => {
+test("sequence diagram panel starts with participants and keeps description optional", () => {
 	let id = 0;
 	const visualElements = createVisualSequenceDiagramElements({
 		preset: "blank",
@@ -112,8 +132,10 @@ test("sequence diagram panel defaults to the plain-language builder", () => {
 	);
 
 	assert.match(markup, /Ablauf erstellen/u);
-	assert.match(markup, /Nächster Schritt/u);
-	assert.match(markup, /Schritte erkennen/u);
+	assert.match(markup, /Name des Beteiligten/u);
+	assert.match(markup, /Optional: mit einer Beschreibung starten/u);
+	assert.doesNotMatch(markup, /<textarea/u);
+	assert.doesNotMatch(markup, /sequence-quick-builder/u);
 });
 
 test("Gantt studio renders the interactive grid and timeline", () => {
@@ -864,7 +886,8 @@ test("saved views use one shared bottom bar in every host", () => {
 	);
 
 	assert.match(markup, /data-skedra-ui="saved-views-bar"/u);
-	assert.match(markup, />Planning</u);
+	assert.doesNotMatch(markup, />Planning</u);
+	assert.match(markup, /data-control="toggle-views"[^>]*aria-pressed="false"/u);
 	assert.match(markup, /aria-label="Save view"/u);
 	assert.match(markup, /aria-label="Toggle object snap"/u);
 	assert.match(markup, /aria-pressed="true"/u);
@@ -1011,6 +1034,27 @@ test("frame export actions stay available in the shared properties panel", () =>
 	assert.match(markup, /translated:canvas\.properties\.frameExport/u);
 	assert.match(markup, /translated:canvas\.properties\.exportFrame\.png/u);
 	assert.match(markup, /translated:canvas\.properties\.exportFrame\.svg/u);
+});
+
+test("sticky paragraphs render stored sizes independently", () => {
+	const note: CanvasElement = {
+		...element,
+		text: "Small\nLarge",
+		fontSize: 20,
+		customData: {
+			skedraType: "sticky-note",
+			stickyNoteMode: "note",
+			stickyTextFontSizes: [8, 64],
+		},
+	};
+	const markup = renderToStaticMarkup(
+		createElement(CanvasRenderer, {
+			scene: CanvasScene.from([note]),
+			selectedIds: new Set<string>(),
+		}),
+	);
+	assert.match(markup, /font-size:8px[^>]*>Small/u);
+	assert.match(markup, /font-size:64px[^>]*>Large/u);
 });
 
 test("sticky checklist renders valid checkbox glyphs", () => {

@@ -6,6 +6,62 @@ export interface StickyChecklistItem {
 	id: string;
 	text: string;
 	completed: boolean;
+	fontSize?: number;
+}
+
+export interface StickyNoteTypography {
+	textFontSizes?: number[];
+	titleFontSize?: number;
+}
+
+export function normalizeStickyFontSize(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.min(256, Math.max(6, value))
+		: undefined;
+}
+
+export function getStickyNoteTypography(
+	element: Pick<CanvasElement, "customData">,
+): StickyNoteTypography {
+	const data = element.customData;
+	return {
+		textFontSizes: Array.isArray(data?.stickyTextFontSizes)
+			? data.stickyTextFontSizes.map(
+					(value) => normalizeStickyFontSize(value) ?? 20,
+				)
+			: undefined,
+		titleFontSize: normalizeStickyFontSize(data?.stickyTitleFontSize),
+	};
+}
+
+/** Resizing a whole note preserves the relative sizes of its paragraphs and items. */
+export function buildStickyNoteFontSizeChange(
+	element: CanvasElement,
+	size: number,
+): Partial<CanvasElement> {
+	const fontSize = normalizeStickyFontSize(size) ?? 20;
+	if (!isStickyNote(element)) return { fontSize };
+	const ratio = fontSize / (element.fontSize || 20);
+	const scale = (value: number) =>
+		normalizeStickyFontSize(value * ratio) ?? fontSize;
+	const typography = getStickyNoteTypography(element);
+	return {
+		fontSize,
+		customData: {
+			...element.customData,
+			...(typography.textFontSizes
+				? { stickyTextFontSizes: typography.textFontSizes.map(scale) }
+				: {}),
+			...(typography.titleFontSize
+				? { stickyTitleFontSize: scale(typography.titleFontSize) }
+				: {}),
+			stickyChecklist: normalizeStickyChecklist(
+				element.customData?.stickyChecklist,
+			).map((item) =>
+				item.fontSize ? { ...item, fontSize: scale(item.fontSize) } : item,
+			),
+		},
+	};
 }
 
 function createStickyItemId() {
@@ -34,6 +90,9 @@ export function normalizeStickyChecklist(
 						: `sticky-item-${index}`,
 				text: typeof item.text === "string" ? item.text : "",
 				completed: Boolean(item.completed),
+				...(normalizeStickyFontSize(item.fontSize) !== undefined
+					? { fontSize: normalizeStickyFontSize(item.fontSize) }
+					: {}),
 			},
 		];
 	});
@@ -136,6 +195,24 @@ export function buildStickyNoteModeChange(
 		.filter((item) => item.text.trim())
 		.map((item) => `- ${item.text.trim()}`);
 	const merged = [current.text.trim(), ...itemLines].filter(Boolean).join("\n");
+	const typography = getStickyNoteTypography(element);
+	const fontSize = element.fontSize ?? 20;
+	const textFontSizes = [
+		...(current.text.trim()
+			? current.text
+					.trim()
+					.split("\n")
+					.map(() => typography.titleFontSize ?? fontSize * 1.05)
+			: []),
+		...current.checklist
+			.filter((item) => item.text.trim())
+			.flatMap((item) =>
+				item.text
+					.trim()
+					.split("\n")
+					.map(() => item.fontSize ?? Math.max(14, fontSize * 0.82)),
+			),
+	];
 
 	return {
 		text: merged,
@@ -144,6 +221,7 @@ export function buildStickyNoteModeChange(
 			skedraType: "sticky-note",
 			stickyNoteMode: "note",
 			stickyChecklist: [],
+			stickyTextFontSizes: textFontSizes,
 		},
 	};
 }

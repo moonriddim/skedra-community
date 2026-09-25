@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import { readProcessEnv } from "@skedra/shared";
 import { z } from "zod";
 
@@ -112,7 +113,17 @@ const envSchema = z
 			.min(60)
 			.max(86400)
 			.default(3600),
-		SKEDRA_OBJECT_STORAGE_PROVIDER: z.enum(["inline", "s3"]).default("inline"),
+		SKEDRA_OBJECT_STORAGE_PROVIDER: z
+			.enum(["inline", "s3", "filesystem"])
+			.default("inline"),
+		SKEDRA_OBJECT_STORAGE_PATH: z.preprocess(
+			emptyStringToUndefined,
+			z
+				.string()
+				.trim()
+				.refine(isAbsolute, "Storage path must be absolute.")
+				.optional(),
+		),
 		SKEDRA_OBJECT_STORAGE_PRESET: z
 			.enum(["custom", "r2", "ovh", "aws"])
 			.default("custom"),
@@ -169,6 +180,18 @@ const envSchema = z
 						: `${provider.toUpperCase()}_CLIENT_ID`,
 				],
 				message: `${provider} social login requires both client ID and client secret.`,
+			});
+		}
+
+		if (
+			value.SKEDRA_OBJECT_STORAGE_PROVIDER === "filesystem" &&
+			!value.SKEDRA_OBJECT_STORAGE_PATH
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["SKEDRA_OBJECT_STORAGE_PATH"],
+				message:
+					"SKEDRA_OBJECT_STORAGE_PATH is required for filesystem storage.",
 			});
 		}
 

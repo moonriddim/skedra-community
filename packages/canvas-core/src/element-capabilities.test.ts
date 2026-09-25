@@ -66,7 +66,7 @@ test("wireframe screens expose their canonical frame label for editing", () => {
 			type: "frame",
 			customData: { skedraType: "template-section" },
 		}),
-		false,
+		true,
 	);
 });
 
@@ -112,4 +112,19 @@ test("frame label hit box sits above the frame edge", () => {
 		),
 		false,
 	);
+});
+
+test("template heading hit test excludes the note area", () => {
+	const frame = {
+		type: "frame",
+		x: 100,
+		y: 200,
+		width: 316,
+		height: 420,
+		frameLabel: "Celebrate",
+		customData: { skedraType: "template-section" },
+	} as CanvasElement;
+	assert.equal(frameLabelHitTest(frame, 140, 225), true);
+	assert.equal(frameLabelHitTest(frame, 140, 330), false);
+	assert.equal(frameLabelHitTest(frame, 140, 190), false);
 });

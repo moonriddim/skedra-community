@@ -1,5 +1,6 @@
 import {
 	KANBAN_CARD_GAP,
+	KANBAN_LAYOUT_CARD_WIDTH,
 	KANBAN_LIST_FOOTER_HEIGHT,
 	KANBAN_LIST_HEADER,
 	KANBAN_LIST_PADDING,
@@ -9,8 +10,9 @@ import {
 import { type CanvasElement, DEFAULT_FILL, DEFAULT_FONT_FAMILY } from "./types";
 
 export const STICKY_NOTE_TEXT_PADDING = 12;
-export const KANBAN_LIST_WIDTH = 280;
-export const KANBAN_CARD_WIDTH = KANBAN_LIST_WIDTH - KANBAN_LIST_PADDING * 2;
+export const KANBAN_LIST_WIDTH =
+	KANBAN_LAYOUT_CARD_WIDTH + KANBAN_LIST_PADDING * 2;
+export const KANBAN_CARD_WIDTH = KANBAN_LAYOUT_CARD_WIDTH;
 
 export interface CanvasElementFactoryDefaults {
 	createId: () => string;

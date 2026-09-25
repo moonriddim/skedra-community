@@ -69,6 +69,7 @@ import {
 	useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { FontSizeControl } from "./font-size-control";
 import {
 	CANVAS_PATH_MODE_OPTIONS,
 	type CanvasPathModeOption,
@@ -319,12 +320,6 @@ const FONT_FAMILIES = [
 		label: "Garamond",
 	},
 	{ value: "Arial, Helvetica, sans-serif", label: "Arial" },
-];
-const FONT_SIZES = [
-	{ value: 14, label: "S" },
-	{ value: 18, label: "M" },
-	{ value: 24, label: "L" },
-	{ value: 32, label: "XL" },
 ];
 const KANBAN_PRIORITIES: Array<{
 	value: KanbanPriority;
@@ -1182,6 +1177,12 @@ function KanbanProperties({
 		<>
 			{view.isKanbanListSelection && view.kanbanList && (
 				<>
+					<p className="text-xs text-muted-foreground">
+						{t(
+							"canvas.kanban.automaticLayout",
+							"The size follows the cards. Drag a card to the right edge of another card to place it beside it.",
+						)}
+					</p>
 					<Section label={t("canvas.properties.listTitle", "List title")}>
 						<button
 							type="button"
@@ -2370,18 +2371,11 @@ function TextProperties({
 				</div>
 			</Section>
 			<Section label={t("canvas.properties.size", "Size")}>
-				<div className="flex gap-1">
-					{FONT_SIZES.map((size) => (
-						<ChoiceButton
-							key={size.value}
-							active={view.currentFontSize === size.value}
-							onClick={() => view.onSetProperty("fontSize", size.value)}
-							className="font-medium text-[10px]"
-						>
-							{size.label}
-						</ChoiceButton>
-					))}
-				</div>
+				<FontSizeControl
+					value={view.currentFontSize}
+					onChange={(size) => view.onSetProperty("fontSize", size)}
+					label={t("canvas.properties.size", "Size")}
+				/>
 			</Section>
 			<Section label={t("canvas.properties.alignment", "Alignment")}>
 				<div className="flex gap-1">

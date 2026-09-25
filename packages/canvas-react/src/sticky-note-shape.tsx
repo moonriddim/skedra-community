@@ -1,6 +1,7 @@
 import {
 	STICKY_NOTE_TEXT_PADDING,
 	getEffectiveCornerRadius,
+	getStickyNoteTypography,
 } from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import { useCanvasRendererConfig } from "./renderer-config";
@@ -30,12 +31,26 @@ export function StickyNoteShape({
 	const textStyle = getRendererStickyNoteTextStyle(el);
 	const cornerRadius = getEffectiveCornerRadius(el);
 	const bodySize = textStyle.fontSize;
-	const titleSize = bodySize * 1.05;
+	const typography = getStickyNoteTypography(el);
+	const titleSize = typography.titleFontSize ?? bodySize * 1.05;
 	const itemSize = Math.max(14, bodySize * 0.82);
 	const trimmedText = text.trim();
+	const canEdit = interactive && !el.locked && Boolean(actions.editStickyNote);
 
 	return (
-		<g transform={transform} {...commonProps}>
+		<g
+			transform={transform}
+			{...commonProps}
+			onDoubleClick={(event) => {
+				if (!canEdit || (event.target as Element).closest("button")) return;
+				event.preventDefault();
+				event.stopPropagation();
+				const target = (event.target as Element).closest<HTMLElement>(
+					"[data-sticky-edit-target]",
+				)?.dataset.stickyEditTarget;
+				actions.editStickyNote?.(el.id, target);
+			}}
+		>
 			<rect
 				x={el.x}
 				y={el.y}
@@ -57,6 +72,9 @@ export function StickyNoteShape({
 				>
 					<div
 						style={{
+							cursor: canEdit ? "grab" : undefined,
+							touchAction: canEdit ? "none" : undefined,
+							userSelect: "none",
 							width: "100%",
 							height: "100%",
 							display: "flex",
@@ -81,13 +99,26 @@ export function StickyNoteShape({
 										wordBreak: "break-word",
 									}}
 								>
-									{trimmedText}
+									{text.split("\n").map((line, index) => (
+										<div
+											key={`${index}-${line}`}
+											data-sticky-edit-target={`line:${index}`}
+											style={{
+												fontSize: typography.textFontSizes?.[index] ?? bodySize,
+												minHeight: "1.35em",
+												overflowWrap: "anywhere",
+											}}
+										>
+											{line || "\u00a0"}
+										</div>
+									))}
 								</div>
 							) : null
 						) : (
 							<>
 								{trimmedText ? (
 									<div
+										data-sticky-edit-target="title"
 										style={{
 											fontSize: titleSize,
 											fontWeight: 700,
@@ -111,7 +142,7 @@ export function StickyNoteShape({
 													display: "flex",
 													alignItems: "flex-start",
 													gap: 6,
-													fontSize: itemSize,
+													fontSize: item.fontSize ?? itemSize,
 													fontWeight:
 														textStyle.fontWeight === "bold" ? 700 : 400,
 													fontStyle: textStyle.fontStyle,
@@ -132,24 +163,34 @@ export function StickyNoteShape({
 														actions.toggleStickyChecklistItem(el.id, item.id);
 													}}
 													style={{
-														marginTop: 1,
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+														width: 28,
+														minHeight: 28,
+														marginTop: 0,
 														border: "none",
 														background: "transparent",
 														padding: 0,
 														cursor: interactive ? "pointer" : "default",
-														fontSize: 14,
+														fontSize: 22,
 														lineHeight: 1,
 														color: textStyle.color,
 														flexShrink: 0,
 													}}
 													aria-label={item.completed ? "Erledigt" : "Offen"}
+													aria-pressed={item.completed}
 													disabled={!interactive}
 												>
 													{item.completed ? "☑" : "☐"}
 												</button>
 												<span
+													data-sticky-edit-target={item.id}
 													style={{
 														flex: 1,
+														minWidth: 0,
+														minHeight: 28,
+														overflowWrap: "anywhere",
 														textDecoration: item.completed
 															? "line-through"
 															: textStyle.textDecoration,

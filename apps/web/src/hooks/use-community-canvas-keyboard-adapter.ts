@@ -3,7 +3,11 @@
  */
 
 import { isTextEditableElement } from "@/components/canvas/hooks/use-canvas-text-editing";
-import { isFlowchartNode, isMindmapNode } from "@skedra/canvas-core";
+import {
+	getMindmapHiddenIds,
+	isFlowchartNode,
+	isMindmapNode,
+} from "@skedra/canvas-core";
 import type { CanvasElement } from "@skedra/canvas-core";
 import {
 	useCanvasEditorClipboard,
@@ -71,7 +75,7 @@ export function useCommunityCanvasKeyboardAdapter({
 
 	useCanvasEditorKeyboard({
 		getState: getClipboardState,
-		onEditorAction: (action) => {
+		onEditorAction: (action, event) => {
 			const store = storeRef.current;
 			if (action.type === "command") {
 				if (
@@ -202,6 +206,11 @@ export function useCommunityCanvasKeyboardAdapter({
 				return true;
 			}
 			if (action.type === "activate-selection") {
+				if (
+					event.target instanceof Element &&
+					event.target.closest("button, a, summary, [role='button']")
+				)
+					return false;
 				const selected = ops.getSelected();
 				if (selected.length !== 1) return false;
 				const [element] = selected;
@@ -238,7 +247,10 @@ export function useCommunityCanvasKeyboardAdapter({
 				return true;
 			}
 			if (command === "select-all") {
-				store.setSelectedIds(new Set(elements.keys()));
+				const hidden = getMindmapHiddenIds(elements.values());
+				store.setSelectedIds(
+					new Set(Array.from(elements.keys()).filter((id) => !hidden.has(id))),
+				);
 				return true;
 			}
 			if (command === "escape") {
@@ -250,6 +262,35 @@ export function useCommunityCanvasKeyboardAdapter({
 					store.setSnapMenu(null);
 					store.setSnapOverrideMode(null);
 				}
+				return true;
+			}
+			return false;
+		},
+		onUnhandledKeyDown: (event) => {
+			if (
+				readOnly ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.altKey ||
+				event.shiftKey
+			)
+				return false;
+			if (
+				event.target instanceof Element &&
+				event.target.closest(
+					"button, a, summary, [role='button'], [role='dialog']",
+				)
+			)
+				return false;
+			const selected = ops.getSelected();
+			const node = selected.length === 1 ? selected[0] : null;
+			if (!node || node.locked || !isMindmapNode(node)) return false;
+			if (event.key === "Tab") {
+				actions?.mindmapCreateChild?.(node.id);
+				return true;
+			}
+			if (event.key === "F2") {
+				storeRef.current.setEditingTextId(node.id);
 				return true;
 			}
 			return false;

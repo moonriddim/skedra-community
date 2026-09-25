@@ -15,6 +15,7 @@ import {
 	type KanbanAssignmentOptions,
 	computeViewportForBounds,
 	getCombinedBBox,
+	getMindmapNodeMeta,
 	getSequenceDiagramElementMeta,
 } from "@skedra/canvas-core";
 import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
@@ -479,7 +480,6 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 							.map((id) => sync.elements.get(id))
 							.filter((el): el is NonNullable<typeof el> => !!el)}
 						onInsertElements={addElements}
-						onFitElements={fitElementsToViewport}
 						getViewportCenter={getViewportCenter}
 						onClose={() => panelStore.setActivePanel(null)}
 					/>
@@ -488,6 +488,7 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 			{showEditorChrome && panelStore.activePanel === "sequence-diagram" && (
 				<Suspense fallback={null}>
 					<SequenceDiagramPanel
+						onInsertElements={addElements}
 						elements={sync.elements}
 						selectedElements={Array.from(selectedIds)
 							.map((id) => sync.elements.get(id))
@@ -527,6 +528,49 @@ export const SkedraCanvasToolPanels = memo(function SkedraCanvasToolPanels({
 						imageUploadOptions={imageUploadOptions}
 						resolveAssetUrl={resolveAssetUrl}
 						onClose={() => setKanbanDetailId(null)}
+						onOpenMindmapSource={(id) => {
+							const source = sync.elements.get(id);
+							if (!source) return;
+							const updates: CanvasMutationPlan["update"] = [];
+							let parentId = getMindmapNodeMeta(source)?.mindmapParentId;
+							const seen = new Set<string>();
+							while (parentId && !seen.has(parentId)) {
+								seen.add(parentId);
+								const parent = sync.elements.get(parentId);
+								if (!parent) break;
+								if (parent.customData?.mindmapCollapsed)
+									updates.push({
+										id: parentId,
+										changes: {
+											customData: {
+												...parent.customData,
+												mindmapCollapsed: false,
+											},
+										},
+									});
+								parentId = getMindmapNodeMeta(parent)?.mindmapParentId;
+							}
+							if (updates.length) {
+								stopUndoCapture();
+								sync.updateElements(updates);
+								stopUndoCapture();
+							}
+							panelStore.setSelectedIds(new Set([id]));
+							panelStore.setActivePanel(null);
+							fitElementsToViewport([source]);
+							const fitted = useCanvasStore.getState().viewport;
+							const zoom = Math.min(1.5, fitted.zoom);
+							useCanvasStore.getState().setViewport({
+								x:
+									fitted.x +
+									(source.x + source.width / 2) * (fitted.zoom - zoom),
+								y:
+									fitted.y +
+									(source.y + source.height / 2) * (fitted.zoom - zoom),
+								zoom,
+							});
+							setKanbanDetailId(null);
+						}}
 						onPreviewElements={onPresentationElementsPreview}
 						onUpdate={sync.updateElement}
 						onUpdateElements={sync.updateElements}

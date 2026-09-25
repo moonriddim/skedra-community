@@ -14,11 +14,13 @@ import {
 	type GanttChartMutationPlan,
 	applyCanvasMutationPlan,
 	buildGanttChartMutationPlan,
+	canReparentMindmapNode,
 	getGanttCanvasScrollbarMetrics,
 	getGanttCanvasScrollbarThumbMeta,
 	getGanttChartDocument,
 	getGanttTaskMeta,
 	isGanttChart,
+	planMindmapReparent,
 	resizeGanttChartCanvasFromEdge,
 	scrollGanttChartCanvas,
 } from "@skedra/canvas-core";
@@ -37,6 +39,7 @@ import {
 	buildShapePlacementPreview,
 } from "./use-canvas-pointer/preview-builders";
 import { usePointerSnapPlacement } from "./use-canvas-pointer/snap-placement";
+import { useElementPlacementPreview } from "./use-canvas-pointer/use-element-placement-preview";
 import { useCanvasStore, useCanvasStoreRef } from "./use-canvas-store";
 
 interface UseCommunityCanvasPointerAdapterOptions {
@@ -146,6 +149,10 @@ export function useCommunityCanvasPointerAdapter({
 		},
 		[resolvedTheme],
 	);
+	const {
+		preview: elementPlacementPreview,
+		updatePreview: updateElementPlacementPreview,
+	} = useElementPlacementPreview(resolveCenteredPlacementSnap, readOnly);
 
 	usePlacementPreviewEffects({
 		drawingPreview: placementPreview,
@@ -351,8 +358,21 @@ export function useCommunityCanvasPointerAdapter({
 		[commitGanttCanvasScroll, stopUndoCapture],
 	);
 
+	const [mindmapDropTarget, setMindmapDropTarget] = useState<{
+		nodeId: string;
+		parentId: string;
+	} | null>(null);
+	const mindmapDropRef = useRef<typeof mindmapDropTarget>(null);
 	const finishMove = useCallback(
 		(moveStart: Map<string, { x: number; y: number }>) => {
+			const drop = mindmapDropRef.current;
+			if (drop && moveStart.has(drop.nodeId)) {
+				const plan = planMindmapReparent(elements, drop.nodeId, drop.parentId);
+				if (plan) {
+					if (applyMutationPlan) applyMutationPlan(plan);
+					else updateElements(plan.update);
+				}
+			}
 			// Detect moved Gantt task bars and snap them back to the day grid.
 			// Whole-chart moves (frame included) keep bars in place relative to
 			// the frame, so those charts are skipped.
@@ -375,7 +395,7 @@ export function useCommunityCanvasPointerAdapter({
 				}
 			}
 		},
-		[elements, rebuildGanttChartFromCanvas],
+		[elements, rebuildGanttChartFromCanvas, applyMutationPlan, updateElements],
 	);
 	const documentAdapter = useMemo<CanvasEditorDocumentAdapter>(
 		() => ({
@@ -508,6 +528,8 @@ export function useCommunityCanvasPointerAdapter({
 				createElement,
 				updateElements,
 				resolveCenteredPlacementSnap,
+				applyMutationPlan,
+				stopUndoCapture,
 				setDrawingPreview: setPlacementPreview,
 				clearSnapVisuals,
 				theme: { resolvedTheme },
@@ -518,13 +540,44 @@ export function useCommunityCanvasPointerAdapter({
 		shouldDeferTouchPointerDown: () => {
 			const store = storeRef.current;
 			return (
+				store.elementPlacementDraft != null ||
 				store.stickyNotePlacementDraft != null ||
 				store.kanbanCardPlacementDraft != null ||
 				store.shapePlacementDraft != null
 			);
 		},
+		onMovePointer: (point, moveStart) => {
+			const selected = Array.from(storeRef.current.selectedIds);
+			const nodeId = selected.length === 1 ? selected[0] : null;
+			const parent =
+				nodeId && moveStart.has(nodeId)
+					? [...scene.getDisplayElements()]
+							.reverse()
+							.find(
+								(el) =>
+									!moveStart.has(el.id) &&
+									point.raw.x >= el.x &&
+									point.raw.x <= el.x + el.width &&
+									point.raw.y >= el.y &&
+									point.raw.y <= el.y + el.height &&
+									canReparentMindmapNode(elements, nodeId, el.id),
+							)
+					: null;
+			const next = nodeId && parent ? { nodeId, parentId: parent.id } : null;
+			mindmapDropRef.current = next;
+			setMindmapDropTarget((previous) =>
+				previous?.nodeId === next?.nodeId &&
+				previous?.parentId === next?.parentId
+					? previous
+					: next,
+			);
+		},
 		onIdlePointerMove: (point, event) => {
 			const store = storeRef.current;
+			if (store.elementPlacementDraft) {
+				updateElementPlacementPreview();
+				return true;
+			}
 			if (store.kanbanCardPlacementDraft) {
 				setKanbanCardPlacementPreview(point.snapped.x, point.snapped.y);
 				return true;
@@ -597,6 +650,8 @@ export function useCommunityCanvasPointerAdapter({
 			return true;
 		},
 		onGestureFinished: (action) => {
+			mindmapDropRef.current = null;
+			setMindmapDropTarget(null);
 			if (action === "rotate") storeRef.current.setTransformOrigin(null);
 		},
 	});
@@ -615,11 +670,13 @@ export function useCommunityCanvasPointerAdapter({
 
 	return {
 		...shared,
+		mindmapDropTarget,
 		documentAdapter,
 		beginGanttCanvasScroll,
 		updateGanttCanvasScroll,
 		endGanttCanvasScroll,
 		drawingPreview: shared.drawingPreview ?? placementPreview,
+		elementPlacementPreview,
 		showKanbanCardPlacementPreview,
 		showStickyNotePlacementPreview,
 	};

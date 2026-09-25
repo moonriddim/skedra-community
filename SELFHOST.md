@@ -20,7 +20,7 @@ See the full terms in `LICENSE` (or `SELFHOST_LICENSE` in the source repository)
 ## Requirements
 
 - Docker Engine with Docker Compose
-- A persistent storage path for PostgreSQL
+- Persistent storage for PostgreSQL and uploaded files
 - A domain or local host/IP address for the web app
 - Optional: a reverse proxy with HTTPS and WebSocket support
 
@@ -43,6 +43,7 @@ docker run -d \
   --name skedra \
   -p 3000:80 \
   -v skedra_data:/data \
+  -e SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem \
   ghcr.io/your-github-user/skedra-standalone:latest
 ```
 
@@ -53,8 +54,9 @@ http://localhost:3000
 ```
 
 The standalone image includes embedded PostgreSQL, the API, the web app, and
-the library catalog. Data and generated secrets
-are stored in `/data`, so keep the volume.
+the library catalog. PostgreSQL, uploaded files (`/data/assets`), and generated
+secrets are stored in `/data`, so keep the volume. On TrueNAS, replace
+`skedra_data:/data` with a dataset mount such as `/mnt/tank/apps/skedra:/data`.
 
 For a production domain, set the public URL:
 
@@ -63,6 +65,7 @@ docker run -d \
   --name skedra \
   -p 3000:80 \
   -v skedra_data:/data \
+  -e SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem \
   -e SKEDRA_PUBLIC_APP_URL=https://skedra.example.com \
   ghcr.io/your-github-user/skedra-standalone:latest
 ```
@@ -181,7 +184,60 @@ The overlay runs LiveKit in dev mode with `devkey` / `secret` and exposes `ws://
 For internet-facing production, prefer LiveKit Cloud or the official LiveKit self-host generator,
 because production WebRTC needs HTTPS/WSS, TURN, UDP ports, and correct public IP handling.
 
-## Image Object Storage (S3 / R2)
+## File Storage
+
+PostgreSQL stores accounts, board state, permissions, and file metadata. New
+uploads can be stored separately using either a server folder (`filesystem`)
+or S3-compatible storage (`s3`). Both modes keep the existing encryption and
+access checks. The `inline` mode embeds images and attachments into board state
+and increases database, synchronization, and backup sizes.
+
+### Server folder (TrueNAS, NAS, VPS)
+
+The self-host and Docker example environment files select `filesystem` for new
+installs. No separate object-storage service is needed. For Compose, configure:
+
+```env
+SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem
+SKEDRA_ASSET_DATA=/mnt/tank/apps/skedra/assets
+SKEDRA_POSTGRES_DATA=/mnt/tank/apps/skedra/postgres
+```
+
+For a VPS, use paths such as `/srv/skedra/assets` and `/srv/skedra/postgres`.
+`SKEDRA_ASSET_DATA` is the **host** path or Docker volume name. Compose mounts it
+into the API container at `/data/assets` and sets `SKEDRA_OBJECT_STORAGE_PATH`
+to that **container** path. Keep the asset and database folders separate.
+The default named asset volume is `skedra_asset_data`.
+Use that default or an absolute host path with the supplied Compose files. A
+different named volume must also be declared in the Compose `volumes` section.
+
+When running the API directly, without these Compose files, configure an absolute
+path visible to the API process instead:
+
+```env
+SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem
+SKEDRA_OBJECT_STORAGE_PATH=/srv/skedra/assets
+```
+
+The standalone image supplies `SKEDRA_OBJECT_STORAGE_PATH=/data/assets` by default
+(or `<SKEDRA_DATA_DIR>/assets` if the data directory is customized). For a separate
+asset mount, mount your directory at `/data/assets` in addition to the `/data` volume.
+
+The API process needs read, write, and directory traversal permissions on the
+dataset, including its NAS ACLs. It creates missing directories and checks a
+write/read/delete cycle before startup completes and when activating the mode
+in the app. Invalid paths or storage errors do not fall back to database uploads.
+Mount NAS storage before starting the API. Do not expose the asset folder as a
+public static directory: encrypted board files are served through the existing
+authorized asset API, and profile images use their existing API route.
+
+In `Settings -> System -> Object Storage`, an instance admin can select
+**Server filesystem** once the server path is configured. The path itself is
+controlled by the server environment and is shown read-only to the admin.
+If an app-level storage override is enabled, it takes precedence over the
+environment's provider; disable the override to use the environment configuration.
+
+### S3 / R2
 
 New image assets can be stored outside PostgreSQL in any S3-compatible object store. Sign in as
 the instance admin and open `Settings -> System -> Object Storage`, or configure the server
@@ -211,9 +267,42 @@ When `SKEDRA_OBJECT_STORAGE_PUBLIC_BASE_URL` is set, configure the bucket or cus
 allow CORS `GET` requests from the Skedra app origin. Without a public base URL, Skedra keeps the
 bucket private and streams encrypted object bytes through its authenticated asset endpoint.
 
-Managed/SaaS mode requires `SKEDRA_OBJECT_STORAGE_PROVIDER=s3` so image bytes cannot silently
-fall back into PostgreSQL. Self-hosted installations may leave the provider as `inline` or choose
-external storage for larger deployments.
+Managed/SaaS mode still requires `SKEDRA_OBJECT_STORAGE_PROVIDER=s3`.
+
+### Existing installations and scaling
+
+Changing from `inline` to `filesystem` affects new uploads. Existing embedded
+images and attachments remain readable in their boards; existing inline profile
+images remain readable and use the new storage mode when replaced. There is no
+automatic bulk migration. Imported SVGs that become editable canvas content also
+remain part of board state.
+
+Keep your existing `.env` when updating: the API and Compose fallbacks remain
+`inline` for compatibility. To opt in, set the provider and mount described above.
+Do not replace an existing S3 setup with the filesystem example: existing S3 files
+are not copied automatically. The settings UI blocks changes of storage location
+while external files exist. Startup also rejects a provider that is incompatible
+with stored external files, including profile images. Restore the previous
+configuration if this check fails. It cannot detect a changed filesystem mount,
+directory, or S3 endpoint: relocating storage requires stopping writes, copying all
+objects, and preserving their keys and metadata; changing provider additionally
+requires a planned metadata migration.
+
+No database schema migration is needed specifically for the filesystem provider.
+Updating an existing install does not move or rewrite its board files. Older Skedra
+versions do not understand `filesystem`: after enabling it and uploading files,
+rolling back requires restoring the matching pre-switch database, storage, and
+configuration (uploads since that backup will not be present). Simply changing the
+provider back to `inline` does not embed uploaded files into boards.
+
+A local folder separates large file bytes from PostgreSQL and its backups, but
+still depends on the disk space, I/O, and availability of that host. Multiple API
+instances must use the **same shared asset directory**, with reliable filesystem
+locking/rename semantics, or the same S3-compatible store. Separate local folders
+on different VPS instances do not form a shared storage system. PostgreSQL remains
+required for the application's structured data.
+
+## Secrets
 
 Generate strong secrets:
 
@@ -255,6 +344,12 @@ or your configured production domain.
 
 ## Update
 
+Keep your current `.env`, instance secrets, and persistent volumes. Do not copy
+the new example environment over an existing installation: its `filesystem`
+selection is intended for new installs. A normal image update keeps existing
+`inline` and S3 installations on their current storage mode. Take a backup before
+opting into a different mode; enabling filesystem storage is a separate step.
+
 Change `SKEDRA_IMAGE_TAG` in `.env` to the new release version, then run:
 
 ```bash
@@ -266,7 +361,30 @@ The update migration is included in API startup during `docker compose up -d`.
 
 For reproducible production installs, prefer version tags such as `v0.1.0` instead of `latest`.
 
+## Backups and restore
+
+Back up PostgreSQL, the asset directory (or S3 objects), and the instance's secret
+configuration together. A database-only backup does not contain filesystem uploads.
+For a consistent backup, stop the API and other writers first, dump PostgreSQL,
+then snapshot or copy the complete asset directory. Restart the API after both
+backups finish. With TrueNAS, dataset snapshots are useful for the file directory;
+use a PostgreSQL dump or PostgreSQL-aware backup for the database.
+
+For the standalone image, stop the container before snapshotting/copying its entire
+`/data` volume. It includes PostgreSQL, files, and `secrets.env`; also back up any
+separately mounted asset directory. Restore the matching database, files, and secrets
+before restarting, with the same configured storage mode and appropriate permissions.
+Keep client recovery keys for E2EE boards as well.
+
 ## Troubleshooting
+
+### Filesystem storage fails to start or upload
+
+Check the API logs, that the expected dataset/volume is mounted at `/data/assets`,
+free space, and the API process's permissions/ACLs. `SKEDRA_ASSET_DATA` configures
+the host mount in Compose; putting a host-only path in `SKEDRA_OBJECT_STORAGE_PATH`
+inside a container does not mount it. A disk failure is reported as an error;
+uploads are not silently embedded into PostgreSQL.
 
 ### `password authentication failed for user "skedra"`
 

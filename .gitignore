@@ -13,3 +13,6 @@ data/
 !.env.docker.example
 !.env.selfhost.example
 !.env.managed.example
+
+.codex-artifacts/
+.codex-remote-attachments/

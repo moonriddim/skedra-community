@@ -7,8 +7,10 @@ import {
 	FRAME_LABEL_OFFSET_X,
 	STICKY_NOTE_TEXT_PADDING,
 	getArrowTextMetrics,
+	getEffectiveCornerRadius,
 	getPyramidSectionTextElement,
 	getStickyNoteContent,
+	getStickyNoteTypography,
 	hasPyramidSectionText,
 	isCanvasCenteredTextShape,
 	isCanvasFrameLabelEditable,
@@ -116,6 +118,29 @@ export function buildCanvasEditorEditingSession({
 			},
 		};
 	}
+	if (element.customData?.skedraType === "template-section") {
+		return {
+			editingText: {
+				id: element.id,
+				x: element.x + 28,
+				y: element.y + 14,
+				width: Math.max(40, element.width - 80),
+				height: 24,
+				text: element.frameLabel ?? "",
+				stroke: element.stroke,
+				textColor: element.textColor ?? "var(--foreground, #334155)",
+				fontSize: 16,
+				fontFamily: "system-ui, sans-serif",
+				textAlign: "left",
+				fontWeight: "bold",
+				fontStyle: "normal",
+				textDecoration: "none",
+				variant: "frame-label",
+				preserveBounds: true,
+				placeholder: textPlaceholder,
+			},
+		};
+	}
 
 	/*
 	 * Umbenennbare Frames (Design- und Wireframe-Screens): Der Inline-Editor
@@ -218,6 +243,10 @@ export function buildCanvasEditorEditingSession({
 				textDecoration: element.textDecoration ?? "none",
 				padding: STICKY_NOTE_TEXT_PADDING,
 				variant: "sticky-note",
+				stickyTypography: getStickyNoteTypography(element),
+				stickyFill: element.fill || "#fff3bf",
+				stickyCornerRadius: getEffectiveCornerRadius(element),
+				rotationDeg: element.rotation,
 				placeholder: textPlaceholder,
 			},
 			stickyNoteMode: content.mode,

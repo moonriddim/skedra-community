@@ -13,6 +13,9 @@ import {
 	getUntransformedBBox,
 	isCanvasPointPathElement,
 	isGanttChart,
+	isKanbanCard,
+	isKanbanList,
+	isMindmapNode,
 } from "@skedra/canvas-core";
 import type {
 	KeyboardEvent as ReactKeyboardEvent,
@@ -202,10 +205,18 @@ export function CanvasEditorSelectionOverlay({
 	const selectionTransform =
 		transforms.length > 0 ? transforms.join(" ") : undefined;
 	const resizeHandles = single?.type === "text" ? TEXT_HANDLES : HANDLES;
+	const hasKanbanSelection = selected.some(
+		(element) => isKanbanCard(element) || isKanbanList(element),
+	);
 	const shapeTrim = single ? getCanvasShapeTrim(single) : null;
 	const onTrimEndpointDragStart =
 		onShapeTrimEndpointDragStart ?? onEllipseArcEndpointDragStart;
 	const rotateHandleY = bbox.y - 28 / zoom;
+	// Mindmaps reserve the top centre for adding a branch.
+	const rotateAnchorX =
+		single && isMindmapNode(single) ? bbox.x + bbox.width : basePoint.x;
+	const rotateHandleX =
+		single && isMindmapNode(single) ? rotateAnchorX + 28 / zoom : basePoint.x;
 	const rotateLabel =
 		services?.translations?.translate(
 			"canvas.accessibility.rotateSelection",
@@ -253,18 +264,19 @@ export function CanvasEditorSelectionOverlay({
 					onRotateStart &&
 					!usesDirectPathSelection &&
 					!isAtomicStructuredSelection &&
+					!hasKanbanSelection &&
 					!selected.every((item) => item.locked) && (
 						<>
 							<line
-								x1={basePoint.x}
+								x1={rotateAnchorX}
 								y1={bbox.y}
-								x2={basePoint.x}
+								x2={rotateHandleX}
 								y2={rotateHandleY}
 								stroke={handleStroke}
 								strokeWidth={strokeWidth}
 							/>
 							<circle
-								cx={basePoint.x}
+								cx={rotateHandleX}
 								cy={rotateHandleY}
 								r={size * 0.6}
 								fill={handleFill}
@@ -292,6 +304,7 @@ export function CanvasEditorSelectionOverlay({
 
 				{!readOnly &&
 					single &&
+					!hasKanbanSelection &&
 					!single.locked &&
 					!editingPathPoints &&
 					resizeHandles.map((handle) => {

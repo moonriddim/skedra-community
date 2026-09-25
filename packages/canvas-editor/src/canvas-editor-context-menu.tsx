@@ -1,6 +1,7 @@
 import type { CanvasObjectSnapMode } from "@skedra/canvas-core";
 import {
 	ArrowDown,
+	ArrowLeft,
 	ArrowUp,
 	ChevronRight,
 	ChevronsDown,
@@ -100,10 +101,12 @@ export interface CanvasEditorContextMenuProps {
 	gridSize: number;
 	onGridSizeChange: (size: number) => void;
 	translate?: CanvasEditorContextMenuTranslate;
+	selectionActions?: ContextMenuItem[];
 	onClose: () => void;
 }
 
-interface ContextMenuItem {
+export interface ContextMenuItem {
+	children?: ContextMenuItem[];
 	id: string;
 	label: string;
 	icon: ReactNode;
@@ -182,10 +185,12 @@ export function CanvasEditorContextMenu({
 	gridSize,
 	onGridSizeChange,
 	translate,
+	selectionActions = [],
 	onClose,
 }: CanvasEditorContextMenuProps) {
 	const t = translate ?? ((_key: string, fallback: string) => fallback);
 	const menuRef = useRef<HTMLDivElement>(null);
+	const [actionPath, setActionPath] = useState<string[]>([]);
 	const [rotationAngle, setRotationAngle] = useState(90);
 	const [snapSubmenuPosition, setSnapSubmenuPosition] = useState<{
 		x: number;
@@ -608,6 +613,24 @@ export function CanvasEditorContextMenu({
 				]
 	) as ContextMenuItem[][];
 
+	let nestedActions = selectionActions;
+	let nestedTitle = "";
+	for (const id of actionPath) {
+		const parent = nestedActions.find((item) => item.id === id);
+		nestedTitle = parent?.label ?? "";
+		nestedActions = parent?.children ?? [];
+	}
+	const visibleGroups =
+		actionPath.length > 0 ? [nestedActions] : [selectionActions, ...groups];
+	useLayoutEffect(() => {
+		if (actionPath.length === 0) return;
+		const menu = menuRef.current;
+		const scroll = menu?.querySelector(".canvas-editor__context-menu-scroll");
+		if (scroll) scroll.scrollTop = 0;
+		menu
+			?.querySelector<HTMLButtonElement>("[role='menuitem']:not(:disabled)")
+			?.focus();
+	}, [actionPath]);
 	const runAndClose = (item: ContextMenuItem) => {
 		if (item.disabled || !item.action) return;
 		void item.action();
@@ -695,6 +718,31 @@ export function CanvasEditorContextMenu({
 				</div>
 			);
 		}
+		if (item.children)
+			return (
+				<button
+					key={item.id}
+					type="button"
+					role="menuitem"
+					className="canvas-editor__context-menu-item"
+					disabled={item.disabled}
+					aria-haspopup="menu"
+					onClick={() => {
+						setSnapSubmenuPosition(null);
+						setActionPath((path) => [...path, item.id]);
+					}}
+					onKeyDown={(event) => {
+						if (event.key === "ArrowRight") {
+							event.preventDefault();
+							setActionPath((path) => [...path, item.id]);
+						}
+					}}
+				>
+					{item.icon}
+					<span>{item.label}</span>
+					<ChevronRight aria-hidden="true" />
+				</button>
+			);
 		return (
 			<button
 				key={item.id}
@@ -719,11 +767,49 @@ export function CanvasEditorContextMenu({
 			ref={menuRef}
 			className="canvas-editor__context-menu"
 			style={position}
+			onKeyDown={(event) => {
+				if (event.target instanceof HTMLInputElement) return;
+				const buttons = Array.from(
+					menuRef.current?.querySelectorAll<HTMLButtonElement>(
+						"button[role='menuitem']:not(:disabled)",
+					) ?? [],
+				);
+				const index = buttons.indexOf(
+					document.activeElement as HTMLButtonElement,
+				);
+				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault();
+					event.stopPropagation();
+					buttons[
+						(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) %
+							buttons.length
+					]?.focus();
+				} else if (event.key === "ArrowLeft" && actionPath.length) {
+					event.preventDefault();
+					event.stopPropagation();
+					setActionPath((path) => path.slice(0, -1));
+				}
+			}}
 			role="menu"
 			aria-label={t("canvas.contextMenu.label", "Canvas actions")}
 		>
 			<div className="canvas-editor__context-menu-scroll">
-				{groups
+				{actionPath.length > 0 && (
+					<div className="canvas-editor__context-menu-group">
+						<button
+							type="button"
+							role="menuitem"
+							className="canvas-editor__context-menu-item"
+							onClick={() => setActionPath((path) => path.slice(0, -1))}
+						>
+							<ArrowLeft aria-hidden="true" />
+							<span>
+								{t("common.back", "Back")} · {nestedTitle}
+							</span>
+						</button>
+					</div>
+				)}
+				{visibleGroups
 					.filter((group) => group.length > 0)
 					.map((group, groupIndex) => (
 						<div

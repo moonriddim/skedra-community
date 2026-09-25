@@ -16,6 +16,8 @@ import {
 	getFlowchartConnectorMeta,
 	getFlowchartNodeMeta,
 	getMindmapBranchRootIdForElement,
+	isKanbanCard,
+	isKanbanList,
 	isPlainCanvasFrame,
 } from "@skedra/canvas-core";
 import type {
@@ -283,7 +285,12 @@ function derivePropertiesPanelState({
 		!isEditingTextContext && selected.length === 1
 			? (() => {
 					const [element] = selected;
-					return element && isGenericGeometry(element) ? element : null;
+					return element &&
+						isGenericGeometry(element) &&
+						!isKanbanCard(element) &&
+						!isKanbanList(element)
+						? element
+						: null;
 				})()
 			: null;
 

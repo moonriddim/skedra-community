@@ -2,6 +2,56 @@ import { compareCanvasElementStackOrder } from "./ordering";
 import type { CanvasElement } from "./types";
 
 export type KanbanPriority = "low" | "medium" | "high" | "urgent";
+export interface KanbanQuickEdit {
+	title?: string;
+	priority?: KanbanPriority | null;
+	dueDate?: string | null;
+	toggleChecklistItem?: string;
+}
+
+/** Apply only the edited field to the latest card, preserving other collaborators' data. */
+export function buildKanbanQuickEditUpdates(
+	elements: Map<string, CanvasElement>,
+	id: string,
+	edit: KanbanQuickEdit,
+): Array<{ id: string; changes: Partial<CanvasElement> }> {
+	const card = elements.get(id);
+	if (!card || !isKanbanCard(card) || card.locked) return [];
+	const customData = { ...card.customData };
+	if (edit.priority !== undefined) customData.priority = edit.priority;
+	if (edit.dueDate !== undefined) customData.dueDate = edit.dueDate;
+	if (edit.toggleChecklistItem !== undefined) {
+		customData.checklist = normalizeKanbanChecklist(customData.checklist).map(
+			(item) =>
+				item.id === edit.toggleChecklistItem
+					? { ...item, completed: !item.completed }
+					: item,
+		);
+	}
+	const text = edit.title ?? card.text ?? "";
+	const height = computeKanbanCardHeight({
+		title: text,
+		description:
+			typeof customData.description === "string" ? customData.description : "",
+		checklist: normalizeKanbanChecklist(customData.checklist),
+		attachments: normalizeKanbanAttachments(customData),
+		coverImage: normalizeKanbanCoverImage(customData),
+		startDate: customData.startDate as string | null,
+		dueDate: customData.dueDate as string | null,
+		assignmentBadges: getKanbanAssignmentBadgeCount(customData),
+	});
+	const changes = { text, customData, height };
+	const next = new Map(elements);
+	next.set(id, { ...card, ...changes });
+	return [
+		{ id, changes },
+		...buildKanbanReflowUpdates(
+			next,
+			new Set([id]),
+			new Map([[id, card.frameId ?? null]]),
+		),
+	];
+}
 export type KanbanDueKind =
 	| "default"
 	| "due-soon"
@@ -94,6 +144,59 @@ export interface KanbanCardAttachment {
 	name: string;
 	width: number;
 	height: number;
+	mimeType?: string;
+	sizeBytes?: number;
+}
+
+export const KANBAN_CARD_COVER_HEIGHT = 88;
+
+export interface KanbanCoverPosition {
+	x: number;
+	y: number;
+}
+
+export interface KanbanCoverImage extends KanbanCardAttachment {
+	position: KanbanCoverPosition;
+}
+
+export function normalizeKanbanCoverPosition(
+	value: unknown,
+): KanbanCoverPosition {
+	const position =
+		value && typeof value === "object"
+			? (value as Record<string, unknown>)
+			: {};
+	const clamp = (value: unknown) =>
+		typeof value === "number" && Number.isFinite(value)
+			? Math.max(0, Math.min(100, value))
+			: 50;
+	return { x: clamp(position.x), y: clamp(position.y) };
+}
+
+/** CSS object-position percentages map to the image overflow, not its full size. */
+export function moveKanbanCoverPosition(
+	start: KanbanCoverPosition,
+	delta: { x: number; y: number },
+	image: { width: number; height: number },
+	frame: { width: number; height: number },
+): KanbanCoverPosition {
+	if (
+		image.width <= 0 ||
+		image.height <= 0 ||
+		frame.width <= 0 ||
+		frame.height <= 0
+	)
+		return normalizeKanbanCoverPosition(start);
+	const scale = Math.max(
+		frame.width / image.width,
+		frame.height / image.height,
+	);
+	const overflowX = image.width * scale - frame.width;
+	const overflowY = image.height * scale - frame.height;
+	return normalizeKanbanCoverPosition({
+		x: overflowX > 0.01 ? start.x - (delta.x / overflowX) * 100 : start.x,
+		y: overflowY > 0.01 ? start.y - (delta.y / overflowY) * 100 : start.y,
+	});
 }
 
 export interface KanbanAssigneeOption {
@@ -233,61 +336,203 @@ function getListCards(
 	return cards;
 }
 
-function computeStackLayout(
+export const KANBAN_LAYOUT_CARD_WIDTH = 256;
+
+interface KanbanColumn {
+	id: number;
+	cards: CanvasElement[];
+}
+
+const columnStep = KANBAN_LAYOUT_CARD_WIDTH + KANBAN_CARD_GAP;
+const kanbanColumnsWidth = (count: number) =>
+	Math.max(1, count) * columnStep - KANBAN_CARD_GAP + KANBAN_LIST_PADDING * 2;
+const kanbanContentY = (list: CanvasElement) =>
+	list.y +
+	getKanbanListHeaderHeight(list) +
+	(hasKanbanListHeaderImage(list) ? KANBAN_CARD_GAP : 0);
+const columnHeight = (cards: CanvasElement[]) =>
+	cards.reduce((height, card) => height + card.height, 0) +
+	Math.max(0, cards.length - 1) * KANBAN_CARD_GAP;
+
+function getKanbanColumns(
 	list: CanvasElement,
 	cards: CanvasElement[],
-	insertedCardId?: string,
-	insertY?: number,
-): {
-	cardUpdates: Array<{ id: string; x: number; y: number; width: number }>;
-	listHeight: number;
-} {
-	const cardWidth = list.width - KANBAN_LIST_PADDING * 2;
-	const headerHeight = getKanbanListHeaderHeight(list);
-	const startY =
-		list.y +
-		headerHeight +
-		(hasKanbanListHeaderImage(list) ? KANBAN_CARD_GAP : 0);
-	const startX = list.x + KANBAN_LIST_PADDING;
+): KanbanColumn[] {
+	const columns = new Map<number, CanvasElement[]>();
+	for (const card of cards) {
+		const saved = card.customData?.kanbanColumn;
+		// Read the previous row layout once, retaining left/right placement while closing vertical gaps.
+		const id =
+			typeof saved === "number" && Number.isInteger(saved) && saved >= 0
+				? saved
+				: typeof card.customData?.kanbanRow === "string"
+					? Math.max(
+							0,
+							Math.round((card.x - list.x - KANBAN_LIST_PADDING) / columnStep),
+						)
+					: 0;
+		const column = columns.get(id) ?? [];
+		column.push(card);
+		columns.set(id, column);
+	}
+	return [...columns]
+		.sort(([a], [b]) => a - b)
+		.map(([id, cards]) => ({
+			id,
+			cards: cards.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id)),
+		}));
+}
 
-	let ordered = cards;
-	if (insertedCardId && insertY != null) {
-		const others = cards.filter((card) => card.id !== insertedCardId);
-		const inserted = cards.find((card) => card.id === insertedCardId);
-		if (inserted) {
-			const insertIdx = others.findIndex(
-				(card) => insertY < card.y + card.height / 2,
+export interface KanbanDropTarget {
+	listId: string;
+	index: number;
+	column: number;
+	mode: "between" | "beside";
+	x: number;
+	y: number;
+	width: number;
+	cardHeight?: number;
+	listBounds: { x: number; y: number; width: number; height: number };
+}
+
+/** Each column has its own stack; either outer edge deliberately creates another. */
+export function resolveKanbanDropTarget(
+	elements: Map<string, CanvasElement>,
+	movedIds: Iterable<string>,
+	point: { x: number; y: number },
+): KanbanDropTarget | null {
+	const moved = new Set(movedIds);
+	const moving = [...moved]
+		.map((id) => elements.get(id))
+		.filter((card): card is CanvasElement =>
+			Boolean(
+				card &&
+					isKanbanCard(card) &&
+					!card.locked &&
+					!(card.frameId && moved.has(card.frameId)),
+			),
+		);
+	if (moving.length !== 1) return null;
+	const card = moving[0];
+	const columnsFor = (list: CanvasElement) =>
+		getKanbanColumns(list, getListCards(elements, list.id)).map((column) => ({
+			...column,
+			cards: column.cards.filter((card) => !moved.has(card.id)),
+		}));
+	const extensionSide = (
+		list: CanvasElement,
+		columns: KanbanColumn[],
+	): "left" | "right" | null => {
+		const overlapsCard = (column: KanbanColumn | undefined) =>
+			column?.cards.some(
+				(card) => point.y > card.y + 12 && point.y < card.y + card.height - 12,
 			);
-			const idx = insertIdx === -1 ? others.length : insertIdx;
-			ordered = [...others.slice(0, idx), inserted, ...others.slice(idx)];
+		const left = list.x + KANBAN_LIST_PADDING;
+		const right =
+			list.x + kanbanColumnsWidth(columns.length) - KANBAN_LIST_PADDING;
+		if (
+			point.x >= left - columnStep &&
+			point.x <= left + 24 &&
+			overlapsCard(columns[0])
+		)
+			return "left";
+		if (
+			point.x >= right - 24 &&
+			point.x <= right + columnStep &&
+			overlapsCard(columns.at(-1))
+		)
+			return "right";
+		return null;
+	};
+	let list = findListAtPoint(elements, point.x, point.y);
+	if (!list) {
+		for (const candidate of elements.values()) {
+			if (
+				!isKanbanList(candidate) ||
+				candidate.locked ||
+				moved.has(candidate.id)
+			)
+				continue;
+			if (
+				extensionSide(candidate, columnsFor(candidate)) &&
+				(!list || compareCanvasElementStackOrder(candidate, list) > 0)
+			)
+				list = candidate;
 		}
 	}
-
-	const updates: Array<{ id: string; x: number; y: number; width: number }> =
-		[];
-	let cursorY = startY;
-	for (const card of ordered) {
-		updates.push({
-			id: card.id,
-			x: startX,
-			y: cursorY,
-			width: cardWidth,
-		});
-		cursorY += card.height + KANBAN_CARD_GAP;
-	}
-
-	const listHeight = Math.max(
-		Math.max(
-			KANBAN_LIST_MIN_HEIGHT,
-			headerHeight + KANBAN_LIST_PADDING + KANBAN_LIST_FOOTER_HEIGHT,
-		),
-		cursorY -
-			list.y +
-			(KANBAN_LIST_PADDING - KANBAN_CARD_GAP) +
-			KANBAN_LIST_FOOTER_HEIGHT,
+	if (!list || list.locked || moved.has(list.id)) return null;
+	const columns = columnsFor(list);
+	if (!columns.length) columns.push({ id: 0, cards: [] });
+	const baseX = list.x + KANBAN_LIST_PADDING;
+	const top = kanbanContentY(list);
+	const side = extensionSide(list, columns);
+	const beside = side !== null;
+	const ordinal = beside
+		? columns.length
+		: Math.min(
+				columns.length - 1,
+				Math.max(
+					0,
+					Math.floor((point.x - baseX + KANBAN_CARD_GAP / 2) / columnStep),
+				),
+			);
+	const column = beside
+		? {
+				id:
+					side === "left"
+						? -1
+						: Math.max(...columns.map((column) => column.id)) + 1,
+				cards: [],
+			}
+		: columns[ordinal];
+	const occupied = columns.filter(
+		(existing) => existing.cards.length || existing.id === column.id,
 	);
-
-	return { cardUpdates: updates, listHeight };
+	if (beside) occupied.push(column);
+	occupied.sort((a, b) => a.id - b.id);
+	const layoutX = list.x - (side === "left" ? columnStep : 0);
+	const targetOrdinal = occupied.findIndex(
+		(existing) => existing.id === column.id,
+	);
+	const before = column.cards.findIndex(
+		(card) => point.y < card.y + card.height / 2,
+	);
+	const index = before < 0 ? column.cards.length : before;
+	const beforeCards = column.cards.slice(0, index);
+	const lineY =
+		index === 0
+			? top - KANBAN_CARD_GAP / 2
+			: top + columnHeight(beforeCards) + KANBAN_CARD_GAP / 2;
+	const targetHeight =
+		columnHeight(column.cards) +
+		card.height +
+		(column.cards.length ? KANBAN_CARD_GAP : 0);
+	return {
+		listId: list.id,
+		index,
+		column: column.id,
+		mode: beside ? "beside" : "between",
+		x: layoutX + KANBAN_LIST_PADDING + targetOrdinal * columnStep,
+		y: beside ? top : lineY,
+		width: KANBAN_LAYOUT_CARD_WIDTH,
+		cardHeight: card.height,
+		listBounds: {
+			x: layoutX,
+			y: list.y,
+			width: kanbanColumnsWidth(occupied.length),
+			height: Math.max(
+				KANBAN_LIST_MIN_HEIGHT,
+				top -
+					list.y +
+					Math.max(
+						targetHeight,
+						...columns.map((column) => columnHeight(column.cards)),
+					) +
+					KANBAN_LIST_PADDING +
+					KANBAN_LIST_FOOTER_HEIGHT,
+			),
+		},
+	};
 }
 
 function buildKanbanListLayoutUpdates(
@@ -295,35 +540,82 @@ function buildKanbanListLayoutUpdates(
 	listId: string,
 	insertedCardId?: string,
 	insertY?: number,
+	placement?: KanbanDropTarget,
 ): Array<{ id: string; changes: Partial<CanvasElement> }> {
 	const list = elements.get(listId);
 	if (!list || !isKanbanList(list)) return [];
-
 	const cards = getListCards(elements, listId);
-	const { cardUpdates, listHeight } = computeStackLayout(
+	const inserted = cards.find((card) => card.id === insertedCardId);
+	let columns = getKanbanColumns(
 		list,
-		cards,
-		insertedCardId,
-		insertY,
+		placement ? cards.filter((card) => card.id !== insertedCardId) : cards,
 	);
-	const updates: Array<{ id: string; changes: Partial<CanvasElement> }> = [
-		{ id: listId, changes: { height: listHeight } },
-	];
-
-	for (let index = 0; index < cardUpdates.length; index++) {
-		const update = cardUpdates[index];
-		updates.push({
-			id: update.id,
-			changes: {
-				x: update.x,
-				y: update.y,
-				width: update.width,
-				frameId: listId,
-			},
-		});
+	if (inserted && placement) {
+		let column = columns.find((column) => column.id === placement.column);
+		if (!column) {
+			column = { id: placement.column, cards: [] };
+			columns.push(column);
+			columns.sort((a, b) => a.id - b.id);
+		}
+		column.cards.splice(
+			Math.min(placement.index, column.cards.length),
+			0,
+			inserted,
+		);
+	} else if (inserted && insertY != null) {
+		const column = columns.find((column) =>
+			column.cards.some((card) => card.id === inserted.id),
+		);
+		if (column) {
+			column.cards = column.cards.filter((card) => card.id !== inserted.id);
+			const before = column.cards.findIndex(
+				(card) => insertY < card.y + card.height / 2,
+			);
+			column.cards.splice(
+				before < 0 ? column.cards.length : before,
+				0,
+				inserted,
+			);
+		}
 	}
-
-	return updates;
+	columns = columns.filter((column) => column.cards.length > 0);
+	const updates: Array<{ id: string; changes: Partial<CanvasElement> }> = [];
+	const top = kanbanContentY(list);
+	const layoutX = placement?.listBounds.x ?? list.x;
+	for (const [ordinal, column] of columns.entries()) {
+		let y = top;
+		for (const card of column.cards) {
+			updates.push({
+				id: card.id,
+				changes: {
+					x: layoutX + KANBAN_LIST_PADDING + ordinal * columnStep,
+					y,
+					width: KANBAN_LAYOUT_CARD_WIDTH,
+					rotation: 0,
+					frameId: listId,
+					customData: {
+						...card.customData,
+						kanbanRow: undefined,
+						kanbanColumn: ordinal,
+					},
+				},
+			});
+			y += card.height + KANBAN_CARD_GAP;
+		}
+	}
+	const width = kanbanColumnsWidth(columns.length);
+	const height = Math.max(
+		KANBAN_LIST_MIN_HEIGHT,
+		top -
+			list.y +
+			Math.max(0, ...columns.map((column) => columnHeight(column.cards))) +
+			KANBAN_LIST_PADDING +
+			KANBAN_LIST_FOOTER_HEIGHT,
+	);
+	return [
+		{ id: listId, changes: { x: layoutX, width, height, rotation: 0 } },
+		...updates,
+	];
 }
 
 export function buildKanbanListReflowUpdates(
@@ -337,6 +629,8 @@ export function buildKanbanReflowUpdates(
 	elements: Map<string, CanvasElement>,
 	movedCardIds: Set<string>,
 	targetListByCard: Map<string, string | null>,
+	insertionYByCard?: ReadonlyMap<string, number>,
+	placements?: ReadonlyMap<string, KanbanDropTarget>,
 ): Array<{ id: string; changes: Partial<CanvasElement> }> {
 	const affectedLists = new Set<string>();
 
@@ -353,7 +647,7 @@ export function buildKanbanReflowUpdates(
 	for (const [cardId, listId] of targetListByCard) {
 		const card = nextElements.get(cardId);
 		if (!card) continue;
-		dropY.set(cardId, card.y);
+		dropY.set(cardId, insertionYByCard?.get(cardId) ?? card.y);
 		nextElements.set(cardId, { ...card, frameId: listId ?? undefined });
 	}
 
@@ -371,6 +665,7 @@ export function buildKanbanReflowUpdates(
 				listId,
 				insertedCard?.id,
 				insertedCard ? dropY.get(insertedCard.id) : undefined,
+				insertedCard ? placements?.get(insertedCard.id) : undefined,
 			),
 		);
 	}
@@ -378,7 +673,17 @@ export function buildKanbanReflowUpdates(
 	for (const cardId of movedCardIds) {
 		const target = targetListByCard.get(cardId);
 		if (target === null) {
-			updates.push({ id: cardId, changes: { frameId: undefined } });
+			updates.push({
+				id: cardId,
+				changes: {
+					frameId: undefined,
+					customData: {
+						...elements.get(cardId)?.customData,
+						kanbanRow: undefined,
+						kanbanColumn: undefined,
+					},
+				},
+			});
 		}
 	}
 
@@ -445,12 +750,18 @@ export function normalizeKanbanAttachments(
 
 export function normalizeKanbanCoverImage(
 	customData: Record<string, unknown> | undefined,
-): KanbanCardAttachment | null {
+): KanbanCoverImage | null {
 	const explicitCover = normalizeAttachmentRecord(
 		customData?.coverImage,
 		"cover-image",
 	);
-	if (explicitCover) return explicitCover;
+	if (explicitCover) {
+		const raw = customData?.coverImage as Record<string, unknown>;
+		return {
+			...explicitCover,
+			position: normalizeKanbanCoverPosition(raw.position),
+		};
+	}
 
 	return null;
 }
@@ -476,23 +787,22 @@ export function computeKanbanCardHeight(input: {
 	);
 	const footerBadges =
 		(input.startDate ? 1 : 0) +
-		(input.dueDate ? 1 : 0) +
 		(input.checklist.length > 0 ? 1 : 0) +
 		(input.attachments.length > 0 ? 1 : 0) +
 		(input.assignmentBadges ?? 0);
 
 	let height = 24;
-	if (input.coverImage) height += 88 + 10;
-	height += titleLines * 18;
+	if (input.coverImage) height += KANBAN_CARD_COVER_HEIGHT + 10;
+	height += Math.max(40, titleLines * 18);
 	if (descriptionLines > 0) height += 6 + descriptionLines * 14;
 	if (checklistPreviewCount > 0) {
-		height += 10 + checklistPreviewCount * 18;
+		height += 10 + checklistPreviewCount * 40;
 		if (checklistExtraCount > 0) height += 14;
 	}
 	if (footerBadges > 0) height += 12 + Math.ceil(footerBadges / 2) * 24;
-	height += 18;
+	height += 18 + 48;
 
-	return Math.max(88, Math.min(280, height));
+	return Math.max(132, height);
 }
 
 function estimateWrappedLines(
@@ -539,6 +849,14 @@ function normalizeAttachmentRecord(
 				: "Anhang",
 		width: typeof attachment.width === "number" ? attachment.width : 0,
 		height: typeof attachment.height === "number" ? attachment.height : 0,
+		...(typeof attachment.mimeType === "string"
+			? { mimeType: attachment.mimeType }
+			: {}),
+		...(typeof attachment.sizeBytes === "number" &&
+		Number.isFinite(attachment.sizeBytes) &&
+		attachment.sizeBytes >= 0
+			? { sizeBytes: attachment.sizeBytes }
+			: {}),
 	};
 }
 

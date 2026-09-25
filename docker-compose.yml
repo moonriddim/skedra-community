@@ -60,6 +60,7 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
       LIVEKIT_TOKEN_TTL_SECONDS: ${LIVEKIT_TOKEN_TTL_SECONDS:-3600}
       SKEDRA_OBJECT_STORAGE_PROVIDER: ${SKEDRA_OBJECT_STORAGE_PROVIDER:-inline}
+      SKEDRA_OBJECT_STORAGE_PATH: /data/assets
       SKEDRA_OBJECT_STORAGE_PRESET: ${SKEDRA_OBJECT_STORAGE_PRESET:-custom}
       SKEDRA_OBJECT_STORAGE_ENDPOINT: ${SKEDRA_OBJECT_STORAGE_ENDPOINT:-}
       SKEDRA_OBJECT_STORAGE_REGION: ${SKEDRA_OBJECT_STORAGE_REGION:-}
@@ -75,6 +76,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_SECURE: ${SMTP_SECURE:-false}
+    volumes:
+      - ${SKEDRA_ASSET_DATA:-skedra_asset_data}:/data/assets
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,4 +112,5 @@ services:
       retries: 10
 
 volumes:
+  skedra_asset_data:
   skedra_postgres_data:

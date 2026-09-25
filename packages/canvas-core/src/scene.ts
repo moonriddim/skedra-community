@@ -12,6 +12,7 @@ import {
 	isKanbanList,
 } from "./kanban";
 import { type MindmapDirection, getMindmapNodeMeta } from "./mindmap";
+import { getMindmapHiddenIds } from "./mindmap-structure";
 import {
 	compareCanvasElementStackOrder,
 	normalizeCanvasElementStackIndexes,
@@ -31,6 +32,7 @@ export class CanvasScene {
 	private readonly mindmapChildrenCache = new Map<string, CanvasElement[]>();
 	private hitTestOrderedElements: CanvasElement[] | null = null;
 	private kanbanLists: CanvasElement[] | null = null;
+	private displayElements: CanvasElement[] | null = null;
 	private kanbanCardsByList: Map<string, CanvasElement[]> | null = null;
 
 	private constructor(
@@ -112,11 +114,26 @@ export class CanvasScene {
 		return this.sortedElements;
 	}
 
+	/** Collapsed mindmap descendants stay in the document, but not on the surface. */
+	getDisplayElements() {
+		if (!this.displayElements) {
+			const hidden = getMindmapHiddenIds(this.sortedElements);
+			this.displayElements = this.sortedElements.filter(
+				(element) => !hidden.has(element.id),
+			);
+		}
+		return this.displayElements;
+	}
+
 	getSelectedElements(selectedIds: Set<string>) {
 		const key = idsCacheKey(selectedIds);
 		const cached = this.selectedElementsCache.get(key);
 		if (cached) return cached;
+		const displayedIds = new Set(
+			this.getDisplayElements().map((element) => element.id),
+		);
 		const selected = Array.from(selectedIds)
+			.filter((id) => displayedIds.has(id))
 			.map((id) => this.elements.get(id))
 			.filter((element): element is CanvasElement => element != null);
 		this.selectedElementsCache.set(key, selected);
@@ -139,7 +156,7 @@ export class CanvasScene {
 		const key = `${visibleBounds.x}:${visibleBounds.y}:${visibleBounds.width}:${visibleBounds.height}:${idsCacheKey(selectedIds)}`;
 		const cached = this.visibleElementsCache.get(key);
 		if (cached) return cached;
-		const visible = this.sortedElements.filter((element) =>
+		const visible = this.getDisplayElements().filter((element) =>
 			isElementVisibleInViewport(element, visibleBounds, selectedIds),
 		);
 		if (this.visibleElementsCache.size >= VISIBLE_ELEMENTS_CACHE_LIMIT) {
@@ -152,7 +169,7 @@ export class CanvasScene {
 
 	getHitTestOrderedElements() {
 		this.hitTestOrderedElements ??= getHitTestOrderedElements(
-			this.sortedElements,
+			this.getDisplayElements(),
 		);
 		return this.hitTestOrderedElements;
 	}
@@ -191,13 +208,13 @@ export class CanvasScene {
 		const rh = Math.abs(box.endY - box.startY);
 		if (rw <= 3 && rh <= 3) return [];
 
-		return this.sortedElements.filter((element) =>
+		return this.getDisplayElements().filter((element) =>
 			bboxInRect(this.getElementBBox(element), rx, ry, rw, rh),
 		);
 	}
 
 	getElementsInLassoPath(path: [number, number][]) {
-		return this.sortedElements.filter((element) =>
+		return this.getDisplayElements().filter((element) =>
 			elementMatchesLasso(this.getElementBBox(element), path),
 		);
 	}

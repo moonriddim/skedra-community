@@ -97,9 +97,8 @@ export function useSkedraCanvasActions({
 			imageUploadOptions,
 		);
 		if (elementsToAdd.length === 0) return;
-		for (const el of elementsToAdd) sync.createElement(el);
-		store.setSelectedIds(new Set(elementsToAdd.map((element) => element.id)));
-	}, [getViewportCenter, imageUploadOptions, resolvedTheme, store, sync]);
+		store.startElementPlacement(elementsToAdd);
+	}, [getViewportCenter, imageUploadOptions, resolvedTheme, store]);
 
 	const handlePastePlainText = useCallback(
 		(text: string) => {

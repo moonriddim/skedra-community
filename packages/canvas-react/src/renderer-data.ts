@@ -1,9 +1,11 @@
 import type { CanvasElement } from "@skedra/canvas-core";
+import { normalizeStickyFontSize } from "@skedra/canvas-core";
 
 export interface RendererStickyChecklistItem {
 	id: string;
 	text: string;
 	completed: boolean;
+	fontSize?: number;
 }
 
 export function getRendererStickyNoteContent(element: CanvasElement): {
@@ -21,6 +23,7 @@ export function getRendererStickyNoteContent(element: CanvasElement): {
 						id: typeof item.id === "string" ? item.id : `item-${index}`,
 						text: typeof item.text === "string" ? item.text : "",
 						completed: item.completed === true,
+						fontSize: normalizeStickyFontSize(item.fontSize),
 					},
 				];
 			})

@@ -555,3 +555,26 @@ test("clicking a child of a plain frame selects only that child", () => {
 		["frame"],
 	);
 });
+
+test("template title editing stays in the heading and preserves the section bounds", () => {
+	const frame = createBaseCanvasElement(
+		{ createId: () => "retro", stroke: "#15803D" },
+		{
+			type: "frame",
+			x: 40,
+			y: 80,
+			width: 316,
+			height: 420,
+			frameLabel: "Celebrate",
+			text: "Original prompt",
+			customData: { skedraType: "template-section" },
+		},
+	);
+	const { editingText } = buildCanvasEditorEditingSession({ element: frame });
+	assert.equal(editingText.variant, "frame-label");
+	assert.equal(editingText.text, "Celebrate");
+	assert.equal(editingText.height, 24);
+	assert.equal(editingText.x, frame.x + 28);
+	assert.ok(editingText.y >= frame.y && editingText.y < frame.y + 48);
+	assert.equal(editingText.preserveBounds, true);
+});

@@ -5,6 +5,7 @@ import type {
 	MindmapDirection,
 } from "@skedra/canvas-core";
 import type { CanvasEditorPendingText as PendingText } from "@skedra/canvas-editor";
+import type { CanvasRendererActions } from "@skedra/canvas-react";
 import { createContext, useContext } from "react";
 
 export type AddFlowchartStepOptions =
@@ -37,6 +38,8 @@ export interface CanvasClientPoint {
 }
 
 export interface CanvasCommands {
+	updateKanbanCard?: CanvasRendererActions["updateKanbanCard"];
+	editStickyNote?: (id: string, target?: string) => void;
 	openHelp: () => void;
 	exportVisual: (format: "svg" | "png" | "pdf" | "pptx") => Promise<void>;
 	/** Einzelnen Frame geclippt exportieren (ohne Frame-Rahmen). */

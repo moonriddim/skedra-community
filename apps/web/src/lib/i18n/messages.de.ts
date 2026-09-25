@@ -1,6 +1,51 @@
 import type { TranslationParams, TranslationTree } from "./messages";
 
 export const deMessages = {
+	mindmapStudio: {
+		title: "Mindmap",
+		empty: "Leere Mindmap",
+		example: "Beispielvorlage",
+		mainTopic: "Hauptthema",
+		child: "Unterthema",
+		sibling: "Thema daneben",
+		edit: "Text bearbeiten",
+		shortcuts: "Tab: Unterthema · Enter: Thema daneben · F2: bearbeiten",
+		collapse: "Ast einklappen",
+		expand: "Ast ausklappen",
+		hidden: "{count} Unterthemen anzeigen",
+		branchColor: "Astfarbe",
+		font: "Schrift",
+		handwritten: "Handschrift",
+		clean: "Klar",
+		more: "Weitere Gestaltung",
+		back: "Zur Mindmap-Bedienung",
+		layout: "Mindmap aufräumen",
+		balanced: "Beidseitig",
+		right: "Nach rechts",
+		left: "Nach links",
+		down: "Nach unten",
+		arrange: "Layout anwenden",
+		layoutHint:
+			"Ordnet die gesamte Mindmap neu. Mit Rückgängig wiederherstellbar.",
+		locked: "Gesperrte Äste zuerst entsperren.",
+		outline: "Textgliederung",
+		import: "Als Mindmap platzieren",
+		export: "Gliederung anzeigen / exportieren",
+		download: "Textdatei speichern",
+		outlineHint:
+			"Erste Zeile = Hauptthema. Unterthemen mit zwei Leerzeichen oder einem Tab je Ebene einrücken. Maximal 500 Themen.",
+		invalid:
+			"Bitte ein Hauptthema und eine gültige Einrückung verwenden (max. 500 Themen, 30 Ebenen und 500 Zeichen je Thema).",
+		cards: "Auswahl als Kanban-Karten",
+		cardsHint:
+			"Titel werden übernommen. Jede Karte bleibt mit ihrem Ursprung verknüpft.",
+		linked: "Verknüpfte Karten",
+		source: "Zum Mindmap-Ursprung",
+		done: "Erledigt",
+		open: "Offen",
+		reparent: "Unter „{name}“ einordnen",
+		reparentHint: "Ast auf ein anderes Thema ziehen, um ihn umzuordnen.",
+	},
 	common: {
 		cancel: "Abbrechen",
 		save: "Speichern",
@@ -1013,7 +1058,7 @@ export const deMessages = {
 		objectStorageCard: {
 			title: "Object Storage",
 			description:
-				"Speichere neue Canvas-Bilder in S3-kompatiblem Object Storage statt in PostgreSQL.",
+				"Speichere neue Bilder und Anhänge in einem Serverordner oder S3-kompatiblem Speicher statt in PostgreSQL.",
 			statusTitle: "Aktiver Bildspeicher",
 			activeSource: "Aktive Quelle",
 			useCustomConfig: "Object-Storage-Konfiguration in der App verwalten",
@@ -1034,6 +1079,8 @@ export const deMessages = {
 			clearSecret: "Gespeichertes Secret entfernen",
 			publicBaseUrl: "Öffentliche Basis-URL (optional)",
 			forcePathStyle: "Path-Style-URLs erzwingen",
+			filesystemHint:
+				"Für Dateisystem-Speicherung muss SKEDRA_OBJECT_STORAGE_PATH auf einen dauerhaften, beschreibbaren Ordner des API-Servers zeigen. Der Pfad wird am Server verwaltet; Dateien werden über die geschützte API ausgeliefert.",
 			e2eeHint:
 				"Bilddateien werden vor dem Upload im Browser verschlüsselt. Für direkte R2/S3-URLs muss der Bucket GET-CORS für deine App-Domain erlauben; ohne Basis-URL liefert Skedra die Ciphertext-Dateien geschützt über die API aus.",
 			sources: {
@@ -1044,6 +1091,7 @@ export const deMessages = {
 			providers: {
 				inline: "Inline im Board-State",
 				s3: "S3-kompatibler Object Storage",
+				filesystem: "Server-Dateisystem",
 			},
 			presets: { custom: "Custom S3" },
 		},
@@ -2105,6 +2153,22 @@ export const deMessages = {
 		createFailed: "Arbeitsbereich konnte nicht erstellt werden",
 	},
 	canvas: {
+		sticky: {
+			edit: "Notiz bearbeiten",
+			note: "Notiz",
+			checklist: "Checkliste",
+			done: "Fertig",
+			rowFontSize: "Schriftgröße der aktuellen Zeile",
+			titlePlaceholder: "Titel (optional)",
+			itemPlaceholder: "Listeneintrag…",
+			notePlaceholder: "Notiz…",
+			toggleItem: "Eintrag abhaken",
+			item: "Eintrag",
+			line: "Zeile",
+			removeItem: "Zeile entfernen",
+			addItem: "Eintrag hinzufügen",
+			addLine: "Zeile hinzufügen",
+		},
 		flowchart: {
 			addStep: "Schritt hinzufügen",
 			addYesBranch: "Ja-Zweig hinzufügen",
@@ -2136,6 +2200,19 @@ export const deMessages = {
 			newSibling: "Neues Thema",
 		},
 		templateTools: {
+			emptyHint: "Doppelklick für einen neuen Gedanken",
+			rename: "Doppelklick zum Umbenennen",
+			noteCount: "{count} Notizen",
+			prompts: {
+				celebrate: "Was lief gut?",
+				friction: "Was hat uns gebremst?",
+				commitment: "Was probieren wir als Nächstes?",
+				strengths: "Was können wir besonders gut?",
+				weaknesses: "Wo können wir besser werden?",
+				opportunities: "Welche Chancen können wir nutzen?",
+				threats: "Was könnte uns im Weg stehen?",
+			},
+
 			addNote: "Notiz hinzufügen",
 			noteTypes: {
 				celebrate: "Erfolgs-Notiz",
@@ -2841,6 +2918,18 @@ export const deMessages = {
 			},
 		},
 		kanban: {
+			editTitle: "Kartentitel bearbeiten",
+			insertBeside: "Daneben einfügen",
+			automaticLayout:
+				"Die Größe passt sich den Karten an. Ziehe eine Karte an den linken oder rechten Außenrand, um eine neue Spalte anzulegen. Jede Spalte lässt sich unabhängig sortieren.",
+			details: "Details",
+			priority: "Priorität",
+			noPriority: "Priorität",
+			low: "Niedrig",
+			medium: "Mittel",
+			high: "Hoch",
+			urgent: "Dringend",
+			dueDate: "Termin",
 			newCard: "Neue Karte",
 			start: "Start",
 			tasks: "Aufgaben",
@@ -2970,10 +3059,31 @@ export const deMessages = {
 		cardWithPriority: "Karte mit Priorität",
 	},
 	sequenceDiagramPanel: {
+		moveUp: "Schritt nach oben",
+		moveDown: "Schritt nach unten",
+		fragmentsHeading: "Bedingungen & Wiederholungen",
+		deleteFragment: "Abschnitt löschen",
+		wrapHint: "Bedingung oder Wiederholung um den gesamten Ablauf legen.",
+		createFromDescription: "Ablauf erstellen",
+		participantName: "Name des Beteiligten",
+		participantPlaceholder: "z. B. Kunde oder Service",
+		participantsHint: "Wer ist beteiligt? Füge Personen oder Systeme hinzu.",
+		participantType: "Art des Beteiligten",
+		participantsHeading: "Beteiligte",
+		replyToStep: "Antwort hinzufügen",
+		structureType: "Art des Abschnitts",
+		structureLabel: "Beschreibung des Abschnitts",
+		describeOptional: "Optional: mit einer Beschreibung starten",
+		liveHint: "Änderungen erscheinen direkt im Diagramm.",
+		editStep: "Schritt bearbeiten",
+		moreOptions: "Weitere Optionen",
+		action: "Aktion",
+		descriptionHint:
+			"Einfache Sätze mit Kunde, Service, API oder Datenbank werden erkannt. Prüfe danach die Schritte.",
 		title: "Sequenzdiagramm",
 		subtitle: "Visuell bauen oder Mermaid importieren",
 		builderTitle: "Ablauf erstellen",
-		builderSubtitle: "Beschreibe, was passiert – Skedra zeichnet den Rest.",
+		builderSubtitle: "Beteiligte festlegen und Schritt für Schritt verbinden.",
 		descriptionExample:
 			"Ein Kunde sendet eine Bestellung.\nDer Service prüft die Daten über die API.",
 		describeLabel: "Ablauf kurz beschreiben",
@@ -2985,8 +3095,8 @@ export const deMessages = {
 		steps: "Schritte",
 		selectedDiagram: "Ausgewähltes Diagramm",
 		builderEmpty:
-			"Beschreibe den Ablauf oben oder füge den ersten Schritt selbst hinzu.",
-		addParticipant: "Beteiligte",
+			"Lege zuerst die Beteiligten an. Danach kannst du sie mit Schritten verbinden.",
+		addParticipant: "Beteiligten hinzufügen",
 		person: "Person",
 		system: "System",
 		actionPlaceholder: "Was passiert?",
@@ -3383,6 +3493,12 @@ export const deMessages = {
 		defaultListName: "Neue Liste",
 	},
 	kanbanCardDialog: {
+		openAttachment: "Öffnen",
+		downloadAttachment: "Herunterladen",
+		uploadingAttachments: "Wird hochgeladen…",
+		attachmentUploadError: (params: TranslationParams) =>
+			`Nicht hinzugefügt: ${params.names}. Maximal ${params.limit} MB pro Datei; bitte erneut versuchen.`,
+
 		title: "Karte bearbeiten",
 		cardTitle: "Titel",
 		cardTitlePlaceholder: "Karten-Titel",
@@ -3395,6 +3511,13 @@ export const deMessages = {
 		addCover: "Cover hinzufügen",
 		activeCover: (params: TranslationParams) => `Aktives Cover: ${params.name}`,
 		coverBanner: "Banner oben auf der Karte",
+		coverRecommendedSize: (params: TranslationParams) =>
+			`Empfohlen: ${params.width} × ${params.height} px für diese Kartenbreite. Bei anderen Bildformaten kannst du den Ausschnitt anpassen.`,
+		coverPositionHint:
+			"Bild verschieben, um den sichtbaren Ausschnitt zu wählen.",
+		coverPositionHorizontal: "Horizontaler Ausschnitt",
+		coverPositionVertical: "Vertikaler Ausschnitt",
+		coverPositionCenter: "Zentrieren",
 		noCoverTitle: "Noch kein Cover gesetzt",
 		noCoverDescription:
 			"Füge hier direkt ein Cover-Bild für den oberen Banner der Karte hinzu.",
@@ -3407,20 +3530,20 @@ export const deMessages = {
 		hideCompleted: "Erledigte ausblenden",
 		completedSummary: (params: TranslationParams) =>
 			`${params.completed} von ${params.total} erledigt`,
-		checkpointPlaceholder:
-			"Checkpoint hinzufügen... Mehrere Zeilen werden als mehrere Punkte gespeichert.",
+		checkpointPlaceholder: "Punkt beschreiben…",
 		addCheckpoint: "Punkt hinzufügen",
 		allCompletedHidden: "Alle erledigten Punkte sind ausgeblendet.",
 		noCheckpoints: "Noch keine Checkpoints angelegt.",
 		attachments: "Anhänge",
 		attachmentsDescription:
-			"Hier liegen nur die normalen Bild-Anhänge der Karte.",
-		attachmentCount: (params: TranslationParams) => `${params.count} Anhänge`,
+			"Bilder, PDFs und Dokumente öffnen oder herunterladen.",
+		attachmentCount: (params: TranslationParams) =>
+			Number(params.count) === 1 ? "1 Anhang" : `${params.count} Anhänge`,
 		attachmentBadgeDescription:
 			"Unten auf der Karte als Attachment-Badge sichtbar",
-		addAttachments: "Anhänge hinzufügen",
+		addAttachments: "Dateien hinzufügen",
 		attachmentsHint:
-			"Du kannst mehrere Bilder in einem Schritt auswählen und die Reihenfolge per Drag-and-drop ändern.",
+			"Antippen zum Öffnen. Dokumente ohne Vorschau kannst du herunterladen.",
 		attachment: "Anhang",
 		noAttachments: "Noch keine Anhänge vorhanden.",
 		priority: "Priorität",

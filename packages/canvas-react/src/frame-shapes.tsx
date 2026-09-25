@@ -207,16 +207,21 @@ function TemplateSectionFrameShape({
 	isEditingText,
 	label,
 }: FrameShapeProps) {
-	const { actions, interactive, toolFontFamily, translate } =
+	const { actions, interactive, translate, templateNoteCounts } =
 		useCanvasRendererConfig();
-	const templateAccent = getRendererTemplateAccent(el);
-	if (!templateAccent) return null;
-	const templateSection = { templateAccent };
-
-	const dash = dashArray(el.strokeStyle, 1.5);
+	const accent = getRendererTemplateAccent(el);
+	if (!accent) return null;
+	const canEdit = interactive && !el.locked;
+	const count = templateNoteCounts[el.id] ?? 0;
 	const actionLabel = translate("canvas.templateTools.addNote");
-	const compactTextOffset = el.text ? 0 : -6;
-
+	const role = el.customData?.templateSectionId;
+	const prompt =
+		el.text ||
+		(typeof el.customData?.templatePrompt === "string"
+			? el.customData.templatePrompt
+			: "") ||
+		translate(`canvas.templateTools.prompts.${role}`);
+	const contentTop = el.text ? 92 : 58;
 	return (
 		<g transform={transform} {...commonProps}>
 			<rect
@@ -224,9 +229,9 @@ function TemplateSectionFrameShape({
 				y={el.y}
 				width={Math.max(1, el.width)}
 				height={Math.max(1, el.height)}
-				fill={templateSection.templateAccent}
-				opacity={0.06}
-				rx={18}
+				fill={accent}
+				opacity={0.045}
+				rx={16}
 			/>
 			<rect
 				x={el.x}
@@ -234,37 +239,67 @@ function TemplateSectionFrameShape({
 				width={Math.max(1, el.width)}
 				height={Math.max(1, el.height)}
 				fill="transparent"
-				stroke={templateSection.templateAccent}
-				strokeWidth={1.5}
-				strokeDasharray={dash}
-				rx={18}
+				stroke={accent}
+				strokeOpacity={0.32}
+				strokeWidth={1.25}
+				strokeDasharray={dashArray(el.strokeStyle, 1.25)}
+				rx={16}
 			/>
-			<text
+			<rect
 				x={el.x + 18}
-				y={el.y + 28 + compactTextOffset}
-				fill={templateSection.templateAccent}
-				fontSize={16}
-				fontFamily={toolFontFamily}
-				fontWeight={700}
+				y={el.y + 18}
+				width={3}
+				height={18}
+				rx={1.5}
+				fill={accent}
+				pointerEvents="none"
+			/>
+			{!isEditingText && (
+				<text
+					x={el.x + 28}
+					y={el.y + 32}
+					fill="var(--foreground, #334155)"
+					fontSize={16}
+					fontFamily="system-ui, sans-serif"
+					fontWeight={650}
+					pointerEvents="none"
+				>
+					{el.frameLabel ?? label}
+				</text>
+			)}
+			<text
+				x={el.x + el.width - 22}
+				y={el.y + 32}
+				textAnchor="end"
+				fill="var(--muted-foreground, #64748b)"
+				fontSize={12}
+				fontFamily="system-ui, sans-serif"
 				pointerEvents="none"
 			>
-				{el.frameLabel ?? label}
+				<title>{translate("canvas.templateTools.noteCount", { count })}</title>
+				{count}
 			</text>
-			{!isEditingText && el.text && (
+			<line
+				x1={el.x + 18}
+				x2={el.x + el.width - 18}
+				y1={el.y + 48}
+				y2={el.y + 48}
+				stroke={accent}
+				strokeOpacity={0.14}
+				pointerEvents="none"
+			/>
+			{el.text && (
 				<foreignObject
 					x={el.x + 18}
-					y={el.y + 40}
-					width={Math.max(10, el.width - 136)}
-					height={44}
+					y={el.y + 56}
+					width={Math.max(10, el.width - 36)}
+					height={32}
 					pointerEvents="none"
 				>
 					<div
 						style={{
-							fontSize: 13,
-							lineHeight: 1.35,
-							fontFamily: toolFontFamily,
-							color: "var(--muted-foreground)",
-							whiteSpace: "pre-wrap",
+							font: "12px/1.35 system-ui, sans-serif",
+							color: "var(--muted-foreground, #64748b)",
 							overflow: "hidden",
 						}}
 					>
@@ -272,21 +307,83 @@ function TemplateSectionFrameShape({
 					</div>
 				</foreignObject>
 			)}
-			{interactive && (
+			{canEdit && (
+				<rect
+					x={el.x + 1}
+					y={el.y + contentTop}
+					width={Math.max(1, el.width - 2)}
+					height={Math.max(1, el.height - contentTop - 54)}
+					fill="transparent"
+					onDoubleClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						actions.addTemplateSticky(el.id);
+					}}
+				>
+					<title>{translate("canvas.templateTools.emptyHint")}</title>
+				</rect>
+			)}
+			{count === 0 && (
 				<foreignObject
-					x={el.x + el.width - 52}
-					y={el.y + 12}
-					width={36}
-					height={36}
+					x={el.x + 28}
+					y={el.y + contentTop}
+					width={Math.max(1, el.width - 56)}
+					height={Math.max(1, el.height - contentTop - 60)}
+					pointerEvents="none"
+				>
+					<div
+						style={{
+							height: "100%",
+							display: "flex",
+							flexDirection: "column",
+							justifyContent: "center",
+							alignItems: "center",
+							textAlign: "center",
+							gap: 10,
+							fontFamily: "system-ui, sans-serif",
+						}}
+					>
+						<span
+							style={{
+								fontSize: 15,
+								lineHeight: 1.5,
+								color: "var(--foreground, #334155)",
+								opacity: 0.8,
+							}}
+						>
+							{prompt}
+						</span>
+						{canEdit && (
+							<span
+								style={{
+									maxWidth: 200,
+									fontSize: 12,
+									lineHeight: 1.5,
+									color: "var(--muted-foreground, #64748b)",
+								}}
+							>
+								{translate("canvas.templateTools.emptyHint")}
+							</span>
+						)}
+					</div>
+				</foreignObject>
+			)}
+			{canEdit && (
+				<foreignObject
+					x={el.x + 18}
+					y={el.y + el.height - 46}
+					width={Math.max(1, el.width - 36)}
+					height={34}
 					data-ui-only="true"
 					pointerEvents="auto"
 				>
 					<button
 						type="button"
-						title={actionLabel}
-						aria-label={actionLabel}
+						className="canvas-editor__template-add"
+						aria-label={`${actionLabel}: ${el.frameLabel ?? label}`}
 						data-ui-only="true"
-						onPointerDown={(event) => {
+						onPointerDown={(event) => event.stopPropagation()}
+						onDoubleClick={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
 						}}
@@ -301,19 +398,19 @@ function TemplateSectionFrameShape({
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "center",
-							borderRadius: 999,
-							border: `1px solid ${templateSection.templateAccent}`,
-							background: `${templateSection.templateAccent}18`,
-							color: templateSection.templateAccent,
-							boxShadow: `0 6px 18px ${templateSection.templateAccent}22`,
-							fontSize: 20,
-							fontWeight: 700,
+							gap: 8,
+							borderRadius: 8,
+							border: `1px dashed ${accent}55`,
+							background: "transparent",
+							color: "var(--foreground, #334155)",
+							font: "500 12px system-ui, sans-serif",
 							cursor: "pointer",
 						}}
 					>
-						<span style={{ lineHeight: 1, transform: "translateY(-1px)" }}>
+						<span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>
 							+
 						</span>
+						{actionLabel}
 					</button>
 				</foreignObject>
 			)}

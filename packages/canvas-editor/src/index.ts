@@ -138,6 +138,7 @@ export type {
 	CanvasEditorTextOverlayProps,
 } from "./canvas-editor-text-overlay";
 export { CanvasEditorStickyNoteOverlay } from "./canvas-editor-sticky-note-overlay";
+export { applyActiveStickyFontSize } from "./font-size-control";
 export type { CanvasEditorStickyNoteOverlayProps } from "./canvas-editor-sticky-note-overlay";
 export {
 	createCanvasEditorStickyChecklistItem,
@@ -177,6 +178,8 @@ export type {
 	CanvasEditorSnapOptions,
 } from "./snap-controller";
 export { CanvasEditorSnapOverlay } from "./canvas-editor-snap-overlay";
+export { CanvasEditorKanbanDropOverlay } from "./canvas-editor-kanban-drop-overlay";
+export { CanvasEditorKanbanCoverPosition } from "./canvas-editor-kanban-cover-position";
 export type { CanvasEditorSnapOverlayProps } from "./canvas-editor-snap-overlay";
 export { CanvasEditorSnapMenu } from "./canvas-editor-snap-menu";
 export { CanvasEditorContextMenu } from "./canvas-editor-context-menu";
@@ -197,6 +200,7 @@ export type {
 } from "./canvas-editor-snap-menu";
 export type {
 	CanvasEditorContextMenuProps,
+	ContextMenuItem as CanvasEditorContextMenuItem,
 	CanvasEditorContextMenuTranslate,
 } from "./canvas-editor-context-menu";
 export type {
@@ -314,3 +318,8 @@ export type {
 	CanvasEditorToolDefinition,
 	CanvasEditorToolId,
 } from "./editor-contract";
+
+export {
+	useCanvasEditorElementPlacementPreview,
+	type CanvasEditorElementPlacementPreviewOptions,
+} from "./use-canvas-editor-element-placement-preview";

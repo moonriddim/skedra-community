@@ -92,6 +92,9 @@ export interface CanvasEditorPendingText {
 }
 
 export interface CanvasEditorEditingText {
+	stickyTypography?: import("@skedra/canvas-core").StickyNoteTypography;
+	stickyFill?: string;
+	stickyCornerRadius?: number;
 	id: string;
 	pyramidSection?: number;
 	x: number;
@@ -147,6 +150,7 @@ export interface CanvasEditorTextOverlayProps {
 		size: { width: number; height: number },
 	) => void;
 	onCreateSibling?: (id: string) => void;
+	onCreateChild?: (id: string) => void;
 	onClose: () => void;
 	/** Speichern ausloesen (z. B. Doppelklick auf die Canvas-Flaeche) */
 	onRegisterCommit?: (commit: (() => void) | null) => void;
@@ -161,6 +165,7 @@ export function CanvasEditorTextOverlay({
 	onCreateText,
 	onUpdateText,
 	onCreateSibling,
+	onCreateChild,
 	onClose,
 	onRegisterCommit,
 	placeholder: placeholderOverride = "Text...",
@@ -385,9 +390,9 @@ export function CanvasEditorTextOverlay({
 		ta.focus();
 		if (isEditing) {
 			const len = ta.value.length;
-			ta.setSelectionRange(len, len);
+			ta.setSelectionRange(isMindmapNodeEditor ? 0 : len, len);
 		}
-	}, [editSessionKey, isEditing]);
+	}, [editSessionKey, isEditing, isMindmapNodeEditor]);
 
 	/* Editor-Groesse an die gerenderte Textflaeche angleichen. */
 	useLayoutEffect(() => {
@@ -455,7 +460,24 @@ export function CanvasEditorTextOverlay({
 			doSave();
 			return;
 		}
-		if (e.key === "Enter" && !e.shiftKey && isArrowEditor) {
+		if (
+			e.key === "Tab" &&
+			!e.shiftKey &&
+			isMindmapNodeEditor &&
+			editingState &&
+			onCreateChild
+		) {
+			e.preventDefault();
+			e.stopPropagation();
+			doSave();
+			onCreateChild(editingState.id);
+			return;
+		}
+		if (
+			e.key === "Enter" &&
+			!e.shiftKey &&
+			(isArrowEditor || editorVariant === "frame-label")
+		) {
 			e.preventDefault();
 			doSave();
 			return;

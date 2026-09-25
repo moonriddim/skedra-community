@@ -68,6 +68,14 @@ export function GuestCanvasPage() {
 	const zenMode = useCanvasStore((state) => state.zenMode);
 	const activeTool = useCanvasStore((state) => state.activeTool);
 	const activePanel = useCanvasStore((state) => state.activePanel);
+	const placementActive = useCanvasStore((state) =>
+		Boolean(
+			state.elementPlacementDraft ||
+				state.stickyNotePlacementDraft ||
+				state.kanbanCardPlacementDraft ||
+				state.shapePlacementDraft,
+		),
+	);
 
 	useEffect(() => {
 		if (elementCount > 0) {
@@ -276,7 +284,8 @@ export function GuestCanvasPage() {
 					elementCount === 0 &&
 					!zenMode &&
 					activeTool === "select" &&
-					activePanel === null
+					activePanel === null &&
+					!placementActive
 				}
 				onSave={handleSaveClick}
 				onOpenHelp={openHelp}

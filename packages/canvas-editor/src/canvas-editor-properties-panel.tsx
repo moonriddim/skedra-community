@@ -20,6 +20,7 @@ import {
 	type CanvasEditorClassicPropertiesView,
 	type CanvasEditorPropertiesTranslate,
 } from "./canvas-editor-classic-properties-panel";
+import { FontSizeControl } from "./font-size-control";
 import {
 	CANVAS_PATH_MODE_OPTIONS,
 	resolveCanvasEditorPathMode,
@@ -343,6 +344,10 @@ export function CanvasEditorPropertiesPanel({
 							<input
 								type="number"
 								disabled={disabled || selected.length !== 1}
+								readOnly={
+									(isKanbanCard || isKanbanList) &&
+									(key === "width" || key === "height" || key === "rotation")
+								}
 								value={numberValue(element[key], 0)}
 								min={key === "width" || key === "height" ? 1 : undefined}
 								onChange={(event) => {
@@ -713,19 +718,15 @@ export function CanvasEditorPropertiesPanel({
 								}
 							/>
 						</label>
-						<label>
+						<div>
 							<span>{t("canvas.properties.size", "Size")}</span>
-							<input
-								type="number"
-								min="8"
-								max="256"
+							<FontSizeControl
 								disabled={disabled}
-								value={numberValue(element.fontSize, 16)}
-								onChange={(event) =>
-									onSetProperties({ fontSize: Number(event.target.value) })
-								}
+								value={element.fontSize ?? 16}
+								label={t("canvas.properties.size", "Size")}
+								onChange={(fontSize) => onSetProperties({ fontSize })}
 							/>
-						</label>
+						</div>
 						<label>
 							<span>{t("canvas.properties.fontFamily", "Font")}</span>
 							<input

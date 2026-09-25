@@ -1,6 +1,49 @@
 import type { TranslationParams, TranslationTree } from "./messages";
 
 export const enMessages = {
+	mindmapStudio: {
+		title: "Mind map",
+		empty: "Empty mind map",
+		example: "Example template",
+		mainTopic: "Main topic",
+		child: "Subtopic",
+		sibling: "Sibling topic",
+		edit: "Edit text",
+		shortcuts: "Tab: subtopic · Enter: sibling · F2: edit",
+		collapse: "Collapse branch",
+		expand: "Expand branch",
+		hidden: "Show {count} subtopics",
+		branchColor: "Branch color",
+		font: "Font",
+		handwritten: "Handwritten",
+		clean: "Clean",
+		more: "More appearance options",
+		back: "Back to mind map controls",
+		layout: "Tidy mind map",
+		balanced: "Both sides",
+		right: "To the right",
+		left: "To the left",
+		down: "Top to bottom",
+		arrange: "Apply layout",
+		layoutHint: "Rearranges the whole mind map. Restore with Undo.",
+		locked: "Unlock the branches first.",
+		outline: "Text outline",
+		import: "Place as mind map",
+		export: "View / export outline",
+		download: "Save text file",
+		outlineHint:
+			"First line = main topic. Indent subtopics with two spaces or one tab per level. Maximum 500 topics.",
+		invalid:
+			"Use one main topic and valid indentation (max. 500 topics, 30 levels and 500 characters per topic).",
+		cards: "Selection as Kanban cards",
+		cardsHint: "Titles are copied. Each card stays linked to its source topic.",
+		linked: "Linked cards",
+		source: "Go to source topic",
+		done: "Done",
+		open: "Open",
+		reparent: "Move under “{name}”",
+		reparentHint: "Drag a branch onto another topic to change its parent.",
+	},
 	common: {
 		cancel: "Cancel",
 		save: "Save",
@@ -1001,7 +1044,7 @@ export const enMessages = {
 		objectStorageCard: {
 			title: "Object storage",
 			description:
-				"Store new canvas images in S3-compatible object storage instead of PostgreSQL.",
+				"Store new images and attachments in a server folder or S3-compatible storage instead of PostgreSQL.",
 			statusTitle: "Active image storage",
 			activeSource: "Active source",
 			useCustomConfig: "Manage object storage in the app",
@@ -1022,6 +1065,8 @@ export const enMessages = {
 			clearSecret: "Clear stored secret",
 			publicBaseUrl: "Public base URL (optional)",
 			forcePathStyle: "Force path-style URLs",
+			filesystemHint:
+				"For filesystem storage, set SKEDRA_OBJECT_STORAGE_PATH to a persistent, writable folder on the API server. The path is managed on the server; files are served through the protected API.",
 			e2eeHint:
 				"Images are encrypted in the browser before upload. Direct R2/S3 URLs require GET CORS for your app domain; without a base URL Skedra serves ciphertext through the protected API.",
 			sources: {
@@ -1032,6 +1077,7 @@ export const enMessages = {
 			providers: {
 				inline: "Inline in board state",
 				s3: "S3-compatible object storage",
+				filesystem: "Server filesystem",
 			},
 			presets: { custom: "Custom S3" },
 		},
@@ -2074,6 +2120,22 @@ export const enMessages = {
 		createFailed: "Workspace could not be created",
 	},
 	canvas: {
+		sticky: {
+			edit: "Edit note",
+			note: "Note",
+			checklist: "Checklist",
+			done: "Done",
+			rowFontSize: "Size of current line",
+			titlePlaceholder: "Title (optional)",
+			itemPlaceholder: "List item…",
+			notePlaceholder: "Note…",
+			toggleItem: "Toggle item",
+			item: "Item",
+			line: "Line",
+			removeItem: "Remove line",
+			addItem: "Add item",
+			addLine: "Add line",
+		},
 		flowchart: {
 			addStep: "Add step",
 			addYesBranch: "Add yes branch",
@@ -2105,6 +2167,19 @@ export const enMessages = {
 			newSibling: "New topic",
 		},
 		templateTools: {
+			emptyHint: "Double-click here to capture an idea",
+			rename: "Double-click to rename",
+			noteCount: "{count} notes",
+			prompts: {
+				celebrate: "What went well?",
+				friction: "What held us back?",
+				commitment: "What will we try next?",
+				strengths: "What are we good at?",
+				weaknesses: "Where can we improve?",
+				opportunities: "What could we take advantage of?",
+				threats: "What could get in our way?",
+			},
+
 			addNote: "Add note",
 			noteTypes: {
 				celebrate: "Celebrate note",
@@ -2808,6 +2883,18 @@ export const enMessages = {
 			},
 		},
 		kanban: {
+			editTitle: "Edit card title",
+			insertBeside: "Place beside",
+			automaticLayout:
+				"The size follows the cards. Drag a card to the left or right outer edge to create a new column. Each column can be sorted independently.",
+			details: "Details",
+			priority: "Priority",
+			noPriority: "Priority",
+			low: "Low",
+			medium: "Medium",
+			high: "High",
+			urgent: "Urgent",
+			dueDate: "Due date",
 			newCard: "New card",
 			start: "Start",
 			tasks: "Tasks",
@@ -2933,10 +3020,31 @@ export const enMessages = {
 		cardWithPriority: "Card with priority",
 	},
 	sequenceDiagramPanel: {
+		moveUp: "Move step up",
+		moveDown: "Move step down",
+		fragmentsHeading: "Conditions & repetitions",
+		deleteFragment: "Delete section",
+		wrapHint: "Wrap the entire flow in a condition or repetition.",
+		createFromDescription: "Create flow",
+		participantName: "Participant name",
+		participantPlaceholder: "e.g. Customer or Service",
+		participantsHint: "Who is involved? Add people or systems.",
+		participantType: "Participant type",
+		participantsHeading: "Participants",
+		replyToStep: "Add reply",
+		structureType: "Section type",
+		structureLabel: "Section description",
+		describeOptional: "Optional: start with a description",
+		liveHint: "Changes appear directly in the diagram.",
+		editStep: "Edit step",
+		moreOptions: "More options",
+		action: "Action",
+		descriptionHint:
+			"Simple sentences with customer, service, API or database are recognized. Check the steps afterwards.",
 		title: "Sequence diagram",
 		subtitle: "Build visually or import Mermaid",
 		builderTitle: "Create a flow",
-		builderSubtitle: "Describe what happens – Skedra draws the rest.",
+		builderSubtitle: "Add participants and connect them step by step.",
 		descriptionExample:
 			"A customer sends an order.\nThe service checks the data through the API.",
 		describeLabel: "Describe the flow briefly",
@@ -2946,8 +3054,8 @@ export const enMessages = {
 			"I could not recognize a clear step yet. Try saying who sends what to whom.",
 		steps: "Steps",
 		selectedDiagram: "Selected diagram",
-		builderEmpty: "Describe the flow above or add the first step yourself.",
-		addParticipant: "Participants",
+		builderEmpty: "Add participants first, then connect them with steps.",
+		addParticipant: "Add participant",
 		person: "Person",
 		system: "System",
 		actionPlaceholder: "What happens?",
@@ -3338,6 +3446,12 @@ export const enMessages = {
 		defaultListName: "New list",
 	},
 	kanbanCardDialog: {
+		openAttachment: "Open",
+		downloadAttachment: "Download",
+		uploadingAttachments: "Uploading…",
+		attachmentUploadError: (params: TranslationParams) =>
+			`Could not add: ${params.names}. Maximum ${params.limit} MB per file; please try again.`,
+
 		title: "Edit card",
 		cardTitle: "Title",
 		cardTitlePlaceholder: "Card title",
@@ -3350,6 +3464,12 @@ export const enMessages = {
 		addCover: "Add cover",
 		activeCover: (params: TranslationParams) => `Active cover: ${params.name}`,
 		coverBanner: "Banner at the top of the card",
+		coverRecommendedSize: (params: TranslationParams) =>
+			`Recommended: ${params.width} × ${params.height} px for this card width. You can adjust the crop for other image formats.`,
+		coverPositionHint: "Drag the image to choose the visible area.",
+		coverPositionHorizontal: "Horizontal position",
+		coverPositionVertical: "Vertical position",
+		coverPositionCenter: "Center image",
 		noCoverTitle: "No cover set yet",
 		noCoverDescription: "Add a cover image here for the card banner.",
 		description: "Description",
@@ -3361,21 +3481,18 @@ export const enMessages = {
 		hideCompleted: "Hide completed",
 		completedSummary: (params: TranslationParams) =>
 			`${params.completed} of ${params.total} completed`,
-		checkpointPlaceholder:
-			"Add checkpoint... Multiple lines will be stored as separate items.",
+		checkpointPlaceholder: "Describe a task…",
 		addCheckpoint: "Add item",
 		allCompletedHidden: "All completed items are hidden.",
 		noCheckpoints: "No checkpoints yet.",
 		attachments: "Attachments",
-		attachmentsDescription:
-			"Only the regular image attachments of the card live here.",
+		attachmentsDescription: "Open or download images, PDFs and documents.",
 		attachmentCount: (params: TranslationParams) =>
 			`${params.count} attachments`,
 		attachmentBadgeDescription:
 			"Visible at the bottom of the card as an attachment badge",
-		addAttachments: "Add attachments",
-		attachmentsHint:
-			"You can select multiple images at once and reorder them with drag and drop.",
+		addAttachments: "Add files",
+		attachmentsHint: "Tap to open. Download documents without a preview.",
 		attachment: "Attachment",
 		noAttachments: "No attachments yet.",
 		priority: "Priority",

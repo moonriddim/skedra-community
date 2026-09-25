@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	DeleteObjectCommand,
 	GetObjectCommand,
@@ -5,18 +6,24 @@ import {
 	S3Client,
 	type S3ClientConfig,
 } from "@aws-sdk/client-s3";
-import { instanceSettings, userProfileImages } from "@skedra/db";
+import { assets, instanceSettings, userProfileImages } from "@skedra/db";
 import type { Database } from "@skedra/db";
 import { decryptText, encryptText } from "@skedra/shared/server-crypto";
-import { eq, ne } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { env } from "../env";
+import {
+	checkFilesystemStorage,
+	deleteFilesystemObject,
+	getFilesystemObject,
+	putFilesystemObject,
+} from "./filesystem-storage";
 import { getOrCreateInstanceSettings } from "./instance-settings";
 
-export type ObjectStorageProvider = "inline" | "s3";
+export type ObjectStorageProvider = "inline" | "s3" | "filesystem";
 export type ObjectStoragePreset = "custom" | "r2" | "ovh" | "aws";
 export type ObjectStorageSource = "database" | "env" | "inline";
 
-export interface ResolvedObjectStorageConfig {
+interface S3ObjectStorageConfig {
 	source: Exclude<ObjectStorageSource, "inline">;
 	provider: "s3";
 	preset: ObjectStoragePreset;
@@ -28,6 +35,22 @@ export interface ResolvedObjectStorageConfig {
 	publicBaseUrl: string | null;
 	forcePathStyle: boolean;
 }
+
+interface FilesystemObjectStorageConfig {
+	source: Exclude<ObjectStorageSource, "inline">;
+	provider: "filesystem";
+	path: string;
+	preset: "custom";
+	endpoint: null;
+	region: null;
+	bucket: null;
+	publicBaseUrl: null;
+	forcePathStyle: false;
+}
+
+export type ResolvedObjectStorageConfig =
+	| S3ObjectStorageConfig
+	| FilesystemObjectStorageConfig;
 
 export interface ObjectStorageStatus {
 	source: ObjectStorageSource;
@@ -84,7 +107,7 @@ function assertValidEndpoint(value: string | null) {
 function normalizeProvider(
 	value: string | null | undefined,
 ): ObjectStorageProvider {
-	return value === "s3" ? "s3" : "inline";
+	return value === "s3" || value === "filesystem" ? value : "inline";
 }
 
 function normalizePreset(
@@ -110,6 +133,24 @@ function resolveFromParts(input: {
 	publicBaseUrl?: string | null;
 	forcePathStyle?: boolean | null;
 }): ResolvedObjectStorageConfig | null {
+	if (input.provider === "filesystem") {
+		if (!env.SKEDRA_OBJECT_STORAGE_PATH) {
+			throw new ObjectStorageConfigChangeError(
+				"Filesystem storage requires SKEDRA_OBJECT_STORAGE_PATH on the server.",
+			);
+		}
+		return {
+			source: input.source,
+			provider: "filesystem",
+			path: env.SKEDRA_OBJECT_STORAGE_PATH,
+			preset: "custom",
+			endpoint: null,
+			region: null,
+			bucket: null,
+			publicBaseUrl: null,
+			forcePathStyle: false,
+		};
+	}
 	if (input.provider !== "s3") return null;
 
 	const preset = normalizePreset(input.preset);
@@ -156,6 +197,7 @@ function storageLocation(config: ResolvedObjectStorageConfig | null) {
 	if (!config) return null;
 	return {
 		provider: config.provider,
+		path: config.provider === "filesystem" ? config.path : null,
 		preset: config.preset,
 		endpoint: config.endpoint,
 		region: config.region,
@@ -172,6 +214,7 @@ function storageLocationsEqual(
 	if (!left || !right) return left === right;
 	return (
 		left.provider === right.provider &&
+		left.path === right.path &&
 		left.preset === right.preset &&
 		left.endpoint === right.endpoint &&
 		left.region === right.region &&
@@ -205,16 +248,18 @@ export async function resolveObjectStorageConfig(
 
 	const settings = await getOrCreateInstanceSettings(db);
 	if (settings.useCustomObjectStorage) {
-		const secretAccessKey = settings.encryptedObjectStorageSecretAccessKey
-			? decryptText(
-					settings.encryptedObjectStorageSecretAccessKey,
-					getEncryptionOptions(),
-				)
-			: null;
+		const provider = normalizeProvider(settings.objectStorageProvider);
+		const secretAccessKey =
+			provider === "s3" && settings.encryptedObjectStorageSecretAccessKey
+				? decryptText(
+						settings.encryptedObjectStorageSecretAccessKey,
+						getEncryptionOptions(),
+					)
+				: null;
 
 		return resolveFromParts({
 			source: "database",
-			provider: normalizeProvider(settings.objectStorageProvider),
+			provider,
 			preset: normalizePreset(settings.objectStoragePreset),
 			endpoint: settings.objectStorageEndpoint,
 			region: settings.objectStorageRegion,
@@ -261,8 +306,8 @@ function statusFromResolved(
 		bucket: resolved.bucket,
 		publicBaseUrl: resolved.publicBaseUrl,
 		forcePathStyle: resolved.forcePathStyle,
-		hasAccessKeyId: true,
-		hasSecretAccessKey: true,
+		hasAccessKeyId: resolved.provider === "s3",
+		hasSecretAccessKey: resolved.provider === "s3",
 		maxImageBytes: env.SKEDRA_ASSET_MAX_IMAGE_BYTES,
 	};
 }
@@ -281,7 +326,7 @@ export function encryptObjectStorageSecretAccessKey(secret: string) {
 
 let cachedS3Client: { fingerprint: string; client: S3Client } | undefined;
 
-function createS3Client(config: ResolvedObjectStorageConfig) {
+function createS3Client(config: S3ObjectStorageConfig) {
 	const fingerprint = JSON.stringify({
 		endpoint: config.endpoint,
 		region: config.region,
@@ -326,6 +371,10 @@ export async function putObject(input: {
 	contentType: string;
 	cacheControl?: string;
 }) {
+	if (input.config.provider === "filesystem") {
+		await putFilesystemObject(input.config.path, input.key, input.body);
+		return;
+	}
 	const client = createS3Client(input.config);
 	await client.send(
 		new PutObjectCommand({
@@ -343,6 +392,15 @@ export async function getObject(input: {
 	key: string;
 	bucket?: string | null;
 }) {
+	if (input.config.provider === "filesystem") {
+		if (input.bucket)
+			throw new Error("Cannot read an S3 bucket using filesystem storage.");
+		const body = await getFilesystemObject(input.config.path, input.key);
+		return {
+			Body: { transformToByteArray: async () => body },
+			ETag: `"${createHash("sha256").update(body).digest("hex")}"`,
+		};
+	}
 	const client = createS3Client(input.config);
 	return client.send(
 		new GetObjectCommand({
@@ -357,6 +415,12 @@ export async function deleteObject(input: {
 	key: string;
 	bucket?: string | null;
 }) {
+	if (input.config.provider === "filesystem") {
+		if (input.bucket)
+			throw new Error("Cannot delete an S3 object using filesystem storage.");
+		await deleteFilesystemObject(input.config.path, input.key);
+		return;
+	}
 	const client = createS3Client(input.config);
 	await client.send(
 		new DeleteObjectCommand({
@@ -393,9 +457,14 @@ export async function updateObjectStorageSettings(
 
 	const settings = await getOrCreateInstanceSettings(db);
 	let encryptedSecretAccessKey = settings.encryptedObjectStorageSecretAccessKey;
-	let nextSecretAccessKey = encryptedSecretAccessKey
-		? decryptText(encryptedSecretAccessKey, getEncryptionOptions())
-		: null;
+	let nextSecretAccessKey =
+		input.useCustomObjectStorage &&
+		input.provider === "s3" &&
+		!input.clearSecretAccessKey &&
+		!input.secretAccessKey?.trim() &&
+		encryptedSecretAccessKey
+			? decryptText(encryptedSecretAccessKey, getEncryptionOptions())
+			: null;
 
 	if (input.clearSecretAccessKey) {
 		encryptedSecretAccessKey = null;
@@ -430,6 +499,9 @@ export async function updateObjectStorageSettings(
 			"Object-Storage-Location kann nicht geaendert werden, solange gespeicherte Assets existieren.",
 		);
 	}
+	if (nextConfig?.provider === "filesystem") {
+		await checkFilesystemStorage(nextConfig.path);
+	}
 
 	const [updated] = await db
 		.update(instanceSettings)
@@ -451,4 +523,40 @@ export async function updateObjectStorageSettings(
 		.returning();
 
 	return updated;
+}
+
+/** Fail startup rather than silently storing uploads inline when the disk is unavailable. */
+export async function initializeObjectStorage(db: Database) {
+	const config = await resolveObjectStorageConfig(db);
+	// Environment changes bypass the settings UI. Never start with a provider
+	// that cannot read the existing external objects (inline profiles are independent).
+	const incompatibleAsset =
+		config?.provider === "filesystem"
+			? ne(assets.provider, "filesystem")
+			: config
+				? eq(assets.provider, "filesystem")
+				: undefined;
+	const incompatibleProfile = and(
+		ne(userProfileImages.provider, "inline"),
+		config?.provider === "filesystem"
+			? ne(userProfileImages.provider, "filesystem")
+			: config
+				? eq(userProfileImages.provider, "filesystem")
+				: undefined,
+	);
+	const [assetRows, profileRows] = await Promise.all([
+		db.select({ id: assets.id }).from(assets).where(incompatibleAsset).limit(1),
+		db
+			.select({ userId: userProfileImages.userId })
+			.from(userProfileImages)
+			.where(incompatibleProfile)
+			.limit(1),
+	]);
+	if (assetRows.length || profileRows.length) {
+		throw new ObjectStorageConfigChangeError(
+			`Configured storage provider (${config?.provider ?? "inline"}) cannot read existing external files. Restore the previous storage configuration or migrate objects and metadata before changing providers.`,
+		);
+	}
+	if (config?.provider === "filesystem")
+		await checkFilesystemStorage(config.path);
 }

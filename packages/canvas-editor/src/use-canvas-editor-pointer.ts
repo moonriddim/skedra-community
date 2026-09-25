@@ -8,6 +8,7 @@ import {
 	type CanvasScene,
 	type CanvasShapeTrimEndpoint,
 	type HandlePosition,
+	type KanbanDropTarget,
 	type SnapAnchor,
 	type SnapGuide,
 	type SnapPointIndicator,
@@ -15,17 +16,21 @@ import {
 	buildCanvasBindingSyncUpdates,
 	buildFrameDropUpdates,
 	buildFrameResizeChildUpdates,
+	buildKanbanDropUpdates,
 	collectCanvasSelectionRectIds,
 	findCanvasShapeFragmentReconnect,
 	findClosestCanvasShapeContourIntersection,
 	getRotateUpdates,
 	isCanvasCenterShapeTool,
 	isCanvasTrimmableShape,
+	isKanbanCard,
+	isKanbanList,
 	isLassoPathLargeEnough,
 	isMultiSelectModifier,
 	resizeCanvasElement,
 	resizeCanvasTextElement,
 	resolveCanvasShapeTrimEndpointDrag,
+	resolveKanbanDropTarget,
 	shouldClearCanvasSelectionOnToolActivation,
 	shouldKeepCanvasDrawing,
 } from "@skedra/canvas-core";
@@ -189,6 +194,10 @@ export interface UseCanvasEditorPointerOptions {
 		event: ReactPointerEvent<SVGSVGElement>,
 	) => boolean;
 	shouldDeferTouchPointerDown?: () => boolean;
+	onMovePointer?: (
+		point: CanvasEditorResolvedPointerPoint,
+		moveStart: Map<string, { x: number; y: number }>,
+	) => void;
 	onIdlePointerMove?: (
 		point: CanvasEditorResolvedPointerPoint,
 		event: ReactPointerEvent<SVGSVGElement>,
@@ -298,6 +307,7 @@ export function useCanvasEditorPointer({
 	onBeforePointerDown,
 	shouldDeferTouchPointerDown,
 	onIdlePointerMove,
+	onMovePointer,
 	onTentativeSnap,
 	isTentativeSnapActive,
 	onTentativeSnapConsumed,
@@ -326,6 +336,8 @@ export function useCanvasEditorPointer({
 	const historyActiveRef = useRef(false);
 	const [drawingPreview, setDrawingPreviewState] =
 		useState<CanvasElement | null>(null);
+	const [kanbanDropTarget, setKanbanDropTarget] =
+		useState<KanbanDropTarget | null>(null);
 	const [eraserTrail, setEraserTrail] = useState<
 		CanvasEditorEraserTrailPoint[]
 	>([]);
@@ -370,6 +382,7 @@ export function useCanvasEditorPointer({
 				uiAdapter.finishLaser?.(state.laserId);
 			}
 			if (state.action === "erase") setEraserTrail([]);
+			setKanbanDropTarget(null);
 			if (commitHistory) finishHistory();
 			stateRef.current = { ...INITIAL_POINTER_STATE };
 			uiAdapter.setSelectionBox(null);
@@ -940,6 +953,14 @@ export function useCanvasEditorPointer({
 					anchorSnapped: point.snapAnchor != null,
 				});
 				documentAdapter.updateElements(result.updates);
+				onMovePointer?.(point, state.moveStart);
+				setKanbanDropTarget(
+					resolveKanbanDropTarget(
+						documentAdapter.getElements(),
+						state.moveStart.keys(),
+						point.raw,
+					),
+				);
 				uiAdapter.setSnapVisuals?.(result.guides);
 				return;
 			}
@@ -1168,6 +1189,7 @@ export function useCanvasEditorPointer({
 			eraseAtPoint,
 			movePath,
 			onIdlePointerMove,
+			onMovePointer,
 			pathEditorRef,
 			resolvePoint,
 			setDrawingPreview,
@@ -1349,12 +1371,17 @@ export function useCanvasEditorPointer({
 			}
 			if (state.action === "move" && state.moveStart.size > 0) {
 				/* Frame-Adoption: abgelegte Elemente dem Frame darunter zuordnen. */
-				const frameDropUpdates = buildFrameDropUpdates(
-					documentAdapter.getElements(),
-					state.moveStart.keys(),
-				);
-				if (frameDropUpdates.length > 0) {
-					documentAdapter.updateElements(frameDropUpdates);
+				const elements = documentAdapter.getElements();
+				const dropUpdates = [
+					...buildFrameDropUpdates(elements, state.moveStart.keys()),
+					...buildKanbanDropUpdates(
+						elements,
+						state.moveStart.keys(),
+						point.raw,
+					),
+				];
+				if (dropUpdates.length > 0) {
+					documentAdapter.updateElements(dropUpdates);
 				}
 				documentAdapter.finishMove?.(state.moveStart);
 			}
@@ -1636,6 +1663,7 @@ export function useCanvasEditorPointer({
 			element: CanvasElement,
 			handle: HandlePosition,
 		) => {
+			if (isKanbanCard(element) || isKanbanList(element)) return;
 			event.stopPropagation();
 			if (registerTouchPointer(event)) return;
 			if (uiAdapter.getState().readOnly || element.locked) return;
@@ -1713,6 +1741,12 @@ export function useCanvasEditorPointer({
 			elements: readonly CanvasElement[],
 			basePoint: { x: number; y: number },
 		) => {
+			if (
+				elements.some(
+					(element) => isKanbanCard(element) || isKanbanList(element),
+				)
+			)
+				return;
 			event.preventDefault();
 			event.stopPropagation();
 			if (registerTouchPointer(event)) return;
@@ -1759,6 +1793,7 @@ export function useCanvasEditorPointer({
 		finishPath,
 		cancelPath,
 		drawingPreview,
+		kanbanDropTarget,
 		eraserTrail,
 		pathStartSnap,
 	};

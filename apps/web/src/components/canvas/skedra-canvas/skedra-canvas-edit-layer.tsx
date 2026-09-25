@@ -5,22 +5,27 @@
 import { CanvasSnapMenuOverlay } from "@/components/canvas/canvas-snap-menu-overlay";
 import { ContextMenu } from "@/components/canvas/context-menu";
 import type { useCanvasTextEditing } from "@/components/canvas/hooks/use-canvas-text-editing";
+import { useMindmapContextActions } from "@/components/canvas/hooks/use-mindmap-context-actions";
+import { MindmapDialog } from "@/components/canvas/mindmap-dialog";
 import type { CanvasStoreState } from "@/hooks/use-canvas-store";
 import type { useCommunityCanvasKeyboardAdapter as useCanvasKeyboard } from "@/hooks/use-community-canvas-keyboard-adapter";
 import type {
 	StickyChecklistItem,
 	StickyNoteMode,
 } from "@/lib/canvas/sticky-note-utils";
+import { useI18n } from "@/lib/i18n";
 import {
 	type CanvasElement,
+	type CanvasMutationPlan,
 	type CanvasObjectSnapMode,
 	canTrimCanvasShape,
+	getMindmapHiddenIds,
 } from "@skedra/canvas-core";
 import {
 	CanvasEditorStickyNoteOverlay,
 	CanvasEditorTextOverlay,
 } from "@skedra/canvas-editor";
-import type { RefObject } from "react";
+import { type RefObject, useState } from "react";
 
 type TextEditingApi = Pick<
 	ReturnType<typeof useCanvasTextEditing>,
@@ -28,6 +33,7 @@ type TextEditingApi = Pick<
 	| "editingText"
 	| "editingStickyChecklist"
 	| "editingStickyNoteMode"
+	| "editingStickyFocus"
 	| "handleCreateText"
 	| "handleUpdateText"
 	| "handleUpdateStickyNote"
@@ -63,6 +69,8 @@ type KeyboardApi = Pick<
 >;
 
 interface SkedraCanvasEditLayerProps {
+	onApplyMutationPlan: (plan: CanvasMutationPlan) => void;
+	onHistoryBoundary: () => void;
 	store: CanvasStoreState;
 	svgRef: RefObject<SVGSVGElement | null>;
 	viewport: CanvasStoreState["viewport"];
@@ -82,6 +90,7 @@ interface SkedraCanvasEditLayerProps {
 		checklist: StickyChecklistItem[];
 	} | null;
 	createMindmapSibling: (nodeId: string) => void;
+	createMindmapChild: (nodeId: string) => void;
 	deleteElementsWithKanbanReflow: (ids: string[]) => void;
 	elements: Map<string, CanvasElement>;
 	onStartShapeTrim: (
@@ -91,6 +100,8 @@ interface SkedraCanvasEditLayerProps {
 }
 
 export function SkedraCanvasEditLayer({
+	onApplyMutationPlan,
+	onHistoryBoundary,
 	store,
 	svgRef,
 	viewport,
@@ -106,15 +117,28 @@ export function SkedraCanvasEditLayer({
 	onCopyCanvasAsSvg,
 	liveStickyNoteEditor,
 	createMindmapSibling,
+	createMindmapChild,
 	deleteElementsWithKanbanReflow,
 	elements,
 	onStartShapeTrim,
 }: SkedraCanvasEditLayerProps) {
+	const { t } = useI18n();
+	const [mindmapOutline, setMindmapOutline] = useState<string | null>(null);
+	const mindmapActions = useMindmapContextActions({
+		elements,
+		selected: selectedEls,
+		readOnly,
+		enabled: contextMenu != null,
+		onApply: onApplyMutationPlan,
+		onHistoryBoundary,
+		onOutline: setMindmapOutline,
+	});
 	const {
 		pendingText,
 		editingText,
 		editingStickyChecklist,
 		editingStickyNoteMode,
+		editingStickyFocus,
 		handleCreateText,
 		handleUpdateText,
 		handleUpdateStickyNote,
@@ -161,10 +185,16 @@ export function SkedraCanvasEditLayer({
 							liveStickyNoteEditor?.checklist ?? editingStickyChecklist
 						}
 						viewport={viewport}
+						onViewportChange={store.setViewport}
+						initialFocus={editingStickyFocus}
 						svgRef={svgRef}
 						onUpdateStickyNote={handleUpdateStickyNote}
 						onClose={handleCloseTextEditorAfterSave}
 						onRegisterCommit={registerTextEditorCommit}
+						translate={(key, fallback) => {
+							const value = t(key);
+							return value === key ? fallback : value;
+						}}
 					/>
 				) : (
 					<CanvasEditorTextOverlay
@@ -175,13 +205,24 @@ export function SkedraCanvasEditLayer({
 						onCreateText={handleCreateText}
 						onUpdateText={handleUpdateText}
 						onCreateSibling={createMindmapSibling}
+						onCreateChild={createMindmapChild}
 						onClose={handleCloseTextEditorAfterSave}
 						onRegisterCommit={registerTextEditorCommit}
 					/>
 				))}
 
+			{mindmapOutline !== null && (
+				<MindmapDialog
+					initialOutline={mindmapOutline}
+					readOnly={readOnly}
+					onClose={() => setMindmapOutline(null)}
+					onInsert={store.startElementPlacement}
+				/>
+			)}
 			{contextMenu && (
 				<ContextMenu
+					key={`${contextMenu.x}:${contextMenu.y}:${Array.from(selectedIds).join(",")}`}
+					selectionActions={mindmapActions}
 					x={contextMenu.x}
 					y={contextMenu.y}
 					hasSelection={selectedIds.size > 0}
@@ -202,7 +243,14 @@ export function SkedraCanvasEditLayer({
 						deleteElementsWithKanbanReflow(Array.from(selectedIds));
 						store.clearSelection();
 					}}
-					onSelectAll={() => store.setSelectedIds(new Set(elements.keys()))}
+					onSelectAll={() => {
+						const hidden = getMindmapHiddenIds(elements.values());
+						store.setSelectedIds(
+							new Set(
+								Array.from(elements.keys()).filter((id) => !hidden.has(id)),
+							),
+						);
+					}}
 					onToggleLock={keyboard.toggleLock}
 					onCopyFormat={keyboard.copyFormat}
 					onPasteFormat={keyboard.pasteFormat}

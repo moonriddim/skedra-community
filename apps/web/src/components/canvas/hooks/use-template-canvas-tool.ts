@@ -27,7 +27,13 @@ export function useTemplateCanvasTool({
 	const addTemplateStickyNote = useCallback(
 		(sectionId: string) => {
 			const section = sync.elements.get(sectionId);
-			if (!section) return;
+			if (
+				!section ||
+				section.locked ||
+				sync.isReadonly ||
+				store.activeTool !== "select"
+			)
+				return;
 
 			const note = createCanvasTemplateStickyNote({
 				defaults: getCanvasElementFactoryDefaults({ resolvedTheme }),
@@ -46,6 +52,8 @@ export function useTemplateCanvasTool({
 		},
 		[
 			resolvedTheme,
+			store.activeTool,
+			sync.isReadonly,
 			store.setEditingTextId,
 			store.setSelectedIds,
 			sync.createElement,

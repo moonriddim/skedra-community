@@ -88,7 +88,7 @@ test("inline text edits on plain frames rename the frame label", () => {
 		{ frameLabel: "Backlog" },
 	);
 
-	/* Template-Sektionen bearbeiten weiterhin die Beschreibung (el.text) */
+	/* Template titles rename without replacing the prompt or resizing the section. */
 	const templateSection = {
 		...frame,
 		customData: { skedraType: "template-section" },
@@ -97,8 +97,7 @@ test("inline text edits on plain frames rename the frame label", () => {
 		element: templateSection,
 		text: "Notes",
 	});
-	assert.equal(update.text, "Notes");
-	assert.equal(update.frameLabel, undefined);
+	assert.deepEqual(update, { frameLabel: "Notes" });
 });
 
 test("multiple updates for one element are merged in mutation order", () => {

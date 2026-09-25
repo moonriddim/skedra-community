@@ -3,8 +3,13 @@
  */
 
 import type { CanvasThemeState } from "@/lib/canvas/canvas-defaults";
-import { buildKanbanReflowUpdates } from "@skedra/canvas-core";
-import type { CanvasElement, CanvasScene } from "@skedra/canvas-core";
+import { placeElementDraft } from "@skedra/canvas-core";
+import { buildKanbanReflowUpdates, isMindmapNode } from "@skedra/canvas-core";
+import type {
+	CanvasElement,
+	CanvasMutationPlan,
+	CanvasScene,
+} from "@skedra/canvas-core";
 import { nanoid } from "nanoid";
 import type { useCanvasStore } from "../use-canvas-store";
 import {
@@ -25,6 +30,8 @@ interface PlacementDownContext {
 	clientY: number;
 	store: CanvasStoreState;
 	createElement: (el: CanvasElement) => void;
+	applyMutationPlan?: (plan: CanvasMutationPlan) => void;
+	stopUndoCapture?: () => void;
 	updateElements: (
 		updates: Array<{ id: string; changes: Partial<CanvasElement> }>,
 	) => void;
@@ -56,6 +63,34 @@ export function handlePlacementPointerDown(ctx: PlacementDownContext): boolean {
 		clearSnapVisuals,
 		theme,
 	} = ctx;
+
+	if (store.elementPlacementDraft) {
+		const draft = store.elementPlacementDraft;
+		const { centerX, centerY } = resolveCenteredPlacementSnap(
+			clientX,
+			clientY,
+			draft.bounds.width,
+			draft.bounds.height,
+		);
+		const placed = placeElementDraft(draft, centerX, centerY);
+		ctx.stopUndoCapture?.();
+		try {
+			if (ctx.applyMutationPlan) {
+				ctx.applyMutationPlan({ create: placed, update: [], deleteIds: [] });
+			} else {
+				for (const element of placed) createElement(element);
+			}
+		} finally {
+			ctx.stopUndoCapture?.();
+		}
+		store.clearElementPlacementDraft();
+		store.setSelectedIds(new Set(placed.map((element) => element.id)));
+		if (placed.length === 1 && isMindmapNode(placed[0]))
+			store.setEditingTextId(placed[0].id);
+		setDrawingPreview(null);
+		clearSnapVisuals();
+		return true;
+	}
 
 	if (store.stickyNotePlacementDraft) {
 		const draft = store.stickyNotePlacementDraft;

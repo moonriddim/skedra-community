@@ -9,6 +9,7 @@ import {
 	FLOWCHART_YES_COLOR,
 	buildCloudArcRadiusChanges,
 	buildMindmapBranchColorUpdates,
+	buildStickyNoteFontSizeChange,
 	clampPolygonSides,
 	getFlowchartConnectorMeta,
 } from "@skedra/canvas-core";
@@ -23,6 +24,7 @@ import type {
 	CanvasEditorEditingText as EditingText,
 	CanvasEditorPendingText as PendingText,
 } from "@skedra/canvas-editor";
+import { applyActiveStickyFontSize } from "@skedra/canvas-editor";
 
 interface StoreDrawingDefaults {
 	setStrokeColor: (color: string) => void;
@@ -67,6 +69,11 @@ function buildElementPropertyChange(
 	key: keyof CanvasElement,
 	value: unknown,
 ): { id: string; changes: Partial<CanvasElement> } {
+	if (key === "fontSize")
+		return {
+			id: el.id,
+			changes: buildStickyNoteFontSizeChange(el, value as number),
+		};
 	const flowchartMeta = getFlowchartConnectorMeta(el);
 	if (key !== "stroke" || !flowchartMeta) {
 		return { id: el.id, changes: { [key]: value } };
@@ -135,6 +142,12 @@ export function applyPropertiesPanelPropertyChange({
 	onUpdateEditingText,
 	store,
 }: ApplyPropertyChangeOptions) {
+	if (
+		key === "fontSize" &&
+		editingTextId &&
+		applyActiveStickyFontSize(editingTextId, value as number)
+	)
+		return;
 	const isTextEditingProperty =
 		key === "textColor" ||
 		key === "fontFamily" ||

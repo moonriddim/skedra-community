@@ -12,6 +12,7 @@ import {
 	getGanttChartId,
 	getPyramidSectionAtPoint,
 	getSequenceDiagramElementMeta,
+	getTemplateSectionMeta,
 	hitTest,
 	isCanvasFrameLabelEditable,
 	pathTextLabelHitTest,
@@ -63,6 +64,7 @@ function getStructuredToolAtPosition(
 }
 
 interface UseCanvasDoubleClickOptions {
+	addTemplateStickyNote: (sectionId: string) => void;
 	svgRef: RefObject<SVGSVGElement | null>;
 	scene: CanvasScene;
 	store: CanvasStoreSlice;
@@ -217,6 +219,7 @@ function getSelectedKanbanAtPosition(
 }
 
 export function useCanvasDoubleClick({
+	addTemplateStickyNote,
 	svgRef,
 	scene,
 	store,
@@ -419,6 +422,12 @@ export function useCanvasDoubleClick({
 
 			for (const el of scene.getHitTestOrderedElements()) {
 				if (el.locked) continue;
+				if (getTemplateSectionMeta(el) && hitTest(el, canvasX, canvasY)) {
+					addTemplateStickyNote(el.id);
+					e.preventDefault();
+					e.stopPropagation();
+					return;
+				}
 				/*
 				 * Doppelklick in den Frame-Koerper oeffnet keinen Text-Editor mehr:
 				 * Umbenennen laeuft ueber das Label, Inhalte ueber die Elemente im Frame.
@@ -463,6 +472,7 @@ export function useCanvasDoubleClick({
 			}
 		},
 		[
+			addTemplateStickyNote,
 			presentationMode,
 			textEditorOpen,
 			store,
