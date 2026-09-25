@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
@@ -433,13 +434,17 @@ test("aggregate update is atomic with deduplication and Metrics reads no identif
 	);
 	await recordInstallationReport(db, report);
 	await recordInstallationReport(db, report);
-	const summarySql = await readFile(
-		new URL(
-			"../../../../deploy/managed/monitoring/ops-metrics/installations.sql",
-			import.meta.url,
-		),
-		"utf8",
+	// The Metrics query belongs to the managed deployment and is not part of the
+	// Community export (deploy/managed is excluded there).
+	const summarySqlUrl = new URL(
+		"../../../../deploy/managed/monitoring/ops-metrics/installations.sql",
+		import.meta.url,
 	);
+	if (!existsSync(summarySqlUrl)) {
+		t.diagnostic("Managed Metrics query not present; skipping summary check.");
+		return;
+	}
+	const summarySql = await readFile(summarySqlUrl, "utf8");
 	await pg.exec("set role skedra_ops_metrics");
 	const summary = await pg.query<{ json_build_object: unknown }>(summarySql);
 	assert.deepEqual(summary.rows[0].json_build_object, {
