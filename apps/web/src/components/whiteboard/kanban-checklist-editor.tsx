@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n";
 import type { KanbanChecklistItem } from "@skedra/canvas-core";
 import { Plus, Trash2 } from "lucide-react";
 import { nanoid } from "nanoid";
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 
 export function KanbanChecklistEditor({
@@ -17,7 +17,33 @@ export function KanbanChecklistEditor({
 	hideCompleted: boolean;
 }) {
 	const { t } = useI18n();
-	const inputs = useRef(new Map<string, HTMLInputElement>());
+	const inputs = useRef(new Map<string, HTMLTextAreaElement>());
+	useLayoutEffect(() => {
+		const widths = new Map<HTMLTextAreaElement, number>();
+		const resize = (input: HTMLTextAreaElement) => {
+			input.style.height = "auto";
+			input.style.height = `${input.scrollHeight}px`;
+		};
+		const observer =
+			typeof ResizeObserver === "undefined"
+				? undefined
+				: new ResizeObserver((entries) => {
+						for (const entry of entries) {
+							const input = entry.target as HTMLTextAreaElement;
+							if (widths.get(input) === entry.contentRect.width) continue;
+							widths.set(input, entry.contentRect.width);
+							resize(input);
+						}
+					});
+		for (const item of items) {
+			if (hideCompleted && item.completed) continue;
+			const input = inputs.current.get(item.id);
+			if (!input) continue;
+			resize(input);
+			observer?.observe(input);
+		}
+		return () => observer?.disconnect();
+	}, [items, hideCompleted]);
 	const focus = (next: KanbanChecklistItem[], id: string) => {
 		flushSync(() => onChange(next));
 		inputs.current.get(id)?.focus();
@@ -42,7 +68,7 @@ export function KanbanChecklistEditor({
 				.map((item, index) => (
 					<div
 						key={item.id}
-						className="flex min-w-0 items-center gap-1 rounded-md border border-border bg-background p-1"
+						className="flex min-w-0 items-start gap-1 rounded-md border border-border bg-background p-1"
 					>
 						<label className="flex h-11 w-11 shrink-0 items-center justify-center">
 							<input
@@ -63,7 +89,8 @@ export function KanbanChecklistEditor({
 								}
 							/>
 						</label>
-						<Input
+						<Textarea
+							rows={1}
 							enterKeyHint="next"
 							autoComplete="off"
 							ref={(node) => {
@@ -73,7 +100,7 @@ export function KanbanChecklistEditor({
 							aria-label={`${t("kanbanCardDialog.checklist")} ${index + 1}`}
 							placeholder={t("kanbanCardDialog.checkpointPlaceholder")}
 							value={item.text}
-							className={`min-w-0 flex-1 border-0 bg-transparent px-1 text-base shadow-none ${item.completed ? "text-muted-foreground line-through" : ""}`}
+							className={`min-h-11 min-w-0 flex-1 resize-none overflow-hidden whitespace-pre-wrap break-words border-0 bg-transparent px-1 py-2.5 text-base leading-6 shadow-none ${item.completed ? "text-muted-foreground line-through" : ""}`}
 							onChange={(event) =>
 								onChange(
 									items.map((entry) =>
