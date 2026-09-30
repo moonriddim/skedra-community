@@ -10,6 +10,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins";
 import { env } from "../env";
 import { prepareCompleteAccountDeletion } from "./account-deletion";
+import { getVerificationEmailPurpose } from "./auth-email-context";
 import { grantFoundingUserTrial } from "./billing-entitlement";
 import { db } from "./db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mail";
@@ -116,11 +117,12 @@ export const auth = betterAuth({
 		// Verifizierungs-Mail direkt nach der Registrierung senden.
 		sendOnSignUp: requireEmailVerification,
 		autoSignInAfterVerification: true,
-		sendVerificationEmail: async ({ user, url }) => {
+		sendVerificationEmail: async ({ user, url, token }, request) => {
 			void sendVerificationEmail(db, {
 				email: user.email,
 				url,
 				userName: user.name,
+				purpose: getVerificationEmailPurpose(token, request?.url),
 			});
 		},
 	},

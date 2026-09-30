@@ -41,6 +41,7 @@ export interface EncryptedBoardUpdate {
 export interface DecryptedBoardState {
 	elements: CanvasElement[];
 	views: SavedCanvasView[];
+	canvasBg: string;
 	appliedUpdates: number;
 }
 
@@ -122,6 +123,7 @@ function readBoardState(doc: Y.Doc) {
 	const state = readCanvasMapsFromYDoc(doc);
 	return {
 		elements: Array.from(state.elements.values()),
+		canvasBg: state.canvasBg,
 		views: Array.from(state.views.values()).sort((a, b) =>
 			a.name.localeCompare(b.name),
 		),

@@ -4,6 +4,7 @@ import {
 	type CanvasElementFactoryDefaults,
 	createCanvasElementFromBoundsInput,
 	createImageCanvasElement,
+	createKanbanBoardElements,
 	createKanbanListElements,
 	createStickyNoteElement,
 	fitImageSize,
@@ -18,6 +19,43 @@ const defaults: CanvasElementFactoryDefaults = {
 	fontFamily: "Inter",
 	kanbanFontFamily: "Kalam",
 };
+
+test("Kanban boards preserve empty columns unless a placeholder is requested", () => {
+	const options = {
+		x: 100,
+		y: 100,
+		lists: [
+			{ name: "To do", cards: ["Draft copy", "Prepare demo"] },
+			{ name: "Doing", cards: ["Connect OAuth"] },
+			{ name: "Done", cards: [] },
+		],
+	};
+	const elements = createKanbanBoardElements(defaults, options);
+	const columns = elements.filter((element) => element.type === "frame");
+	assert.deepEqual(
+		columns.map((column) => column.frameLabel),
+		["To do", "Doing", "Done"],
+	);
+	const cards = elements.filter(
+		(element) => element.customData?.skedraType === "kanban-card",
+	);
+	assert.deepEqual(
+		cards.map((card) => card.text),
+		["Draft copy", "Prepare demo", "Connect OAuth"],
+	);
+	assert.equal(
+		cards.filter((card) => card.frameId === columns[2]?.id).length,
+		0,
+	);
+	const withPlaceholder = createKanbanBoardElements(defaults, {
+		...options,
+		defaultCardTitle: "New card",
+	});
+	assert.equal(
+		withPlaceholder.filter((element) => element.text === "New card").length,
+		1,
+	);
+});
 
 test("creates sticky notes with core defaults and metadata", () => {
 	const note = createStickyNoteElement(defaults, {

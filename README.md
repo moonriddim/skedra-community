@@ -80,6 +80,7 @@ and updates the same structured elements.
 
 - [MCP product page and demo](https://skedra.xyz/mcp)
 - [MCP setup, security boundary and example prompts](docs/MCP.md)
+- [Skedra plugin package and public submission preparation](docs/PLUGIN.md)
 - [Official MCP Registry submission package](apps/mcp/REGISTRY.md)
 
 ## Skedra Community

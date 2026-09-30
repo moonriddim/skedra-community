@@ -42,6 +42,7 @@ import {
 	orderMcpCanvasElementInputs,
 } from "./element-input.js";
 import { buildMcpLayerUpdates, layerOperationSchema } from "./layer-order.js";
+import { getMcpSequenceAppearance } from "./sequence-appearance.js";
 
 /** Factory-Defaults für Canvas-Elemente aus dem MCP (eigene IDs, neutraler Stroke). */
 const elementDefaults = {
@@ -132,6 +133,7 @@ async function readBoardState(
 			: null,
 		elements: state.elements,
 		views: state.views,
+		canvasBg: state.canvasBg,
 	};
 }
 
@@ -224,6 +226,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"list_boards",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Boards auflisten",
 			description:
 				"Listet alle aktiven Whiteboards des authentifizierten Users.",
@@ -235,6 +242,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"list_archived_boards",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Archivierte Boards",
 			description: "Listet Boards im Papierkorb.",
 			inputSchema: z.object({}),
@@ -245,6 +257,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"create_board",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Board erstellen",
 			description:
 				"Erstellt ein Skedra-Whiteboard. Serverseitige Verschlüsselung funktioniert automatisch; E2EE gibt zusätzlich einen clientseitigen Key zurück.",
@@ -260,6 +277,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"get_board",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Board abrufen",
 			description: "Gibt Metadaten eines Boards zurueck.",
 			inputSchema: z.object({
@@ -272,6 +294,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"get_board_canvas_state",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Canvas-Zustand lesen",
 			description:
 				"Liest Canvas-Elemente und Views. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
@@ -293,6 +320,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"update_board",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Board umbenennen",
 			description: "Ändert den Namen eines Boards.",
 			inputSchema: z.object({
@@ -307,6 +339,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"archive_board",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Board archivieren",
 			description: "Verschiebt ein Board in den Papierkorb.",
 			inputSchema: z.object({ boardId: z.string().uuid() }),
@@ -317,6 +354,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"restore_board",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Board wiederherstellen",
 			description: "Stellt ein archiviertes Board wieder her.",
 			inputSchema: z.object({ boardId: z.string().uuid() }),
@@ -327,6 +369,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"permanent_delete_board",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Board endgueltig loeschen",
 			description:
 				"Loescht ein archiviertes Board unwiderruflich (Papierkorb). Erfordert boards:delete Scope.",
@@ -344,6 +391,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"add_board_elements",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Canvas-Elemente hinzufügen",
 			description:
 				"Fügt Shapes und Texte oberhalb bestehender Inhalte hinzu. Die Reihenfolge im Request bleibt stabil; mit zIndex werden Elemente innerhalb des neuen Batches geschichtet (kleinere Werte hinten, grössere vorne). Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
@@ -366,6 +418,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"edit_board_elements",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Canvas-Elemente bearbeiten",
 			description:
 				"Bearbeitet vorhandene Elemente atomar: Position, Grösse, Text, Farben, Linien, Typografie, Rotation, Deckkraft und weitere visuelle Eigenschaften. Nutze get_board_canvas_state zuerst für die Element-IDs und reorder_board_elements für Ebenenänderungen.",
@@ -398,6 +455,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"reorder_board_elements",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Canvas-Ebenen ändern",
 			description:
 				"Ändert die Ebenenreihenfolge vorhandener Canvas-Elemente deterministisch. Nutze get_board_canvas_state zuerst, um die Element-IDs zu lesen.",
@@ -442,6 +504,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"create_kanban_board",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Kanban-Board erzeugen",
 			description:
 				"Erzeugt ein Kanban-Board. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey. Erscheint sofort live.",
@@ -466,7 +533,6 @@ export function createSkedraMcpServer(
 				x: x ?? 100,
 				y: y ?? 100,
 				lists: lists.map((list) => ({ name: list.name, cards: list.cards })),
-				defaultCardTitle: "Neue Karte",
 			});
 			return textResult(
 				await pushBoardElements(getClient(), boardId, e2eeKey, built),
@@ -477,6 +543,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"create_gantt_chart",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Gantt-Diagramm erzeugen",
 			description:
 				"Erzeugt einen strukturierten Projektzeitplan mit Aufgaben, Fortschritt, Meilensteinen und Abhängigkeiten. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
@@ -562,6 +633,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"list_gantt_charts",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Projektpläne lesen",
 			description:
 				"Listet strukturierte Projektpläne mit chartId, Aufgaben, Meilensteinen und nummerierten Abhängigkeiten auf. Vor edit_gantt_chart verwenden.",
@@ -588,6 +664,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"edit_gantt_chart",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Projektplan bearbeiten",
 			description:
 				"Bearbeitet einen vorhandenen Projektplan atomar. Unterstützt Plan-Metadaten, Aufgaben, Meilensteine, Gruppen, Verschiebungen, Fortschritt, Status und Abhängigkeiten. IDs vorher mit list_gantt_charts lesen.",
@@ -648,12 +729,23 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"create_sequence_diagram",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Sequenzdiagramm erzeugen",
 			description:
 				"Erzeugt ein strukturiertes, im Sequenzdiagramm-Editor weiterbearbeitbares Diagramm aus Mermaid-Sequenzsyntax. Serverseitig verschlüsselte Boards funktionieren automatisch; E2EE-Boards benötigen den e2eeKey.",
 			inputSchema: z.object({
 				boardId: z.string().uuid(),
 				e2eeKey: z.string().min(20).optional(),
+				theme: z
+					.enum(["light", "dark"])
+					.optional()
+					.describe(
+						"Farbschema des Diagramms. Ohne Angabe wird der gespeicherte Canvas-Hintergrund verwendet; bei einem Theme-Hintergrund gilt dark.",
+					),
 				x: z.number().optional(),
 				y: z.number().optional(),
 				source: z
@@ -667,23 +759,46 @@ export function createSkedraMcpServer(
 					),
 			}),
 		},
-		async ({ boardId, e2eeKey, x, y, source }) => {
+		async ({ boardId, e2eeKey, x, y, source, theme }) => {
+			const mutationState = await loadBoardMutationState(
+				getClient(),
+				boardId,
+				e2eeKey,
+			);
 			const built = createSequenceDiagramElements({
 				source,
 				x: x ?? 100,
 				y: y ?? 100,
 				defaults: elementDefaults,
-				appearance: { fontFamily: "system-ui, sans-serif" },
+				appearance: getMcpSequenceAppearance(
+					mutationState.state.canvasBg,
+					theme,
+				),
 			});
-			return textResult(
-				await pushBoardElements(getClient(), boardId, e2eeKey, built),
+			const pushed = await pushBoardMutation(
+				getClient(),
+				boardId,
+				e2eeKey,
+				mutationState.updates,
+				mutationState.board.encryptionMode,
+				{ create: built, update: [], deleteIds: [] },
 			);
+			return textResult({
+				added: built.length,
+				updateId: pushed.updateId,
+				encryptionMode: pushed.encryptionMode,
+			});
 		},
 	);
 
 	server.registerTool(
 		"list_sequence_diagrams",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Sequenzdiagramme lesen",
 			description:
 				"Listet strukturierte Sequenzdiagramme mit diagramId, Teilnehmer-IDs, Nachrichten und eventIndex auf. Vor edit_sequence_diagram verwenden.",
@@ -704,19 +819,25 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"edit_sequence_diagram",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: false,
+				destructiveHint: true,
+			},
 			title: "Sequenzdiagramm bearbeiten",
 			description:
 				"Bearbeitet ein vorhandenes strukturiertes Sequenzdiagramm atomar. Unterstützt Teilnehmer/Nachrichten hinzufügen, Nachrichten ändern/löschen, Aktivierung sowie Bedingung oder Wiederholung. IDs und eventIndex vorher mit list_sequence_diagrams lesen.",
 			inputSchema: z.object({
 				boardId: z.string().uuid(),
 				e2eeKey: z.string().min(20).optional(),
+				theme: z.enum(["light", "dark"]).optional(),
 				diagramId: z.string().min(1).max(160),
 				action: aiSequenceDiagramEditActionSchema.describe(
 					"Semantische Einzelaktion für das Sequenzdiagramm.",
 				),
 			}),
 		},
-		async ({ boardId, e2eeKey, diagramId, action }) => {
+		async ({ boardId, e2eeKey, diagramId, action, theme }) => {
 			const mutationState = await loadBoardMutationState(
 				getClient(),
 				boardId,
@@ -730,7 +851,10 @@ export function createSkedraMcpServer(
 				diagramId,
 				action,
 				defaults: elementDefaults,
-				appearance: { fontFamily: "system-ui, sans-serif" },
+				appearance: getMcpSequenceAppearance(
+					mutationState.state.canvasBg,
+					theme,
+				),
 			});
 			if (!plan) {
 				throw new Error(
@@ -762,6 +886,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"list_board_team_roles",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Board-Team-Rollen",
 			description:
 				"Listet Team-Rollen, die fuer direkte Board-Einladungen verwendet werden koennen.",
@@ -776,6 +905,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"invite_board_member",
 		{
+			annotations: {
+				readOnlyHint: false,
+				openWorldHint: true,
+				destructiveHint: false,
+			},
 			title: "Mitglied einladen",
 			description:
 				"Laedt einen registrierten User per E-Mail zum Board ein. Nutze vorher list_board_team_roles und uebergib die gewuenschte roleId.",
@@ -792,6 +926,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"list_activity",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Aktivitaeten",
 			description: "Letzte Aktivitaeten ueber alle Boards.",
 			inputSchema: z.object({
@@ -805,6 +944,11 @@ export function createSkedraMcpServer(
 	server.registerTool(
 		"list_board_activity",
 		{
+			annotations: {
+				readOnlyHint: true,
+				openWorldHint: false,
+				destructiveHint: false,
+			},
 			title: "Board-Aktivitaeten",
 			description: "Aktivitaeten fuer ein bestimmtes Board.",
 			inputSchema: z.object({

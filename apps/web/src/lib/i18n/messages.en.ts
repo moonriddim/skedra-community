@@ -515,6 +515,18 @@ export const enMessages = {
 			failed: "Two-factor verification failed",
 		},
 		register: {
+			verificationTitle: "Registration successful",
+			verificationDescription:
+				"Please verify your email address now. Open the verification email sent to {email} and click the link to activate your account.",
+			verificationHint:
+				"Check your spam folder too. If you already have an account, you can sign in or reset your password.",
+			verificationResend: "Request another verification email",
+			verificationResent:
+				"Your request was accepted. If this address is awaiting verification, you will receive another email.",
+			verificationFailed:
+				"Could not request the verification email. Please try again later.",
+			verificationCooldown: "You can resend again in one minute",
+			changeEmail: "Use a different email address",
 			title: "Create account",
 			description: "Create your Skedra account and get started",
 			name: "Name",

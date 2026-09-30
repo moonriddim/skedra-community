@@ -1,11 +1,19 @@
 import type { CanvasElement, CanvasElementUpdate } from "@skedra/canvas-core";
 import { canvasElementVisualUpdateSchema } from "@skedra/shared";
 import { z } from "zod";
+import { mcpCanvasPointsSchema } from "./canvas-points.js";
+
+const visualChangesSchema = canvasElementVisualUpdateSchema
+	.innerType()
+	.extend({ points: mcpCanvasPointsSchema.optional() })
+	.refine((value) => Object.keys(value).length > 0, {
+		message: "Mindestens ein Feld zum Aktualisieren erforderlich",
+	});
 
 export const elementEditSchema = z
 	.object({
 		elementId: z.string().min(1),
-		changes: canvasElementVisualUpdateSchema,
+		changes: visualChangesSchema,
 	})
 	.strict();
 

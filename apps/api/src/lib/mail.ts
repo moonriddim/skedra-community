@@ -6,19 +6,12 @@ import {
 	getResetFallbackMode,
 	resolveMailConfig,
 } from "./instance-settings";
-
-/**
- * Escaped nutzergesteuerte Werte, bevor sie in HTML-Mails interpoliert werden.
- * Verhindert HTML-/Attribut-Injection über z. B. Anzeigenamen (Fix E1).
- */
-function escapeHtml(value: string) {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#39;");
-}
+import {
+	buildMentionNotificationEmail,
+	buildPasswordResetEmail,
+	buildRegistrationInviteEmail,
+	buildVerificationEmail,
+} from "./mail-templates";
 
 /** Kurzlebige Reset-Links wenn SMTP fehlschlägt und Fallback „link“ aktiv ist. */
 const pendingResetLinks = new Map<string, { url: string; expiresAt: number }>();
@@ -102,34 +95,12 @@ export async function sendPasswordResetEmail(
 	db: Database,
 	input: { email: string; url: string; userName?: string },
 ) {
-	const subject = "Skedra – Passwort zurücksetzen";
-	const text = [
-		`Hallo${input.userName ? ` ${input.userName}` : ""},`,
-		"",
-		"du hast ein neues Passwort für dein Skedra-Konto angefordert.",
-		"Öffne den folgenden Link (gültig für kurze Zeit):",
-		"",
-		input.url,
-		"",
-		"Wenn du das nicht warst, kannst du diese E-Mail ignorieren.",
-	].join("\n");
-
-	// Fix E1: nutzergesteuerte Werte (Name) und die URL werden escaped.
-	const safeName = input.userName ? ` ${escapeHtml(input.userName)}` : "";
-	const safeUrl = escapeHtml(input.url);
-	const html = `
-		<p>Hallo${safeName},</p>
-		<p>du hast ein neues Passwort für dein Skedra-Konto angefordert.</p>
-		<p><a href="${safeUrl}">Passwort jetzt zurücksetzen</a></p>
-		<p style="color:#64748b;font-size:12px">Wenn du das nicht warst, ignoriere diese E-Mail.</p>
-	`;
+	const content = buildPasswordResetEmail({ ...input, appUrl: env.APP_URL });
 
 	try {
 		await sendAppEmail(db, {
 			to: input.email,
-			subject,
-			text,
-			html,
+			...content,
 		});
 		return { delivered: true as const };
 	} catch (error) {
@@ -158,30 +129,15 @@ export async function sendPasswordResetEmail(
  */
 export async function sendVerificationEmail(
 	db: Database,
-	input: { email: string; url: string; userName?: string },
+	input: {
+		email: string;
+		url: string;
+		userName?: string;
+		purpose?: "registration" | "email-change";
+	},
 ) {
-	const subject = "Skedra – E-Mail bestätigen";
-	const text = [
-		`Hallo${input.userName ? ` ${input.userName}` : ""},`,
-		"",
-		"bitte bestätige deine E-Mail-Adresse für Skedra über den folgenden Link:",
-		"",
-		input.url,
-		"",
-		"Wenn du dich nicht bei Skedra registriert hast, ignoriere diese E-Mail.",
-	].join("\n");
-
-	// Fix E1: nutzergesteuerte Werte und URL escapen.
-	const safeName = input.userName ? ` ${escapeHtml(input.userName)}` : "";
-	const safeUrl = escapeHtml(input.url);
-	const html = `
-		<p>Hallo${safeName},</p>
-		<p>bitte bestätige deine E-Mail-Adresse für Skedra:</p>
-		<p><a href="${safeUrl}">E-Mail jetzt bestätigen</a></p>
-		<p style="color:#64748b;font-size:12px">Wenn du dich nicht registriert hast, ignoriere diese E-Mail.</p>
-	`;
-
-	await sendAppEmail(db, { to: input.email, subject, text, html });
+	const content = buildVerificationEmail({ ...input, appUrl: env.APP_URL });
+	await sendAppEmail(db, { to: input.email, ...content });
 	return { delivered: true as const };
 }
 
@@ -194,40 +150,15 @@ export async function sendRegistrationInviteEmail(
 		context?: string;
 	},
 ) {
-	const subject = "Skedra - Einladung";
-	const text = [
-		"Hallo,",
-		"",
-		`${input.inviterName ?? "Ein Skedra-Admin"} hat dich zu Skedra eingeladen.`,
-		input.context ? `Kontext: ${input.context}` : "",
-		"",
-		"Registriere dich ueber diesen Link:",
-		"",
-		input.url,
-		"",
-		"Wenn du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.",
-	]
-		.filter(Boolean)
-		.join("\n");
-
-	// Fix E1: alle nutzergesteuerten Werte und die URL escapen.
-	const safeInviter = escapeHtml(input.inviterName ?? "Ein Skedra-Admin");
-	const safeContext = input.context ? escapeHtml(input.context) : "";
-	const safeUrl = escapeHtml(input.url);
-	const html = `
-		<p>Hallo,</p>
-		<p><strong>${safeInviter}</strong> hat dich zu Skedra eingeladen.</p>
-		${safeContext ? `<p>Kontext: ${safeContext}</p>` : ""}
-		<p><a href="${safeUrl}">Skedra-Konto erstellen</a></p>
-		<p style="color:#64748b;font-size:12px">Wenn du diese Einladung nicht erwartet hast, ignoriere diese E-Mail.</p>
-	`;
+	const content = buildRegistrationInviteEmail({
+		...input,
+		appUrl: env.APP_URL,
+	});
 
 	try {
 		await sendAppEmail(db, {
 			to: input.email,
-			subject,
-			text,
-			html,
+			...content,
 		});
 		return { delivered: true as const };
 	} catch (error) {
@@ -253,34 +184,13 @@ export async function sendMentionNotificationEmail(
 		boardUrl: string;
 	},
 ) {
-	const subject = `${input.authorName} hat dich auf „${input.boardName}“ erwähnt`;
-	const text = [
-		`Hallo ${input.recipientName},`,
-		"",
-		`${input.authorName} hat dich in einem Kommentar erwähnt:`,
-		`„${input.commentPreview.slice(0, 200)}“`,
-		"",
-		`Board öffnen: ${input.boardUrl}`,
-	].join("\n");
-
-	// Fix E1: sämtliche nutzergesteuerten Werte escapen (nicht nur den Kommentar-Auszug).
-	const safeRecipient = escapeHtml(input.recipientName);
-	const safeAuthor = escapeHtml(input.authorName);
-	const safeBoard = escapeHtml(input.boardName);
-	const safePreview = escapeHtml(input.commentPreview.slice(0, 400));
-	const safeBoardUrl = escapeHtml(input.boardUrl);
+	const content = buildMentionNotificationEmail({
+		...input,
+		appUrl: env.APP_URL,
+	});
 	await sendAppEmail(db, {
 		to: input.to,
-		subject,
-		text,
-		html: `
-			<p>Hallo ${safeRecipient},</p>
-			<p><strong>${safeAuthor}</strong> hat dich auf <strong>${safeBoard}</strong> erwähnt:</p>
-			<blockquote style="border-left:3px solid #14b8a6;padding-left:12px;color:#334155">
-				${safePreview}
-			</blockquote>
-			<p><a href="${safeBoardUrl}">Zum Whiteboard</a></p>
-		`,
+		...content,
 	});
 }
 

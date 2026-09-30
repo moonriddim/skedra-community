@@ -23,6 +23,7 @@ import {
 	getMailDeliveryStatus,
 	sendAppEmail,
 } from "../../lib/mail";
+import { buildSmtpTestEmail } from "../../lib/mail-templates";
 import {
 	ObjectStorageConfigChangeError,
 	getEnvObjectStorageStatus,
@@ -339,12 +340,11 @@ export const instanceRouter = router({
 
 		await sendAppEmail(ctx.db, {
 			to: ctx.user.email,
-			subject: "Skedra – SMTP-Test",
-			text: [
-				"Diese Test-E-Mail bestätigt, dass dein SMTP-Server korrekt konfiguriert ist.",
-				"",
-				`Gesendet an: ${ctx.user.email}`,
-			].join("\n"),
+			...buildSmtpTestEmail({
+				appUrl: env.APP_URL,
+				email: ctx.user.email,
+				userName: ctx.user.name,
+			}),
 		});
 
 		return { success: true, email: ctx.user.email };

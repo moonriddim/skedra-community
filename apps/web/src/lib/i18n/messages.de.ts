@@ -525,6 +525,18 @@ export const deMessages = {
 			failed: "Zwei-Faktor-Verifikation fehlgeschlagen",
 		},
 		register: {
+			verificationTitle: "Registrierung erfolgreich",
+			verificationDescription:
+				"Bitte bestätige jetzt deine E-Mail-Adresse. Öffne die Bestätigungsmail an {email} und klicke auf den Link, um dein Konto zu aktivieren.",
+			verificationHint:
+				"Prüfe auch den Spam-Ordner. Falls du bereits ein Konto hast, kannst du dich anmelden oder dein Passwort zurücksetzen.",
+			verificationResend: "Bestätigungsmail erneut anfordern",
+			verificationResent:
+				"Die Anfrage wurde angenommen. Falls für diese Adresse eine Bestätigung aussteht, erhältst du eine neue E-Mail.",
+			verificationFailed:
+				"Die Bestätigungsmail konnte nicht angefordert werden. Bitte versuche es später erneut.",
+			verificationCooldown: "Erneuter Versand in einer Minute möglich",
+			changeEmail: "Andere E-Mail-Adresse verwenden",
 			title: "Konto erstellen",
 			description: "Erstelle dein Skedra-Konto und starte durch",
 			name: "Name",

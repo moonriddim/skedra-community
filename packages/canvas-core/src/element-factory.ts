@@ -422,7 +422,7 @@ export function createKanbanBoardElements(
 		x: number;
 		y: number;
 		lists: Array<{ name: string; cards: string[] }>;
-		defaultCardTitle: string;
+		defaultCardTitle?: string;
 	},
 ): CanvasElement[] {
 	const gap = 24;
@@ -432,7 +432,9 @@ export function createKanbanBoardElements(
 			y: options.y,
 			name: list.name,
 			cardTitles:
-				list.cards.length > 0 ? list.cards : [options.defaultCardTitle],
+				list.cards.length > 0 || options.defaultCardTitle === undefined
+					? list.cards
+					: [options.defaultCardTitle],
 		}),
 	);
 }

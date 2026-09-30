@@ -1,4 +1,5 @@
 import { AuthFormLayout } from "@/components/auth/auth-form-layout";
+import { EmailVerificationNotice } from "@/components/auth/email-verification-notice";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,9 @@ export function RegisterPage() {
 	const [acceptedTerms, setAcceptedTerms] = useState(false);
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [verificationEmail, setVerificationEmail] = useState<string | null>(
+		null,
+	);
 	const displayError =
 		error ||
 		(searchParams.get("oauthError") || searchParams.get("error")
@@ -81,12 +85,30 @@ export function RegisterPage() {
 		);
 	}
 
-	if (!isPending && session?.user) {
+	if (!loading && !isPending && session?.user) {
 		return <Navigate to={redirectTo} replace />;
+	}
+
+	if (verificationEmail) {
+		return (
+			<EmailVerificationNotice
+				email={verificationEmail}
+				redirectTo={redirectTo}
+				onChangeEmail={() => setVerificationEmail(null)}
+				onResend={async () => {
+					const result = await authClient.sendVerificationEmail({
+						email: verificationEmail,
+						callbackURL: redirectTo,
+					});
+					if (result.error) throw new Error(result.error.message);
+				}}
+			/>
+		);
 	}
 
 	const handleSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
+		if (loading) return;
 		trackGrowthEvent("signup_started", {
 			context: hasSelectedPlan ? (plan ?? "plan") : "founding_trial",
 		});
@@ -110,8 +132,16 @@ export function RegisterPage() {
 			trackGrowthEvent("signup_completed", {
 				context: hasSelectedPlan ? (plan ?? "plan") : "founding_trial",
 			});
+			// Managed signups (including generic duplicate responses) have no
+			// session until email verification. Protected E2EE calls must wait.
+			if (!result.data?.token) {
+				setVerificationEmail(email.trim().toLowerCase());
+				setPassword("");
+				return;
+			}
 			try {
 				const identityResult = await identityQuery.refetch();
+				if (identityResult.error) throw identityResult.error;
 				await unlockOrCreateUserE2eeIdentity({
 					email,
 					password,

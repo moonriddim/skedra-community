@@ -5,6 +5,7 @@ import {
 } from "@skedra/canvas-core";
 import { canvasBoundsElementInputSchema } from "@skedra/shared";
 import { z } from "zod";
+import { mcpCanvasPointsSchema } from "./canvas-points.js";
 
 /**
  * MCP canvas input with the complete safe visual surface.
@@ -15,6 +16,7 @@ import { z } from "zod";
  */
 export const elementInputSchema = canvasBoundsElementInputSchema
 	.extend({
+		points: mcpCanvasPointsSchema.optional(),
 		zIndex: z
 			.number()
 			.int()
