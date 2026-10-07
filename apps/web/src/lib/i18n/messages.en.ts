@@ -1893,6 +1893,9 @@ export const enMessages = {
 			saveViewerRights: "Save viewer rights",
 			sharePlaceholder: "Enable the viewer link first",
 			copyLink: "Copy link",
+			preparingPreview: "Preparing preview…",
+			previewFailed: "Could not create the board preview. Please try again.",
+			copyFailed: "Could not copy the link. Please try again.",
 			copied: "Copied",
 			liveOnlyInfo:
 				"The viewer link is only available during an active presentation.",

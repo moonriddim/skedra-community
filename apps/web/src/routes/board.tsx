@@ -39,6 +39,10 @@ import {
 } from "@/lib/e2ee";
 import { trackGrowthEvent } from "@/lib/growth-analytics";
 import { useI18n } from "@/lib/i18n";
+import {
+	copyPreparedPresentationLink,
+	withPresentationPreviewVersion,
+} from "@/lib/presentation-share-link";
 import { trpc } from "@/lib/trpc";
 import {
 	ArrowLeft,
@@ -104,6 +108,8 @@ export function BoardPage() {
 	const { data: session } = authClient.useSession();
 	const utils = trpc.useUtils();
 	const [copied, setCopied] = useState(false);
+	const [preparingShare, setPreparingShare] = useState(false);
+	const [shareCopyError, setShareCopyError] = useState("");
 	const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
 	const [shareDialogOpen, setShareDialogOpen] = useState(false);
 	const [inviteEmail, setInviteEmail] = useState("");
@@ -476,8 +482,11 @@ export function BoardPage() {
 	const shareUrl = useMemo(() => {
 		if (!shareSettings?.shareToken) return "";
 		const url = `${window.location.origin}/present/${shareSettings.shareToken}`;
-		return withE2eeKeyFragment(url, e2eeKey);
-	}, [e2eeKey, shareSettings?.shareToken]);
+		return withPresentationPreviewVersion(
+			withE2eeKeyFragment(url, e2eeKey),
+			shareSettings.previewVersion,
+		);
+	}, [e2eeKey, shareSettings?.shareToken, shareSettings?.previewVersion]);
 
 	const collabUrl = useMemo(() => {
 		if (!collabSettings?.shareToken) return "";
@@ -777,14 +786,33 @@ export function BoardPage() {
 	}
 
 	const handleCopyShare = async () => {
-		if (!shareUrl) return;
-		await Promise.all([
-			navigator.clipboard.writeText(shareUrl),
-			presentationPreviewRef.current?.().catch(() => undefined),
-		]);
-		trackGrowthEvent("share_link_copied", { context: "presentation" });
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
+		if (!shareUrl || preparingShare) return;
+		setPreparingShare(true);
+		setCopied(false);
+		setShareCopyError("");
+		const prepared = (async () => {
+			if (shareSettings?.accessMode !== "always") return shareUrl;
+			try {
+				const publish = presentationPreviewRef.current;
+				if (!publish) throw new Error("Board preview is not ready");
+				return withPresentationPreviewVersion(shareUrl, await publish());
+			} catch (error) {
+				setShareCopyError(t("whiteboardPage.share.previewFailed"));
+				throw error;
+			}
+		})();
+		try {
+			await copyPreparedPresentationLink(prepared);
+			trackGrowthEvent("share_link_copied", { context: "presentation" });
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			setShareCopyError(
+				(error) => error || t("whiteboardPage.share.copyFailed"),
+			);
+		} finally {
+			setPreparingShare(false);
+		}
 	};
 
 	const handleCopyEmbedUrl = async () => {
@@ -1169,15 +1197,20 @@ export function BoardPage() {
 														variant="outline"
 														className="flex-1"
 														onClick={handleCopyShare}
+														disabled={preparingShare}
 													>
-														{copied ? (
+														{preparingShare ? (
+															<Loader2 className="h-4 w-4 animate-spin" />
+														) : copied ? (
 															<Check className="h-4 w-4" />
 														) : (
 															<Copy className="h-4 w-4" />
 														)}
-														{copied
-															? t("whiteboardPage.share.copied")
-															: t("whiteboardPage.share.copyLink")}
+														{preparingShare
+															? t("whiteboardPage.share.preparingPreview")
+															: copied
+																? t("whiteboardPage.share.copied")
+																: t("whiteboardPage.share.copyLink")}
 													</Button>
 													<Button variant="outline" asChild>
 														<a href={shareUrl} target="_blank" rel="noreferrer">
@@ -1194,6 +1227,11 @@ export function BoardPage() {
 														<RefreshCcw className="h-4 w-4" />
 													</Button>
 												</div>
+												{shareCopyError && (
+													<p role="alert" className="text-xs text-destructive">
+														{shareCopyError}
+													</p>
+												)}
 											</div>
 										)}
 										<div className="border-t pt-4 space-y-3">

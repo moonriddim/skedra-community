@@ -43,7 +43,13 @@ export function createPresentationSharePages(options: {
 			const url = new URL(
 				`/present/${encodeURIComponent(token)}`,
 				options.appUrl,
-			).toString();
+			);
+			if (
+				access.shareSettings.accessMode === "always" &&
+				access.whiteboard.presentationPreviewVersion
+			) {
+				url.searchParams.set("v", access.whiteboard.presentationPreviewVersion);
+			}
 			const previewUrl =
 				access.shareSettings.accessMode === "always" &&
 				access.whiteboard.presentationPreviewVersion
@@ -55,7 +61,7 @@ export function createPresentationSharePages(options: {
 			return c.html(
 				renderPresentationSharePage(shell, {
 					name: access.whiteboard.name,
-					url,
+					url: url.toString(),
 					previewUrl,
 				}),
 			);

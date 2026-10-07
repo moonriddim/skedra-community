@@ -1,4 +1,5 @@
 import { bytesToBase64 } from "@/lib/e2ee";
+import { clonePresentationPreviewSvg } from "@/lib/presentation-preview-theme";
 import { trpc } from "@/lib/trpc";
 import { type CanvasScene, getCanvasPreviewBounds } from "@skedra/canvas-core";
 import { exportSkedraPng } from "@skedra/canvas-io/exporters";
@@ -11,7 +12,7 @@ import {
 	useRef,
 } from "react";
 
-export type PublishPresentationPreview = () => Promise<void>;
+export type PublishPresentationPreview = () => Promise<string>;
 
 /** Publish the actual renderer output, independently of editor zoom or culling. */
 export function PresentationPreviewPublisher({
@@ -28,11 +29,21 @@ export function PresentationPreviewPublisher({
 	publishRef?: MutableRefObject<PublishPresentationPreview | null>;
 }) {
 	const svgRef = useRef<SVGSVGElement>(null);
-	const inFlightRef = useRef<Promise<void> | null>(null);
-	const mutation = trpc.whiteboard.updatePresentationPreview.useMutation();
+	const inFlightRef = useRef<Promise<string> | null>(null);
+	const utils = trpc.useUtils();
+	const mutation = trpc.whiteboard.updatePresentationPreview.useMutation({
+		onSuccess: ({ version }) => {
+			utils.whiteboard.getPresentationSettings.setData(
+				{ id: whiteboardId },
+				(settings) =>
+					settings ? { ...settings, previewVersion: version } : settings,
+			);
+		},
+	});
 	const mutateRef = useRef(mutation.mutateAsync);
 	mutateRef.current = mutation.mutateAsync;
 	const lastPngRef = useRef("");
+	const lastVersionRef = useRef("");
 	const bounds = useMemo(
 		() => getCanvasPreviewBounds(scene.getDisplayElements()),
 		[scene],
@@ -43,29 +54,14 @@ export function PresentationPreviewPublisher({
 	const publish = useCallback(() => {
 		if (inFlightRef.current) return inFlightRef.current;
 		const svg = svgRef.current;
-		if (!svg) return Promise.resolve();
+		if (!svg) return Promise.reject(new Error("Board preview is not ready"));
 		inFlightRef.current = (async () => {
 			await document.fonts.ready;
 			const theme = getComputedStyle(svg);
-			for (const key of [
-				"background",
-				"foreground",
-				"card",
-				"card-foreground",
-				"muted",
-				"muted-foreground",
-				"border",
-				"primary",
-				"primary-foreground",
-				"accent",
-				"accent-foreground",
-				"destructive",
-			]) {
-				svg.style.setProperty(`--${key}`, theme.getPropertyValue(`--${key}`));
-			}
+			const snapshot = clonePresentationPreviewSvg(svg);
 			const background =
 				canvasBg || theme.getPropertyValue("--background").trim() || "#ffffff";
-			const png = await exportSkedraPng(svg, {
+			const png = await exportSkedraPng(snapshot, {
 				bounds: { x: 0, y: 0, width: 1200, height: 630 },
 				padding: 0,
 				scale: 1,
@@ -73,9 +69,14 @@ export function PresentationPreviewPublisher({
 			});
 			if (png.size > 4_000_000) throw new Error("Board preview is too large");
 			const base64 = bytesToBase64(new Uint8Array(await png.arrayBuffer()));
-			if (base64 === lastPngRef.current) return;
-			await mutateRef.current({ id: whiteboardId, png: base64 });
+			if (base64 === lastPngRef.current) return lastVersionRef.current;
+			const { version } = await mutateRef.current({
+				id: whiteboardId,
+				png: base64,
+			});
 			lastPngRef.current = base64;
+			lastVersionRef.current = version;
+			return version;
 		})().finally(() => {
 			inFlightRef.current = null;
 		});

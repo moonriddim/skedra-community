@@ -48,7 +48,8 @@ export function PresentationPage() {
 		const url = new URL(
 			`/present/${encodeURIComponent(shareToken ?? "")}`,
 			window.location.origin,
-		).toString();
+		);
+		if (data?.previewVersion) url.searchParams.set("v", data.previewVersion);
 		const image = data?.previewVersion
 			? `${getAbsoluteApiBaseUrl()}/api/presentations/${encodeURIComponent(shareToken ?? "")}/preview.png?v=${data.previewVersion}`
 			: null;
@@ -58,7 +59,7 @@ export function PresentationPage() {
 			["name", "robots", "noindex, nofollow, noarchive"],
 			["property", "og:title", title],
 			["property", "og:description", description],
-			["property", "og:url", url],
+			["property", "og:url", url.toString()],
 			["property", "og:image", image],
 			["property", "og:image:alt", data?.whiteboardName ?? null],
 			["name", "twitter:title", title],

@@ -239,6 +239,19 @@ test("messenger HTML and PNG work without a session and disappear on revocation"
 		"must preserve the SPA entry point",
 	);
 	assert.equal((html.match(/property="og:title"/g) ?? []).length, 1);
+	const versionedUrl = `https://skedra.xyz/present/${token}?v=${board.presentationPreviewVersion}`;
+	assert.ok(html.includes(`property="og:url" content="${versionedUrl}"`));
+	const versionedHtml = await (
+		await app.request(`/${token}/page?v=${board.presentationPreviewVersion}`)
+	).text();
+	assert.ok(
+		versionedHtml.includes(`property="og:url" content="${versionedUrl}"`),
+	);
+	assert.ok(
+		versionedHtml.includes(
+			`/preview.png?v=${board.presentationPreviewVersion}`,
+		),
+	);
 	const image = await app.request(`/${token}/preview.png?v=old-version`);
 	assert.equal(image.status, 200);
 	assert.equal(image.headers.get("content-type"), "image/png");

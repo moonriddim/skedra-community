@@ -1017,6 +1017,10 @@ export const whiteboardRouter = router({
 				name: access.whiteboard.name,
 				shareEnabled: shareSettings.enabled,
 				shareToken: access.whiteboard.presentationShareToken,
+				previewVersion:
+					shareSettings.accessMode === "always"
+						? access.whiteboard.presentationPreviewVersion
+						: null,
 				presenceEnabled: shareSettings.presenceEnabled,
 				accessMode: shareSettings.accessMode,
 				isPresentationActive: isPresentationCurrentlyActive(

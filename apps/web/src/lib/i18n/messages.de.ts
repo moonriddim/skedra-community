@@ -1922,6 +1922,11 @@ export const deMessages = {
 			saveViewerRights: "Viewer-Rechte speichern",
 			sharePlaceholder: "Aktiviere zuerst den Viewer-Link",
 			copyLink: "Link kopieren",
+			preparingPreview: "Vorschau vorbereiten…",
+			previewFailed:
+				"Die Board-Vorschau konnte nicht erstellt werden. Bitte erneut versuchen.",
+			copyFailed:
+				"Der Link konnte nicht kopiert werden. Bitte erneut versuchen.",
 			copied: "Kopiert",
 			liveOnlyInfo:
 				"Der Viewer-Link ist nur während der laufenden Präsentation erreichbar.",
