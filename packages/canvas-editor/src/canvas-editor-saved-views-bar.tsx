@@ -217,6 +217,8 @@ export function CanvasEditorSavedViewsBar({
 			<div
 				className="canvas-editor__saved-views-bar"
 				data-skedra-ui="saved-views-bar"
+				data-readonly={readOnly}
+				data-presentation-mode={presentationMode}
 			>
 				<SavedViewsRail
 					align="end"

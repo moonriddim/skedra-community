@@ -64,7 +64,7 @@ export function PresenterNotesPanel({
 	return (
 		<div
 			className={cn(
-				"pointer-events-none absolute inset-y-0 left-0 z-50 flex items-end p-4 pb-24 transition-[transform,opacity] duration-300 ease-out max-lg:p-3 max-lg:pb-[calc(5rem+env(safe-area-inset-bottom))]",
+				"skedra-presenter-notes pointer-events-none absolute left-3 z-40 flex min-h-0 w-[min(380px,calc(100%-1.5rem))] items-end transition-[transform,opacity] duration-300 ease-out",
 				open ? "translate-x-0 opacity-100" : "-translate-x-[108%] opacity-0",
 				className,
 			)}
@@ -72,13 +72,13 @@ export function PresenterNotesPanel({
 		>
 			<div
 				className={cn(
-					"pointer-events-auto flex w-[min(92vw,380px)] flex-col overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(8,10,12,0.08),rgba(8,10,12,0.28)_100%)] text-white shadow-[0_24px_80px_-28px_rgba(0,0,0,0.55)] backdrop-blur-md max-lg:max-h-[calc(100dvh-13rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-lg:w-[min(100%,380px)] max-lg:rounded-2xl",
+					"pointer-events-auto flex max-h-full w-full flex-col overflow-y-auto rounded-2xl border border-border bg-card/95 text-card-foreground shadow-[0_24px_80px_-28px_rgba(0,0,0,0.55)] backdrop-blur-md",
 					!open && "pointer-events-none",
 				)}
 			>
-				<div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+				<div className="flex items-start justify-between gap-3 border-b border-border/70 px-4 py-4">
 					<div className="min-w-0">
-						<p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/55">
+						<p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
 							{t("whiteboardPage.presenterNotes.label")}
 						</p>
 						<h2 className="mt-1 truncate text-sm font-semibold">
@@ -90,7 +90,7 @@ export function PresenterNotesPanel({
 						variant="ghost"
 						size="icon"
 						onClick={onClose}
-						className="text-white/70 hover:bg-white/10 hover:text-white"
+						className="text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 						aria-label={t("whiteboardPage.presenterNotes.close")}
 					>
 						<X className="h-4 w-4" />
@@ -104,14 +104,14 @@ export function PresenterNotesPanel({
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="text-white/80 hover:bg-white/10 hover:text-white"
+								className="text-card-foreground hover:bg-accent hover:text-accent-foreground"
 								onClick={() => goToSlide(-1)}
 								disabled={activeIndex <= 0}
 							>
 								<ChevronLeft className="mr-1 h-4 w-4" />
 								{t("whiteboardPage.presenterNotes.previous")}
 							</Button>
-							<span className="text-xs text-white/55">
+							<span className="text-xs text-muted-foreground">
 								{activeIndex >= 0
 									? t("whiteboardPage.presenterNotes.slideCounter", {
 											current: activeIndex + 1,
@@ -123,7 +123,7 @@ export function PresenterNotesPanel({
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="text-white/80 hover:bg-white/10 hover:text-white"
+								className="text-card-foreground hover:bg-accent hover:text-accent-foreground"
 								onClick={() => goToSlide(1)}
 								disabled={activeIndex >= views.length - 1}
 							>
@@ -141,10 +141,10 @@ export function PresenterNotesPanel({
 								onBlur={saveDraft}
 								placeholder={t("whiteboardPage.presenterNotes.placeholder")}
 								aria-label={t("whiteboardPage.presenterNotes.editorLabel")}
-								className="min-h-[160px] resize-y border-white/10 bg-black/20 text-white placeholder:text-white/35"
+								className="min-h-[160px] resize-y border-border/70 bg-background text-card-foreground placeholder:text-muted-foreground"
 							/>
 							<div className="flex items-start justify-between gap-3">
-								<p className="flex items-start gap-2 text-xs text-white/50">
+								<p className="flex items-start gap-2 text-xs text-muted-foreground">
 									<StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
 									{t("whiteboardPage.presenterNotes.hint")}
 								</p>
@@ -161,7 +161,7 @@ export function PresenterNotesPanel({
 							</div>
 						</>
 					) : (
-						<p className="py-6 text-center text-sm text-white/55">
+						<p className="py-6 text-center text-sm text-muted-foreground">
 							{t("whiteboardPage.presenterNotes.empty")}
 						</p>
 					)}

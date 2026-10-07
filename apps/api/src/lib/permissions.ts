@@ -40,7 +40,7 @@ type Ctx = {
 type BoardListAccess = "owner" | "edit" | "view";
 
 export type BoardAccessResult = {
-	whiteboard: typeof whiteboards.$inferSelect;
+	whiteboard: Omit<typeof whiteboards.$inferSelect, "presentationPreviewPng">;
 	role: CanvasRole;
 	canWrite: boolean;
 	canComment: boolean;
@@ -131,6 +131,7 @@ export async function getBoardAccess(
 
 	const whiteboard = await ctx.db.query.whiteboards.findFirst({
 		where: eq(whiteboards.id, whiteboardId),
+		columns: { presentationPreviewPng: false },
 	});
 
 	if (!whiteboard) {

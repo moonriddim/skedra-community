@@ -290,7 +290,7 @@ export function AiDiagramPanel({
 	return (
 		<div
 			className={cn(
-				"pointer-events-none absolute inset-y-0 left-0 z-50 flex items-start justify-start p-4 pt-20 transition-[transform,opacity] duration-300 ease-out max-lg:p-3 max-lg:pt-[calc(8rem+env(safe-area-inset-top))]",
+				"skedra-ai-panel pointer-events-none absolute inset-y-0 left-0 z-40 flex items-start justify-start p-4 pt-20 transition-[transform,opacity] duration-300 ease-out max-lg:p-3 max-lg:pt-[calc(8rem+env(safe-area-inset-top))]",
 				open ? "translate-x-0 opacity-100" : "-translate-x-[108%] opacity-0",
 				className,
 			)}

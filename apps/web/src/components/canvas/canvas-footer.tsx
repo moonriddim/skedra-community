@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
 	Tooltip,
 	TooltipContent,
@@ -17,6 +18,8 @@ interface CanvasFooterProps {
 	encryptionMode?: CanvasFooterEncryptionMode;
 	/** Optionaler Hinweis oberhalb der Buttons (z. B. Gast-Onboarding-Pfeil) */
 	annotation?: ReactNode;
+	inline?: boolean;
+	menu?: boolean;
 }
 
 function encryptionKeys(mode: CanvasFooterEncryptionMode) {
@@ -57,13 +60,35 @@ export function CanvasFooter({
 	onOpenHelp,
 	encryptionMode = "server",
 	annotation,
+	inline = false,
+	menu = false,
 }: CanvasFooterProps) {
 	const { t } = useI18n();
 	const keys = encryptionKeys(encryptionMode);
+	if (menu) {
+		return (
+			<>
+				<div className="border-t border-border pt-3 text-xs text-muted-foreground">
+					<p className="mb-1 flex items-center gap-2 font-medium">
+						<ShieldCheck className="h-4 w-4 text-primary" />
+						{t(keys.title)}
+					</p>
+					<p>{t(keys.description)}</p>
+				</div>
+				<DropdownMenuItem onSelect={onOpenHelp}>
+					<HelpCircle className="mr-2 h-4 w-4" />
+					{t(keys.help)}
+				</DropdownMenuItem>
+			</>
+		);
+	}
 
 	return (
 		<TooltipProvider delayDuration={200}>
-			<div className="pointer-events-none absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-lg:bottom-auto max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(4.5rem+env(safe-area-inset-top))] max-lg:z-40">
+			<div
+				data-skedra-ui="canvas-footer"
+				className={`pointer-events-none flex flex-col items-end gap-2 ${inline ? "" : "absolute bottom-4 right-4 z-50 max-lg:bottom-auto max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(4.5rem+env(safe-area-inset-top))] max-lg:z-40"}`}
+			>
 				{annotation}
 
 				<div className="pointer-events-auto flex items-center gap-1.5">

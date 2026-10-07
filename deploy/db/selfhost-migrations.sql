@@ -783,7 +783,9 @@ ALTER TABLE "whiteboards"
 	ADD COLUMN IF NOT EXISTS "presentation_frame_sequence" bigint,
 	ADD COLUMN IF NOT EXISTS "presentation_frame_payload" text,
 	ADD COLUMN IF NOT EXISTS "presentation_frame_asset_ids" text,
-	ADD COLUMN IF NOT EXISTS "presentation_frame_updated_at" timestamp;
+	ADD COLUMN IF NOT EXISTS "presentation_frame_updated_at" timestamp,
+	ADD COLUMN IF NOT EXISTS "presentation_preview_png" text,
+	ADD COLUMN IF NOT EXISTS "presentation_preview_version" text;
 
 ALTER TABLE "whiteboards"
 	ALTER COLUMN "presentation_frame_sequence" TYPE bigint

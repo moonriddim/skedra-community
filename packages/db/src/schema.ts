@@ -276,6 +276,9 @@ export const whiteboards = pgTable(
 		presentationFrameAssetIds: text("presentation_frame_asset_ids"),
 		presentationFrameUpdatedAt: timestamp("presentation_frame_updated_at"),
 		presentationShareToken: text("presentation_share_token"),
+		/** Encrypted PNG published by a share manager for public link previews. */
+		presentationPreviewPng: text("presentation_preview_png"),
+		presentationPreviewVersion: text("presentation_preview_version"),
 		/** Excalidraw+-ähnlicher Kollaborations-Link (view/edit, Gäste) */
 		collabShareEnabled: boolean("collab_share_enabled")
 			.notNull()

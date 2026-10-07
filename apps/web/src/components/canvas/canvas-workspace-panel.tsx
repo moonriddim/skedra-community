@@ -69,7 +69,7 @@ export function CanvasWorkspacePanel({
 	return (
 		<aside
 			ref={floatingPanel.panelRef}
-			className="skedra-workspace-panel absolute bottom-3 right-3 top-14 z-50 flex w-[min(360px,calc(100%-1.5rem))] flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/96 text-card-foreground shadow-2xl backdrop-blur-xl max-lg:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] max-lg:left-3 max-lg:right-3 max-lg:top-[calc(4.25rem+env(safe-area-inset-top))] max-lg:w-auto"
+			className="skedra-workspace-panel absolute bottom-3 right-3 top-14 z-40 flex w-[min(360px,calc(100%-1.5rem))] flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/96 text-card-foreground shadow-2xl backdrop-blur-xl max-lg:bottom-[calc(8.75rem+env(safe-area-inset-bottom))] max-lg:left-3 max-lg:right-3 max-lg:top-[calc(4.25rem+env(safe-area-inset-top))] max-lg:w-auto"
 			style={floatingPanel.panelStyle}
 			aria-label={t("canvas.workspace.ariaLabel")}
 			data-skedra-ui="workspace-panel"

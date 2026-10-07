@@ -3,6 +3,7 @@ import {
 	ShareTokenLoadingScreen,
 	ShareTokenUnavailableCard,
 } from "@/components/board/share-token-page-layout";
+import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
 import { getKnownE2eeKey } from "@/lib/e2ee";
 import { trackGrowthEventOnce } from "@/lib/growth-analytics";
 import { useI18n } from "@/lib/i18n";
@@ -41,6 +42,50 @@ export function PresentationPage() {
 		}
 	}, [data]);
 
+	useEffect(() => {
+		const title = data ? `${data.whiteboardName} | Skedra` : "Skedra";
+		const description = t("whiteboardPage.share.description");
+		const url = new URL(
+			`/present/${encodeURIComponent(shareToken ?? "")}`,
+			window.location.origin,
+		).toString();
+		const image = data?.previewVersion
+			? `${getAbsoluteApiBaseUrl()}/api/presentations/${encodeURIComponent(shareToken ?? "")}/preview.png?v=${data.previewVersion}`
+			: null;
+		document.title = title;
+		for (const [attribute, key, value] of [
+			["name", "description", description],
+			["name", "robots", "noindex, nofollow, noarchive"],
+			["property", "og:title", title],
+			["property", "og:description", description],
+			["property", "og:url", url],
+			["property", "og:image", image],
+			["property", "og:image:alt", data?.whiteboardName ?? null],
+			["name", "twitter:title", title],
+			["name", "twitter:description", description],
+			["name", "twitter:image", image],
+			["name", "twitter:card", image ? "summary_large_image" : "summary"],
+		]) {
+			let meta = document.head.querySelector<HTMLMetaElement>(
+				`meta[${attribute}="${key}"]`,
+			);
+			if (value == null) {
+				meta?.remove();
+				continue;
+			}
+			if (!meta) {
+				meta = document.createElement("meta");
+				meta.setAttribute(attribute as string, key as string);
+				document.head.append(meta);
+			}
+			meta.content = value;
+		}
+		for (const element of document.head.querySelectorAll(
+			'link[rel="canonical"], link[data-skedra-alternate], script[type="application/ld+json"]',
+		))
+			element.remove();
+	}, [data, shareToken, t]);
+
 	if (!shareToken) return null;
 	if (isLoading) return <ShareTokenLoadingScreen />;
 
@@ -66,6 +111,7 @@ export function PresentationPage() {
 				encryptionMode={data.encryptionMode}
 				presentationMode
 				presentationShareToken={shareToken}
+				presentationAccessMode={data.accessMode}
 				e2eeKey={e2eeKey}
 				forceReadonly
 				presenceEnabled={data.presenceEnabled}

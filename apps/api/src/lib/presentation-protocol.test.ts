@@ -8,6 +8,7 @@ import {
 import {
 	isAuthorizedPresentationSession,
 	presentationFrameAllowsAsset,
+	presentationShareAllowsAsset,
 } from "./presentation";
 
 test("presentation protocols reject malformed rendering data", () => {
@@ -153,6 +154,35 @@ test("presentation asset access is limited to the current live frame", () => {
 			{ ...presentation, presentationActiveUntil: now },
 			{ whiteboardId: presentation.id, assetId },
 			now,
+		),
+		false,
+	);
+});
+
+test("always-active links render board images while live-only links keep frame asset restrictions", () => {
+	const board = {
+		id: "11111111-1111-4111-8111-111111111111",
+		presentationShareAccessMode: "always" as const,
+		presentationSessionId: null,
+		presentationActiveUntil: null,
+		presentationFrameAssetIds: null,
+	};
+	const input = {
+		whiteboardId: board.id,
+		assetId: "22222222-2222-4222-8222-222222222222",
+	};
+	assert.equal(presentationShareAllowsAsset(board, input), true);
+	assert.equal(
+		presentationShareAllowsAsset(board, {
+			...input,
+			whiteboardId: "33333333-3333-4333-8333-333333333333",
+		}),
+		false,
+	);
+	assert.equal(
+		presentationShareAllowsAsset(
+			{ ...board, presentationShareAccessMode: "presentation-only" },
+			input,
 		),
 		false,
 	);

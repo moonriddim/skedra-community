@@ -55,7 +55,7 @@ import {
 	endPresentationSession,
 	getPresentationShareAccess,
 	isAuthorizedPresentationSession,
-	presentationFrameAllowsAsset,
+	presentationShareAllowsAsset,
 	refreshPresentationAudienceConnection,
 	removePresentationAudienceConnection,
 } from "./lib/presentation";
@@ -65,6 +65,7 @@ import {
 	publishPresentationLive,
 	subscribePresentationLive,
 } from "./lib/presentation-live-bus";
+import { createPresentationSharePages } from "./lib/presentation-share-pages";
 import {
 	PROFILE_IMAGE_MAX_BYTES,
 	ProfileImageError,
@@ -581,7 +582,7 @@ async function hasShareTokenAssetAccess(input: {
 				input.presentationShareToken,
 			);
 			if (
-				presentationFrameAllowsAsset(access.whiteboard, {
+				presentationShareAllowsAsset(access.whiteboard, {
 					whiteboardId: input.whiteboardId,
 					assetId: input.assetId,
 				})
@@ -701,6 +702,20 @@ app.post("/api/analytics/events", async (c) => {
 
 app.route("/", mcpApp);
 app.route("/api", restApp);
+app.route(
+	"/api/presentations",
+	createPresentationSharePages({
+		appUrl: env.APP_URL,
+		getAccess: (token) => getPresentationShareAccess(db, token),
+		loadPreview: async (whiteboardId) =>
+			(
+				await db.query.whiteboards.findFirst({
+					where: eq(whiteboards.id, whiteboardId),
+					columns: { presentationPreviewPng: true },
+				})
+			)?.presentationPreviewPng ?? null,
+	}),
+);
 
 app.use(
 	"/api/assets/images",

@@ -151,7 +151,7 @@ export function CanvasFindOnCanvas({
 				"flex min-h-0 flex-col overflow-hidden text-card-foreground",
 				embedded
 					? "h-full bg-card"
-					: "absolute right-3 top-14 z-50 max-h-[min(34rem,calc(100%-5rem))] w-[min(22rem,calc(100%-1.5rem))] rounded-xl border border-border bg-card/95 shadow-2xl backdrop-blur-md max-sm:left-3 max-sm:right-3 max-sm:w-auto",
+					: "skedra-canvas-search-panel absolute right-3 top-14 z-50 max-h-[min(34rem,calc(100%-5rem))] w-[min(22rem,calc(100%-1.5rem))] rounded-xl border border-border bg-card/95 shadow-2xl backdrop-blur-md max-sm:left-3 max-sm:right-3 max-sm:w-auto",
 			)}
 			aria-label={t("canvas.findOnCanvas.title")}
 			onKeyDownCapture={handleSearchKeyDown}

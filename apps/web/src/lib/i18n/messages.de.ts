@@ -1905,7 +1905,7 @@ export const deMessages = {
 			title: "Teilen",
 			subtitle: "Mitglieder, Links und Einladungen",
 			description:
-				"Öffentliche Präsentationslinks starten direkt im read-only Modus.",
+				"Jeder mit dem Link kann das Board schreibgeschützt ansehen – auch ohne Account.",
 			enableLink: "Link aktivieren",
 			disableLink: "Link deaktivieren",
 			viewerRights: "Viewer-Rechte",
@@ -1913,7 +1913,7 @@ export const deMessages = {
 			alwaysActive: "Immer aktiv",
 			liveOnly: "Nur live",
 			alwaysActiveHint:
-				"Der Link bleibt auch außerhalb der Präsentation erreichbar.",
+				"Zeigt das ganze Board auch ohne laufende Präsentation. Die Link-Vorschau zeigt ein Bild des Boards.",
 			liveOnlyHint:
 				"Der Link funktioniert nur während der aktiven Präsentation.",
 			presenceTitle: "Presence für Viewer anzeigen",
@@ -2189,6 +2189,12 @@ export const deMessages = {
 		createFailed: "Arbeitsbereich konnte nicht erstellt werden",
 	},
 	canvas: {
+		chrome: {
+			details: "Board-Menü",
+			presentationDetails: "Präsentationsdetails",
+			presenterDetails: "Präsentationsmenü",
+			online: "{count} online",
+		},
 		sticky: {
 			edit: "Notiz bearbeiten",
 			note: "Notiz",

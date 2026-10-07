@@ -1876,14 +1876,16 @@ export const enMessages = {
 		share: {
 			title: "Share",
 			subtitle: "Members, links, and invites",
-			description: "Public presentation links open directly in read-only mode.",
+			description:
+				"Anyone with the link can view the board read-only, without an account.",
 			enableLink: "Enable link",
 			disableLink: "Disable link",
 			viewerRights: "Viewer rights",
 			linkAccess: "Link access",
 			alwaysActive: "Always active",
 			liveOnly: "Live only",
-			alwaysActiveHint: "The link remains available outside the presentation.",
+			alwaysActiveHint:
+				"Shows the whole board outside live presentations. The link preview displays an image of the board.",
 			liveOnlyHint: "The link only works while the presentation is active.",
 			presenceTitle: "Show presence for viewers",
 			presenceDescription:
@@ -2155,6 +2157,12 @@ export const enMessages = {
 		createFailed: "Workspace could not be created",
 	},
 	canvas: {
+		chrome: {
+			details: "Board menu",
+			presentationDetails: "Presentation details",
+			presenterDetails: "Presentation menu",
+			online: "{count} online",
+		},
 		sticky: {
 			edit: "Edit note",
 			note: "Note",

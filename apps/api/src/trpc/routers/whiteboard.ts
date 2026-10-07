@@ -103,6 +103,10 @@ import {
 } from "../../lib/presentation";
 import { publishPresentationLive } from "../../lib/presentation-live-bus";
 import {
+	encodePresentationPreview,
+	presentationPreviewPngSchema,
+} from "../../lib/presentation-preview";
+import {
 	buildRegistrationInviteUrl,
 	createRegistrationInvite,
 	normalizeInviteEmail,
@@ -192,11 +196,25 @@ async function requireE2eeUpdateAccess(
 	}
 
 	if (input.presentationShareToken) {
-		throw createAppError({
-			code: "FORBIDDEN",
-			appErrorCode: appErrorCodes.whiteboardAccessDenied,
-			message: "Praesentationslinks erhalten nur die aktuell publizierte Folie",
-		});
+		const access = await getPresentationShareAccess(
+			ctx.db,
+			input.presentationShareToken,
+		);
+		if (
+			access.whiteboard.id !== input.whiteboardId ||
+			access.shareSettings.accessMode !== "always"
+		) {
+			throw createAppError({
+				code: "FORBIDDEN",
+				appErrorCode: appErrorCodes.whiteboardAccessDenied,
+				message: "Dieser Praesentationslink erlaubt keinen Board-Zugriff",
+			});
+		}
+		return {
+			whiteboard: access.whiteboard,
+			canWrite: false,
+			userId: `presentation-${input.presentationShareToken.slice(0, 8)}`,
+		};
 	}
 
 	if (input.embedShareToken) {
@@ -290,7 +308,7 @@ function keyHashesEqual(
 }
 
 function assertE2eeKeyHashMatches(
-	whiteboard: typeof whiteboards.$inferSelect,
+	whiteboard: Pick<typeof whiteboards.$inferSelect, "e2eeKeyHash">,
 	keyHash: string,
 ) {
 	if (!whiteboard.e2eeKeyHash) {
@@ -1025,6 +1043,10 @@ export const whiteboardRouter = router({
 					presentationModeDefault: "edit" as const,
 					presenceEnabled: access.shareSettings.presenceEnabled,
 					accessMode: access.shareSettings.accessMode,
+					previewVersion:
+						access.shareSettings.accessMode === "always"
+							? access.whiteboard.presentationPreviewVersion
+							: null,
 					isPresentationActive: isPresentationCurrentlyActive(
 						access.whiteboard.presentationActiveUntil,
 					),
@@ -1128,6 +1150,41 @@ export const whiteboardRouter = router({
 			return note;
 		}),
 
+	updatePresentationPreview: protectedProcedure
+		.input(
+			z.object({ id: z.string().uuid(), png: presentationPreviewPngSchema }),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const access = await requireBoardManageShare(ctx, input.id);
+			if (
+				!access.whiteboard.presentationShareEnabled ||
+				access.whiteboard.presentationShareAccessMode !== "always"
+			) {
+				throw createAppError({
+					code: "FORBIDDEN",
+					appErrorCode: appErrorCodes.whiteboardAccessDenied,
+					message: "Keine Board-Vorschau fuer diesen Link",
+				});
+			}
+			const preview = encodePresentationPreview(input.png);
+			if (
+				preview.presentationPreviewVersion !==
+				access.whiteboard.presentationPreviewVersion
+			) {
+				await ctx.db
+					.update(whiteboards)
+					.set(preview)
+					.where(
+						and(
+							eq(whiteboards.id, input.id),
+							eq(whiteboards.presentationShareEnabled, true),
+							eq(whiteboards.presentationShareAccessMode, "always"),
+						),
+					);
+			}
+			return { version: preview.presentationPreviewVersion };
+		}),
+
 	updatePresentationShare: protectedProcedure
 		.input(
 			z.object({
@@ -1167,6 +1224,12 @@ export const whiteboardRouter = router({
 						? (existing?.presentationShareToken ??
 							createPresentationShareToken())
 						: (existing?.presentationShareToken ?? null),
+					...(!input.enabled || input.accessMode === "presentation-only"
+						? {
+								presentationPreviewPng: null,
+								presentationPreviewVersion: null,
+							}
+						: {}),
 					...(input.enabled
 						? {}
 						: {

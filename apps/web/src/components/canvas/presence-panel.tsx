@@ -16,6 +16,7 @@ interface PresencePanelProps {
 	offsetRight?: number;
 	summaryOffsetRight?: number;
 	layout?: "card" | "column";
+	inline?: boolean;
 }
 
 export function PresencePanel({
@@ -28,12 +29,8 @@ export function PresencePanel({
 	offsetRight = 12,
 	summaryOffsetRight = offsetRight,
 	layout = "card",
+	inline = false,
 }: PresencePanelProps) {
-	// Nur anzeigen, wenn andere Personen online sind oder wir im Praesentationsmodus sind
-	if (peers.length === 0 && !presentationMode) {
-		return null;
-	}
-
 	const participants = currentUser ? [currentUser, ...peers] : peers;
 	const [maxVisible, setMaxVisible] = useState(6);
 
@@ -54,7 +51,10 @@ export function PresencePanel({
 		return () => window.removeEventListener("resize", updateMaxVisible);
 	}, [layout, offsetTop]);
 
-	if (layout === "column") {
+	// Keep hooks unconditional when participants join or leave.
+	if (peers.length === 0 && !presentationMode) return null;
+
+	if (layout === "column" && !inline) {
 		const shouldStack = participants.length > maxVisible;
 		const visibleParticipants = shouldStack
 			? participants.slice(0, Math.max(2, maxVisible - 1))
@@ -117,7 +117,7 @@ export function PresencePanel({
 					</div>
 
 					{isReadonly && (
-						<div className="pointer-events-auto rounded-full border border-amber-300/60 bg-amber-100/90 px-3 py-1 text-[11px] font-medium text-amber-900 shadow-lg backdrop-blur-md dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100">
+						<div className="skedra-presence-readonly pointer-events-auto rounded-full border px-3 py-1 text-[11px] font-medium shadow-lg backdrop-blur-md">
 							Read-only verbunden
 						</div>
 					)}
@@ -134,10 +134,11 @@ export function PresencePanel({
 
 	return (
 		<div
-			className="pointer-events-none absolute z-40 flex flex-col items-end gap-2 transition-[right] duration-300 ease-out"
-			style={{ top: offsetTop, right: offsetRight }}
+			className={`pointer-events-none flex min-w-0 max-w-full flex-col items-end gap-2 ${inline ? "" : "absolute z-40 transition-[right] duration-300 ease-out"}`}
+			style={inline ? undefined : { top: offsetTop, right: offsetRight }}
+			data-skedra-ui="presence-panel"
 		>
-			<div className="pointer-events-auto flex min-w-55 items-center justify-between gap-3 rounded-xl border border-border bg-card/90 px-3 py-2 shadow-xl backdrop-blur-md">
+			<div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card/90 px-3 py-2 shadow-xl backdrop-blur-md">
 				<div>
 					<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
 						Live
@@ -176,7 +177,7 @@ export function PresencePanel({
 			</div>
 
 			{isReadonly && (
-				<div className="pointer-events-auto rounded-full border border-amber-300/60 bg-amber-100/90 px-3 py-1 text-[11px] font-medium text-amber-900 shadow-lg backdrop-blur-md dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100">
+				<div className="skedra-presence-readonly pointer-events-auto rounded-full border px-3 py-1 text-[11px] font-medium shadow-lg backdrop-blur-md">
 					Read-only verbunden
 				</div>
 			)}

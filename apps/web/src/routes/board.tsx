@@ -1,4 +1,6 @@
 import { BoardAppearanceMenu } from "@/components/board/board-appearance-menu";
+import type { PublishPresentationPreview } from "@/components/board/presentation-preview-publisher";
+import { CanvasHeaderRegion } from "@/components/canvas/canvas-header-region";
 import { RoleBadge } from "@/components/team/role-badge";
 import { RolePermissionsSummary } from "@/components/team/role-permissions-editor";
 import { Button } from "@/components/ui/button";
@@ -149,6 +151,9 @@ export function BoardPage() {
 		null,
 	);
 	const e2eeStateRef = useRef<(() => Uint8Array | null) | null>(null);
+	const presentationPreviewRef = useRef<PublishPresentationPreview | null>(
+		null,
+	);
 	const ownKeyRecipientWriteRef = useRef<string | null>(null);
 
 	const { data: board, isLoading } = trpc.whiteboard.getById.useQuery(
@@ -773,7 +778,10 @@ export function BoardPage() {
 
 	const handleCopyShare = async () => {
 		if (!shareUrl) return;
-		await navigator.clipboard.writeText(shareUrl);
+		await Promise.all([
+			navigator.clipboard.writeText(shareUrl),
+			presentationPreviewRef.current?.().catch(() => undefined),
+		]);
 		trackGrowthEvent("share_link_copied", { context: "presentation" });
 		setCopied(true);
 		setTimeout(() => setCopied(false), 2000);
@@ -908,7 +916,10 @@ export function BoardPage() {
 
 	return (
 		<div className="skedra-canvas-page relative h-screen overflow-hidden max-lg:h-dvh">
-			<div className="absolute left-4 top-4 z-50 flex items-center gap-2 max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))]">
+			<CanvasHeaderRegion
+				region="navigation"
+				className="absolute left-4 top-4 z-50 flex items-center gap-2 max-lg:left-[calc(0.75rem+env(safe-area-inset-left))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))]"
+			>
 				<Button
 					asChild
 					variant="outline"
@@ -922,10 +933,14 @@ export function BoardPage() {
 						</span>
 					</Link>
 				</Button>
-			</div>
+			</CanvasHeaderRegion>
 
 			<TooltipProvider>
-				<div className="absolute right-4 top-4 z-50 flex items-center gap-2 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))] max-lg:gap-1">
+				<CanvasHeaderRegion
+					region="actions"
+					data-presenter-mode={presenterMode}
+					className="absolute right-4 top-4 z-50 flex max-w-[calc(100%-5rem)] flex-wrap items-center justify-end gap-2 max-lg:right-[calc(0.75rem+env(safe-area-inset-right))] max-lg:top-[calc(0.75rem+env(safe-area-inset-top))] max-lg:gap-1"
+				>
 					<BoardAppearanceMenu />
 
 					<Tooltip>
@@ -1114,6 +1129,40 @@ export function BoardPage() {
 										</label>
 										{shareSettings?.shareEnabled && shareUrl && (
 											<div className="space-y-2">
+												<p className="text-xs text-muted-foreground">
+													{t("whiteboardPage.share.description")}
+												</p>
+												<label className="flex items-center justify-between gap-3 text-sm">
+													{t("whiteboardPage.share.linkAccess")}
+													<select
+														className="rounded-md border bg-background px-2 py-1"
+														value={shareSettings.accessMode}
+														disabled={updateShare.isPending}
+														onChange={(event) =>
+															updateShare.mutate({
+																id: board.id,
+																enabled: true,
+																accessMode: event.target.value as
+																	| "always"
+																	| "presentation-only",
+															})
+														}
+													>
+														<option value="always">
+															{t("whiteboardPage.share.alwaysActive")}
+														</option>
+														<option value="presentation-only">
+															{t("whiteboardPage.share.liveOnly")}
+														</option>
+													</select>
+												</label>
+												<p className="text-xs text-muted-foreground">
+													{t(
+														shareSettings.accessMode === "always"
+															? "whiteboardPage.share.alwaysActiveHint"
+															: "whiteboardPage.share.liveOnlyHint",
+													)}
+												</p>
 												<Input readOnly value={shareUrl} />
 												<div className="flex gap-2">
 													<Button
@@ -1587,7 +1636,7 @@ export function BoardPage() {
 							size="sm"
 							className="bg-card/90 backdrop-blur-md"
 						>
-							<Link to={normalBoardHref}>
+							<Link to={normalBoardHref} data-presenter-exit>
 								{t("whiteboardPage.presenter.exit")}
 							</Link>
 						</Button>
@@ -1603,7 +1652,7 @@ export function BoardPage() {
 							</Link>
 						</Button>
 					) : null}
-				</div>
+				</CanvasHeaderRegion>
 			</TooltipProvider>
 
 			{isE2eeBoard && !e2eeKey ? (
@@ -1719,6 +1768,12 @@ export function BoardPage() {
 			>
 				<SkedraCanvas
 					whiteboardId={boardId}
+					publishPresentationPreview={
+						canManageShare &&
+						!!shareSettings?.shareEnabled &&
+						shareSettings.accessMode === "always"
+					}
+					presentationPreviewRef={presentationPreviewRef}
 					encryptionMode={encryptionMode}
 					canUseAi={board?.canUseAi ?? true}
 					e2eeKey={e2eeKey}

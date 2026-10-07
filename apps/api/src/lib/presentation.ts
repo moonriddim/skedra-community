@@ -74,6 +74,7 @@ export async function getPresentationShareAccess(
 ) {
 	const whiteboard = await db.query.whiteboards.findFirst({
 		where: eq(whiteboards.presentationShareToken, shareToken),
+		columns: { presentationPreviewPng: false },
 	});
 
 	if (
@@ -97,6 +98,21 @@ export async function getPresentationShareAccess(
 	}
 
 	return { whiteboard, shareSettings };
+}
+
+/** After token authorization, always-active links can render the whole board. */
+export function presentationShareAllowsAsset(
+	presentation: Parameters<typeof presentationFrameAllowsAsset>[0] & {
+		presentationShareAccessMode: "always" | "presentation-only";
+	},
+	input: Parameters<typeof presentationFrameAllowsAsset>[1],
+	now = new Date(),
+) {
+	return (
+		(presentation.presentationShareAccessMode === "always" &&
+			presentation.id === input.whiteboardId) ||
+		presentationFrameAllowsAsset(presentation, input, now)
+	);
 }
 
 export async function countPresentationAudience(

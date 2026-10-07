@@ -13,6 +13,8 @@ import {
 	type MutableRefObject,
 	type ReactNode,
 	Suspense,
+	useLayoutEffect,
+	useRef,
 	useState,
 } from "react";
 import { Link } from "react-router";
@@ -67,7 +69,7 @@ export function ShareTokenCanvasFrame({
 	templateStateRef?: MutableRefObject<(() => string | null) | null>;
 }) {
 	return (
-		<div className="relative h-screen overflow-hidden bg-background">
+		<div className="skedra-public-board relative h-dvh overflow-hidden bg-background">
 			<Suspense
 				fallback={
 					<div className="flex h-full items-center justify-center">
@@ -89,6 +91,24 @@ function PublicBoardAttribution({
 }) {
 	const { locale } = useI18n();
 	const [copyUnavailable, setCopyUnavailable] = useState(false);
+	const attributionRef = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const element = attributionRef.current;
+		const frame = element?.closest<HTMLElement>(".skedra-public-board");
+		if (!element || !frame) return;
+		const measure = () =>
+			frame.style.setProperty(
+				"--skedra-public-footer-inset",
+				`${element.offsetHeight + 24}px`,
+			);
+		const observer = new ResizeObserver(measure);
+		observer.observe(element);
+		measure();
+		return () => {
+			observer.disconnect();
+			frame.style.removeProperty("--skedra-public-footer-inset");
+		};
+	}, []);
 	const homePath = localizePublicPath("/", locale);
 	const useTemplate = () => {
 		const state = templateStateRef?.current?.();
@@ -105,7 +125,11 @@ function PublicBoardAttribution({
 	};
 
 	return (
-		<div className="absolute bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-center gap-1 rounded-xl border border-border bg-background/92 p-1 shadow-lg backdrop-blur">
+		<div
+			ref={attributionRef}
+			data-skedra-ui="public-attribution"
+			className="absolute bottom-3 right-3 z-50 flex max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-xl border border-border bg-background/92 p-1 shadow-lg backdrop-blur"
+		>
 			<Button asChild variant="ghost" size="sm" className="h-8 px-2.5">
 				<Link to={`${homePath}?utm_source=public_board&utm_medium=product`}>
 					<BrandLogo showWordmark={false} markClassName="h-5 w-5" />
@@ -117,6 +141,9 @@ function PublicBoardAttribution({
 					variant="secondary"
 					size="sm"
 					className="h-8 px-2.5"
+					aria-label={
+						locale === "en" ? "Use as template" : "Als Vorlage verwenden"
+					}
 					onClick={useTemplate}
 				>
 					{copyUnavailable ? (

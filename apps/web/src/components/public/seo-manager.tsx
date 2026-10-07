@@ -179,6 +179,8 @@ export function SeoManager() {
 	const { locale } = useI18n();
 
 	useEffect(() => {
+		// The presentation route owns board-specific metadata, also served to crawlers.
+		if (pathname.startsWith("/present/")) return;
 		const page = pages[pathname] ?? buildGuideSeoPage(pathname) ?? privatePage;
 		if (!page) return;
 		const title = page.title[locale];

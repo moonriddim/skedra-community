@@ -4,15 +4,19 @@
 
 import { CanvasCommandPalette } from "@/components/canvas/canvas-command-palette";
 import type { CanvasCommand } from "@/components/canvas/canvas-command-registry";
+import { CanvasDetailsMenu } from "@/components/canvas/canvas-details-menu";
 import { CanvasFooter } from "@/components/canvas/canvas-footer";
+import { PresencePanel } from "@/components/canvas/presence-panel";
+import { useCanvasChromeInset } from "@/components/canvas/use-canvas-chrome-inset";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/lib/i18n";
 import type {
 	CanvasElement,
 	CanvasMutationPlan,
 	SavedCanvasView,
 } from "@skedra/canvas-core";
-import { Sparkles } from "lucide-react";
-import { Suspense, lazy } from "react";
+import { Scan, Sparkles } from "lucide-react";
+import { type ComponentProps, Suspense, lazy } from "react";
 
 const AiDiagramPanel = lazy(() =>
 	import("@/components/board/ai-diagram-panel").then((module) => ({
@@ -85,6 +89,9 @@ interface SkedraCanvasChromeProps {
 	audienceHasError: boolean;
 	audienceFollowPresenter: boolean;
 	onAudienceFollowPresenterChange: (follow: boolean) => void;
+	presence?: ComponentProps<typeof PresencePanel>;
+	connectionError?: string | null;
+	onFitViewport?: () => void;
 }
 
 export function SkedraCanvasChrome({
@@ -132,8 +139,19 @@ export function SkedraCanvasChrome({
 	audienceHasError,
 	audienceFollowPresenter,
 	onAudienceFollowPresenterChange,
+	presence,
+	connectionError,
+	onFitViewport,
 }: SkedraCanvasChromeProps) {
 	const { t } = useI18n();
+	const showStatusDock =
+		!presentationMode && !localMode && (!zenMode || !!connectionError);
+	const statusRef = useCanvasChromeInset("top", showStatusDock);
+	const showUtilities = showStatusDock && !presenterMode && !zenMode;
+	const showAi = showUtilities && !!whiteboardId && canUseAi;
+	const presencePanel = presence ? (
+		<PresencePanel {...presence} inline />
+	) : null;
 
 	return (
 		<>
@@ -153,11 +171,94 @@ export function SkedraCanvasChrome({
 				commands={commandPaletteCommands}
 			/>
 
-			{!presentationMode && !presenterMode && !zenMode && !localMode && (
-				<CanvasFooter
-					onOpenHelp={() => onHelpDialogOpenChange(true)}
-					encryptionMode={localMode ? "local" : encryptionMode}
-				/>
+			{showStatusDock && (
+				<div
+					ref={statusRef}
+					className="skedra-canvas-status pointer-events-none absolute z-40 flex max-w-[calc(100%-1.5rem)] flex-col items-end gap-2"
+					style={{
+						top: `max(calc(${presence?.offsetTop ?? 12}px + env(safe-area-inset-top)), var(--skedra-board-header-inset, 0px))`,
+						right: `calc(${presence?.offsetRight ?? 12}px + env(safe-area-inset-right))`,
+					}}
+					data-skedra-ui="status-dock"
+				>
+					<div className="skedra-compact-only">
+						<CanvasDetailsMenu
+							label={
+								presence && presence.peers.length > 0
+									? t("canvas.chrome.online", {
+											count:
+												presence.peers.length + (presence.currentUser ? 1 : 0),
+										})
+									: t("canvas.chrome.details")
+							}
+							iconOnly={false}
+							className="min-h-11 gap-2 bg-card/95 text-xs"
+						>
+							{presencePanel}
+							{showAi && (
+								<DropdownMenuItem
+									onSelect={() => onAiPanelOpenChange(!aiPanelOpen)}
+								>
+									<Sparkles className="mr-2 h-4 w-4 text-primary" />
+									{t("whiteboardPage.ai.open")}
+								</DropdownMenuItem>
+							)}
+							{onFitViewport && (
+								<DropdownMenuItem onSelect={onFitViewport}>
+									<Scan className="mr-2 h-4 w-4" />
+									{t("canvas.bottomBar.fitBoard")}
+								</DropdownMenuItem>
+							)}
+							{showUtilities && (
+								<CanvasFooter
+									inline
+									menu
+									onOpenHelp={() => onHelpDialogOpenChange(true)}
+									encryptionMode={encryptionMode}
+								/>
+							)}
+						</CanvasDetailsMenu>
+					</div>
+					{showUtilities && (
+						<div className="skedra-wide-only flex flex-wrap items-center justify-end gap-2">
+							{showAi && (
+								<button
+									type="button"
+									onClick={() => onAiPanelOpenChange(!aiPanelOpen)}
+									aria-expanded={aiPanelOpen}
+									className="pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-1.5 text-sm font-medium shadow-xl backdrop-blur-md hover:bg-card"
+								>
+									<Sparkles className="h-4 w-4 shrink-0 text-primary" />
+									{t("whiteboardPage.ai.open")}
+								</button>
+							)}
+							<CanvasFooter
+								inline
+								onOpenHelp={() => onHelpDialogOpenChange(true)}
+								encryptionMode={encryptionMode}
+							/>
+						</div>
+					)}
+					<div className="skedra-wide-only">{presencePanel}</div>
+					{onFitViewport && !presenterMode && (
+						<button
+							type="button"
+							onClick={onFitViewport}
+							className="skedra-wide-only skedra-mobile-fit pointer-events-auto min-h-11 items-center gap-2 rounded-xl border border-border bg-card/95 px-3 py-2 text-sm font-medium"
+						>
+							<Scan className="h-4 w-4" />
+							{t("canvas.bottomBar.fitBoard")}
+						</button>
+					)}
+					{connectionError && (
+						<p
+							role="alert"
+							className="max-w-sm rounded-xl border border-destructive/30 bg-card/95 px-3 py-2 text-sm text-destructive"
+						>
+							{connectionError}
+						</p>
+					)}
+				</div>
 			)}
 
 			{helpDialogOpen && (
@@ -198,6 +299,22 @@ export function SkedraCanvasChrome({
 						isStarting={presenterSessionStarting}
 						startError={presenterStartError}
 						activeSlideName={activeView?.name ?? null}
+						activeSlideIndex={savedViewList.findIndex(
+							(view) => view.id === activeView?.id,
+						)}
+						onPreviousSlide={() => {
+							const index = savedViewList.findIndex(
+								(view) => view.id === activeView?.id,
+							);
+							if (index > 0) onSelectView(savedViewList[index - 1].id);
+						}}
+						onNextSlide={() => {
+							const index = savedViewList.findIndex(
+								(view) => view.id === activeView?.id,
+							);
+							if (index < savedViewList.length - 1)
+								onSelectView(savedViewList[index + 1].id);
+						}}
 						nextSlideName={
 							activeView
 								? (savedViewList[
@@ -232,6 +349,7 @@ export function SkedraCanvasChrome({
 						slideCount={savedViewList.length}
 						followPresenter={audienceFollowPresenter}
 						onFollowPresenterChange={onAudienceFollowPresenterChange}
+						presence={presencePanel}
 					/>
 				</Suspense>
 			)}
@@ -240,31 +358,19 @@ export function SkedraCanvasChrome({
 				!presenterMode &&
 				!localMode &&
 				whiteboardId &&
-				canUseAi && (
-					<>
-						<button
-							type="button"
-							onClick={() => onAiPanelOpenChange(!aiPanelOpen)}
-							aria-expanded={aiPanelOpen}
-							className="skedra-canvas-ai-trigger absolute bottom-3 left-3 z-40 flex items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-1.5 text-sm font-medium shadow-xl backdrop-blur-md hover:bg-card"
-						>
-							<Sparkles className="h-4 w-4 text-primary" />
-							{t("whiteboardPage.ai.open")}
-						</button>
-						{aiPanelOpen && (
-							<Suspense fallback={null}>
-								<AiDiagramPanel
-									open={aiPanelOpen}
-									whiteboardId={whiteboardId}
-									onClose={() => onAiPanelOpenChange(false)}
-									onAddElements={onAddElements}
-									elements={elements}
-									selectedElements={selectedElements}
-									onApplyMutationPlan={onApplyMutationPlan}
-								/>
-							</Suspense>
-						)}
-					</>
+				canUseAi &&
+				aiPanelOpen && (
+					<Suspense fallback={null}>
+						<AiDiagramPanel
+							open={aiPanelOpen}
+							whiteboardId={whiteboardId}
+							onClose={() => onAiPanelOpenChange(false)}
+							onAddElements={onAddElements}
+							elements={elements}
+							selectedElements={selectedElements}
+							onApplyMutationPlan={onApplyMutationPlan}
+						/>
+					</Suspense>
 				)}
 		</>
 	);

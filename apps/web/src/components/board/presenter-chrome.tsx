@@ -1,12 +1,18 @@
+import { CanvasDetailsMenu } from "@/components/canvas/canvas-details-menu";
+import { useCanvasChromeInset } from "@/components/canvas/use-canvas-chrome-inset";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/lib/i18n";
 import {
+	ChevronLeft,
+	ChevronRight,
 	Clock3,
 	ExternalLink,
 	MonitorCheck,
 	Play,
 	Radio,
 	Square,
+	StickyNote,
 	Users,
 	X,
 } from "lucide-react";
@@ -27,6 +33,9 @@ interface PresenterChromeProps {
 	notesCount: number;
 	onOpenNotes: () => void;
 	notesOpen: boolean;
+	activeSlideIndex: number;
+	onPreviousSlide: () => void;
+	onNextSlide: () => void;
 	onStart?: () => void;
 	onEnd?: () => void;
 	onCancelPreparation?: () => void;
@@ -48,6 +57,7 @@ function formatElapsed(startedAt: string | null | undefined, now: number) {
 export function PresenterChrome(props: PresenterChromeProps) {
 	const { t } = useI18n();
 	const [now, setNow] = useState(Date.now());
+	const controlsRef = useCanvasChromeInset("presenter", props.sessionActive);
 	useEffect(() => {
 		if (!props.sessionActive) return;
 		const timer = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -58,7 +68,7 @@ export function PresenterChrome(props: PresenterChromeProps) {
 		return (
 			<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/45 p-4 backdrop-blur-sm">
 				<section
-					className="pointer-events-auto relative w-[min(94vw,560px)] rounded-3xl border border-border/80 bg-card/95 p-6 shadow-2xl"
+					className="pointer-events-auto relative max-h-full w-[min(94vw,560px)] overflow-y-auto rounded-3xl border border-border/80 bg-card/95 p-6 shadow-2xl"
 					aria-labelledby="presentation-preflight-title"
 				>
 					<Button
@@ -152,8 +162,12 @@ export function PresenterChrome(props: PresenterChromeProps) {
 	}
 
 	return (
-		<div className="pointer-events-none absolute inset-x-0 bottom-24 z-40 flex justify-center px-4">
-			<div className="pointer-events-auto flex max-w-[96vw] flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/95 px-4 py-2.5 shadow-lg backdrop-blur-md">
+		<div
+			ref={controlsRef}
+			data-skedra-ui="presenter-controls"
+			className="pointer-events-none absolute inset-x-0 bottom-24 z-40 flex justify-center px-3"
+		>
+			<div className="skedra-presenter-control-card pointer-events-auto flex max-h-[40cqh] min-w-0 max-w-full flex-wrap items-center gap-2 overflow-y-auto rounded-2xl border border-border/70 bg-card/95 px-4 py-2.5 shadow-lg backdrop-blur-md">
 				<output
 					className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
 						props.isLive && props.audienceCount > 0
@@ -176,13 +190,13 @@ export function PresenterChrome(props: PresenterChromeProps) {
 							: t("whiteboardPage.presenter.connecting")}
 				</output>
 
-				<span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+				<span className="skedra-wide-only inline-flex items-center gap-1.5 text-xs text-muted-foreground">
 					<Users className="h-3.5 w-3.5" />
 					{t("whiteboardPage.presenter.audienceCount", {
 						count: props.audienceCount,
 					})}
 				</span>
-				<span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+				<span className="skedra-wide-only inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
 					<Clock3 className="h-3.5 w-3.5" />
 					{formatElapsed(props.startedAt, now)}
 				</span>
@@ -192,13 +206,19 @@ export function PresenterChrome(props: PresenterChromeProps) {
 					</span>
 				)}
 
-				<div className="mx-1 h-6 w-px bg-border" />
-				<div className="min-w-40 text-xs">
-					<p className="font-semibold text-foreground">
+				<div className="skedra-wide-only skedra-presenter-divider mx-1 h-6 w-px bg-border" />
+				<div className="skedra-wide-only skedra-presenter-slide-summary min-w-0 max-w-full text-xs">
+					<p
+						className="line-clamp-2 break-words font-semibold text-foreground"
+						title={props.activeSlideName ?? undefined}
+					>
 						{props.activeSlideName ??
 							t("whiteboardPage.presenter.noSlideSelected")}
 					</p>
-					<p className="text-muted-foreground">
+					<p
+						className="line-clamp-2 break-words text-muted-foreground"
+						title={props.nextSlideName ?? undefined}
+					>
 						{props.nextSlideName
 							? t("whiteboardPage.presenter.nextSlide", {
 									name: props.nextSlideName,
@@ -208,32 +228,107 @@ export function PresenterChrome(props: PresenterChromeProps) {
 				</div>
 
 				<Button
+					className="skedra-wide-only"
 					type="button"
 					variant="ghost"
 					size="sm"
 					onClick={props.onOpenNotes}
 				>
-					{props.notesOpen
-						? t("whiteboardPage.presenterNotes.hide")
-						: t("whiteboardPage.presenterNotes.show")}
+					<StickyNote className="h-4 w-4 sm:hidden" />
+					<span className="max-sm:sr-only">
+						{props.notesOpen
+							? t("whiteboardPage.presenterNotes.hide")
+							: t("whiteboardPage.presenterNotes.show")}
+					</span>
 				</Button>
 
 				{props.shareUrl && (
-					<Button type="button" variant="outline" size="sm" asChild>
+					<Button
+						className="skedra-wide-only"
+						type="button"
+						variant="outline"
+						size="sm"
+						asChild
+					>
 						<a href={props.shareUrl} target="_blank" rel="noreferrer">
 							<ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-							{t("whiteboardPage.presenter.openViewer")}
+							<span className="max-sm:sr-only">
+								{t("whiteboardPage.presenter.openViewer")}
+							</span>
 						</a>
 					</Button>
 				)}
+				<div className="skedra-compact-only items-center gap-1">
+					<Button
+						size="icon"
+						variant="ghost"
+						aria-label={t("whiteboardPage.presenterNotes.previous")}
+						onClick={props.onPreviousSlide}
+						disabled={props.activeSlideIndex <= 0}
+					>
+						<ChevronLeft className="h-4 w-4" />
+					</Button>
+					<span className="text-xs tabular-nums">
+						{Math.max(0, props.activeSlideIndex + 1)}/{props.slideCount}
+					</span>
+					<Button
+						size="icon"
+						variant="ghost"
+						aria-label={t("whiteboardPage.presenterNotes.next")}
+						onClick={props.onNextSlide}
+						disabled={props.activeSlideIndex >= props.slideCount - 1}
+					>
+						<ChevronRight className="h-4 w-4" />
+					</Button>
+					<CanvasDetailsMenu
+						label={t("canvas.chrome.presenterDetails")}
+						side="top"
+						className="h-11 w-11 border-0 bg-transparent"
+					>
+						<p className="break-words text-sm font-semibold">
+							{props.activeSlideName ??
+								t("whiteboardPage.presenter.noSlideSelected")}
+						</p>
+						<p className="text-xs text-muted-foreground">
+							{props.nextSlideName
+								? t("whiteboardPage.presenter.nextSlide", {
+										name: props.nextSlideName,
+									})
+								: t("whiteboardPage.presenter.lastSlide")}
+						</p>
+						<p className="text-xs text-muted-foreground">
+							{t("whiteboardPage.presenter.audienceCount", {
+								count: props.audienceCount,
+							})}{" "}
+							· {formatElapsed(props.startedAt, now)}
+						</p>
+						<DropdownMenuItem onSelect={props.onOpenNotes}>
+							<StickyNote className="mr-2 h-4 w-4" />
+							{props.notesOpen
+								? t("whiteboardPage.presenterNotes.hide")
+								: t("whiteboardPage.presenterNotes.show")}
+						</DropdownMenuItem>
+						{props.shareUrl && (
+							<DropdownMenuItem asChild>
+								<a href={props.shareUrl} target="_blank" rel="noreferrer">
+									<ExternalLink className="mr-2 h-4 w-4" />
+									{t("whiteboardPage.presenter.openViewer")}
+								</a>
+							</DropdownMenuItem>
+						)}
+					</CanvasDetailsMenu>
+				</div>
 				<Button
 					type="button"
 					variant="destructive"
 					size="sm"
 					onClick={props.onEnd}
+					aria-label={t("whiteboardPage.presenter.stopLive")}
 				>
-					<Square className="mr-1.5 h-3.5 w-3.5" />
-					{t("whiteboardPage.presenter.stopLive")}
+					<Square className="h-3.5 w-3.5" />
+					<span className="skedra-wide-only ml-1.5">
+						{t("whiteboardPage.presenter.stopLive")}
+					</span>
 				</Button>
 			</div>
 		</div>

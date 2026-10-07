@@ -64,6 +64,7 @@ ENV NODE_ENV=production
 COPY LICENSE /usr/share/doc/skedra/LICENSE
 RUN apk add --no-cache postgresql-client
 COPY --from=api-package /runtime/api ./
+COPY --from=build /app/apps/web/dist/index.html /app/web-index.html
 COPY --from=schema-export /schema.sql /app/schema.sql
 COPY deploy/db/selfhost-migrations.sql /app/selfhost-migrations.sql
 COPY deploy/api/start-with-migrations.sh /app/start-with-migrations.sh
@@ -93,6 +94,7 @@ ENV NODE_ENV=production
 COPY LICENSE /usr/share/doc/skedra/LICENSE
 RUN apk add --no-cache nginx postgresql16 postgresql16-client su-exec
 COPY --from=api-package /runtime/api /app/api
+COPY --from=standalone-build /app/apps/web/dist/index.html /app/web-index.html
 COPY --from=schema-export /schema.sql /app/api/schema.sql
 COPY deploy/db/selfhost-migrations.sql /app/api/selfhost-migrations.sql
 COPY --from=standalone-build /app/apps/web/dist /usr/share/skedra/web

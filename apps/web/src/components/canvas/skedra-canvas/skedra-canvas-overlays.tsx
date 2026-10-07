@@ -4,7 +4,6 @@
 
 import { FlowchartInsertButtons } from "@/components/canvas/flowchart-insert-buttons";
 import { RemoteCursorOverlay } from "@/components/canvas/presence-overlays";
-import { PresencePanel } from "@/components/canvas/presence-panel";
 import { CanvasCommentLayer } from "@/components/whiteboard/canvas-comment-layer";
 import type { PendingCommentPlacement } from "@/components/whiteboard/canvas-comment-layer";
 import type { WhiteboardCommentThread } from "@/components/whiteboard/whiteboard-comment-types";
@@ -57,7 +56,6 @@ interface SkedraCanvasOverlaysProps {
 	sync: {
 		isReadonly: boolean;
 		remotePresence: ComponentProps<typeof RemoteCursorOverlay>["peers"];
-		localPresence: ComponentProps<typeof PresencePanel>["currentUser"];
 		isConnected: boolean;
 	};
 	mindmapButtons: MindmapOverlayButton[];
@@ -72,10 +70,6 @@ interface SkedraCanvasOverlaysProps {
 		typeof FlowchartInsertButtons
 	>["onAddStep"];
 	comments?: SkedraCanvasCommentsConfig;
-	presencePanelOffsetTop?: number;
-	presencePanelOffsetRight?: number;
-	presencePanelSummaryOffsetRight?: number;
-	presencePanelLayout?: ComponentProps<typeof PresencePanel>["layout"];
 	bottomBar: ComponentProps<typeof CanvasEditorSavedViewsBar> | null;
 }
 
@@ -99,10 +93,6 @@ export function SkedraCanvasOverlays({
 	flowchartInsertKind,
 	onAddFlowchartStep,
 	comments,
-	presencePanelOffsetTop,
-	presencePanelOffsetRight,
-	presencePanelSummaryOffsetRight,
-	presencePanelLayout,
 	bottomBar,
 }: SkedraCanvasOverlaysProps) {
 	return (
@@ -172,20 +162,6 @@ export function SkedraCanvasOverlays({
 					onDeleteMessage={comments.onDeleteMessage}
 					onCancelPlacement={comments.onCancelPlacement}
 					svgRef={svgRef}
-				/>
-			)}
-
-			{!localMode && presenceEnabled && (
-				<PresencePanel
-					currentUser={sync.localPresence}
-					peers={sync.remotePresence}
-					isConnected={sync.isConnected}
-					isReadonly={sync.isReadonly}
-					presentationMode={presentationMode}
-					offsetTop={presencePanelOffsetTop}
-					offsetRight={presencePanelOffsetRight}
-					summaryOffsetRight={presencePanelSummaryOffsetRight}
-					layout={presencePanelLayout}
 				/>
 			)}
 

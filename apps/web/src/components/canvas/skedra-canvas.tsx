@@ -4,6 +4,10 @@ import { buildKanbanQuickEditUpdates } from "@skedra/canvas-core";
  * Respektiert das App-Theme (dark/light) ueber CSS-Variablen.
  */
 
+import {
+	PresentationPreviewPublisher,
+	type PublishPresentationPreview,
+} from "@/components/board/presentation-preview-publisher";
 import { useCanvasHistory } from "@/hooks/use-canvas-history";
 import {
 	type CanvasStoreState,
@@ -170,6 +174,9 @@ interface SkedraCanvasProps {
 	workspaceSlug?: string;
 	presentationMode?: boolean;
 	presentationShareToken?: string;
+	presentationAccessMode?: "always" | "presentation-only";
+	publishPresentationPreview?: boolean;
+	presentationPreviewRef?: React.MutableRefObject<PublishPresentationPreview | null>;
 	/** Gast über Kollaborations-Link (/collab/:token) */
 	collabShareToken?: string;
 	embedShareToken?: string;
@@ -270,6 +277,9 @@ export function SkedraCanvas({
 	workspaceSlug,
 	presentationMode = false,
 	presentationShareToken,
+	presentationAccessMode = "presentation-only",
+	publishPresentationPreview = false,
+	presentationPreviewRef,
 	collabShareToken,
 	embedShareToken,
 	e2eeKey,
@@ -314,7 +324,7 @@ export function SkedraCanvas({
 	const previousLocalElementCountRef = useRef<number | null>(null);
 
 	const [aiPanelOpen, setAiPanelOpen] = useState(false);
-	const [presenterNotesOpen, setPresenterNotesOpen] = useState(presenterMode);
+	const [presenterNotesOpen, setPresenterNotesOpen] = useState(false);
 	const [helpDialogOpen, setHelpDialogOpen] = useState(false);
 	const [workspacePanelTab, setWorkspacePanelTab] =
 		useState<CanvasWorkspaceTab | null>(null);
@@ -357,16 +367,18 @@ export function SkedraCanvas({
 	}, []);
 
 	const localSync = useLocalCanvasSync(localMode);
-	const audienceFrameMode =
+	const audienceMode =
 		presentationMode && !!presentationShareToken && !localMode;
+	const allowAudienceBoard =
+		audienceMode && presentationAccessMode === "always";
 	const e2eeRemoteMode =
 		!localMode &&
-		!audienceFrameMode &&
+		(!audienceMode || allowAudienceBoard) &&
 		!!whiteboardId &&
 		encryptionMode === "e2ee";
 	const serverRemoteMode =
 		!localMode &&
-		!audienceFrameMode &&
+		(!audienceMode || allowAudienceBoard) &&
 		!!whiteboardId &&
 		encryptionMode === "server";
 	const { data: assetUploadConfig } = trpc.assets.getUploadConfig.useQuery(
@@ -384,7 +396,7 @@ export function SkedraCanvas({
 				!!presentationShareToken ||
 				!!embedShareToken,
 			presentationShareToken,
-			presenceEnabled,
+			presenceEnabled: presenceEnabled && !allowAudienceBoard,
 			collabShareToken,
 			embedShareToken,
 		},
@@ -399,18 +411,21 @@ export function SkedraCanvas({
 				!!presentationShareToken ||
 				!!embedShareToken,
 			presentationShareToken,
-			presenceEnabled,
+			presenceEnabled: presenceEnabled && !allowAudienceBoard,
 			collabShareToken,
 			embedShareToken,
 		},
 	);
 	const presentationSync = usePresentationCanvasSync({
-		enabled: audienceFrameMode,
+		enabled: audienceMode,
 		shareToken: presentationShareToken,
 		encryptionMode,
 		e2eeKey,
 		cursorEnabled: presenceEnabled,
 	});
+	const audienceFrameMode =
+		audienceMode &&
+		(!allowAudienceBoard || presentationSync.presentationIsLive);
 	const sync = audienceFrameMode
 		? presentationSync
 		: localMode
@@ -420,7 +435,7 @@ export function SkedraCanvas({
 				: e2eeSync;
 	const canUsePresenterNotes =
 		!localMode &&
-		!audienceFrameMode &&
+		!audienceMode &&
 		!forceReadonly &&
 		!collabShareToken &&
 		!embedShareToken;
@@ -742,6 +757,12 @@ export function SkedraCanvas({
 			setWorkspacePanelTab("library");
 			return;
 		}
+		if (store.activePanel) {
+			setWorkspacePanelTab(null);
+			useCanvasStore.getState().setCanvasSearchOpen(false);
+			setPresenterNotesOpen(false);
+			return;
+		}
 		setWorkspacePanelTab((current) => (current === "library" ? null : current));
 	}, [store.activePanel]);
 
@@ -755,6 +776,11 @@ export function SkedraCanvas({
 
 	useEffect(() => {
 		if (workspacePanelOpen === undefined) return;
+		if (workspacePanelOpen) {
+			const panelStore = useCanvasStore.getState();
+			if (panelStore.activePanel !== "library") panelStore.setActivePanel(null);
+			setPresenterNotesOpen(false);
+		}
 		setWorkspacePanelTab((current) =>
 			workspacePanelOpen ? (current ?? lastWorkspacePanelTabRef.current) : null,
 		);
@@ -782,12 +808,13 @@ export function SkedraCanvas({
 
 	const handleWorkspaceTabChange = useCallback(
 		(tab: CanvasWorkspaceTab) => {
+			setPresenterNotesOpen(false);
 			setWorkspacePanelTab(tab);
 			store.setCanvasSearchOpen(tab === "search");
 
 			if (tab === "library") {
 				if (store.activePanel !== "library") store.setActivePanel("library");
-			} else if (store.activePanel === "library") {
+			} else if (store.activePanel) {
 				store.setActivePanel(null);
 			}
 		},
@@ -799,6 +826,31 @@ export function SkedraCanvas({
 		store.setCanvasSearchOpen(false);
 		if (store.activePanel === "library") store.setActivePanel(null);
 	}, [store]);
+
+	const handleAiPanelOpenChange = useCallback(
+		(open: boolean) => {
+			if (open) {
+				handleCloseWorkspacePanel();
+				store.setActivePanel(null);
+				setPresenterNotesOpen(false);
+			}
+			setAiPanelOpen(open);
+		},
+		[handleCloseWorkspacePanel, store],
+	);
+
+	useEffect(() => {
+		if (workspacePanelTab || store.activePanel || presenterNotesOpen) {
+			setAiPanelOpen(false);
+		}
+	}, [workspacePanelTab, store.activePanel, presenterNotesOpen]);
+
+	useEffect(() => {
+		if (!presenterNotesOpen) return;
+		setWorkspacePanelTab(null);
+		useCanvasStore.getState().setActivePanel(null);
+		useCanvasStore.getState().setCanvasSearchOpen(false);
+	}, [presenterNotesOpen]);
 
 	const canvasBackgroundSyncRef = useRef<{
 		scope: string;
@@ -965,6 +1017,35 @@ export function SkedraCanvas({
 	const activeView = activeViewId
 		? (sync.views.get(activeViewId) ?? null)
 		: null;
+	const audienceBoardFittedRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (audienceFrameMode) {
+			audienceBoardFittedRef.current = null;
+			return;
+		}
+		if (
+			!allowAudienceBoard ||
+			!sync.isReady ||
+			!presentationShareToken ||
+			sync.elements.size === 0 ||
+			canvasViewportSize.width <= 0 ||
+			canvasViewportSize.height <= 0
+		)
+			return;
+		if (audienceBoardFittedRef.current === presentationShareToken) return;
+		audienceBoardFittedRef.current = presentationShareToken;
+		setActiveViewId(null);
+		handleFitViewport();
+	}, [
+		allowAudienceBoard,
+		audienceFrameMode,
+		sync.isReady,
+		sync.elements.size,
+		presentationShareToken,
+		canvasViewportSize,
+		setActiveViewId,
+		handleFitViewport,
+	]);
 
 	useEffect(() => {
 		if (!audienceFrameMode || savedViewList.length === 0) return;
@@ -1753,12 +1834,15 @@ export function SkedraCanvas({
 		pendingText != null ||
 		store.editingTextId != null ||
 		hasCanvasToolProperties(store.activeTool);
-	const showProperties = shouldShowCanvasProperties({
-		showEditorChrome,
-		localMode,
-		hasPropertyContext,
-		hasOnlyStructuredDiagramSelection,
-	});
+	const showProperties =
+		!aiPanelOpen &&
+		!presenterNotesOpen &&
+		shouldShowCanvasProperties({
+			showEditorChrome,
+			localMode,
+			hasPropertyContext,
+			hasOnlyStructuredDiagramSelection,
+		});
 
 	return (
 		<CanvasCommandsProvider value={canvasCommands}>
@@ -1768,15 +1852,22 @@ export function SkedraCanvas({
 				translations={canvasEditorTranslations}
 				assetAdapter={canvasEditorAssetAdapter}
 				collaboration={canvasEditorCollaboration}
-				className={`skedra-canvas h-full w-full relative overflow-hidden select-none${store.isSpacePressed ? " cursor-grab" : ""}`}
+				className={`skedra-canvas h-full w-full relative overflow-hidden select-none${presenterMode ? " skedra-presenter-mode" : ""}${store.isSpacePressed ? " cursor-grab" : ""}`}
 				style={{ backgroundColor: canvasBg || "var(--background)" }}
 				onContextMenu={handleCanvasContextMenu}
 			>
-				{!localMode && sync.isReady && sync.connectionError && (
-					<output className="absolute left-1/2 top-16 z-50 max-w-md -translate-x-1/2 rounded-md border bg-background px-4 py-2 text-sm text-destructive shadow-sm">
-						{sync.connectionError}
-					</output>
-				)}
+				{publishPresentationPreview &&
+					whiteboardId &&
+					sync.isReady &&
+					!audienceMode && (
+						<PresentationPreviewPublisher
+							whiteboardId={whiteboardId}
+							scene={sync.scene}
+							canvasBg={canvasBg}
+							resolveAssetUrl={resolveAssetUrl}
+							publishRef={presentationPreviewRef}
+						/>
+					)}
 				{!localMode && !sync.isReady && (
 					<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
 						<p
@@ -2030,10 +2121,6 @@ export function SkedraCanvas({
 					flowchartInsertKind={flowchartInsertKind}
 					onAddFlowchartStep={addFlowchartStep}
 					comments={comments}
-					presencePanelOffsetTop={presencePanelOffsetTop}
-					presencePanelOffsetRight={presencePanelOffsetRight}
-					presencePanelSummaryOffsetRight={presencePanelSummaryOffsetRight}
-					presencePanelLayout={presencePanelLayout}
 					bottomBar={
 						zenMode
 							? null
@@ -2110,6 +2197,23 @@ export function SkedraCanvas({
 				/>
 
 				<SkedraCanvasChrome
+					onFitViewport={handleFitViewport}
+					connectionError={sync.isReady ? sync.connectionError : null}
+					presence={
+						!localMode && presenceEnabled
+							? {
+									currentUser: sync.localPresence,
+									peers: sync.remotePresence,
+									isConnected: sync.isConnected,
+									isReadonly: sync.isReadonly,
+									presentationMode,
+									offsetTop: presencePanelOffsetTop,
+									offsetRight: presencePanelOffsetRight,
+									summaryOffsetRight: presencePanelSummaryOffsetRight,
+									layout: presencePanelLayout,
+								}
+							: undefined
+					}
 					presentationMode={presentationMode}
 					presenterMode={presenterMode}
 					zenMode={zenMode}
@@ -2124,7 +2228,7 @@ export function SkedraCanvas({
 					onCommandPaletteOpenChange={store.setCommandPaletteOpen}
 					commandPaletteCommands={commandPaletteCommands}
 					aiPanelOpen={aiPanelOpen}
-					onAiPanelOpenChange={setAiPanelOpen}
+					onAiPanelOpenChange={handleAiPanelOpenChange}
 					onAddElements={addElements}
 					elements={sync.elements}
 					selectedElements={selectedEls}
@@ -2153,7 +2257,9 @@ export function SkedraCanvas({
 					presentationShareToken={presentationShareToken}
 					audienceBoardName={audienceBoardName}
 					audienceIsLive={presentationSync.presentationIsLive}
-					audienceHasError={!!presentationSync.connectionError}
+					audienceHasError={
+						!!presentationSync.connectionError || !!sync.connectionError
+					}
 					audienceFollowPresenter={audienceFollowPresenter}
 					onAudienceFollowPresenterChange={setAudienceFollowPresenter}
 				/>
