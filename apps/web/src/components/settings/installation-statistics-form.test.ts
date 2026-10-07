@@ -38,6 +38,8 @@ test("setup requires an explicit choice; saving and failed saves preserve the se
 			"./installation-statistics-form"
 		);
 		const { I18nProvider, loadI18nMessages } = await import("../../lib/i18n");
+		const { useLocaleStore } = await import("../../stores/locale");
+		useLocaleStore.getState().setLocale("de");
 		await loadI18nMessages("de");
 		const saved: boolean[] = [];
 		const render = async (

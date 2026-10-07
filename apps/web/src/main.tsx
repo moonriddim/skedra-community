@@ -4,19 +4,13 @@ import {
 	markChunkLoadingHealthy,
 } from "@/lib/chunk-recovery";
 import { loadI18nMessages } from "@/lib/i18n";
-import { getPublicPathLocale } from "@/lib/public-path";
-import { getCurrentLocale, initLocale, useLocaleStore } from "@/stores/locale";
+import { getCurrentLocale, initLocale } from "@/stores/locale";
 import { initTheme } from "@/stores/theme";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./app.css";
 
-const publicPathLocale = getPublicPathLocale(window.location.pathname);
-if (publicPathLocale) {
-	useLocaleStore.getState().setLocale(publicPathLocale);
-} else {
-	initLocale();
-}
+initLocale();
 initTheme();
 useCanvasStore.getState().syncTheme();
 installChunkLoadRecovery();
@@ -42,12 +36,14 @@ function renderBootstrapError(error: unknown) {
 		"flex min-h-screen items-center justify-center bg-background p-6 text-foreground";
 	const message = document.createElement("p");
 	message.textContent =
-		"Skedra konnte nicht geladen werden. Bitte lade die Seite neu.";
+		getCurrentLocale() === "de"
+			? "Skedra konnte nicht geladen werden. Bitte lade die Seite neu."
+			: "Skedra could not be loaded. Please reload the page.";
 	const reload = document.createElement("button");
 	reload.type = "button";
 	reload.className =
 		"ml-4 rounded-md bg-primary px-4 py-2 text-primary-foreground";
-	reload.textContent = "Neu laden";
+	reload.textContent = getCurrentLocale() === "de" ? "Neu laden" : "Reload";
 	reload.addEventListener("click", () => window.location.reload());
 	container.append(message, reload);
 	rootElement.replaceChildren(container);

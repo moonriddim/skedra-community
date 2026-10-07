@@ -74,6 +74,8 @@ test("managed signup shows email verification, skips E2EE and supports resend wi
 	const { trpc } = await import("../lib/trpc");
 	const { RegisterPage } = await import("./register");
 	const { I18nProvider, loadI18nMessages } = await import("../lib/i18n");
+	const { useLocaleStore } = await import("../stores/locale");
+	useLocaleStore.getState().setLocale("de");
 	await loadI18nMessages("de");
 	const queryClient = new QueryClient({
 		defaultOptions: {
