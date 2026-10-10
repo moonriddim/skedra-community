@@ -4,6 +4,8 @@ packages:
 
 # Security floors for transitive dependencies still resolved to vulnerable releases.
 overrides:
+  "proxy-addr@>=1.1.0 <2.0.8": "2.0.8"
+  "source-map-js@>=1.0.0 <1.2.2": "1.2.2"
   "esbuild@<0.25.0": "0.25.12"
   "body-parser@>=2.0.0 <2.3.0": "2.3.0"
   "fast-uri@>=3.0.0 <3.1.8": "3.1.8"
