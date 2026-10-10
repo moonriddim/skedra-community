@@ -23,6 +23,8 @@ import {
 	isLocalAiProvider,
 	normalizeOpenAiChatCompletionsUrl,
 } from "@skedra/shared/ai-providers";
+import { env } from "../env";
+import { assertAiBaseUrlAllowed } from "./ai-provider-policy";
 
 export type { AiGenerationResult };
 
@@ -142,6 +144,7 @@ export async function generateDiagramElements(input: {
 	sequenceDiagramContext?: AiSequenceDiagramContext;
 	ganttContext?: AiGanttChartContext;
 }): Promise<AiGenerationResult> {
+	assertAiBaseUrlAllowed(input.provider, input.baseUrl);
 	const config = getApiConfig(input);
 	const priorTurns = (input.history ?? []).slice(-8);
 	const isShowcase = detectMultiToolShowcaseIntent(input.prompt);
@@ -186,6 +189,8 @@ export async function generateDiagramElements(input: {
 		method: "POST",
 		headers: config.headers,
 		body: JSON.stringify(body),
+		redirect: env.SKEDRA_DEPLOYMENT_MODE === "managed" ? "error" : "follow",
+		signal: AbortSignal.timeout(60_000),
 	});
 
 	const payload = (await response.json()) as {

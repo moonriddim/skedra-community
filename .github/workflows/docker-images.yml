@@ -311,6 +311,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Prepare release assets
         run: |
@@ -348,6 +350,14 @@ jobs:
 
           Database migrations run inside the API container before the API server starts.
           EOF
+
+      - name: Include changes since the previous release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node .github/scripts/change-notes.mjs release . "$RELEASE_TAG" release/changes.md
+          cat release/notes.md >> release/changes.md
+          mv release/changes.md release/notes.md
 
       - name: Create or update GitHub release
         env:

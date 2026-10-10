@@ -24,6 +24,7 @@ import {
 	exchangeMcpRefreshToken,
 	getMcpOauthClient,
 	hashMcpRegistrationIp,
+	isSkedraLookalikeHost,
 	issueMcpAuthorizationCode,
 	parseMcpAuthorizationRequest,
 	registerMcpOauthClient,
@@ -252,6 +253,9 @@ mcpApp.get("/api/oauth/authorize", async (c) => {
 				clientName: client.clientName,
 				userName: session.user.name,
 				redirectUri: request.redirectUri,
+				redirectLooksLikeSkedra: isSkedraLookalikeHost(
+					new URL(request.redirectUri).hostname,
+				),
 				scopes: request.scopes,
 				consentToken,
 			}),

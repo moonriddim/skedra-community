@@ -25,6 +25,14 @@ interface ObsidianConfig {
 	endpointUrl?: string;
 }
 
+export function assertObsidianSyncAllowed() {
+	if (env.SKEDRA_DEPLOYMENT_MODE === "managed") {
+		throw new Error(
+			"Obsidian-Synchronisierung ist nur bei Selfhosting verfuegbar.",
+		);
+	}
+}
+
 function getIntegrationCryptoOptions() {
 	return {
 		secret: env.DATA_ENCRYPTION_SECRET ?? env.AUTH_SECRET,
@@ -262,6 +270,8 @@ async function syncObsidian(
 		`${endpoint}/vault/${encodeVaultPath(sync.target)}`,
 		{
 			method: "PUT",
+			redirect: "error",
+			signal: AbortSignal.timeout(15_000),
 			headers: {
 				"Content-Type": "text/markdown; charset=utf-8",
 				...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -271,9 +281,10 @@ async function syncObsidian(
 	);
 
 	if (!response.ok) {
-		const text = await response.text().catch(() => "");
-		throw new Error(`OBSIDIAN_${response.status}:${text.slice(0, 300)}`);
+		await response.body?.cancel();
+		throw new Error(`OBSIDIAN_${response.status}`);
 	}
+	await response.body?.cancel();
 
 	return config;
 }
@@ -282,6 +293,8 @@ export async function runBoardIntegrationSync(
 	db: Database,
 	sync: IntegrationSync,
 ) {
+	// Check persisted configurations too, before enabling public embed sharing.
+	if (sync.provider === "obsidian") assertObsidianSyncAllowed();
 	const payload = await buildIntegrationPayload(db, sync);
 	const nextConfig =
 		sync.provider === "notion"

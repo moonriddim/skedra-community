@@ -378,21 +378,19 @@ export const teamRouter = router({
 			});
 
 			if (existingMember) {
-				await ctx.db
-					.update(teamMembers)
-					.set({
-						roleId: input.roleId ?? null,
-						workspaceRole: input.workspaceRole,
-					})
-					.where(eq(teamMembers.id, existingMember.id));
-			} else {
-				await ctx.db.insert(teamMembers).values({
+				// Invitations must never change existing roles. Use updateMemberRole,
+				// which checks both the current and requested admin privileges.
+				return { success: true, pendingRegistration: false };
+			}
+			await ctx.db
+				.insert(teamMembers)
+				.values({
 					teamId: team.id,
 					userId: invitedUser.id,
 					roleId: input.roleId ?? null,
 					workspaceRole: input.workspaceRole,
-				});
-			}
+				})
+				.onConflictDoNothing();
 
 			return { success: true, pendingRegistration: false };
 		}),

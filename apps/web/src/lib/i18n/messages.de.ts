@@ -627,6 +627,20 @@ export const deMessages = {
 			expiresDays: "{days} Tage",
 			expiresAt: "Läuft ab {date}",
 		},
+		mcpConnections: {
+			title: "Verbundene Apps",
+			description:
+				"Anwendungen, die per MCP auf dein Konto zugreifen dürfen. Getrennte Anwendungen verlieren sofort den Zugriff. Trenne alles, was du nicht kennst.",
+			empty: "Keine Anwendung verbunden.",
+			redirectsTo: "Weiterleitung an {hosts}",
+			connectedAt: "Verbunden seit {date}",
+			lastUsed: "Zuletzt genutzt {date}",
+			neverUsed: "Noch nicht genutzt",
+			disconnect: "Trennen",
+			confirmDisconnect: "Jetzt trennen",
+			disconnectFailed:
+				"Die Verbindung konnte nicht getrennt werden. Bitte versuche es erneut.",
+		},
 		ai: {
 			nav: "AI (BYOK)",
 			title: "AI — Bring Your Own Key",

@@ -16,6 +16,8 @@ import {
 	getOpenAiModelsUrl,
 	normalizeOpenAiChatCompletionsUrl,
 } from "@skedra/shared/ai-providers";
+import { env } from "../env";
+import { assertAiBaseUrlAllowed } from "./ai-provider-policy";
 
 const FETCH_TIMEOUT_MS = 12_000;
 
@@ -32,7 +34,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 	const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
 	try {
-		const response = await fetch(url, { ...init, signal: controller.signal });
+		const response = await fetch(url, {
+			...init,
+			signal: controller.signal,
+			redirect: env.SKEDRA_DEPLOYMENT_MODE === "managed" ? "error" : "follow",
+		});
 		const payload = (await response.json()) as T & {
 			error?: { message?: string };
 		};
@@ -168,6 +174,7 @@ export async function fetchAvailableAiModels(input: {
 	apiKey: string;
 	baseUrl?: string | null;
 }) {
+	assertAiBaseUrlAllowed(input.provider, input.baseUrl);
 	switch (input.provider) {
 		case "openai":
 			return fetchOpenAiModels(input.apiKey);

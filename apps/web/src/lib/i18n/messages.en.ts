@@ -617,6 +617,20 @@ export const enMessages = {
 			expiresDays: "{days} days",
 			expiresAt: "Expires {date}",
 		},
+		mcpConnections: {
+			title: "Connected apps",
+			description:
+				"Applications allowed to access your account via MCP. Disconnected applications lose access immediately. Disconnect anything you don't recognize.",
+			empty: "No connected applications.",
+			redirectsTo: "Redirects to {hosts}",
+			connectedAt: "Connected since {date}",
+			lastUsed: "Last used {date}",
+			neverUsed: "Not used yet",
+			disconnect: "Disconnect",
+			confirmDisconnect: "Disconnect now",
+			disconnectFailed:
+				"The connection could not be removed. Please try again.",
+		},
 		ai: {
 			nav: "AI (BYOK)",
 			title: "AI — Bring Your Own Key",

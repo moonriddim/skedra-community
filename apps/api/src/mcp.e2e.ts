@@ -126,7 +126,7 @@ test("remote OAuth enforces DCR limits and completes PKCE, MCP, and refresh repl
 				"X-Real-IP": "203.0.113.42",
 			},
 			body: JSON.stringify({
-				client_name: "Skedra checked-in E2E test",
+				client_name: "Checked-in MCP E2E test",
 				redirect_uris: [redirectUri],
 				grant_types: ["authorization_code", "refresh_token"],
 				response_types: ["code"],
@@ -165,7 +165,7 @@ test("remote OAuth enforces DCR limits and completes PKCE, MCP, and refresh repl
 						"X-Real-IP": "192.0.2.42",
 					},
 					body: JSON.stringify({
-						client_name: `Skedra DCR concurrency test ${index}`,
+						client_name: `DCR concurrency test ${index}`,
 						redirect_uris: ["https://probe.example.test/callback"],
 						grant_types: ["authorization_code", "refresh_token"],
 						response_types: ["code"],

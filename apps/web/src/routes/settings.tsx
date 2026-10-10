@@ -1,4 +1,5 @@
 import { BillingSettings } from "@/components/settings/billing-settings";
+import { McpConnectionsSettings } from "@/components/settings/mcp-connections-settings";
 import { ProfileAccountSecurity } from "@/components/settings/profile-account-security";
 import { ProfileImageEditor } from "@/components/settings/profile-image-editor";
 import { SystemCallSettings } from "@/components/settings/system-call-settings";
@@ -943,6 +944,8 @@ export function ApiKeysSettingsPage() {
 									</div>
 								</div>
 							</div>
+
+							<McpConnectionsSettings scopeLabels={SCOPE_LABELS} />
 						</div>
 					)}
 

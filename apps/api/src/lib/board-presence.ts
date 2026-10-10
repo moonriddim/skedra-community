@@ -7,6 +7,11 @@ export type PresenceMember = {
 	ws: WSContext;
 	userId: string;
 	lastData: string | null;
+	authorize: () => Promise<boolean>;
+	active: boolean;
+	broadcasting: boolean;
+	checking: Promise<boolean> | null;
+	timer: ReturnType<typeof setInterval> | null;
 };
 
 const rooms = new Map<string, Set<PresenceMember>>();
@@ -44,7 +49,28 @@ async function waitForNotifySubscription() {
 	}
 }
 
-function fanoutLocal(
+async function canUsePresence(whiteboardId: string, member: PresenceMember) {
+	if (!member.active) return false;
+	if (!member.checking) {
+		member.checking = Promise.resolve()
+			.then(member.authorize)
+			.catch(() => false);
+	}
+	const checking = member.checking;
+	const allowed = await checking;
+	if (member.checking === checking) member.checking = null;
+	if (!allowed && member.active) {
+		leavePresenceRoom(whiteboardId, member);
+		try {
+			member.ws.close(1008, "presence access revoked");
+		} catch {
+			/* Already closed. */
+		}
+	}
+	return allowed && member.active;
+}
+
+async function fanoutLocal(
 	whiteboardId: string,
 	data: string,
 	sender?: PresenceMember,
@@ -52,16 +78,21 @@ function fanoutLocal(
 ) {
 	const room = rooms.get(whiteboardId);
 	if (!room) return;
-	for (const member of room) {
-		// Presence represents people, not browser connections. A reconnect or a
-		// second tab belonging to the same account must not appear as another user.
-		if (member === sender || member.userId === senderUserId) continue;
-		try {
-			member.ws.send(data);
-		} catch {
-			// The websocket lifecycle removes disconnected room members.
-		}
-	}
+	await Promise.all(
+		[...room].map(async (member) => {
+			// Presence represents people, not browser connections. A reconnect or a
+			// second tab belonging to the same account must not appear as another user.
+			if (member === sender || member.userId === senderUserId) return;
+			// Check recipients even when they never send anything. This also covers
+			// messages arriving through another API instance's NOTIFY bridge.
+			if (!(await canUsePresence(whiteboardId, member))) return;
+			try {
+				member.ws.send(data);
+			} catch {
+				// The websocket lifecycle removes disconnected room members.
+			}
+		}),
+	);
 }
 
 function ensureNotifyBridge() {
@@ -95,7 +126,7 @@ function ensureNotifyBridge() {
 			) {
 				return;
 			}
-			fanoutLocal(
+			void fanoutLocal(
 				parsed.whiteboardId,
 				parsed.data,
 				undefined,
@@ -119,30 +150,49 @@ function ensureNotifyBridge() {
 		});
 }
 
-export function joinPresenceRoom(
+export async function joinPresenceRoom(
 	whiteboardId: string,
 	ws: WSContext,
 	userId: string,
-): PresenceMember {
+	authorize: () => Promise<boolean>,
+): Promise<PresenceMember> {
 	ensureNotifyBridge();
+	const member: PresenceMember = {
+		ws,
+		userId,
+		lastData: null,
+		authorize,
+		active: true,
+		broadcasting: false,
+		checking: null,
+		timer: null,
+	};
+	if (!(await canUsePresence(whiteboardId, member))) return member;
 	let room = rooms.get(whiteboardId);
 	if (!room) {
 		room = new Set();
 		rooms.set(whiteboardId, room);
 	}
-	for (const existingMember of room) {
+	const existingMembers = [...room];
+	room.add(member);
+	// Close idle revoked sockets too. Delivery never waits for this timer.
+	member.timer = setInterval(() => {
+		void canUsePresence(whiteboardId, member);
+	}, 30_000);
+	member.timer.unref();
+	for (const existingMember of existingMembers) {
 		// A previous connection from the same account may still be closing while
 		// the user returns to the board. Do not replay that stale state as a peer.
 		if (existingMember.userId === userId) continue;
 		if (!existingMember.lastData) continue;
+		if (!(await canUsePresence(whiteboardId, existingMember))) continue;
+		if (!(await canUsePresence(whiteboardId, member))) break;
 		try {
 			ws.send(existingMember.lastData);
 		} catch {
 			// The new connection is cleaned up by its websocket lifecycle.
 		}
 	}
-	const member: PresenceMember = { ws, userId, lastData: null };
-	room.add(member);
 	return member;
 }
 
@@ -150,37 +200,54 @@ export function leavePresenceRoom(
 	whiteboardId: string,
 	member: PresenceMember,
 ) {
+	member.active = false;
+	member.lastData = null;
+	if (member.timer) clearInterval(member.timer);
+	member.timer = null;
 	const room = rooms.get(whiteboardId);
 	if (!room) return;
 	room.delete(member);
 	if (room.size === 0) rooms.delete(whiteboardId);
 }
 
-export function broadcastPresence(
+export async function broadcastPresence(
 	whiteboardId: string,
 	sender: PresenceMember,
 	data: string,
 ) {
-	sender.lastData = data;
-	fanoutLocal(whiteboardId, data, sender);
-	ensureNotifyBridge();
-	if (!notifyClient) return;
-	void notifyClient
-		.notify(
-			NOTIFY_CHANNEL,
-			JSON.stringify({
-				origin: PROCESS_ID,
-				whiteboardId,
-				data,
-				userId: sender.userId,
-			}),
-		)
-		.catch(() => undefined);
+	// Presence is ephemeral: drop overlapping updates instead of queuing
+	// unbounded permission queries when a client floods the connection.
+	if (!sender.active || sender.broadcasting) return;
+	sender.broadcasting = true;
+	try {
+		if (!(await canUsePresence(whiteboardId, sender))) return;
+		sender.lastData = data;
+		await fanoutLocal(whiteboardId, data, sender);
+		if (!sender.active) return;
+		ensureNotifyBridge();
+		if (!notifyClient) return;
+		void notifyClient
+			.notify(
+				NOTIFY_CHANNEL,
+				JSON.stringify({
+					origin: PROCESS_ID,
+					whiteboardId,
+					data,
+					userId: sender.userId,
+				}),
+			)
+			.catch(() => undefined);
+	} finally {
+		sender.broadcasting = false;
+	}
 }
 
 export async function closeBoardPresence() {
 	notifyBridgeClosing = true;
 	notifyBridgeStarted = false;
+	for (const [boardId, room] of rooms) {
+		for (const member of room) leavePresenceRoom(boardId, member);
+	}
 	rooms.clear();
 	const subscription = await waitForNotifySubscription();
 	if (subscription) await unlistenNotify(subscription);

@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
+	assertObsidianSyncAllowed,
 	encryptIntegrationSecret,
 	markBoardIntegrationSyncFailed,
 	runBoardIntegrationSync,
@@ -131,6 +132,7 @@ export const integrationsRouter = router({
 				whiteboardId: input.whiteboardId,
 				provider: "obsidian",
 			});
+			assertObsidianSyncAllowed();
 			const config = {
 				...safeJson(existing?.config ?? "{}"),
 				endpointUrl: input.endpointUrl.replace(/\/$/u, ""),

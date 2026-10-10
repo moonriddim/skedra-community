@@ -11,6 +11,7 @@ import { twoFactor } from "better-auth/plugins";
 import { env } from "../env";
 import { prepareCompleteAccountDeletion } from "./account-deletion";
 import { getVerificationEmailPurpose } from "./auth-email-context";
+import { authSecurityOptions } from "./auth-security-options";
 import { grantFoundingUserTrial } from "./billing-entitlement";
 import { db } from "./db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mail";
@@ -43,6 +44,7 @@ const socialProviders = {
 };
 
 export const auth = betterAuth({
+	...authSecurityOptions,
 	database: drizzleAdapter(db, {
 		provider: "pg",
 		schema: {
@@ -84,21 +86,6 @@ export const auth = betterAuth({
 		deleteUser: {
 			enabled: true,
 			beforeDelete: prepareCompleteAccountDeletion,
-		},
-	},
-	// Fix A5: Rate-Limiting gegen Brute-Force und Reset-/Mail-Bombing. Sensible
-	// Pfade sind zusätzlich strenger begrenzt. HINWEIS: Der Standard-Store ist
-	// In-Memory und greift NICHT über mehrere Instanzen — im Managed-Betrieb mit
-	// mehreren Nodes sollte ein geteilter Store (DB/Redis) konfiguriert werden.
-	rateLimit: {
-		enabled: true,
-		window: 60,
-		max: 100,
-		customRules: {
-			"/sign-in/email": { window: 60, max: 5 },
-			"/sign-up/email": { window: 3600, max: 10 },
-			"/forget-password": { window: 300, max: 3 },
-			"/reset-password": { window: 300, max: 5 },
 		},
 	},
 	emailAndPassword: {

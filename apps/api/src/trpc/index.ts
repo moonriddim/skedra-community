@@ -7,6 +7,7 @@ import { billingRouter } from "./routers/billing";
 import { callsRouter } from "./routers/calls";
 import { instanceRouter } from "./routers/instance";
 import { integrationsRouter } from "./routers/integrations";
+import { mcpConnectionRouter } from "./routers/mcp-connection";
 import { shapeLibraryRouter } from "./routers/shape-library";
 import { teamRouter } from "./routers/team";
 import { userE2eeRouter } from "./routers/user-e2ee";
@@ -19,6 +20,7 @@ export const appRouter = router({
 	account: accountRouter,
 	whiteboard: whiteboardRouter,
 	apiKey: apiKeyRouter,
+	mcpConnection: mcpConnectionRouter,
 	assets: assetsRouter,
 	billing: billingRouter,
 	calls: callsRouter,

@@ -40,6 +40,7 @@ import {
 	joinPresenceRoom,
 	leavePresenceRoom,
 } from "./lib/board-presence";
+import { hasBoardPresenceAccess } from "./lib/board-presence-access";
 import { getCollabShareAccess, getEmbedShareAccess } from "./lib/collab-share";
 import { closeDatabase, db } from "./lib/db";
 import {
@@ -48,6 +49,7 @@ import {
 	recordGrowthEvent,
 } from "./lib/growth-events";
 import { startInstallationStatistics } from "./lib/installation-statistics";
+import { startMcpOauthMaintenance } from "./lib/mcp-oauth";
 import { initializeObjectStorage } from "./lib/object-storage";
 import { getBoardAccess } from "./lib/permissions";
 import {
@@ -1369,6 +1371,7 @@ app.get(
 		const rawId = c.req.param("id");
 		const boardId = isUuid(rawId) ? rawId : null;
 		let authorizedUserId: string | null = null;
+		let authorizePresence: () => Promise<boolean> = async () => false;
 
 		if (boardId) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -1387,6 +1390,13 @@ app.get(
 						boardId,
 					);
 					authorizedUserId = session.user.id;
+					authorizePresence = () =>
+						hasBoardPresenceAccess(
+							db,
+							session.user,
+							session.session.id,
+							boardId,
+						);
 				} catch {
 					authorizedUserId = null;
 				}
@@ -1394,23 +1404,31 @@ app.get(
 		}
 
 		let member: PresenceMember | null = null;
+		let closed = false;
 
 		return {
-			onOpen(_evt, ws) {
+			async onOpen(_evt, ws) {
 				if (!authorizedUserId || !boardId) {
 					ws.close(1008, "unauthorized");
 					return;
 				}
-				member = joinPresenceRoom(boardId, ws, authorizedUserId);
+				member = await joinPresenceRoom(
+					boardId,
+					ws,
+					authorizedUserId,
+					authorizePresence,
+				);
+				if (closed) leavePresenceRoom(boardId, member);
 			},
-			onMessage(evt) {
+			async onMessage(evt) {
 				if (!member || !boardId) return;
 				const data = typeof evt.data === "string" ? evt.data : null;
 				// Größenlimit gegen Missbrauch; Inhalt ist Ciphertext, wird nicht geparst.
 				if (!data || data.length > 6_000) return;
-				broadcastPresence(boardId, member, data);
+				await broadcastPresence(boardId, member, data);
 			},
 			onClose() {
+				closed = true;
 				if (member && boardId) leavePresenceRoom(boardId, member);
 			},
 		};
@@ -1852,13 +1870,17 @@ async function startServer() {
 	// WebSocket-Upgrades (Presence) an den Node-Server anhängen.
 	injectWebSocket(server);
 	const stopInstallationStatistics = startInstallationStatistics(db, env);
+	const stopMcpOauthMaintenance = startMcpOauthMaintenance(db);
 
 	let shutdownStarted = false;
 
 	async function shutdown(signal: NodeJS.Signals) {
 		if (shutdownStarted) return;
 		shutdownStarted = true;
-		await stopInstallationStatistics();
+		await Promise.all([
+			stopInstallationStatistics(),
+			stopMcpOauthMaintenance(),
+		]);
 		console.log(`[Skedra API] ${signal} received, shutting down.`);
 
 		for (const client of wss.clients) {

@@ -10,6 +10,9 @@ import {
 import { decryptText, encryptText } from "@skedra/shared/server-crypto";
 import { eq } from "drizzle-orm";
 import { env } from "../env";
+import { assertAiBaseUrlAllowed } from "./ai-provider-policy";
+
+export { assertAiBaseUrlAllowed } from "./ai-provider-policy";
 
 export type AiProvider = SkedraAiProvider;
 
@@ -23,79 +26,6 @@ export type ResolvedAiCredentials = {
 
 function isPlatformAiConfigured() {
 	return !!env.SKEDRA_AI_API_KEY?.trim();
-}
-
-/**
- * Fix M2 (SSRF): Prüft eine nutzergesteuerte AI-Base-URL (Provider `local`/`ollama`).
- * Im Managed/SaaS-Modus dürfen fremde Nutzer den Server nicht dazu bringen, interne
- * Dienste oder Cloud-Metadaten (z. B. 169.254.169.254) abzurufen. Im Selfhost-Modus
- * ist der Zugriff auf das lokale Netz gewollt und bleibt erlaubt.
- *
- * Hinweis: DNS-Rebinding wird hiermit nicht vollständig abgedeckt — für harten
- * Schutz zusätzlich beim Fetch die aufgelöste IP prüfen.
- */
-function isBlockedInternalHost(hostname: string): boolean {
-	const host = hostname.toLowerCase().replace(/^\[|\]$/g, ""); // IPv6-Klammern entfernen
-
-	// Hostnamen ohne öffentliche Bedeutung
-	if (
-		host === "localhost" ||
-		host.endsWith(".localhost") ||
-		host.endsWith(".local") ||
-		host.endsWith(".internal") ||
-		!host.includes(".") // z. B. "metadata" — kein FQDN
-	) {
-		return true;
-	}
-
-	// IPv6-Loopback / Link-local / Unique-local
-	if (
-		host === "::1" ||
-		host.startsWith("fe80:") ||
-		host.startsWith("fc") ||
-		host.startsWith("fd")
-	) {
-		return true;
-	}
-
-	// IPv4-Private/Reserviert
-	const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-	if (ipv4) {
-		const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-		if (a === 127 || a === 10 || a === 0) return true; // Loopback / privat / "this host"
-		if (a === 169 && b === 254) return true; // Link-local inkl. Cloud-Metadaten
-		if (a === 172 && b >= 16 && b <= 31) return true; // privat
-		if (a === 192 && b === 168) return true; // privat
-	}
-
-	return false;
-}
-
-export function assertAiBaseUrlAllowed(
-	provider: AiProvider,
-	baseUrl: string | null | undefined,
-) {
-	// Nur relevant für Provider mit nutzergesteuerter URL und nur im Managed-Modus.
-	if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") return;
-	if (!isLocalAiProvider(provider)) return;
-	if (!baseUrl?.trim()) return;
-
-	let parsed: URL;
-	try {
-		parsed = new URL(baseUrl);
-	} catch {
-		throw new Error("Ungültige Base-URL.");
-	}
-
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw new Error("Nur http(s)-Base-URLs sind erlaubt.");
-	}
-
-	if (isBlockedInternalHost(parsed.hostname)) {
-		throw new Error(
-			"Diese Base-URL zeigt auf ein internes/privates Ziel und ist auf dieser Instanz nicht erlaubt.",
-		);
-	}
 }
 
 function getAiEncryptionOptions() {
@@ -182,6 +112,7 @@ export async function upsertUserAiSettings(
 		baseUrl?: string | null;
 	},
 ) {
+	assertAiBaseUrlAllowed(input.provider, input.baseUrl);
 	const existing = await db.query.userAiSettings.findFirst({
 		where: eq(userAiSettings.userId, input.userId),
 	});
