@@ -1,5 +1,3 @@
-import { GrowthConsentBanner } from "@/components/public/growth-consent";
-import { GrowthPageTracker } from "@/components/public/growth-page-tracker";
 import { SeoManager } from "@/components/public/seo-manager";
 import { getApiUrl } from "@/lib/api-url";
 import { I18nProvider } from "@/lib/i18n";
@@ -31,18 +29,7 @@ const TwoFactorPage = lazy(() =>
 const RegisterPage = lazy(() =>
 	import("@/routes/register").then((m) => ({ default: m.RegisterPage })),
 );
-const SubscribePage = lazy(() =>
-	import("@/routes/subscribe").then((m) => ({ default: m.SubscribePage })),
-);
-const PricingPage = lazy(() =>
-	import("@/routes/pricing").then((m) => ({ default: m.PricingPage })),
-);
-const WhiteboardPage = lazy(() =>
-	import("@/routes/whiteboard").then((m) => ({ default: m.WhiteboardPage })),
-);
-const McpPage = lazy(() =>
-	import("@/routes/mcp").then((m) => ({ default: m.McpPage })),
-);
+
 const PrivacyPage = lazy(() =>
 	import("@/routes/privacy").then((m) => ({ default: m.PrivacyPage })),
 );
@@ -52,9 +39,7 @@ const TermsPage = lazy(() =>
 const ImprintPage = lazy(() =>
 	import("@/routes/imprint").then((m) => ({ default: m.ImprintPage })),
 );
-const GuidePage = lazy(() =>
-	import("@/routes/guide").then((m) => ({ default: m.GuidePage })),
-);
+
 const ForgotPasswordPage = lazy(() =>
 	import("@/routes/forgot-password").then((m) => ({
 		default: m.ForgotPasswordPage,
@@ -171,8 +156,7 @@ export function App() {
 				<QueryClientProvider client={queryClient}>
 					<BrowserRouter>
 						<SeoManager />
-						<GrowthPageTracker />
-						<GrowthConsentBanner />
+
 						<Routes>
 							<Route
 								path="/login"
@@ -198,126 +182,7 @@ export function App() {
 									</Suspense>
 								}
 							/>
-							<Route
-								path="/subscribe"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<SubscribePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/whiteboard"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<WhiteboardPage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/en/whiteboard"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<WhiteboardPage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/mcp"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<McpPage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/en/mcp"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<McpPage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/pricing"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<PricingPage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/en/pricing"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<PricingPage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/about"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/guides"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/online-whiteboard-ohne-anmeldung"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/verschluesseltes-online-whiteboard"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/open-source-whiteboard-self-hosted"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/infinite-canvas"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/skedra-vs-excalidraw"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
-							<Route
-								path="/en/:guideSlug"
-								element={
-									<Suspense fallback={<PageLoader />}>
-										<GuidePage />
-									</Suspense>
-								}
-							/>
+
 							<Route
 								path="/privacy"
 								element={

@@ -2,11 +2,11 @@
 	"name": "@skedra/web",
 	"version": "0.1.0",
 	"private": true,
-	"license": "SEE LICENSE IN LICENSE",
+	"license": "AGPL-3.0-only",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"build": "tsc -b && vite build && node scripts/generate-seo-pages.mjs",
+		"build": "tsc -b && vite build",
 		"test": "node --import tsx --test \"src/**/*.test.ts\"",
 		"preview": "vite preview"
 	},

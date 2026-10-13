@@ -1,0 +1,112 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+	"name": "skedra",
+	"version": "0.1.0",
+	"description": "Create and edit whiteboards, Kanban plans, Gantt timelines and diagrams on your self-hosted Skedra instance.",
+	"author": {
+		"name": "Simon Hediger",
+		"url": "https://skedra.xyz/imprint"
+	},
+	"homepage": "https://skedra.xyz/docs/mcp/",
+	"repository": "https://github.com/moonriddim/skedra-community",
+	"license": "AGPL-3.0-only",
+	"keywords": [
+		"whiteboard",
+		"canvas",
+		"kanban",
+		"gantt",
+		"diagrams",
+		"mcp",
+		"skedra"
+	],
+	"extensions": {
+		"com.openai": {
+			"interface": {
+				"displayName": "Skedra",
+				"shortDescription": "Editable boards and diagrams",
+				"longDescription": "Create and update editable Skedra whiteboards through your own installation. Connect the MCP endpoint on your self-hosted instance through OAuth. Read boards and activity, create Kanban plans, Gantt timelines and sequence diagrams, and edit canvas elements within your account permissions. All features are available without a Skedra subscription. Configure the instance URL before installing or packaging this plugin. The public skedra.xyz website provides documentation only. Use server-encrypted boards for ordinary agent workflows; end-to-end encrypted boards require a separate board key.",
+				"developerName": "Simon Hediger",
+				"category": "Productivity",
+				"capabilities": ["Read", "Write"],
+				"websiteURL": "https://skedra.xyz/docs/mcp/",
+				"supportURL": "https://skedra.xyz/imprint",
+				"privacyPolicyURL": "https://skedra.xyz/privacy",
+				"termsOfServiceURL": "https://github.com/moonriddim/skedra-community/blob/main/LICENSE",
+				"logo": "./assets/logo.png",
+				"composerIcon": "./assets/logo.png",
+				"logoDark": "./assets/logo-dark.png",
+				"composerIconDark": "./assets/logo-dark.png",
+				"brandColor": "#0DBCAE",
+				"brandColorDark": "#0DBCAE",
+				"defaultPrompt": [
+					"Create an editable launch plan in Skedra with a Kanban board and a Gantt timeline.",
+					"Read my Skedra architecture board and add a sequence diagram for the login flow.",
+					"Summarize the latest activity on my Skedra boards."
+				]
+			},
+			"review": {
+				"demo_recording_url": "https://youtu.be/3DRoDDnkpaw",
+				"commerce": false,
+				"commerce_description": "The plugin connects to a self-hosted Skedra instance. No Skedra subscription, checkout or payment processing is required. The tools do not purchase products or start subscriptions.",
+				"test_cases": {
+					"positive": [
+						{
+							"description": "Board discovery and activity. Setup: a dedicated reviewer account with an account on the self-hosted instance, at least one server-managed board, and a recorded board creation activity. No writes are needed.",
+							"prompt": "Show me my active Skedra boards and summarize the recent changes to one of them.",
+							"tools_triggered": "list_boards, list_board_activity",
+							"expected_behavior": "List only boards returned by list_boards. Select a returned board ID and call list_board_activity with that boardId. Summarize only returned events and link to the board URL returned by the configured instance. If there are no events, say so. Do not mutate a board or invent activity."
+						},
+						{
+							"description": "Create a native Kanban plan. Setup: dedicated reviewer account with boards:read and boards:write, an account on the self-hosted instance and permission to create boards. Use a new board named Plugin review - Kanban.",
+							"prompt": "Create a Skedra board named Plugin review - Kanban with To do, Doing and Done columns. Put Draft copy and Prepare demo in To do and Connect OAuth in Doing.",
+							"tools_triggered": "list_boards, create_board, create_kanban_board, get_board_canvas_state",
+							"expected_behavior": "Create a board with name Plugin review - Kanban and encryptionMode server. Use its returned board ID for create_kanban_board. Supply the three named lists, the two requested To do cards, Connect OAuth in Doing, and an empty Done list. Read back the canvas and verify the requested column and card titles in editable native elements. Return the actual board link."
+						},
+						{
+							"description": "Create and edit a structured Gantt timeline. Setup: same dedicated account with write access. Create a fresh server-managed board named Plugin review - Timeline; dates and task IDs are supplied explicitly.",
+							"prompt": "Create a Skedra board named Plugin review - Timeline with a project plan starting 2026-10-01. Discovery takes 3 days, then Implementation takes 5 days. Mark Discovery complete.",
+							"tools_triggered": "list_boards, create_board, create_gantt_chart, list_gantt_charts, edit_gantt_chart",
+							"expected_behavior": "Create a server-managed board and a Gantt chart with startDate 2026-10-01. The Skedra calendar spans at least 365 days; this does not change task durations. Set Discovery startDay 0 and durationDays 3, Implementation startDay 3 and durationDays 5, with distinct task IDs and a finish-to-start dependency between them. Use list_gantt_charts to obtain chartId and the actual Discovery task ID before edit_gantt_chart. Use the discovered edit schema to mark Discovery completed with progress 100. Read list_gantt_charts again and verify the dependency, completion, durations and absolute start dates 2026-10-01 and 2026-10-04. The editor can rebase the calendar to January 1 and adjust startDay offsets; accept that equivalent representation when the absolute task dates are preserved. Return the actual board link."
+						},
+						{
+							"description": "Create a native sequence diagram from a natural-language request. Setup: dedicated account with write access and a fresh server-managed board named Plugin review - Login.",
+							"prompt": "Create a Skedra board named Plugin review - Login showing Browser sending a login request to API, API checking Database, Database returning a user, and API returning a session to Browser.",
+							"tools_triggered": "list_boards, create_board, create_sequence_diagram, list_sequence_diagrams",
+							"expected_behavior": "Create a server-managed board. Pass Mermaid source starting with sequenceDiagram to create_sequence_diagram with Browser, API and Database participants and the four messages in the requested direction and order. Verify the returned native diagram with list_sequence_diagrams, including its diagram ID, participants and messages. Return a board link; do not substitute a screenshot for editable elements."
+						},
+						{
+							"description": "Edit existing canvas elements without replacing unrelated content. Setup: first run the Kanban case; leave its generated board and cards available in the dedicated reviewer account.",
+							"prompt": "In Plugin review - Kanban, rename the Draft copy card to Finalize copy and keep all other cards and columns unchanged.",
+							"tools_triggered": "list_boards, get_board_canvas_state, edit_board_elements",
+							"expected_behavior": "Resolve the named board through list_boards, read get_board_canvas_state and identify the actual text element containing Draft copy. Call edit_board_elements for that returned ID using the tool's text-edit schema. Read back canvas state and verify Finalize copy replaced the selected text while the other cards, columns and element IDs remain unchanged. If the setup board or target is ambiguous, ask for clarification before writing."
+						}
+					],
+					"negative": [
+						{
+							"description": "Export is a website capability, not an MCP tool. Explain that the user can export the board in the Skedra editor. Do not call a fabricated export tool, mutate a board or claim an attached PDF exists.",
+							"prompt": "Export my Skedra board as a PDF and attach the PDF here."
+						},
+						{
+							"description": "Payments are outside the MCP tools. Explain that subscriptions are managed on the Skedra website. Do not call Skedra tools to purchase, send payment information or claim the subscription changed.",
+							"prompt": "Upgrade my Skedra Cloud subscription and charge my card now."
+						},
+						{
+							"description": "Creating a public share link and anonymous editor access are not exposed by this MCP server. Explain that sharing must be configured in Skedra. Do not invite members, change board content or claim anonymous access was enabled.",
+							"prompt": "Make my Skedra board publicly editable by anyone and generate an anonymous edit link."
+						}
+					]
+				}
+			},
+			"publication": {
+				"countries": [],
+				"release_notes": "Initial Skedra plugin with the hosted OAuth MCP connection, a whiteboard workflow skill, existing light and dark branding, and review scenarios for editable boards, Kanban, Gantt, sequence diagrams and activity.",
+				"translations": {
+					"de-DE": {
+						"subtitle": "Editierbare Boards & Diagramme",
+						"description": "Erstelle und bearbeite Skedra-Boards, Kanban-Pläne, Gantt-Zeitachsen und Diagramme auf deiner selbst gehosteten Instanz. Konfiguriere vor der Installation den eigenen MCP-Endpunkt. Anmeldung über OAuth; kein Skedra-Abo erforderlich."
+					}
+				}
+			}
+		}
+	}
+}

@@ -47,7 +47,7 @@ test("legacy environments keep inline as their default and S3 needs no filesyste
 	}
 });
 
-test("managed mode continues to require S3 even with a valid filesystem path", () => {
+test("retired managed mode is rejected instead of enabling a paid deployment", () => {
 	const result = parseEnvironment({
 		SKEDRA_DEPLOYMENT_MODE: "managed",
 		AUTH_SECRET: "test-auth-secret-at-least-32-characters-long",
@@ -58,8 +58,5 @@ test("managed mode continues to require S3 even with a valid filesystem path", (
 		SKEDRA_OBJECT_STORAGE_PRESET: "aws",
 	});
 	assert.notEqual(result.status, 0);
-	assert.match(
-		result.stderr,
-		/Managed Skedra requires SKEDRA_OBJECT_STORAGE_PROVIDER=s3/,
-	);
+	assert.match(result.stderr, /Invalid literal value, expected "selfhost"/);
 });

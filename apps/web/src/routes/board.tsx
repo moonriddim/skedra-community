@@ -37,7 +37,7 @@ import {
 	unlockOrCreateUserE2eeIdentity,
 	withE2eeKeyFragment,
 } from "@/lib/e2ee";
-import { trackGrowthEvent } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import {
 	copyPreparedPresentationLink,
@@ -803,7 +803,7 @@ export function BoardPage() {
 		})();
 		try {
 			await copyPreparedPresentationLink(prepared);
-			trackGrowthEvent("share_link_copied", { context: "presentation" });
+
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		} catch {
@@ -818,7 +818,7 @@ export function BoardPage() {
 	const handleCopyEmbedUrl = async () => {
 		if (!embedUrl) return;
 		await navigator.clipboard.writeText(embedUrl);
-		trackGrowthEvent("share_link_copied", { context: "embed" });
+
 		setEmbedCopied(true);
 		setTimeout(() => setEmbedCopied(false), 2000);
 	};

@@ -237,15 +237,9 @@ async function hasStoredAssetObjects(db: Database) {
 	return !!asset || !!profileImage;
 }
 
-export function isManagedDeployment() {
-	return env.SKEDRA_DEPLOYMENT_MODE === "managed";
-}
-
 export async function resolveObjectStorageConfig(
 	db: Database,
 ): Promise<ResolvedObjectStorageConfig | null> {
-	if (isManagedDeployment()) return resolveObjectStorageConfigFromEnv();
-
 	const settings = await getOrCreateInstanceSettings(db);
 	if (settings.useCustomObjectStorage) {
 		const provider = normalizeProvider(settings.objectStorageProvider);
@@ -281,7 +275,7 @@ function statusFromResolved(
 		return {
 			source: "inline",
 			configured: false,
-			managedDeployment: isManagedDeployment(),
+			managedDeployment: false,
 			provider: "inline",
 			preset: "custom",
 			endpoint: null,
@@ -298,7 +292,7 @@ function statusFromResolved(
 	return {
 		source: resolved.source,
 		configured: true,
-		managedDeployment: isManagedDeployment(),
+		managedDeployment: false,
 		provider: resolved.provider,
 		preset: resolved.preset,
 		endpoint: resolved.endpoint,
@@ -447,10 +441,6 @@ export async function updateObjectStorageSettings(
 		adminUserId: string;
 	},
 ) {
-	if (isManagedDeployment()) {
-		throw new Error("Object Storage is managed by environment variables.");
-	}
-
 	if (input.useCustomObjectStorage && input.provider === "s3") {
 		assertValidEndpoint(normalizeOptional(input.endpoint));
 	}

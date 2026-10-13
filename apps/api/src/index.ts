@@ -15,10 +15,8 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import type { WSContext } from "hono/ws";
-import type Stripe from "stripe";
 import { z } from "zod";
 import { env } from "./env";
-import { createInstallationStatisticsApp } from "./installation-statistics";
 import {
 	AssetObjectNotFoundError,
 	AssetStorageUnavailableError,
@@ -28,10 +26,7 @@ import {
 	readAssetObject,
 } from "./lib/assets";
 import { auth } from "./lib/auth";
-import {
-	grantFoundingUserTrial,
-	userHasProductAccess,
-} from "./lib/billing-entitlement";
+
 import { closeBoardLiveBus, subscribeBoardLive } from "./lib/board-live-bus";
 import {
 	type PresenceMember,
@@ -43,12 +38,6 @@ import {
 import { hasBoardPresenceAccess } from "./lib/board-presence-access";
 import { getCollabShareAccess, getEmbedShareAccess } from "./lib/collab-share";
 import { closeDatabase, db } from "./lib/db";
-import {
-	consumeGrowthEventRateLimit,
-	growthEventInputSchema,
-	recordGrowthEvent,
-} from "./lib/growth-events";
-import { startInstallationStatistics } from "./lib/installation-statistics";
 import { startMcpOauthMaintenance } from "./lib/mcp-oauth";
 import { initializeObjectStorage } from "./lib/object-storage";
 import { getBoardAccess } from "./lib/permissions";
@@ -89,59 +78,11 @@ import {
 	listConfiguredPublicShapeLibraries,
 	submitShapeLibraryForReview,
 } from "./lib/shape-libraries";
-import { getStripeClient, isStripeBillingConfigured } from "./lib/stripe";
-import { processStripeWebhookEvent } from "./lib/stripe-billing";
 import { mcpApp } from "./mcp";
 import { restApp } from "./rest";
 import { appRouter, createContext } from "./trpc";
 
 const app = new Hono();
-app.route(
-	"/api/installation-statistics",
-	createInstallationStatisticsApp(db, env),
-);
-
-if (isStripeBillingConfigured()) {
-	/**
-	 * Keep this route free of body parsers: Stripe's signature check must receive
-	 * the exact raw request body. Billing access is changed only from this handler,
-	 * never from the browser's return from Checkout.
-	 */
-	app.post("/api/stripe/webhook", async (c) => {
-		const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
-		if (!webhookSecret) {
-			return c.json({ error: "Stripe webhook ist nicht konfiguriert." }, 503);
-		}
-
-		const signature = c.req.header("stripe-signature");
-		if (!signature) {
-			return c.json({ error: "Stripe-Signatur fehlt." }, 400);
-		}
-
-		let event: Stripe.Event;
-		try {
-			event = getStripeClient().webhooks.constructEvent(
-				await c.req.raw.text(),
-				signature,
-				webhookSecret,
-			);
-		} catch {
-			return c.json({ error: "Ungültige Stripe-Signatur." }, 400);
-		}
-
-		try {
-			await processStripeWebhookEvent(db, event);
-			return c.json({ received: true });
-		} catch (error) {
-			console.error("Stripe webhook processing failed", error);
-			return c.json(
-				{ error: "Stripe-Webhook konnte nicht verarbeitet werden." },
-				500,
-			);
-		}
-	});
-}
-
 // WebSocket-Support für den Presence-Kanal (Phase 2). injectWebSocket wird nach
 // dem serve()-Aufruf unten mit dem Node-Server verbunden.
 const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({ app });
@@ -547,9 +488,7 @@ async function authorizeAssetUpload(input: {
 	}
 
 	if (!input.user) throw new AssetAccessError("Nicht authentifiziert", 401);
-	if (!(await userHasProductAccess(db, input.user.id))) {
-		throw new AssetAccessError("Aktives Abo erforderlich", 403);
-	}
+
 	const access = await getBoardAccess(
 		{ db, user: input.user },
 		input.whiteboardId,
@@ -613,16 +552,11 @@ async function authorizeAssetRead(input: {
 	embedShareToken: string;
 }) {
 	if (input.user) {
-		if (await userHasProductAccess(db, input.user.id)) {
-			try {
-				await getBoardAccess(
-					{ db, user: input.user },
-					input.asset.whiteboardId,
-				);
-				return;
-			} catch {
-				// Share tokens below may still grant access.
-			}
+		try {
+			await getBoardAccess({ db, user: input.user }, input.asset.whiteboardId);
+			return;
+		} catch {
+			// Share tokens below may still grant access.
 		}
 	}
 	if (
@@ -675,32 +609,6 @@ app.use(
 		onError: (c) => c.json({ error: "Event payload too large" }, 413),
 	}),
 );
-
-app.post("/api/analytics/events", async (c) => {
-	if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") return c.body(null, 204);
-	// nginx supplies X-Real-IP from its explicitly configured trusted peer. Use
-	// only the final forwarded hop as a direct-development fallback.
-	const clientIp =
-		c.req.header("x-real-ip")?.trim() ||
-		c.req.header("x-forwarded-for")?.split(",").at(-1)?.trim() ||
-		"unknown";
-	if (!consumeGrowthEventRateLimit(hashRateLimitToken(clientIp))) {
-		c.header("Retry-After", "60");
-		return c.json({ error: "Too many analytics events" }, 429);
-	}
-
-	const payload = await c.req.json().catch(() => null);
-	const parsed = growthEventInputSchema.safeParse(payload);
-	if (!parsed.success) return c.json({ error: "Invalid event" }, 400);
-
-	try {
-		await recordGrowthEvent(db, parsed.data);
-		return c.body(null, 204);
-	} catch (error) {
-		console.error("Growth event could not be recorded", error);
-		return c.body(null, 204);
-	}
-});
 
 app.route("/", mcpApp);
 app.route("/api", restApp);
@@ -1028,12 +936,6 @@ app.all("/api/auth/*", async (c) => {
 					token: signUp.inviteToken,
 				});
 			}
-
-			// Invite grants win through the one-current-grant constraint. Direct
-			// managed-cloud signups receive the configured no-card founding trial.
-			if (user) {
-				await grantFoundingUserTrial(db, user.id);
-			}
 		}
 
 		return response;
@@ -1204,10 +1106,7 @@ app.post(
 		onError: (c) => c.json({ error: "Bibliothek ist zu gross" }, 413),
 	}),
 	async (c) => {
-		if (
-			env.SKEDRA_DEPLOYMENT_MODE !== "managed" ||
-			env.SKEDRA_LIBRARY_CATALOG_MODE !== "local"
-		) {
+		if (env.SKEDRA_LIBRARY_CATALOG_MODE !== "local") {
 			return c.json({ error: "Einreichungen werden zentral verwaltet" }, 404);
 		}
 
@@ -1294,9 +1193,6 @@ app.get("/api/boards/:id/live", async (c) => {
 
 	const session = await auth.api.getSession({ headers: c.req.raw.headers });
 	if (!session?.user) return c.json({ error: "Nicht authentifiziert" }, 401);
-	if (!(await userHasProductAccess(db, session.user.id))) {
-		return c.json({ error: "Aktives Abo erforderlich" }, 402);
-	}
 
 	try {
 		await getBoardAccess(
@@ -1375,7 +1271,7 @@ app.get(
 
 		if (boardId) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
-			if (session?.user && (await userHasProductAccess(db, session.user.id))) {
+			if (session?.user) {
 				try {
 					await getBoardAccess(
 						{
@@ -1599,7 +1495,7 @@ app.post(
 		}
 
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
-		if (!session?.user || !(await userHasProductAccess(db, session.user.id))) {
+		if (!session?.user) {
 			return c.json({ error: "unauthorized" }, 401);
 		}
 
@@ -1651,7 +1547,7 @@ app.get(
 
 		if (whiteboardId && sessionId) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
-			if (session?.user && (await userHasProductAccess(db, session.user.id))) {
+			if (session?.user) {
 				try {
 					const access = await getBoardAccess(
 						{
@@ -1869,7 +1765,6 @@ async function startServer() {
 
 	// WebSocket-Upgrades (Presence) an den Node-Server anhängen.
 	injectWebSocket(server);
-	const stopInstallationStatistics = startInstallationStatistics(db, env);
 	const stopMcpOauthMaintenance = startMcpOauthMaintenance(db);
 
 	let shutdownStarted = false;
@@ -1877,10 +1772,7 @@ async function startServer() {
 	async function shutdown(signal: NodeJS.Signals) {
 		if (shutdownStarted) return;
 		shutdownStarted = true;
-		await Promise.all([
-			stopInstallationStatistics(),
-			stopMcpOauthMaintenance(),
-		]);
+		await Promise.all([stopMcpOauthMaintenance()]);
 		console.log(`[Skedra API] ${signal} received, shutting down.`);
 
 		for (const client of wss.clients) {

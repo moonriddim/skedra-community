@@ -79,9 +79,6 @@ importers:
       postgres:
         specifier: ^3.4.9
         version: 3.4.9
-      stripe:
-        specifier: ^22.3.1
-        version: 22.3.1(@types/node@22.19.19)
       yjs:
         specifier: ^13.6.29
         version: 13.6.31
@@ -101,6 +98,8 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+
+  apps/docs: {}
 
   apps/libraries:
     dependencies:
@@ -2942,15 +2941,6 @@ packages:
     resolution: {integrity: sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==}
     engines: {node: '>=8'}
 
-  stripe@22.3.1:
-    resolution: {integrity: sha512-6XSLN0KK0IdfXqDHqMg6CDoO3eO62ye9dhzw0fZp55AUOzHR1YRJOqYHTsuCi4QJ4Ni/usEmXtq69c9ghKDmYw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@types/node': '>=18'
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-
   tailwind-merge@2.6.1:
     resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
 
@@ -5315,10 +5305,6 @@ snapshots:
   strip-ansi@6.0.1:
     dependencies:
       ansi-regex: 5.0.1
-
-  stripe@22.3.1(@types/node@22.19.19):
-    optionalDependencies:
-      '@types/node': 22.19.19
 
   tailwind-merge@2.6.1: {}
 

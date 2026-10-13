@@ -1,0 +1,13 @@
+{
+	"name": "@skedra/docs",
+	"version": "0.1.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"scripts": {
+		"build": "node build.mjs",
+		"dev": "node build.mjs && node serve.mjs",
+		"preview": "node serve.mjs",
+		"test": "node --test build.test.mjs"
+	}
+}

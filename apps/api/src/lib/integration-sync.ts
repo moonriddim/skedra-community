@@ -25,13 +25,7 @@ interface ObsidianConfig {
 	endpointUrl?: string;
 }
 
-export function assertObsidianSyncAllowed() {
-	if (env.SKEDRA_DEPLOYMENT_MODE === "managed") {
-		throw new Error(
-			"Obsidian-Synchronisierung ist nur bei Selfhosting verfuegbar.",
-		);
-	}
-}
+export function assertObsidianSyncAllowed() {}
 
 function getIntegrationCryptoOptions() {
 	return {

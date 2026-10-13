@@ -8,7 +8,7 @@ import {
 	ShareTokenUnavailableCard,
 } from "@/components/board/share-token-page-layout";
 import { getKnownE2eeKey } from "@/lib/e2ee";
-import { trackGrowthEventOnce } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { getTrpcErrorMessage } from "@/lib/trpc-errors";
@@ -38,10 +38,6 @@ export function CollabPage() {
 		if (!data?.whiteboardId || data.encryptionMode !== "e2ee") return;
 		setE2eeKey(getKnownE2eeKey(data.whiteboardId));
 	}, [data?.encryptionMode, data?.whiteboardId]);
-
-	useEffect(() => {
-		if (data) trackGrowthEventOnce("share_viewed", { context: "collab" });
-	}, [data]);
 
 	if (!shareToken) return null;
 	if (isLoading) return <ShareTokenLoadingScreen />;

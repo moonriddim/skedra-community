@@ -12,15 +12,12 @@ import { env } from "../env";
 import { prepareCompleteAccountDeletion } from "./account-deletion";
 import { getVerificationEmailPurpose } from "./auth-email-context";
 import { authSecurityOptions } from "./auth-security-options";
-import { grantFoundingUserTrial } from "./billing-entitlement";
 import { db } from "./db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mail";
 import { assignFirstUserAsInstanceAdmin } from "./registration-invites";
 
-// Fix A4: Im Managed/SaaS-Modus wird die E-Mail-Verifizierung erzwungen, damit
-// sich niemand mit fremden/gefälschten Adressen registriert. Im Selfhost-Modus
-// bleibt sie optional (dort läuft oft kein Mailserver).
-const requireEmailVerification = env.SKEDRA_DEPLOYMENT_MODE === "managed";
+// Operators can require email verification when SMTP is configured.
+const requireEmailVerification = env.SKEDRA_REQUIRE_EMAIL_VERIFICATION;
 
 const socialProviders = {
 	...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
@@ -60,7 +57,6 @@ export const auth = betterAuth({
 			create: {
 				after: async (user) => {
 					await assignFirstUserAsInstanceAdmin(db, user.id);
-					await grantFoundingUserTrial(db, user.id);
 				},
 			},
 		},

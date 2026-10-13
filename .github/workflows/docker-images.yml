@@ -6,15 +6,18 @@ on:
     paths:
       - ".github/workflows/docker-images.yml"
       - "apps/api/**"
+      - "apps/web/**"
+      - "apps/libraries/**"
+      - "apps/docs/**"
       - "apps/mcp/**"
+      - "packages/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "docker-compose*.yml"
+      - ".env*.example"
+      - "deploy/**"
+      - "scripts/**"
       - "deploy/db/**"
-      - "deploy/managed/maintenance/**"
-      - "deploy/managed/deploy-command.sh"
-      - "docker-compose.managed*.yml"
-      - "deploy/managed/monitoring/**"
-      - "deploy/managed/ops/access-admin/**"
-      - "deploy/managed/ops/docker-compose.yml"
-      - "scripts/ops-storage.test.mjs"
       - "package.json"
       - "packages/db/**"
       - "packages/shared/**"
@@ -31,7 +34,7 @@ permissions:
 
 env:
   DOCKER_METADATA_SHORT_SHA_LENGTH: 40
-  SKEDRA_IMAGE_PREFIX: ${{ github.event.repository.name == 'skedra-community' && 'skedra-community' || 'skedra' }}
+  SKEDRA_IMAGE_PREFIX: skedra-community
 
 jobs:
   quality:
@@ -86,46 +89,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Test access administration
-        if: ${{ hashFiles('deploy/managed/ops/access-admin/package.json') != '' }}
-        run: npm test --prefix deploy/managed/ops/access-admin
-
-      - name: Test storage retention policy
-        if: ${{ hashFiles('deploy/managed/maintenance/test_storage_maintenance.py') != '' }}
-        run: |
-          python3 -m unittest discover -s deploy/managed/maintenance -p 'test_*.py'
-          bash -n deploy/managed/deploy-command.sh
-
       - name: Initialize MCP E2E database
         run: pnpm --filter @skedra/db db:push
-
-      - name: Test ops analytics SQL
-        if: ${{ hashFiles('deploy/managed/monitoring/ops-metrics/analytics.sql') != '' }}
-        run: |
-          postgres_container="$(docker ps --filter ancestor=postgres:16-alpine --format '{{.ID}}' | head -n 1)"
-          test -n "$postgres_container"
-          docker exec -i "$postgres_container" \
-            psql -U skedra_ci -d skedra_ci -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE ROLE skedra_ops_metrics_ci;
-          GRANT SELECT ON users, sessions, whiteboard_e2ee_updates
-            TO skedra_ops_metrics_ci;
-          SQL
-          docker exec -i "$postgres_container" \
-            psql -U skedra_ci -d skedra_ci -v ON_ERROR_STOP=1 \
-            < deploy/db/selfhost-migrations.sql
-          docker exec -i "$postgres_container" \
-            psql -U skedra_ci -d skedra_ci -v ON_ERROR_STOP=1 \
-            -tAc "select has_table_privilege('skedra_ops_metrics_ci', 'growth_events', 'SELECT')" \
-            | grep --quiet '^t$'
-          analytics_json="$(
-            docker exec -i "$postgres_container" \
-              psql -U skedra_ci -d skedra_ci -v ON_ERROR_STOP=1 -A -t -q \
-                -c 'set role skedra_ops_metrics_ci' \
-                -f - \
-                < deploy/managed/monitoring/ops-metrics/analytics.sql
-          )"
-          test -n "$analytics_json"
-          printf '%s' "$analytics_json" | grep --quiet '"days" : 30'
 
       - name: Start API for MCP E2E
         run: |
@@ -208,102 +173,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy-production:
-    name: Deploy production
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.repository == 'moonriddim/Skedra' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    concurrency:
-      group: production
-      cancel-in-progress: false
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure restricted SSH access
-        env:
-          DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.VPS_DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/skedra-deploy
-          chmod 600 ~/.ssh/skedra-deploy
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Stage deployment files
-        env:
-          DEPLOY_HOST: ${{ vars.VPS_DEPLOY_HOST }}
-          DEPLOY_USER: ${{ vars.VPS_DEPLOY_USER }}
-        run: |
-          tar -czf - \
-            docker-compose.managed.yml \
-            docker-compose.managed.local-db.yml \
-            docker-compose.managed.ops.yml \
-            deploy/managed/backup/entrypoint.sh \
-            deploy/managed/backup/backup.sh \
-            deploy/managed/monitoring \
-            deploy/managed/ops/access-admin \
-          | ssh -i ~/.ssh/skedra-deploy \
-              -o BatchMode=yes \
-              "$DEPLOY_USER@$DEPLOY_HOST" \
-              "stage sha-$GITHUB_SHA"
-
-      - name: Deploy immutable commit images
-        env:
-          DEPLOY_HOST: ${{ vars.VPS_DEPLOY_HOST }}
-          DEPLOY_USER: ${{ vars.VPS_DEPLOY_USER }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s\n%s\n' "$GITHUB_ACTOR" "$GHCR_TOKEN" \
-          | ssh -i ~/.ssh/skedra-deploy \
-              -o BatchMode=yes \
-              "$DEPLOY_USER@$DEPLOY_HOST" \
-              "deploy sha-$GITHUB_SHA"
-
-      - name: Verify public health endpoint
-        run: |
-          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 https://skedra.xyz/api/health
-
-          web_html="$(curl --fail --silent --show-error https://skedra.xyz/)"
-          printf '%s' "$web_html" | grep --quiet --fixed-strings 'Kostenlos online zeichnen ohne Konto'
-
-          libraries_html="$(curl --fail --silent --show-error https://libraries.skedra.xyz/)"
-          printf '%s' "$libraries_html" | grep --quiet --fixed-strings 'Shape Libraries für Skedra Whiteboard'
-
-          for origin in https://skedra.xyz https://libraries.skedra.xyz; do
-            missing_asset_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
-              "$origin/assets/skedra-deployment-cache-smoke-test.js")"
-            printf '%s' "$missing_asset_headers" | head -n 1 | grep --quiet ' 404 '
-            printf '%s' "$missing_asset_headers" | tr -d '\r' | grep --quiet --ignore-case '^cache-control: no-store$'
-          done
-
-          curl --fail --silent --show-error https://skedra.xyz/two-factor >/dev/null
-
-          mcp_html="$(curl --fail --silent --show-error https://skedra.xyz/mcp)"
-          printf '%s' "$mcp_html" | grep --quiet --fixed-strings 'Das Whiteboard, das dein AI-Agent wirklich bearbeiten kann'
-
-          mcp_en_html="$(curl --fail --silent --show-error https://skedra.xyz/en/mcp)"
-          printf '%s' "$mcp_en_html" | grep --quiet --fixed-strings 'The whiteboard your AI agent can actually edit'
-
-          mcp_markdown="$(curl --fail --silent --show-error https://skedra.xyz/mcp.md)"
-          printf '%s' "$mcp_markdown" | grep --quiet --fixed-strings '# Skedra MCP'
-
-          websocket_status="$(curl --http1.1 --silent --show-error --max-time 10 \
-            --output /dev/null --write-out '%{http_code}' \
-            --header 'Connection: Upgrade' \
-            --header 'Upgrade: websocket' \
-            --header 'Sec-WebSocket-Version: 13' \
-            --header 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
-            https://skedra.xyz/api/boards/00000000-0000-4000-8000-000000000000/presence || true)"
-          test "$websocket_status" = "101"
-
-      - name: Notify search engines through IndexNow
-
-        continue-on-error: true
-        run: node apps/web/scripts/submit-indexnow.mjs
-
   release:
     runs-on: ubuntu-latest
     needs: build
@@ -349,7 +218,7 @@ jobs:
           2. Rename `env.example` to `.env` and adjust passwords, secrets, URLs, and volume paths.
           3. Run `docker compose --env-file .env up -d`.
 
-          The deployment files and Skedra Community code, including the editor packages, use the Skedra Community License 1.0 (see the attached LICENSE). Personal and internal business self-hosting and contributions are allowed. Independent products, rebranding, and third-party hosted services require a separate written license. Earlier AGPL/MIT grants and third-party licenses remain unaffected.
+          Skedra, including its applications, editor packages and deployment files, is licensed under AGPL-3.0-only (see the attached LICENSE).
 
           Database migrations run inside the API container before the API server starts.
           EOF

@@ -1,27 +1,6 @@
 import type { TranslationParams, TranslationTree } from "./messages";
 
 export const enMessages = {
-	installationStatistics: {
-		setup: "Set up Skedra · Voluntary participation",
-		title: "Contribute to installation statistics?",
-		description:
-			"Help us estimate how many self-hosted installations use Skedra. If you choose Yes, your server sends only the month and a random identifier that changes monthly to skedra.xyz, approximately once per day. No user counts, names, board content or usage events. No cookies for these statistics.",
-		network:
-			"The receiving hosting and network infrastructure technically sees the source IP. The statistics do not store it.",
-		privacy: "Privacy notice",
-		yes: "Yes, contribute",
-		no: "No, do not contribute",
-		changeLater:
-			"Both options allow full use of Skedra. You can change your decision anytime in Settings → System. Nothing is sent without a saved Yes.",
-		continue: "Save choice and continue",
-		save: "Save choice",
-		saving: "Saving …",
-		saved: "Choice saved.",
-		saveError:
-			"Your choice could not be saved. Please try again. The previous setting remains in effect.",
-		loadError: "The installation statistics setting could not be loaded.",
-		retry: "Try again",
-	},
 	mindmapStudio: {
 		title: "Mind map",
 		empty: "Empty mind map",
@@ -233,97 +212,6 @@ export const enMessages = {
 		switchToGerman: "Switch to German",
 		switchToEnglish: "Switch to English",
 	},
-	publicSite: {
-		navigationLabel: "Main navigation",
-		productOverview: "Product",
-		pricing: "Pricing",
-		openSource: "Source code",
-		existingCloudAccount: "Cloud sign-in",
-		freeWhiteboard: "Free Whiteboard",
-		openMenu: "Open menu",
-		closeMenu: "Close menu",
-		footerDescription:
-			"The free whiteboard for quick ideas – with optional, encrypted cloud collaboration.",
-		product: "Product",
-		legal: "Legal",
-		privacy: "Privacy",
-		terms: "Terms",
-		imprint: "Imprint",
-		copyright: "© {year} Skedra. All rights reserved.",
-	},
-	pricingPage: {
-		badge: "Start simply. Pay only when you need the cloud.",
-		title: "Your ideas are free.",
-		titleAccent: "Your cloud is optional.",
-		description:
-			"Draw for free without an account. Move to Skedra Cloud when you want to keep boards permanently, organize work with a team, and collaborate securely.",
-		monthly: "Monthly",
-		yearly: "Yearly",
-		savingsShort: "−17%",
-		freeEyebrow: "Local and account-free",
-		freePeriod: "forever",
-		freeDescription:
-			"The complete editor for quick ideas, sketches, and local files.",
-		drawNow: "Start drawing",
-		cloudEyebrow: "For lasting work",
-		cloudYearlyPeriod: "per year / person",
-		cloudMonthlyPeriod: "per month / person",
-		cloudDescription:
-			"Encrypted cloud boards, collaboration, and team management.",
-		subscribe: "Subscribe to Skedra Cloud",
-		recommended: "Recommended",
-		existingSubscription: "Already have an active subscription?",
-		existingSubscriptionAction: "Sign in with an existing cloud account",
-		machineReadable:
-			"Current pricing and features as machine-readable Markdown",
-		comparisonTitle: "Free or Cloud? You decide.",
-		comparisonDescription:
-			"The editor stays free. You only pay for hosting, synchronization, and collaboration.",
-		feature: "Feature",
-		faqTitle: "Frequently asked questions",
-		freeFeatures: {
-			one: "Complete infinite-canvas editor",
-			two: "Local storage in your browser",
-			three: "PNG, SVG, PDF, PPTX, and Skedra export",
-			four: "Templates and public libraries",
-			five: "No account required",
-		},
-		cloudFeatures: {
-			one: "Everything in Free",
-			two: "Unlimited cloud boards and folders",
-			three: "End-to-end or server-side encryption",
-			four: "Live collaboration, comments, and presentations",
-			five: "Teams, roles, and sharing permissions",
-			six: "Cloud storage, API keys, and MCP",
-		},
-		comparison: {
-			one: "Infinite canvas and editor",
-			two: "Local browser storage",
-			three: "File and image export",
-			four: "Cloud synchronization",
-			five: "Unlimited saved boards",
-			six: "Live collaboration and comments",
-			seven: "Teams, roles, and access management",
-			eight: "Presentations and read-only links",
-		},
-		faq: {
-			oneQuestion: "Do I need an account for the Free Whiteboard?",
-			oneAnswer:
-				"No. The free whiteboard runs directly in your browser and stores data locally on your device.",
-			twoQuestion: "What happens to my local drawings?",
-			twoAnswer:
-				"They stay in your browser. You can also export them as a Skedra file. Browser data can be deleted, so permanent cloud storage requires Skedra Cloud.",
-			threeQuestion: "Can I cancel monthly?",
-			threeAnswer:
-				"Yes. The monthly plan can be canceled each month. Annual access remains active until the end of the paid period.",
-			fourQuestion: "Does every team member need a subscription?",
-			fourAnswer:
-				"Yes. Every registered Skedra Cloud user needs their own active access. Public views remain available to guests.",
-			fiveQuestion: "Can I self-host Skedra?",
-			fiveAnswer:
-				"Yes. The Community Edition can run on your own infrastructure and has no Skedra Cloud paywall.",
-		},
-	},
 	legalPage: {
 		eyebrow: "Legal",
 		lastUpdated: "Last updated: {date}",
@@ -336,12 +224,12 @@ export const enMessages = {
 		productDescription:
 			"Skedra is a free online whiteboard for sketches, mind maps, diagrams and Kanban boards — directly in your browser and without an account.",
 		storageWarning:
-			"Your drawings are saved locally in your browser. This storage can be cleared at any time — save to the cloud regularly.",
+			"Your drawings are saved locally in your browser. This storage can be cleared at any time — export a file or save to your server regularly.",
 		startDrawingHint: "Pick a tool and start drawing!",
 		selfHost: {
 			title: "Self-host Skedra",
 			description:
-				"Skedra on your infrastructure — full data control and no cloud paywall.",
+				"Skedra on your infrastructure — full data control and all features included.",
 		},
 		onboarding: {
 			menuHint: "Export, settings, languages …",
@@ -357,14 +245,14 @@ export const enMessages = {
 			label: "Encryption",
 			title: "Your data is protected",
 			description:
-				"In guest mode everything stays locally in your browser. When saving to the cloud, your board is encrypted in transit and stored on the server (AES-256).",
+				"In guest mode everything stays locally in your browser. When saving to your server, your board is encrypted in transit and stored on the server (AES-256).",
 		},
 		localHint: "Saved locally — sign in to sync and share",
 		myBoards: "My boards",
 		apiKeys: "API Keys & MCP",
 		signIn: "Sign in",
 		signUp: "Sign up",
-		saveToCloud: "Save to cloud",
+		saveToCloud: "Save to server",
 		saveSkedra: "Save as .skedra",
 		saveExcalidraw: "Save as .excalidraw",
 		saveEncryptedSkedra: "Save encrypted .skedra",
@@ -373,14 +261,14 @@ export const enMessages = {
 		exportPng: "Export PNG",
 		exportPdf: "Export PDF",
 		exportPptx: "Export PPTX",
-		infoAndPricing: "Info & pricing",
+		infoAndPricing: "Documentation",
 		discordCommunity: "Discord community",
 		homepage: "Go to homepage",
 		help: "Help",
 		helpDescription: "Quick tips for guest mode.",
 		helpPan:
 			"Move the canvas: hold middle mouse or Space while dragging, or use the Hand tool (H).",
-		helpSave: "Cloud save: Share button or menu — sign-in required.",
+		helpSave: "Server save: Share button or menu — sign-in required.",
 		helpExport: "Export: SVG/PNG or .skedra from the top-left menu.",
 		clearCanvas: "Clear canvas",
 		clearCanvasDescription:
@@ -440,8 +328,6 @@ export const enMessages = {
 		login: {
 			title: "Welcome back",
 			description: "Sign in to your Skedra account",
-			managedDescription:
-				"Sign in with an existing Skedra Cloud account. Cloud features are only unlocked with an active subscription.",
 			email: "Email",
 			emailPlaceholder: "name@example.com",
 			password: "Password",
@@ -450,8 +336,6 @@ export const enMessages = {
 			submit: "Sign in",
 			noAccount: "Don't have an account yet?",
 			register: "Register",
-			choosePlanFirst: "New to Skedra Cloud?",
-			choosePlanAction: "Choose a plan first",
 			failed: "Sign-in failed",
 			unexpected: "An unexpected error occurred",
 		},
@@ -546,44 +430,6 @@ export const enMessages = {
 			privacy: "Privacy Policy",
 			legalSuffix: ".",
 		},
-	},
-	subscriptionWall: {
-		title: "Skedra Cloud requires an active subscription",
-		description:
-			"Every registered person needs their own access. Choose a plan to use boards, teams, and cloud features.",
-		signOut: "Sign out",
-		freeWhiteboard: "Back to the free whiteboard",
-		existingAccount: "Already have a Skedra Cloud subscription?",
-		existingAccountAction: "Sign in with an existing account",
-		monthly: "Monthly",
-		yearly: "Yearly",
-		perMonth: "per month",
-		perYear: "per year",
-		monthlyDescription:
-			"Flexible monthly billing. The price covers your personal user access.",
-		yearlyDescription:
-			"One year of Skedra Cloud at the lower annual price for your personal access.",
-		chooseMonthly: "Subscribe monthly",
-		chooseYearly: "Subscribe yearly",
-		savings: "Save 17%",
-		personalAccess: "One personal Skedra Cloud account",
-		cloudFeatures: "Boards, teams, presentations, and cloud storage",
-		manage: "Manage subscription and payment",
-		paymentAttentionTitle: "Your existing subscription needs attention",
-		paymentAttentionDescription:
-			"Open the Stripe customer portal to complete payment or update your payment method.",
-		canceled: "Checkout canceled — nothing was charged.",
-		activating:
-			"Payment completed. Your access will activate after Stripe confirms it.",
-		unavailableTitle: "Cloud billing is temporarily unavailable",
-		unavailableDescription:
-			"Please try again later or run Skedra as a self-hosted installation.",
-		selfhostTitle: "Prefer to self-host?",
-		selfhostDescription:
-			"Skedra can run on your own infrastructure. Self-hosted mode has no Skedra Cloud paywall; operations, updates, and data remain under your control.",
-		selfhostAction: "Self-hosting guide",
-		guestNote:
-			"Public presentation and embed links are read-only. Collaboration links use the configured view or edit access.",
 	},
 	settings: {
 		apiKeys: {
@@ -984,8 +830,6 @@ export const enMessages = {
 			dialogDescription: "This action cannot be undone.",
 			dataWarning:
 				"All boards and workspaces you own, including their stored files, will be permanently deleted. Content owned by others and merely shared with you is retained.",
-			subscriptionCancellation:
-				"Any active Skedra Cloud subscription is canceled immediately together with the account. Amounts already charged are not automatically refunded.",
 			confirmationLabel: (params: TranslationParams) =>
 				`Enter ${params.email ?? "your email address"} to confirm`,
 			passwordLabel: "Current password",
@@ -2447,7 +2291,7 @@ export const enMessages = {
 				label: "Encryption",
 				title: "Your data is protected",
 				description:
-					"Your board is transferred encrypted and stored in the cloud (AES-256). Only you and invited members can access it.",
+					"Your board is transferred encrypted and stored on your server (AES-256). Only you and invited members can access it.",
 				serverTitle: "Server-side encrypted",
 				serverDescription:
 					"Canvas data is synchronized on your Skedra instance in real time and encrypted server-side before storage. Authorized users and MCPs can access it.",
@@ -2456,7 +2300,7 @@ export const enMessages = {
 					"Canvas data is encrypted locally. Only clients holding the board key can read its contents.",
 				localTitle: "Local in this browser",
 				localDescription:
-					"This board lives only in your browser. Save to the cloud to share and sync.",
+					"This board lives only in your browser. Save to your server to share and sync.",
 			},
 		},
 		commandPalette: {
@@ -2635,7 +2479,7 @@ export const enMessages = {
 				openHelp: "Open help",
 			},
 			guest: {
-				saveToCloud: "Save to cloud",
+				saveToCloud: "Save to server",
 				export: "Export SVG/PNG",
 				shareButton: "Share",
 				menuButton: "Menu",

@@ -38,7 +38,6 @@ import { Link, useLocation, useNavigate } from "react-router";
 
 interface GuestCanvasChromeProps {
 	isLoggedIn: boolean;
-	managedBilling: boolean;
 	onSave: () => void;
 	onSaveSkedra: () => void;
 	onSaveExcalidraw: () => void;
@@ -58,7 +57,6 @@ interface GuestCanvasChromeProps {
 /** Excalidraw-aehnliche Gast-UI: Hamburger links, Canvas-Seitenpanel rechts. */
 export function GuestCanvasChrome({
 	isLoggedIn,
-	managedBilling,
 	onSave,
 	onSaveSkedra,
 	onSaveExcalidraw,
@@ -152,16 +150,16 @@ export function GuestCanvasChrome({
 						<DropdownMenuSeparator />
 
 						<DropdownMenuItem asChild>
-							<Link to={publicPath("/whiteboard")}>
+							<a href="https://skedra.xyz/">
 								<Home className="mr-2 h-4 w-4" aria-hidden="true" />
 								{t("guestCanvas.homepage")}
-							</Link>
+							</a>
 						</DropdownMenuItem>
 						<DropdownMenuItem asChild>
-							<Link to={publicPath("/pricing")}>
+							<a href="https://skedra.xyz/docs/">
 								<BadgeInfo className="mr-2 h-4 w-4" />
 								{t("guestCanvas.infoAndPricing")}
-							</Link>
+							</a>
 						</DropdownMenuItem>
 
 						<DropdownMenuSeparator />
@@ -185,7 +183,7 @@ export function GuestCanvasChrome({
 							<>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`${managedBilling ? publicPath("/pricing") : "/login"}?redirect=${encodeURIComponent(publicPath("/"))}`}
+										to={`/login?redirect=${encodeURIComponent(publicPath("/"))}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4" />
 										{t("guestCanvas.signIn")}
@@ -193,7 +191,7 @@ export function GuestCanvasChrome({
 								</DropdownMenuItem>
 								<DropdownMenuItem asChild>
 									<Link
-										to={`${managedBilling ? publicPath("/pricing") : "/register"}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`}
+										to={`/register?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`}
 									>
 										<UserPlus className="mr-2 h-4 w-4 text-primary" />
 										<span className="text-primary">

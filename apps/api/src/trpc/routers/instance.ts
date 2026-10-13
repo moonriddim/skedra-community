@@ -6,10 +6,6 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "../../env";
 import {
-	getInstallationStatisticsStatus,
-	saveInstallationStatisticsChoice,
-} from "../../lib/installation-statistics-consent";
-import {
 	encryptLiveKitApiSecret,
 	encryptSmtpPassword,
 	getEnvLiveKitConfigStatus,
@@ -30,7 +26,7 @@ import {
 	getObjectStorageStatus,
 	updateObjectStorageSettings,
 } from "../../lib/object-storage";
-import { authenticatedProcedure, protectedProcedure, router } from "../init";
+import { protectedProcedure, router } from "../init";
 
 const smtpInputSchema = z.object({
 	useCustomSmtp: z.boolean(),
@@ -69,38 +65,8 @@ const objectStorageInputSchema = z.object({
 	forcePathStyle: z.boolean().optional(),
 });
 
-function requireSelfHostedDeployment() {
-	if (env.SKEDRA_DEPLOYMENT_MODE === "managed") {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "System-Einstellungen sind im Managed-Betrieb nicht verfügbar.",
-		});
-	}
-}
-
 export const instanceRouter = router({
-	getInstallationStatistics: authenticatedProcedure.query(({ ctx }) =>
-		getInstallationStatisticsStatus(
-			ctx.db,
-			ctx.user.id,
-			env.SKEDRA_DEPLOYMENT_MODE,
-		),
-	),
-	setInstallationStatistics: authenticatedProcedure
-		.input(
-			z.object({ enabled: z.boolean(), initialSetup: z.boolean() }).strict(),
-		)
-		.mutation(({ ctx, input }) =>
-			saveInstallationStatisticsChoice(
-				ctx.db,
-				ctx.user.id,
-				env.SKEDRA_DEPLOYMENT_MODE,
-				input.enabled,
-				input.initialSetup,
-			),
-		),
 	getMailStatus: protectedProcedure.query(async ({ ctx }) => {
-		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 		const settings = await getOrCreateInstanceSettings(ctx.db);
 		const delivery = await getMailDeliveryStatus(ctx.db);
@@ -109,7 +75,7 @@ export const instanceRouter = router({
 			...delivery,
 			adminUserId: settings.adminUserId,
 			isAdmin: await isInstanceAdmin(ctx.db, ctx.user.id),
-			managedDeployment: env.SKEDRA_DEPLOYMENT_MODE === "managed",
+			managedDeployment: false,
 			useCustomSmtp: settings.useCustomSmtp,
 			smtpHost: settings.smtpHost,
 			smtpPort: settings.smtpPort,
@@ -124,7 +90,6 @@ export const instanceRouter = router({
 	updateSmtp: protectedProcedure
 		.input(smtpInputSchema)
 		.mutation(async ({ ctx, input }) => {
-			requireSelfHostedDeployment();
 			const settings = await getOrCreateInstanceSettings(ctx.db);
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 
@@ -158,7 +123,6 @@ export const instanceRouter = router({
 		}),
 
 	getCallStatus: protectedProcedure.query(async ({ ctx }) => {
-		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 		const settings = await getOrCreateInstanceSettings(ctx.db);
 		const resolved = await resolveLiveKitConfig(ctx.db);
@@ -187,7 +151,6 @@ export const instanceRouter = router({
 	updateCalls: protectedProcedure
 		.input(callsInputSchema)
 		.mutation(async ({ ctx, input }) => {
-			requireSelfHostedDeployment();
 			const settings = await getOrCreateInstanceSettings(ctx.db);
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 
@@ -234,7 +197,6 @@ export const instanceRouter = router({
 		}),
 
 	getObjectStorageStatus: protectedProcedure.query(async ({ ctx }) => {
-		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 		const resolved = await getObjectStorageStatus(ctx.db);
 
@@ -281,7 +243,6 @@ export const instanceRouter = router({
 	updateObjectStorage: protectedProcedure
 		.input(objectStorageInputSchema)
 		.mutation(async ({ ctx, input }) => {
-			requireSelfHostedDeployment();
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 			const settings = await getOrCreateInstanceSettings(ctx.db);
 			const endpoint = input.endpoint?.trim() || null;
@@ -335,7 +296,6 @@ export const instanceRouter = router({
 		}),
 
 	sendTestEmail: protectedProcedure.mutation(async ({ ctx }) => {
-		requireSelfHostedDeployment();
 		await requireInstanceAdmin(ctx.db, ctx.user.id);
 
 		await sendAppEmail(ctx.db, {
@@ -361,7 +321,6 @@ export const instanceRouter = router({
 	peekPasswordResetLink: protectedProcedure
 		.input(z.object({ email: z.string().email() }))
 		.query(async ({ ctx, input }) => {
-			requireSelfHostedDeployment();
 			await requireInstanceAdmin(ctx.db, ctx.user.id);
 			const url = consumePasswordResetLink(input.email);
 			return { url };

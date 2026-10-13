@@ -22,7 +22,6 @@ interface GuestWelcomeSplashProps {
 	onOpenLiveCollaboration: () => void;
 	onOpenFile: () => void;
 	isLoggedIn: boolean;
-	managedBilling: boolean;
 }
 
 export function GuestWelcomeSplash({
@@ -32,7 +31,6 @@ export function GuestWelcomeSplash({
 	onOpenLiveCollaboration,
 	onOpenFile,
 	isLoggedIn,
-	managedBilling,
 }: GuestWelcomeSplashProps) {
 	const { t, locale } = useI18n();
 	const setActiveTool = useCanvasStore((state) => state.setActiveTool);
@@ -142,18 +140,16 @@ export function GuestWelcomeSplash({
 							</Link>
 						)}
 						{!isLoggedIn && (
-							<Link to={managedBilling ? publicPath("/pricing") : "/register"}>
-								{t("guestCanvas.signUp")}
-							</Link>
+							<Link to="/register">{t("guestCanvas.signUp")}</Link>
 						)}
 					</nav>
-					<Link
+					<a
 						className="studio-selfhost"
-						to={publicPath("/open-source-whiteboard-self-hosted")}
+						href="https://skedra.xyz/docs/self-host/"
 					>
 						{t("guestCanvas.selfHost.title")}
 						<ArrowRight />
-					</Link>
+					</a>
 				</section>
 			</div>
 		</div>

@@ -1,0 +1,76 @@
+name: Canvas SDK
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/components/canvas/**"
+      - "apps/web/src/hooks/**"
+      - "apps/web/src/lib/canvas/**"
+      - "apps/web/src/lib/templates/**"
+      - "apps/web/package.json"
+      - "apps/mcp/**"
+      - "packages/canvas-core/**"
+      - "packages/canvas-editor/**"
+      - "packages/canvas-io/**"
+      - "packages/canvas-react/**"
+      - "packages/react/**"
+      - "packages/shared/**"
+      - "scripts/canvas-parity.test.mjs"
+      - "scripts/check-canvas-boundary.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/src/components/canvas/**"
+      - "apps/web/src/hooks/**"
+      - "apps/web/src/lib/canvas/**"
+      - "apps/web/src/lib/templates/**"
+      - "apps/web/package.json"
+      - "apps/mcp/**"
+      - "packages/canvas-core/**"
+      - "packages/canvas-editor/**"
+      - "packages/canvas-io/**"
+      - "packages/canvas-react/**"
+      - "packages/react/**"
+      - "packages/shared/**"
+      - "scripts/canvas-parity.test.mjs"
+      - "scripts/check-canvas-boundary.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canvas-sdk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check canvas package boundaries
+        run: pnpm lint:canvas-boundary
+
+      - name: Test shared canvas logic and package parity
+        run: pnpm test
+
+      - name: Build web app and SDK
+        run: pnpm --filter @skedra/web --filter @skedra/react build

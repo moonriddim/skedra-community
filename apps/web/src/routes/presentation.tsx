@@ -5,7 +5,7 @@ import {
 } from "@/components/board/share-token-page-layout";
 import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
 import { getKnownE2eeKey } from "@/lib/e2ee";
-import { trackGrowthEventOnce } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { getTrpcErrorMessage } from "@/lib/trpc-errors";
@@ -38,7 +38,6 @@ export function PresentationPage() {
 
 	useEffect(() => {
 		if (data) {
-			trackGrowthEventOnce("share_viewed", { context: "presentation" });
 		}
 	}, [data]);
 

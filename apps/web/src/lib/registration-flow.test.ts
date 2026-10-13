@@ -2,20 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
 	buildEmailSignupPayload,
-	buildPostSignupRedirect,
 	safeSignupRedirect,
 } from "./registration-flow";
 
-test("paid email signup preserves Checkout through email verification", () => {
-	const callbackURL = buildPostSignupRedirect({
-		managed: true,
-		plan: "pro_yearly",
-		redirect: "/settings?tab=billing",
-	});
-	assert.equal(
-		callbackURL,
-		"/subscribe?plan=pro_yearly&checkout=start&redirect=%2Fsettings%3Ftab%3Dbilling",
-	);
+test("email signup preserves the instance redirect through email verification", () => {
+	const callbackURL = "/library";
 	assert.equal(
 		buildEmailSignupPayload({
 			name: "Paid User",
