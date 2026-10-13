@@ -1,12 +1,14 @@
 {
 	"name": "skedra",
 	"private": true,
-	"license": "SEE LICENSE IN LICENSE",
+	"license": "AGPL-3.0-only",
 	"scripts": {
 		"predev": "pnpm --filter @skedra/db db:push",
 		"dev": "turbo dev",
 		"dev:sdk": "pnpm --filter @skedra/react dev",
 		"build": "turbo build",
+		"docs:build": "pnpm --filter @skedra/docs build",
+		"docs:dev": "pnpm --filter @skedra/docs dev",
 		"test": "turbo test && node --test scripts/*.test.mjs",
 		"test:mcp:e2e": "pnpm --filter @skedra/api test:mcp:e2e",
 		"plugin:package": "pwsh -NoProfile -File scripts/package-plugin.ps1",

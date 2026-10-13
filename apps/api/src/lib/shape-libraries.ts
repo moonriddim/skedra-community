@@ -21,11 +21,6 @@ import { env } from "../env";
 export type LibrarySubmissionStatus = "pending" | "approved" | "rejected";
 export type LibraryCatalogMode = "local" | "remote";
 
-export const DEFAULT_REMOTE_LIBRARY_CATALOG_API_URL =
-	"https://libraries.skedra.xyz";
-export const DEFAULT_REMOTE_LIBRARY_SUBMIT_URL =
-	"https://skedra.xyz/login?redirect=%2Flibrary";
-
 export interface PublicShapeLibraryEntry {
 	id: string;
 	slug: string;
@@ -44,7 +39,7 @@ function trimUrl(value?: string | null) {
 }
 
 export function resolveLibraryCatalogConfig(input: {
-	deploymentMode: "selfhost" | "managed";
+	deploymentMode: "selfhost";
 	mode: LibraryCatalogMode;
 	remoteApiUrl?: string | null;
 	submitUrl?: string | null;
@@ -52,22 +47,14 @@ export function resolveLibraryCatalogConfig(input: {
 }) {
 	const configuredRemoteBaseUrl = trimUrl(input.remoteApiUrl);
 	const remoteBaseUrl =
-		input.mode === "remote"
-			? (configuredRemoteBaseUrl ?? DEFAULT_REMOTE_LIBRARY_CATALOG_API_URL)
-			: null;
+		input.mode === "remote" ? configuredRemoteBaseUrl : null;
 	const localAppUrl = trimUrl(input.appUrl) ?? "http://localhost:5174";
-	const fallbackSubmitUrl =
-		input.mode === "remote" && !configuredRemoteBaseUrl
-			? DEFAULT_REMOTE_LIBRARY_SUBMIT_URL
-			: `${remoteBaseUrl ?? localAppUrl}/login?redirect=${encodeURIComponent(
-					"/library",
-				)}`;
+	const fallbackSubmitUrl = `${remoteBaseUrl ?? localAppUrl}/login?redirect=%2Flibrary`;
 
 	return {
 		mode: input.mode,
 		canSubmit:
-			(input.deploymentMode === "managed" && input.mode === "local") ||
-			(input.mode === "remote" && !!remoteBaseUrl),
+			input.mode === "local" || (input.mode === "remote" && !!remoteBaseUrl),
 		submitUrl: input.submitUrl?.trim() || fallbackSubmitUrl,
 		remoteBaseUrl,
 	};
@@ -346,9 +333,6 @@ export async function submitConfiguredShapeLibraryForReview(
 	},
 ) {
 	if (env.SKEDRA_LIBRARY_CATALOG_MODE !== "remote") {
-		if (env.SKEDRA_DEPLOYMENT_MODE !== "managed") {
-			throw new Error("REMOTE_CATALOG_NOT_CONFIGURED");
-		}
 		return submitShapeLibraryForReview(db, input);
 	}
 

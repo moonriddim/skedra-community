@@ -2,7 +2,11 @@
  * Published and submitted shape libraries.
  */
 
-import { personalShapeLibraries } from "@skedra/db";
+import {
+	type Database,
+	librarySubmissions,
+	personalShapeLibraries,
+} from "@skedra/db";
 import {
 	SKEDRA_LIBRARY_LICENSE,
 	SKEDRA_LIB_TYPE,
@@ -14,12 +18,17 @@ import {
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { getOrCreateInstanceSettings } from "../../lib/instance-settings";
 import {
+	approveLibrarySubmission,
 	deletePublishedShapeLibrary,
 	getConfiguredPublishedLibraryFile,
 	getLibraryCatalogConfig,
 	listConfiguredPublicShapeLibraries,
+	listPendingLibrarySubmissions,
 	listUserShapeLibraries,
+	parseLibraryContent,
+	rejectLibrarySubmission,
 	submitConfiguredShapeLibraryForReview,
 } from "../../lib/shape-libraries";
 import { protectedProcedure, publicProcedure, router } from "../init";
@@ -29,6 +38,16 @@ const libraryItemSchema = z.object({
 	name: z.string().optional(),
 	elements: z.array(z.record(z.unknown())),
 });
+
+async function requireLibraryAdmin(db: Database, userId: string) {
+	const settings = await getOrCreateInstanceSettings(db);
+	if (settings.adminUserId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "Only the instance administrator can review libraries.",
+		});
+	}
+}
 
 function mapSubmissionError(error: unknown): never {
 	const message = error instanceof Error ? error.message : "UNKNOWN";
@@ -53,14 +72,14 @@ function mapSubmissionError(error: unknown): never {
 	if (message === "REMOTE_CATALOG_NOT_CONFIGURED") {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Der zentrale Community-Katalog ist nicht konfiguriert.",
+			message: "Der Remote-Katalog ist nicht konfiguriert.",
 		});
 	}
 	if (message === "REMOTE_SUBMISSION_FAILED") {
 		throw new TRPCError({
 			code: "BAD_GATEWAY",
 			message:
-				"Die Einreichung konnte nicht an den zentralen Katalog gesendet werden.",
+				"Die Einreichung konnte nicht an den konfigurierten Remote-Katalog gesendet werden.",
 		});
 	}
 	if (message === "INVALID_LIBRARY") {
@@ -73,6 +92,58 @@ function mapSubmissionError(error: unknown): never {
 }
 
 export const shapeLibraryRouter = router({
+	listSubmissions: protectedProcedure.query(async ({ ctx }) => {
+		await requireLibraryAdmin(ctx.db, ctx.user.id);
+		return listPendingLibrarySubmissions(ctx.db);
+	}),
+	getSubmissionPreview: protectedProcedure
+		.input(z.object({ id: z.string().uuid() }).strict())
+		.query(async ({ ctx, input }) => {
+			await requireLibraryAdmin(ctx.db, ctx.user.id);
+			const submission = await ctx.db.query.librarySubmissions.findFirst({
+				where: eq(librarySubmissions.id, input.id),
+			});
+			if (!submission)
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Submission not found.",
+				});
+			return {
+				slug: submission.slug,
+				file: parseLibraryContent(submission.content),
+			};
+		}),
+	reviewSubmission: protectedProcedure
+		.input(
+			z
+				.object({
+					id: z.string().uuid(),
+					action: z.enum(["approve", "reject"]),
+				})
+				.strict(),
+		)
+		.mutation(async ({ ctx, input }) => {
+			await requireLibraryAdmin(ctx.db, ctx.user.id);
+			return ctx.db.transaction(async (tx) => {
+				// Serialize decisions so a concurrent approval/rejection cannot partly publish a library.
+				await tx
+					.select({ id: librarySubmissions.id })
+					.from(librarySubmissions)
+					.where(eq(librarySubmissions.id, input.id))
+					.for("update");
+				const database = tx as unknown as Database;
+				return input.action === "approve"
+					? approveLibrarySubmission(database, {
+							id: input.id,
+							reviewerId: ctx.user.id,
+						})
+					: rejectLibrarySubmission(database, {
+							id: input.id,
+							reviewerId: ctx.user.id,
+						});
+			});
+		}),
+
 	getCatalogConfig: publicProcedure.query(() => getLibraryCatalogConfig()),
 
 	listPublic: publicProcedure.query(async ({ ctx }) => {

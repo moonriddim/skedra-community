@@ -1,6 +1,5 @@
 import { type Database, sessions } from "@skedra/db";
 import { and, eq, gt } from "drizzle-orm";
-import { userHasProductAccess } from "./billing-entitlement";
 import { getBoardAccess } from "./permissions";
 
 /** Query durable state, not the authentication cookie cache. */
@@ -18,7 +17,7 @@ export async function hasBoardPresenceAccess(
 		),
 		columns: { id: true },
 	});
-	if (!session || !(await userHasProductAccess(db, user.id))) return false;
+	if (!session) return false;
 	try {
 		await getBoardAccess({ db, user }, boardId);
 		return true;

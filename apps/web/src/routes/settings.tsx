@@ -1,9 +1,8 @@
-import { BillingSettings } from "@/components/settings/billing-settings";
 import { McpConnectionsSettings } from "@/components/settings/mcp-connections-settings";
 import { ProfileAccountSecurity } from "@/components/settings/profile-account-security";
 import { ProfileImageEditor } from "@/components/settings/profile-image-editor";
 import { SystemCallSettings } from "@/components/settings/system-call-settings";
-import { SystemInstallationStatistics } from "@/components/settings/system-installation-statistics";
+import { SystemLibrarySettings } from "@/components/settings/system-library-settings";
 import { SystemObjectStorageSettings } from "@/components/settings/system-object-storage-settings";
 import { SystemSmtpSettings } from "@/components/settings/system-smtp-settings";
 import { UserPreferencesCard } from "@/components/settings/user-preferences-card";
@@ -20,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
 import { authClient } from "@/lib/auth-client";
-import { trackGrowthEvent, trackGrowthEventOnce } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import {
 	type McpClient,
@@ -50,7 +49,6 @@ import {
 	Code2,
 	Copy,
 	Cpu,
-	CreditCard,
 	KeyRound,
 	Loader2,
 	LockKeyhole,
@@ -69,13 +67,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
-type SettingsTab =
-	| "profile"
-	| "team"
-	| "billing"
-	| "api-keys"
-	| "ai"
-	| "system";
+type SettingsTab = "profile" | "team" | "api-keys" | "ai" | "system";
 
 const SCOPE_LABELS: Record<SkedraApiKeyScope, string> = {
 	"boards:read": "Boards lesen",
@@ -99,31 +91,25 @@ export function ApiKeysSettingsPage() {
 	const { data: aiSettings, isLoading: aiLoading } =
 		trpc.ai.getSettings.useQuery();
 	const { data: team, isLoading: teamLoading } = trpc.team.get.useQuery();
-	const { data: billingStatus } = trpc.billing.getStatus.useQuery();
 	const { data: mailStatus } = trpc.instance.getMailStatus.useQuery(undefined, {
-		enabled: billingStatus?.available === false,
 		retry: false,
 	});
 
-	const showSystemTab =
-		billingStatus?.available === false && mailStatus?.isAdmin === true;
+	const showSystemTab = mailStatus?.isAdmin === true;
 	const showTeamTab = team?.canManageWorkspace ?? false;
-	const showBillingTab = billingStatus?.available === true;
 	const [searchParams] = useSearchParams();
 
 	const tabFromUrl = searchParams.get("tab");
 	const initialTab: SettingsTab =
 		(tabFromUrl === "team" || tabFromUrl === "canvas-roles") && showTeamTab
 			? "team"
-			: tabFromUrl === "billing"
-				? "billing"
-				: tabFromUrl === "api-keys"
-					? "api-keys"
-					: tabFromUrl === "ai"
-						? "ai"
-						: tabFromUrl === "system" && showSystemTab
-							? "system"
-							: "profile";
+			: tabFromUrl === "api-keys"
+				? "api-keys"
+				: tabFromUrl === "ai"
+					? "ai"
+					: tabFromUrl === "system" && showSystemTab
+						? "system"
+						: "profile";
 
 	const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
@@ -144,12 +130,7 @@ export function ApiKeysSettingsPage() {
 	useEffect(() => {
 		if (activeTab === "system" && !showSystemTab) setActiveTab("profile");
 		if (activeTab === "team" && !showTeamTab) setActiveTab("profile");
-		if (activeTab === "billing" && !showBillingTab) setActiveTab("profile");
-	}, [activeTab, showBillingTab, showSystemTab, showTeamTab]);
-
-	useEffect(() => {
-		if (tabFromUrl === "billing" && showBillingTab) setActiveTab("billing");
-	}, [showBillingTab, tabFromUrl]);
+	}, [activeTab, showSystemTab, showTeamTab]);
 
 	useEffect(() => {
 		if (tabFromUrl === "system" && showSystemTab) setActiveTab("system");
@@ -176,7 +157,6 @@ export function ApiKeysSettingsPage() {
 
 	const createKey = trpc.apiKey.create.useMutation({
 		onSuccess: (result) => {
-			trackGrowthEvent("mcp_key_created", { context: mcpClient });
 			setCreatedKey(result.plainKey);
 			setNewKeyName("");
 			setSelectedScopes([...SKEDRA_API_KEY_DEFAULT_SCOPES]);
@@ -187,7 +167,6 @@ export function ApiKeysSettingsPage() {
 
 	useEffect(() => {
 		if (activeTab === "api-keys") {
-			trackGrowthEventOnce("mcp_setup_viewed", { context: "settings" });
 		}
 	}, [activeTab]);
 
@@ -389,20 +368,7 @@ export function ApiKeysSettingsPage() {
 								<span>Team-Mitglieder</span>
 							</button>
 						) : null}
-						{showBillingTab ? (
-							<button
-								type="button"
-								onClick={() => setActiveTab("billing")}
-								className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all shrink-0 ${
-									activeTab === "billing"
-										? "bg-primary/10 text-primary"
-										: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-								}`}
-							>
-								<CreditCard className="h-4 w-4" />
-								<span>Abrechnung</span>
-							</button>
-						) : null}
+
 						<button
 							type="button"
 							onClick={() => setActiveTab("api-keys")}
@@ -634,8 +600,6 @@ export function ApiKeysSettingsPage() {
 							) : null}
 						</div>
 					)}
-
-					{activeTab === "billing" && showBillingTab && <BillingSettings />}
 
 					{activeTab === "api-keys" && (
 						<div className="space-y-6 animate-in fade-in-50 duration-200">
@@ -951,10 +915,10 @@ export function ApiKeysSettingsPage() {
 
 					{activeTab === "system" && (
 						<div className="space-y-6 animate-in fade-in-50 duration-200">
-							<SystemInstallationStatistics />
 							<SystemSmtpSettings />
 							<SystemObjectStorageSettings />
 							<SystemCallSettings />
+							<SystemLibrarySettings />
 						</div>
 					)}
 

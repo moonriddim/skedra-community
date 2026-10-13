@@ -21,7 +21,7 @@ export function LoginPage() {
 	const { data: session, isPending } = authClient.useSession();
 	const { t } = useI18n();
 	const [searchParams] = useSearchParams();
-	const config = trpc.billing.getPublicConfig.useQuery();
+	const config = trpc.publicConfig.get.useQuery();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
@@ -95,11 +95,7 @@ export function LoginPage() {
 	return (
 		<AuthFormLayout
 			title={t("auth.login.title")}
-			description={t(
-				config.data?.managed
-					? "auth.login.managedDescription"
-					: "auth.login.description",
-			)}
+			description={t("auth.login.description")}
 			error={displayError}
 			loading={loading}
 			submitLabel={t("auth.login.submit")}
@@ -113,24 +109,12 @@ export function LoginPage() {
 			}
 			footer={
 				<p className="text-center text-sm text-muted-foreground">
-					{t(
-						config.data?.managed
-							? "auth.login.choosePlanFirst"
-							: "auth.login.noAccount",
-					)}{" "}
+					{t("auth.login.noAccount")}{" "}
 					<Link
-						to={
-							config.data?.managed
-								? `/pricing?redirect=${encodeURIComponent(redirectTo)}`
-								: `/register?redirect=${encodeURIComponent(redirectTo)}`
-						}
+						to={`/register?redirect=${encodeURIComponent(redirectTo)}`}
 						className="text-primary underline-offset-4 hover:underline"
 					>
-						{t(
-							config.data?.managed
-								? "auth.login.choosePlanAction"
-								: "auth.login.register",
-						)}
+						{t("auth.login.register")}
 					</Link>
 				</p>
 			}

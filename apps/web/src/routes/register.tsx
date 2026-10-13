@@ -9,11 +9,10 @@ import {
 	unlockOrCreateUserE2eeIdentity,
 	withE2eeKeyFragmentPath,
 } from "@/lib/e2ee";
-import { trackGrowthEvent } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import {
 	buildEmailSignupPayload,
-	buildPostSignupRedirect,
 	safeSignupRedirect,
 } from "@/lib/registration-flow";
 import { trpc } from "@/lib/trpc";
@@ -25,19 +24,9 @@ export function RegisterPage() {
 	const { data: session, isPending } = authClient.useSession();
 	const { t } = useI18n();
 	const [searchParams] = useSearchParams();
-	const config = trpc.billing.getPublicConfig.useQuery();
+	const config = trpc.publicConfig.get.useQuery();
 	const requestedRedirect = safeSignupRedirect(searchParams.get("redirect"));
-	const requestedPlan = searchParams.get("plan");
-	const plan =
-		requestedPlan === "pro_monthly" || requestedPlan === "pro_yearly"
-			? requestedPlan
-			: null;
-	const hasSelectedPlan = plan !== null;
-	const baseRedirectTo = buildPostSignupRedirect({
-		managed: config.data?.managed ?? false,
-		plan,
-		redirect: requestedRedirect,
-	});
+	const baseRedirectTo = requestedRedirect;
 	const e2eeKeyFromHash = readE2eeKeyFromHash();
 	const redirectTo = e2eeKeyFromHash
 		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)
@@ -46,7 +35,6 @@ export function RegisterPage() {
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState(searchParams.get("email") ?? "");
 	const [password, setPassword] = useState("");
-	const [acceptedTerms, setAcceptedTerms] = useState(false);
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [verificationEmail, setVerificationEmail] = useState<string | null>(
@@ -68,20 +56,6 @@ export function RegisterPage() {
 			<div className="flex h-screen items-center justify-center">
 				<Loader2 className="h-8 w-8 animate-spin text-primary" />
 			</div>
-		);
-	}
-
-	if (
-		config.data?.managed &&
-		!inviteToken &&
-		!hasSelectedPlan &&
-		(config.data.foundingTrialDays ?? 0) <= 0
-	) {
-		return (
-			<Navigate
-				to={`/pricing?redirect=${encodeURIComponent(requestedRedirect)}`}
-				replace
-			/>
 		);
 	}
 
@@ -109,9 +83,7 @@ export function RegisterPage() {
 	const handleSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
 		if (loading) return;
-		trackGrowthEvent("signup_started", {
-			context: hasSelectedPlan ? (plan ?? "plan") : "founding_trial",
-		});
+
 		setError("");
 		setLoading(true);
 
@@ -129,10 +101,8 @@ export function RegisterPage() {
 				setError(result.error.message ?? t("auth.register.failed"));
 				return;
 			}
-			trackGrowthEvent("signup_completed", {
-				context: hasSelectedPlan ? (plan ?? "plan") : "founding_trial",
-			});
-			// Managed signups (including generic duplicate responses) have no
+
+			// Signups requiring verification (including duplicate responses) have no
 			// session until email verification. Protected E2EE calls must wait.
 			if (!result.data?.token) {
 				setVerificationEmail(email.trim().toLowerCase());
@@ -172,7 +142,6 @@ export function RegisterPage() {
 						providers={config.data.socialProviders}
 						callbackURL={redirectTo}
 						requestSignUp
-						disabled={Boolean(config.data.managed && !acceptedTerms)}
 						onError={setError}
 					/>
 				) : null
@@ -223,43 +192,6 @@ export function RegisterPage() {
 					minLength={8}
 				/>
 			</div>
-			{config.data?.managed && (
-				<label className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
-					<input
-						type="checkbox"
-						checked={acceptedTerms}
-						onChange={(event) => setAcceptedTerms(event.target.checked)}
-						required
-						className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
-					/>
-					<span>
-						{t("auth.register.legalPrefix")}{" "}
-						<Link
-							className="text-primary hover:underline"
-							to="/terms"
-							target="_blank"
-						>
-							{t("auth.register.terms")}
-						</Link>{" "}
-						{t("auth.register.legalAnd")}{" "}
-						<Link
-							className="text-primary hover:underline"
-							to="/privacy"
-							target="_blank"
-						>
-							{t("auth.register.privacy")}
-						</Link>{" "}
-						{t("auth.register.legalSuffix")}
-					</span>
-				</label>
-			)}
-			{config.data?.managed && (config.data.foundingTrialDays ?? 0) > 0 ? (
-				<p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
-					{config.data.foundingTrialDays} Tage Founding-User-Zugang, ohne
-					Kreditkarte. Danach entscheidest du, ob du Skedra Cloud weiter nutzen
-					möchtest.
-				</p>
-			) : null}
 		</AuthFormLayout>
 	);
 }

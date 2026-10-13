@@ -1,5 +1,3 @@
-export type SignupPlanCode = "pro_monthly" | "pro_yearly";
-
 export function safeSignupRedirect(
 	value: string | null,
 	fallback = "/library",
@@ -9,19 +7,6 @@ export function safeSignupRedirect(
 		!value.includes("\\")
 		? value
 		: fallback;
-}
-
-export function buildPostSignupRedirect(input: {
-	managed: boolean;
-	plan: SignupPlanCode | null;
-	redirect: string;
-}) {
-	if (!input.managed || !input.plan) return input.redirect;
-	return `/subscribe?${new URLSearchParams({
-		plan: input.plan,
-		checkout: "start",
-		redirect: input.redirect,
-	}).toString()}`;
 }
 
 export function buildEmailSignupPayload(input: {

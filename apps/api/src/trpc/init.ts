@@ -1,11 +1,9 @@
 import { initTRPC } from "@trpc/server";
-import { env } from "../env";
 import {
 	appErrorCodes,
 	createAppError,
 	getAppErrorCode,
 } from "../lib/app-errors";
-import { userHasProductAccess } from "../lib/billing-entitlement";
 import type { Context } from "./context";
 
 const t = initTRPC.context<Context>().create({
@@ -22,8 +20,6 @@ const t = initTRPC.context<Context>().create({
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
-
-const subscriptionGateAllowlist = ["billing.", "userE2ee."];
 
 export const authenticatedProcedure = t.procedure.use(async ({ ctx, next }) => {
 	if (!ctx.user || !ctx.session) {
@@ -43,23 +39,4 @@ export const authenticatedProcedure = t.procedure.use(async ({ ctx, next }) => {
 	});
 });
 
-export const protectedProcedure = authenticatedProcedure.use(
-	async ({ ctx, next, path }) => {
-		if (
-			env.SKEDRA_DEPLOYMENT_MODE === "managed" &&
-			!subscriptionGateAllowlist.some((prefix) => path.startsWith(prefix))
-		) {
-			if (!(await userHasProductAccess(ctx.db, ctx.user.id))) {
-				throw createAppError({
-					code: "FORBIDDEN",
-					appErrorCode: appErrorCodes.subscriptionRequired,
-					message: "Ein aktives Skedra-Cloud-Abo ist erforderlich.",
-				});
-			}
-		}
-
-		return next({
-			ctx,
-		});
-	},
-);
+export const protectedProcedure = authenticatedProcedure;

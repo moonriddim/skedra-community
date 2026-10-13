@@ -1,9 +1,7 @@
 # @skedra/canvas-react
 
 Shared React/SVG renderer for Skedra canvas elements under the
-[Skedra Community License 1.0](LICENSE). Internal use and contributions are
-allowed; independent products and hosted services require a separate written
-license.
+[AGPL-3.0-only](LICENSE).
 
 The web application and `@skedra/react` consume this workspace package so
 element rendering cannot drift between the product and the embeddable SDK.

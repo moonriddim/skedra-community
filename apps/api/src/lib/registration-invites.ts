@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
 	type Database,
-	complimentaryAccessGrants,
 	instanceSettings,
 	registrationInvites,
 	teamMembers,
@@ -206,31 +205,6 @@ export async function completeRegistrationInvite(
 			)
 			.returning();
 		if (!invite) return null;
-
-		if (
-			invite.complimentaryAccessReason &&
-			invite.complimentaryAccessGrantedByEmail
-		) {
-			await tx
-				.update(complimentaryAccessGrants)
-				.set({
-					revokedAt: acceptedAt,
-					revokedByEmail: invite.complimentaryAccessGrantedByEmail,
-				})
-				.where(
-					and(
-						eq(complimentaryAccessGrants.userId, user.id),
-						eq(complimentaryAccessGrants.reason, "Founding User Trial"),
-						isNull(complimentaryAccessGrants.revokedAt),
-					),
-				);
-			await tx.insert(complimentaryAccessGrants).values({
-				userId: user.id,
-				reason: invite.complimentaryAccessReason,
-				expiresAt: invite.complimentaryAccessExpiresAt,
-				grantedByEmail: invite.complimentaryAccessGrantedByEmail,
-			});
-		}
 
 		if (invite.teamId) {
 			const memberValues = {

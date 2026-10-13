@@ -3,11 +3,11 @@ import { accountRouter } from "./routers/account";
 import { aiRouter } from "./routers/ai";
 import { apiKeyRouter } from "./routers/api-key";
 import { assetsRouter } from "./routers/assets";
-import { billingRouter } from "./routers/billing";
 import { callsRouter } from "./routers/calls";
 import { instanceRouter } from "./routers/instance";
 import { integrationsRouter } from "./routers/integrations";
 import { mcpConnectionRouter } from "./routers/mcp-connection";
+import { publicConfigRouter } from "./routers/public-config";
 import { shapeLibraryRouter } from "./routers/shape-library";
 import { teamRouter } from "./routers/team";
 import { userE2eeRouter } from "./routers/user-e2ee";
@@ -22,7 +22,7 @@ export const appRouter = router({
 	apiKey: apiKeyRouter,
 	mcpConnection: mcpConnectionRouter,
 	assets: assetsRouter,
-	billing: billingRouter,
+	publicConfig: publicConfigRouter,
 	calls: callsRouter,
 	ai: aiRouter,
 	integrations: integrationsRouter,

@@ -1,0 +1,25 @@
+name: Documentation website
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node apps/docs/build.mjs
+      - run: node --test apps/docs/build.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skedra-documentation
+          path: apps/docs/dist

@@ -25,7 +25,7 @@ import {
 	storeE2eeKey,
 	withE2eeKeyFragmentPath,
 } from "@/lib/e2ee";
-import { trackGrowthEvent, trackGrowthEventOnce } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import { trpc } from "@/lib/trpc";
@@ -45,11 +45,6 @@ export function GuestCanvasPage() {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data: session } = authClient.useSession();
-	const { data: publicConfig } = trpc.billing.getPublicConfig.useQuery();
-	const { data: billing } = trpc.billing.getStatus.useQuery(undefined, {
-		enabled: Boolean(session?.user && publicConfig?.managed),
-		retry: false,
-	});
 	const saveStateRef = useRef<(() => string | null) | null>(null);
 	const clearCanvasRef = useRef<(() => void) | null>(null);
 	const canvasFileRef = useRef<SkedraCanvasFileActions | null>(null);
@@ -79,7 +74,6 @@ export function GuestCanvasPage() {
 
 	useEffect(() => {
 		if (elementCount > 0) {
-			trackGrowthEventOnce("canvas_activated", { context: "guest_canvas" });
 		}
 	}, [elementCount]);
 
@@ -106,41 +100,20 @@ export function GuestCanvasPage() {
 
 	useEffect(() => {
 		if (searchParams.get("save") !== "1" || !session?.user) return;
-		if (publicConfig?.managed && !billing?.accessGranted) return;
 		setSaveEncryptionMode(null);
 		setSaveDialogOpen(true);
 		setSearchParams({}, { replace: true });
-	}, [
-		billing?.accessGranted,
-		publicConfig?.managed,
-		searchParams,
-		session?.user,
-		setSearchParams,
-	]);
+	}, [searchParams, session?.user, setSearchParams]);
 
 	useEffect(() => {
 		if (searchParams.get("collab") !== "1" || !session?.user) return;
-		if (publicConfig?.managed && !billing?.accessGranted) return;
 		setLiveCollabDialogOpen(true);
 		setSearchParams({}, { replace: true });
-	}, [
-		billing?.accessGranted,
-		publicConfig?.managed,
-		searchParams,
-		session?.user,
-		setSearchParams,
-	]);
+	}, [searchParams, session?.user, setSearchParams]);
 
 	const openHelp = () => canvasCommandRef.current?.openHelp();
 
 	const handleSaveClick = () => {
-		trackGrowthEvent("cloud_intent", { context: "save_guest_board" });
-		if (publicConfig?.managed !== false && !billing?.accessGranted) {
-			navigate(
-				`${publicPath("/pricing")}?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`,
-			);
-			return;
-		}
 		if (!session?.user) {
 			navigate(
 				`/login?redirect=${encodeURIComponent(`${publicPath("/")}?save=1`)}`,
@@ -154,7 +127,6 @@ export function GuestCanvasPage() {
 	};
 
 	const handleLiveCollaborationClick = () => {
-		trackGrowthEvent("collaboration_started", { context: "guest_dialog" });
 		setLiveCollabDialogOpen(true);
 	};
 
@@ -202,22 +174,18 @@ export function GuestCanvasPage() {
 	};
 
 	const handleExportVisual = (format: "svg" | "png" | "pdf" | "pptx") => {
-		trackGrowthEvent("export_used", { context: format });
 		void canvasCommandRef.current?.exportVisual(format);
 	};
 
 	const handleSaveSkedra = () => {
-		trackGrowthEvent("export_used", { context: "skedra" });
 		canvasFileRef.current?.exportSkedra();
 	};
 
 	const handleSaveExcalidraw = () => {
-		trackGrowthEvent("export_used", { context: "excalidraw" });
 		canvasFileRef.current?.exportExcalidraw();
 	};
 
 	const handleSaveEncryptedSkedra = () => {
-		trackGrowthEvent("export_used", { context: "encrypted_skedra" });
 		void canvasFileRef.current?.exportEncryptedSkedra();
 	};
 
@@ -238,7 +206,6 @@ export function GuestCanvasPage() {
 			{!zenMode && (
 				<GuestCanvasChrome
 					isLoggedIn={!!session?.user}
-					managedBilling={publicConfig?.managed !== false}
 					onSave={handleSaveClick}
 					onSaveSkedra={handleSaveSkedra}
 					onSaveExcalidraw={handleSaveExcalidraw}
@@ -294,7 +261,6 @@ export function GuestCanvasPage() {
 				}}
 				onOpenLiveCollaboration={handleLiveCollaborationClick}
 				isLoggedIn={!!session?.user}
-				managedBilling={publicConfig?.managed !== false}
 			/>
 
 			{!zenMode && (
@@ -305,7 +271,6 @@ export function GuestCanvasPage() {
 				open={liveCollabDialogOpen}
 				onOpenChange={setLiveCollabDialogOpen}
 				isLoggedIn={!!session?.user}
-				managedBilling={publicConfig?.managed !== false}
 				onStartSession={handleStartLiveSession}
 			/>
 

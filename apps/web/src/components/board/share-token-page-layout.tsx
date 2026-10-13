@@ -5,7 +5,7 @@
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { savePendingTemplateStateBase64 } from "@/lib/canvas/local-canvas-storage";
-import { trackGrowthEvent } from "@/lib/growth-analytics";
+
 import { useI18n } from "@/lib/i18n";
 import { localizePublicPath } from "@/lib/public-path";
 import { ArrowLeft, CopyPlus, Loader2 } from "lucide-react";
@@ -118,7 +118,7 @@ function PublicBoardAttribution({
 			return;
 		}
 		savePendingTemplateStateBase64(state);
-		trackGrowthEvent("template_used", { context: "public_board" });
+
 		window.location.assign(
 			`${homePath}?utm_source=public_board&utm_medium=product`,
 		);

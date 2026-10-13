@@ -1,70 +1,13 @@
 # Skedra Self-Host
 
-Skedra is a private collaborative whiteboard for teams that want to run their
-visual workspace on their own infrastructure.
+Skedra is an open-source collaborative whiteboard under AGPL-3.0-only. Run the
+complete application on your own infrastructure. All features are available
+without a Skedra subscription or central account.
 
-This self-host package uses official Skedra Community Docker images built from
-the source-available Skedra codebase.
-
-The Skedra Community License 1.0 covers the workspace app, accounts, teams,
-stored boards, database schema, encrypted collaboration, comments, editor and
-SDK packages, and self-host deployment files. The Community source is available
-in the public repository.
-
-You may self-host and modify Skedra for personal and internal business use,
-and contribute through development forks and pull requests. Offering an
-independent product, rebranded version, or hosted service to third parties
-requires a separate written license, even when the offering is free.
-See the full terms in `LICENSE` (or `SELFHOST_LICENSE` in the source repository).
-
-## Voluntary installation statistics
-
-Installation statistics are **off until the instance administrator chooses Yes**.
-After the administrator first signs in, a setup screen asks whether to contribute,
-with equally presented **Yes / No options and neither preselected**. Save either
-choice to continue; both allow full use of Skedra. Other users and managed-cloud
-accounts are not asked. Existing self-hosted installations see the same question
-on the administrator's next sign-in until a choice has been saved.
-
-Change the saved choice anytime in **Settings → System → Installation statistics**.
-It is stored in your database and survives restarts. No environment variable or
-restart is required. Choosing No prevents subsequent reports; a request already
-in flight may finish. A missing decision is never interpreted as permission.
-The earlier environment switch `SKEDRA_INSTALLATION_STATS_ENABLED` no longer
-enables reporting; the administrator's saved choice is the sole opt-in.
-
-The server sends an HTTPS POST to
-`https://skedra.xyz/api/installation-statistics` within about one minute after
-the initial Yes is saved, then approximately once per day. The **entire JSON payload** is:
-
-```json
-{"month":"2026-09","monthlyId":"34ab816a-d6dc-4f3b-bb70-012c891ed2e8"}
-```
-
-The ID is randomly generated and shared by replicas through your local database.
-It survives restarts, but is replaced with a fresh, unrelated random ID each UTC
-calendar month. No permanent ID is sent. The report contains no users, user
-counts, email addresses, domain names, versions, boards or usage events. There
-are no browser cookies or browser-side statistics requests for this feature.
-The local scheduling row is not a history; its ID is replaced at the next report
-in a new month. If disabled, the last local row remains until reporting resumes.
-
-The receiver counts each monthly ID once. It keeps only that month's
-deduplication IDs plus aggregate monthly counts, with an hourly cleanup of
-previous-month IDs while the central API is running (also on startup).
-The supplied central backup script excludes these identifier rows. Disabling
-reporting does not subtract an already counted installation from the aggregate.
-The number describes **reporting installations**, not people or actual usage.
-Nonparticipants, offline servers, database resets/clones and unverified reports
-mean it is only an approximate measure of voluntary participation.
-
-Network requests necessarily expose a source IP to the receiving infrastructure,
-including its hosting/CDN providers; this feature must not be described as
-guaranteed anonymous. The application does not store the IP or request headers
-in its statistics tables. The supplied receiver Nginx configuration disables
-request logging for this route and strips forwarded client headers. See the
-Skedra [privacy notice](https://skedra.xyz/privacy) for the controller, hosting
-providers and contact information.
+The official images are built from
+[moonriddim/skedra-community](https://github.com/moonriddim/skedra-community).
+The public website serves documentation only. Installation reporting and product
+analytics are removed, including previously opted-in reporting.
 
 ## Requirements
 
@@ -93,7 +36,7 @@ docker run -d \
   -p 3000:80 \
   -v skedra_data:/data \
   -e SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem \
-  ghcr.io/your-github-user/skedra-standalone:latest
+  ghcr.io/moonriddim/skedra-community-standalone:latest
 ```
 
 Open:
@@ -116,7 +59,7 @@ docker run -d \
   -v skedra_data:/data \
   -e SKEDRA_OBJECT_STORAGE_PROVIDER=filesystem \
   -e SKEDRA_PUBLIC_APP_URL=https://skedra.example.com \
-  ghcr.io/your-github-user/skedra-standalone:latest
+  ghcr.io/moonriddim/skedra-community-standalone:latest
 ```
 
 AI, SMTP, and LiveKit calls still need provider configuration through environment
@@ -137,8 +80,8 @@ Edit `.env` before starting Skedra.
 For local testing:
 
 ```env
-SKEDRA_IMAGE_REGISTRY=ghcr.io/your-github-user
-SKEDRA_IMAGE_PREFIX=skedra
+SKEDRA_IMAGE_REGISTRY=ghcr.io/moonriddim
+SKEDRA_IMAGE_PREFIX=skedra-community
 SKEDRA_IMAGE_TAG=latest
 
 SKEDRA_PUBLIC_APP_URL=http://localhost:5174
@@ -160,8 +103,8 @@ Registration defaults to invite-only after the first account:
 SKEDRA_REGISTRATION_MODE=invite
 ```
 
-`SKEDRA_FOUNDING_TRIAL_DAYS` applies only to the managed-cloud deployment mode.
-Self-hosted installations have no subscription gate and ignore this value.
+Email verification is optional. Set `SKEDRA_REQUIRE_EMAIL_VERIFICATION=true`
+only after configuring SMTP and verifying that mail delivery works.
 
 Modes:
 
@@ -174,21 +117,23 @@ Skedra shows a copyable invite link.
 
 ## Community Library Catalog
 
-Self-hosted installs read the owner-hosted Skedra community catalog by default and submit
-new community libraries to the same central review queue:
+The library catalog belongs to your installation by default. Users can create
+private libraries and import `.skedralib` files without a central Skedra service.
 
 ```env
-SKEDRA_LIBRARY_CATALOG_MODE=remote
-SKEDRA_LIBRARY_CATALOG_API_URL=https://libraries.skedra.xyz
-SKEDRA_LIBRARY_SUBMIT_URL=https://skedra.xyz/login?redirect=%2Flibrary
+SKEDRA_LIBRARY_CATALOG_MODE=local
+SKEDRA_LIBRARY_CATALOG_API_URL=
+SKEDRA_LIBRARY_SUBMIT_URL=
 ```
 
-Users can create private libraries locally and import `.skedralib` files. When a user submits
-a public community library from a self-hosted instance, the instance sends it to the central
-Skedra review queue. It is not public until a central Skedra admin approves it.
+Local submissions are stored in your database. An optional remote catalog can be
+configured with `SKEDRA_LIBRARY_CATALOG_MODE=remote` and an explicit API URL from
+the operator you choose. Do not retain retired central Skedra URLs when upgrading.
 
-The public `libraries.skedra.xyz` site should expose the catalog and receive submissions, but
-the moderation queue stays behind the protected Skedra admin settings on the main app domain.
+The instance administrator reviews submissions in **Settings > System > Library
+catalog**. Preview or download a package before approving or rejecting it.
+Approved packages appear in the local catalog. Other members cannot access the
+review queue or publish packages without the administrator's decision.
 
 ## Calls With LiveKit
 
@@ -315,8 +260,6 @@ board state. PostgreSQL stores only small object metadata and references.
 When `SKEDRA_OBJECT_STORAGE_PUBLIC_BASE_URL` is set, configure the bucket or custom domain to
 allow CORS `GET` requests from the Skedra app origin. Without a public base URL, Skedra keeps the
 bucket private and streams encrypted object bytes through its authenticated asset endpoint.
-
-Managed/SaaS mode still requires `SKEDRA_OBJECT_STORAGE_PROVIDER=s3`.
 
 ### Existing installations and scaling
 
@@ -471,16 +414,10 @@ The app container internally proxies:
 
 ## License
 
-The deployment files and Skedra-owned code in the Community images use the
-Skedra Community License 1.0. The release includes the full terms as `LICENSE`.
-You may copy and adapt deployment files for permitted self-hosting.
+Skedra, its SDK and deployment files use [AGPL-3.0-only](LICENSE). The release
+includes the complete license. Third-party material retains its own terms.
+Your original boards and exports remain yours. See [LICENSING.md](LICENSING.md).
 
-Personal and internal business use, internal modifications, and contributions
-are allowed. Independent products, rebranding, and third-party hosted services
-require a separate written license. These restrictions do not apply to your
-original boards and exports or override third-party licenses. Rights already
-granted for earlier AGPL/MIT versions remain unaffected.
-
-For examples and transition details, see
-[LICENSING.md](https://github.com/moonriddim/skedra-community/blob/main/LICENSING.md).
-For separate licensing, contact support@skedra.xyz.
+Before upgrading an existing installation, read the
+[transition guide](docs/OPEN-SOURCE-TRANSITION.md). Keep encryption secrets,
+database volumes and asset files; do not replace them with example values.

@@ -1,0 +1,95 @@
+name: Publish Canvas SDK Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing vX.Y.Z release tag to publish"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-canvas-sdk-release-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'moonriddim/skedra-community'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js for npm
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=moderate
+
+      - name: Verify shared canvas and SDK
+        run: pnpm sdk:verify
+
+      - name: Select release version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          version="$(node scripts/release-version.mjs "${RELEASE_TAG}")"
+          published="$(npm view @skedra/react version 2>/dev/null || true)"
+          existing="$(npm view "@skedra/react@${version}" version 2>/dev/null || true)"
+
+          if [[ -n "${existing}" ]]; then
+            should_publish=false
+          else
+            if [[ -n "${published}" ]]; then
+              node scripts/release-version.mjs "${RELEASE_TAG}" --newer-than "${published}" >/dev/null
+            fi
+            should_publish=true
+          fi
+
+          npm pkg set "version=${version}" --prefix packages/react
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "should_publish=${should_publish}" >> "$GITHUB_OUTPUT"
+
+      - name: Build package
+        run: pnpm --filter @skedra/react build
+
+      - name: Inspect package
+        working-directory: packages/react
+        run: npm pack --dry-run
+
+      - name: Publish @skedra/react
+        if: steps.version.outputs.should_publish == 'true'
+        working-directory: packages/react
+        run: npm publish --access public
+
+      - name: Summarize release
+        env:
+          SHOULD_PUBLISH: ${{ steps.version.outputs.should_publish }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [[ "${SHOULD_PUBLISH}" == "true" ]]; then
+            echo "Published @skedra/react@${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "@skedra/react@${VERSION} was already published; validation completed without republishing." >> "$GITHUB_STEP_SUMMARY"
+          fi

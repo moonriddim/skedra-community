@@ -42,34 +42,6 @@ function describe(entries, includeBody = true) {
 		.join("\n\n");
 }
 
-export function communityCommitMessage(sourceRoot, communityRoot) {
-	const head = git(sourceRoot, "rev-parse", "HEAD");
-	const files = git(communityRoot, "diff", "--cached", "--name-only", "-z")
-		.split("\0")
-		.filter(Boolean);
-	if (!files.length) throw new Error("No staged Community changes.");
-	const previousMessage = git(communityRoot, "log", "-1", "--format=%B");
-	const previous = previousMessage.match(
-		/(?:^Source-Commit: |sync community from )([a-f0-9]{40})/mu,
-	)?.[1];
-	let revision = `${head}^!`;
-	if (previous) {
-		try {
-			git(sourceRoot, "merge-base", "--is-ancestor", previous, head);
-			revision = `${previous}..${head}`;
-		} catch {
-			// Older source history may be unavailable after a history rewrite.
-		}
-	}
-	// Limit history to files actually changed by this export. A SaaS-only commit
-	// must not become public merely because it shares this source repository.
-	const entries = commits(sourceRoot, revision, files);
-	const title = entries.length
-		? `${entries.at(-1).subject}${entries.length > 1 ? ` (+${entries.length - 1} earlier changes)` : ""}`
-		: "chore: update exported Community files";
-	return `${title}\n\n${describe(entries) || "- Update exported Community files."}\n\nChanged files:\n${files.map((file) => `- ${file}`).join("\n")}\n\nSource-Commit: ${head}\n`;
-}
-
 export function releaseChanges(root, tag) {
 	if (!/^v\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/u.test(tag))
 		throw new Error("Invalid release tag.");
@@ -97,15 +69,10 @@ if (
 	import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
 	const [mode, root, argument, output] = process.argv.slice(2);
-	if (!root || !argument || !output || !["sync", "release"].includes(mode)) {
+	if (!root || !argument || !output || mode !== "release") {
 		throw new Error(
-			"Usage: change-notes.mjs <sync|release> <source-root> <community-root|tag> <output-file>",
+			"Usage: change-notes.mjs release <repository-root> <tag> <output-file>",
 		);
 	}
-	writeFileSync(
-		output,
-		mode === "sync"
-			? communityCommitMessage(root, argument)
-			: releaseChanges(root, argument),
-	);
+	writeFileSync(output, releaseChanges(root, argument));
 }

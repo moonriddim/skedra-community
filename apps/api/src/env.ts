@@ -2,12 +2,6 @@ import { isAbsolute } from "node:path";
 import { readProcessEnv } from "@skedra/shared";
 import { z } from "zod";
 
-// Bekannte Platzhalter-Secrets aus den .env-Beispielen. Im Managed/SaaS-Modus
-// dürfen genau diese Werte NICHT verwendet werden (Fix A2).
-const DEFAULT_AUTH_SECRET = "change-me-to-a-random-secret-min-32-chars";
-const DEFAULT_DATA_ENCRYPTION_SECRET =
-	"change-me-to-a-long-random-secret-min-32-chars";
-
 const emptyStringToUndefined = (value: unknown) =>
 	typeof value === "string" && value.trim() === "" ? undefined : value;
 
@@ -76,8 +70,7 @@ const envSchema = z
 			.string()
 			.default("change-me-to-a-random-secret-min-32-chars"),
 		DATA_ENCRYPTION_SECRET: z.string().min(32).optional(),
-		SKEDRA_DEPLOYMENT_MODE: z.enum(["selfhost", "managed"]).default("selfhost"),
-		SKEDRA_INSTALLATION_STATS_RECEIVER_ENABLED: optionalBoolean,
+		SKEDRA_DEPLOYMENT_MODE: z.literal("selfhost").default("selfhost"),
 		APP_URL: z.string().default("http://localhost:5174"),
 		/** Öffentlicher Katalog (apps/libraries), z. B. http://localhost:5175 */
 		LIBRARIES_URL: z.string().default("http://localhost:5175"),
@@ -91,14 +84,8 @@ const envSchema = z
 		SKEDRA_REGISTRATION_MODE: z
 			.enum(["open", "invite", "closed"])
 			.default("invite"),
-		/** Free managed-cloud access for new accounts. Set to 0 to disable. */
-		SKEDRA_FOUNDING_TRIAL_DAYS: z.coerce
-			.number()
-			.int()
-			.min(0)
-			.max(365)
-			.default(30),
-		SKEDRA_LIBRARY_CATALOG_MODE: z.enum(["local", "remote"]).default("remote"),
+		SKEDRA_REQUIRE_EMAIL_VERIFICATION: optionalBoolean,
+		SKEDRA_LIBRARY_CATALOG_MODE: z.enum(["local", "remote"]).default("local"),
 		SKEDRA_LIBRARY_CATALOG_API_URL: z.string().optional(),
 		SKEDRA_LIBRARY_SUBMIT_URL: z.string().optional(),
 		SKEDRA_CALLS_ENABLED: z
@@ -158,15 +145,7 @@ const envSchema = z
 			.string()
 			.optional()
 			.transform((value) => value === "true" || value === "1"),
-		/** Stripe Billing: the secret key is server-side only. */
-		STRIPE_SECRET_KEY: optionalString,
-		STRIPE_WEBHOOK_SECRET: optionalString,
-		STRIPE_PRICE_PRO_MONTHLY: optionalString,
-		STRIPE_PRICE_PRO_YEARLY: optionalString,
 	})
-	// Fix A2/A3: Im Managed/SaaS-Modus müssen echte, eindeutige Secrets gesetzt sein.
-	// Sonst wären Sessions fälschbar und gespeicherte Geheimnisse (SMTP-Passwort,
-	// AI-Keys, LiveKit-Secret) mit einem öffentlich bekannten Schlüssel entschlüsselbar.
 	.superRefine((value, ctx) => {
 		for (const [provider, clientId, clientSecret] of [
 			["Google", value.GOOGLE_CLIENT_ID, value.GOOGLE_CLIENT_SECRET],
@@ -193,69 +172,6 @@ const envSchema = z
 				path: ["SKEDRA_OBJECT_STORAGE_PATH"],
 				message:
 					"SKEDRA_OBJECT_STORAGE_PATH is required for filesystem storage.",
-			});
-		}
-
-		if (value.SKEDRA_DEPLOYMENT_MODE !== "managed") return;
-
-		if (
-			value.AUTH_SECRET === DEFAULT_AUTH_SECRET ||
-			value.AUTH_SECRET.trim().length < 32
-		) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["AUTH_SECRET"],
-				message:
-					"AUTH_SECRET must be a unique random value (>= 32 chars) when SKEDRA_DEPLOYMENT_MODE=managed.",
-			});
-		}
-
-		if (
-			!value.DATA_ENCRYPTION_SECRET ||
-			value.DATA_ENCRYPTION_SECRET === DEFAULT_DATA_ENCRYPTION_SECRET ||
-			value.DATA_ENCRYPTION_SECRET.trim().length < 32
-		) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["DATA_ENCRYPTION_SECRET"],
-				message:
-					"DATA_ENCRYPTION_SECRET must be a unique random value (>= 32 chars) when SKEDRA_DEPLOYMENT_MODE=managed.",
-			});
-		}
-
-		if (value.SKEDRA_OBJECT_STORAGE_PROVIDER !== "s3") {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["SKEDRA_OBJECT_STORAGE_PROVIDER"],
-				message:
-					"Managed Skedra requires SKEDRA_OBJECT_STORAGE_PROVIDER=s3 so image bytes are not stored in PostgreSQL.",
-			});
-		}
-
-		const requiredS3Fields: Array<keyof typeof value> = [
-			"SKEDRA_OBJECT_STORAGE_BUCKET",
-			"SKEDRA_OBJECT_STORAGE_ACCESS_KEY_ID",
-			"SKEDRA_OBJECT_STORAGE_SECRET_ACCESS_KEY",
-		];
-		for (const field of requiredS3Fields) {
-			if (!value[field]) {
-				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
-					path: [field],
-					message: `${field} is required when SKEDRA_DEPLOYMENT_MODE=managed.`,
-				});
-			}
-		}
-
-		if (
-			value.SKEDRA_OBJECT_STORAGE_PRESET !== "aws" &&
-			!value.SKEDRA_OBJECT_STORAGE_ENDPOINT
-		) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["SKEDRA_OBJECT_STORAGE_ENDPOINT"],
-				message:
-					"SKEDRA_OBJECT_STORAGE_ENDPOINT is required for managed non-AWS object storage.",
 			});
 		}
 	});

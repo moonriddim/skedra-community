@@ -68,7 +68,7 @@ import {
 	deleteAssetObjects,
 	deleteWhiteboardAndCollectAssetObjects,
 } from "../../lib/assets";
-import { userHasProductAccess } from "../../lib/billing-entitlement";
+
 import { publishBoardLive } from "../../lib/board-live-bus";
 import { membershipValuesFromTeamRole } from "../../lib/board-member-access";
 import {
@@ -238,13 +238,6 @@ async function requireE2eeUpdateAccess(
 			code: "UNAUTHORIZED",
 			appErrorCode: appErrorCodes.unauthorized,
 			message: "Nicht authentifiziert",
-		});
-	}
-	if (!(await userHasProductAccess(ctx.db, ctx.user.id))) {
-		throw createAppError({
-			code: "FORBIDDEN",
-			appErrorCode: appErrorCodes.subscriptionRequired,
-			message: "Ein aktives Skedra-Cloud-Abo ist erforderlich.",
 		});
 	}
 

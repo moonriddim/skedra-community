@@ -2,7 +2,7 @@
 	"name": "@skedra/react",
 	"version": "0.0.0-development",
 	"private": false,
-	"license": "SEE LICENSE IN LICENSE",
+	"license": "AGPL-3.0-only",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/moonriddim/skedra-community.git",

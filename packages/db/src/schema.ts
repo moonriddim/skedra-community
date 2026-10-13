@@ -1,3 +1,5 @@
+// Legacy billing and statistics tables remain for non-destructive upgrades.
+// They no longer gate features or report installation activity.
 import { relations, sql } from "drizzle-orm";
 export * from "./installation-statistics-schema";
 import {

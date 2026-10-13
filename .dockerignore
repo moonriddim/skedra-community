@@ -3,6 +3,11 @@ dist
 .turbo
 .tmp
 .git
+.codex-artifacts
+.codex-remote-attachments
+.codex
+.agents
+.aws
 .fallow
 **/.fallow
 *.log

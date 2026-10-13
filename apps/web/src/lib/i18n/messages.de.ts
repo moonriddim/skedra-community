@@ -1,28 +1,6 @@
 import type { TranslationParams, TranslationTree } from "./messages";
 
 export const deMessages = {
-	installationStatistics: {
-		setup: "Skedra einrichten · Freiwillige Teilnahme",
-		title: "Zur Installationsstatistik beitragen?",
-		description:
-			"Hilf uns einzuschätzen, wie viele Selfhost-Installationen Skedra verwenden. Bei Ja sendet dein Server ungefähr einmal täglich nur den Monat und eine zufällige, monatlich wechselnde Kennung an skedra.xyz. Keine Nutzerzahlen, Namen, Boardinhalte oder Nutzungsereignisse. Keine Cookies für diese Statistik.",
-		network:
-			"Die empfangende Hosting- und Netzwerkinfrastruktur sieht technisch die Absender-IP. Die Statistik speichert diese nicht.",
-		privacy: "Datenschutzhinweise",
-		yes: "Ja, beitragen",
-		no: "Nein, nicht beitragen",
-		changeLater:
-			"Beide Optionen erlauben die volle Nutzung von Skedra. Du kannst deine Entscheidung jederzeit unter Einstellungen → System ändern. Ohne gespeichertes Ja wird nichts gesendet.",
-		continue: "Auswahl speichern und fortfahren",
-		save: "Auswahl speichern",
-		saving: "Wird gespeichert …",
-		saved: "Auswahl gespeichert.",
-		saveError:
-			"Die Auswahl konnte nicht gespeichert werden. Bitte versuche es erneut. Die bisherige Einstellung bleibt bestehen.",
-		loadError:
-			"Die Installationsstatistik-Einstellung konnte nicht geladen werden.",
-		retry: "Erneut versuchen",
-	},
 	mindmapStudio: {
 		title: "Mindmap",
 		empty: "Leere Mindmap",
@@ -240,97 +218,6 @@ export const deMessages = {
 		switchToGerman: "Auf Deutsch umstellen",
 		switchToEnglish: "Switch to English",
 	},
-	publicSite: {
-		navigationLabel: "Hauptnavigation",
-		productOverview: "Produkt",
-		pricing: "Preise",
-		openSource: "Quellcode",
-		existingCloudAccount: "Cloud-Anmeldung",
-		freeWhiteboard: "Free Whiteboard",
-		openMenu: "Menü öffnen",
-		closeMenu: "Menü schließen",
-		footerDescription:
-			"Das freie Whiteboard für schnelle Ideen – mit optionaler, verschlüsselter Cloud-Zusammenarbeit.",
-		product: "Produkt",
-		legal: "Rechtliches",
-		privacy: "Datenschutz",
-		terms: "AGB",
-		imprint: "Impressum",
-		copyright: "© {year} Skedra. Alle Rechte vorbehalten.",
-	},
-	pricingPage: {
-		badge: "Einfach starten. Erst für die Cloud zahlen.",
-		title: "Deine Ideen sind frei.",
-		titleAccent: "Deine Cloud ist optional.",
-		description:
-			"Zeichne kostenlos ohne Konto. Wechsle zu Skedra Cloud, wenn du Boards dauerhaft speichern, im Team organisieren und sicher zusammenarbeiten möchtest.",
-		monthly: "Monatlich",
-		yearly: "Jährlich",
-		savingsShort: "−17%",
-		freeEyebrow: "Lokal und ohne Konto",
-		freePeriod: "für immer",
-		freeDescription:
-			"Der komplette Editor für schnelle Ideen, Skizzen und lokale Dateien.",
-		drawNow: "Jetzt zeichnen",
-		cloudEyebrow: "Für dauerhafte Arbeit",
-		cloudYearlyPeriod: "pro Jahr / Person",
-		cloudMonthlyPeriod: "pro Monat / Person",
-		cloudDescription:
-			"Verschlüsselte Cloud-Boards, Zusammenarbeit und Teamverwaltung.",
-		subscribe: "Skedra Cloud abonnieren",
-		recommended: "Empfohlen",
-		existingSubscription: "Du hast bereits ein aktives Abo?",
-		existingSubscriptionAction: "Mit bestehendem Cloud-Konto anmelden",
-		machineReadable:
-			"Aktuelle Preise und Funktionen als maschinenlesbares Markdown",
-		comparisonTitle: "Free oder Cloud? Du entscheidest.",
-		comparisonDescription:
-			"Der Editor bleibt frei. Bezahlt werden nur Hosting, Synchronisierung und Zusammenarbeit.",
-		feature: "Funktion",
-		faqTitle: "Häufige Fragen",
-		freeFeatures: {
-			one: "Vollständiger Infinite-Canvas-Editor",
-			two: "Lokale Speicherung im Browser",
-			three: "PNG-, SVG-, PDF-, PPTX- und Skedra-Export",
-			four: "Vorlagen und öffentliche Bibliotheken",
-			five: "Ohne Konto nutzbar",
-		},
-		cloudFeatures: {
-			one: "Alles aus Free",
-			two: "Unbegrenzte Cloud-Boards und Ordner",
-			three: "Ende-zu-Ende- oder serverseitige Verschlüsselung",
-			four: "Live-Zusammenarbeit, Kommentare und Präsentationen",
-			five: "Teams, Rollen und Freigaberechte",
-			six: "Cloud-Speicher, API Keys und MCP",
-		},
-		comparison: {
-			one: "Infinite Canvas und Editor",
-			two: "Lokale Browser-Speicherung",
-			three: "Datei- und Bildexport",
-			four: "Cloud-Synchronisierung",
-			five: "Unbegrenzte gespeicherte Boards",
-			six: "Live-Zusammenarbeit und Kommentare",
-			seven: "Teams, Rollen und Zugriffsverwaltung",
-			eight: "Präsentationen und Read-only-Links",
-		},
-		faq: {
-			oneQuestion: "Brauche ich für das Free Whiteboard ein Konto?",
-			oneAnswer:
-				"Nein. Das freie Whiteboard funktioniert direkt im Browser und speichert lokal auf deinem Gerät.",
-			twoQuestion: "Was passiert mit meinen lokalen Zeichnungen?",
-			twoAnswer:
-				"Sie bleiben im Browser gespeichert. Du kannst sie zusätzlich als Skedra-Datei exportieren. Browserdaten können gelöscht werden – für dauerhafte Cloud-Speicherung brauchst du Skedra Cloud.",
-			threeQuestion: "Kann ich monatlich kündigen?",
-			threeAnswer:
-				"Ja. Das Monatsabo ist monatlich kündbar. Beim Jahresabo bleibt der Zugang bis zum Ende des bezahlten Zeitraums aktiv.",
-			fourQuestion: "Benötigt jedes Teammitglied ein Abo?",
-			fourAnswer:
-				"Ja. In Skedra Cloud benötigt jede registrierte Person einen eigenen aktiven Zugang. Öffentliche Ansichten bleiben für Gäste zugänglich.",
-			fiveQuestion: "Kann ich Skedra selbst hosten?",
-			fiveAnswer:
-				"Ja. Die Community Edition kann auf eigener Infrastruktur betrieben werden und hat keine Skedra-Cloud-Paywall.",
-		},
-	},
 	legalPage: {
 		eyebrow: "Rechtliches",
 		lastUpdated: "Stand: {date}",
@@ -343,12 +230,12 @@ export const deMessages = {
 		productDescription:
 			"Skedra ist ein kostenloses Online-Whiteboard für Skizzen, Mindmaps, Diagramme und Kanban-Boards – direkt im Browser und ohne Konto.",
 		storageWarning:
-			"Deine Zeichnungen werden lokal im Browser gespeichert. Dieser Speicher kann jederzeit gelöscht werden — speichere regelmäßig in der Cloud.",
+			"Deine Zeichnungen werden lokal im Browser gespeichert. Dieser Speicher kann jederzeit gelöscht werden — exportiere regelmäßig eine Datei oder speichere auf deinem Server.",
 		startDrawingHint: "Wähle ein Werkzeug und beginne zu zeichnen!",
 		selfHost: {
 			title: "Skedra selbst hosten",
 			description:
-				"Skedra auf deiner Infrastruktur — volle Datenkontrolle und keine Cloud-Paywall.",
+				"Skedra auf deiner Infrastruktur — volle Datenkontrolle und alle Funktionen inklusive.",
 		},
 		onboarding: {
 			menuHint: "Exportieren, Einstellungen, Sprachen …",
@@ -364,14 +251,14 @@ export const deMessages = {
 			label: "Verschlüsselung",
 			title: "Deine Daten sind geschützt",
 			description:
-				"Im Gastmodus bleibt alles nur lokal in deinem Browser. Beim Speichern in der Cloud wird dein Board verschlüsselt übertragen und auf dem Server gespeichert (AES-256).",
+				"Im Gastmodus bleibt alles nur lokal in deinem Browser. Beim Speichern auf deinem Server wird dein Board verschlüsselt übertragen und auf dem Server gespeichert (AES-256).",
 		},
 		localHint: "Lokal gespeichert — zum Teilen und Synchronisieren anmelden",
 		myBoards: "Meine Boards",
 		apiKeys: "API Keys & MCP",
 		signIn: "Anmelden",
 		signUp: "Registrieren",
-		saveToCloud: "In Cloud speichern",
+		saveToCloud: "Auf Server speichern",
 		saveSkedra: "Als .skedra speichern",
 		saveExcalidraw: "Als .excalidraw speichern",
 		saveEncryptedSkedra: "Verschlüsselte .skedra speichern",
@@ -380,7 +267,7 @@ export const deMessages = {
 		exportPng: "PNG exportieren",
 		exportPdf: "PDF exportieren",
 		exportPptx: "PPTX exportieren",
-		infoAndPricing: "Infos & Preise",
+		infoAndPricing: "Dokumentation",
 		discordCommunity: "Discord-Community",
 		homepage: "Zur Homepage",
 		help: "Hilfe",
@@ -448,8 +335,6 @@ export const deMessages = {
 		login: {
 			title: "Willkommen zurück",
 			description: "Melde dich bei deinem Skedra-Konto an",
-			managedDescription:
-				"Melde dich mit einem bestehenden Skedra-Cloud-Konto an. Cloud-Funktionen werden nur mit aktivem Abo freigeschaltet.",
 			email: "E-Mail",
 			emailPlaceholder: "name@beispiel.de",
 			password: "Passwort",
@@ -458,8 +343,6 @@ export const deMessages = {
 			submit: "Anmelden",
 			noAccount: "Noch kein Konto?",
 			register: "Registrieren",
-			choosePlanFirst: "Neu bei Skedra Cloud?",
-			choosePlanAction: "Zuerst Abo auswählen",
 			failed: "Anmeldung fehlgeschlagen",
 			unexpected: "Ein unerwarteter Fehler ist aufgetreten",
 		},
@@ -556,44 +439,6 @@ export const deMessages = {
 			privacy: "Datenschutzerklärung",
 			legalSuffix: "gelesen.",
 		},
-	},
-	subscriptionWall: {
-		title: "Skedra Cloud braucht ein aktives Abo",
-		description:
-			"Jede registrierte Person benötigt einen eigenen Zugang. Wähle dein Abo, um Boards, Teams und Cloud-Funktionen zu verwenden.",
-		signOut: "Abmelden",
-		freeWhiteboard: "Zum kostenlosen Whiteboard",
-		existingAccount: "Du hast bereits ein Skedra-Cloud-Abo?",
-		existingAccountAction: "Mit bestehendem Konto anmelden",
-		monthly: "Monatlich",
-		yearly: "Jährlich",
-		perMonth: "pro Monat",
-		perYear: "pro Jahr",
-		monthlyDescription:
-			"Flexibel monatlich kündbar. Der Preis gilt für deinen persönlichen Nutzerzugang.",
-		yearlyDescription:
-			"Ein Jahr Skedra Cloud zum günstigeren Jahrespreis für deinen persönlichen Zugang.",
-		chooseMonthly: "Monatlich abonnieren",
-		chooseYearly: "Jährlich abonnieren",
-		savings: "17% sparen",
-		personalAccess: "Ein persönlicher Skedra-Cloud-Zugang",
-		cloudFeatures: "Boards, Teams, Präsentationen und Cloud-Speicher",
-		manage: "Abo und Zahlung verwalten",
-		paymentAttentionTitle: "Dein bestehendes Abo braucht Aufmerksamkeit",
-		paymentAttentionDescription:
-			"Öffne das Stripe-Kundenportal, um die Zahlung abzuschließen oder deine Zahlungsmethode zu aktualisieren.",
-		canceled: "Checkout abgebrochen – es wurde nichts belastet.",
-		activating:
-			"Zahlung abgeschlossen. Dein Zugang wird nach der Stripe-Bestätigung aktiviert.",
-		unavailableTitle: "Cloud-Abrechnung ist vorübergehend nicht verfügbar",
-		unavailableDescription:
-			"Bitte versuche es später erneut oder nutze Skedra als selbst gehostete Installation.",
-		selfhostTitle: "Lieber selbst hosten?",
-		selfhostDescription:
-			"Skedra kann auf deiner eigenen Infrastruktur betrieben werden. Im Selfhost-Modus gibt es keine Skedra-Cloud-Paywall; Betrieb, Updates und Daten liegen bei dir.",
-		selfhostAction: "Selfhost-Anleitung",
-		guestNote:
-			"Öffentliche Präsentations- und Einbettungslinks sind schreibgeschützt. Kollaborationslinks verwenden den eingestellten Lese- oder Bearbeitungszugriff.",
 	},
 	settings: {
 		apiKeys: {
@@ -997,8 +842,6 @@ export const deMessages = {
 			dialogDescription: "Dieser Vorgang kann nicht rückgängig gemacht werden.",
 			dataWarning:
 				"Alle von dir besessenen Boards und Workspaces sowie die darin gespeicherten Dateien werden dauerhaft gelöscht. Inhalte anderer Personen, die dir nur freigegeben wurden, bleiben erhalten.",
-			subscriptionCancellation:
-				"Ein aktives Skedra-Cloud-Abo wird zusammen mit dem Konto sofort gekündigt. Bereits abgerechnete Beträge werden dadurch nicht automatisch erstattet.",
 			confirmationLabel: (params: TranslationParams) =>
 				`Gib zur Bestätigung ${params.email ?? "deine E-Mail-Adresse"} ein`,
 			passwordLabel: "Aktuelles Passwort",
@@ -2670,7 +2513,7 @@ export const deMessages = {
 				openHelp: "Hilfe öffnen",
 			},
 			guest: {
-				saveToCloud: "In Cloud speichern",
+				saveToCloud: "Auf Server speichern",
 				export: "SVG/PNG exportieren",
 				shareButton: "Teilen",
 				menuButton: "Menü",

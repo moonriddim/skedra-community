@@ -6,9 +6,9 @@ import { drizzle } from "drizzle-orm/pglite";
 import { env } from "../env";
 import { hasBoardPresenceAccess } from "./board-presence-access";
 
-test("presence requires a current session for the same user, product access and board membership", async (t) => {
+test("presence requires a current session for the same user and board membership", async (t) => {
 	const mode = env.SKEDRA_DEPLOYMENT_MODE;
-	env.SKEDRA_DEPLOYMENT_MODE = "managed";
+	env.SKEDRA_DEPLOYMENT_MODE = "selfhost";
 	t.after(() => {
 		env.SKEDRA_DEPLOYMENT_MODE = mode;
 	});
@@ -21,16 +21,11 @@ test("presence requires a current session for the same user, product access and 
 		"INSERT INTO sessions VALUES ('valid', 'owner', NOW() + interval '1 hour'), ('expired', 'owner', NOW() - interval '1 hour'), ('foreign', 'other', NOW() + interval '1 hour')",
 	);
 	const sessionDb = drizzle(pg, { schema: { sessions } });
-	let entitled = true;
 	let boardOwner = "owner";
 	let archived = false;
 	const db = {
 		query: {
 			...sessionDb.query,
-			userSubscriptions: {
-				findFirst: async () => ({ status: entitled ? "active" : "canceled" }),
-			},
-			complimentaryAccessGrants: { findFirst: async () => null },
 			whiteboards: {
 				findFirst: async () => ({
 					id: "board",
@@ -48,9 +43,6 @@ test("presence requires a current session for the same user, product access and 
 	assert.equal(await check(), true);
 	for (const id of ["missing", "expired", "foreign"])
 		assert.equal(await check(id), false);
-	entitled = false;
-	assert.equal(await check(), false);
-	entitled = true;
 	archived = true;
 	assert.equal(await check(), false);
 	archived = false;

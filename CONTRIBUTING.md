@@ -1,48 +1,36 @@
 # Contributing to Skedra
 
-Bug reports, fixes, accessibility improvements, and pull requests are welcome.
-For a larger feature, open an issue first to discuss its scope.
+Bug reports, fixes, documentation, translations and accessibility improvements
+are welcome. For a large feature, open an issue first to discuss its scope.
 
-Please follow our [Code of Conduct](CODE_OF_CONDUCT.md). Report suspected
-vulnerabilities privately using our [security policy](SECURITY.md), rather than
-opening a public issue.
+The complete project is maintained in
+[moonriddim/skedra-community](https://github.com/moonriddim/skedra-community).
+There is no private development mirror or separate commercial edition.
 
-## Development and self-hosting
+Follow our [Code of Conduct](CODE_OF_CONDUCT.md). Report suspected vulnerabilities
+privately using [SECURITY.md](SECURITY.md).
 
-Skedra Community is source available under the [Skedra Community License 1.0](LICENSE).
-You may fork the repository, work on the code, share development changes, and
-submit pull requests. A pull request does not have to be accepted for your
-development fork to be permitted. Keep the license and attribution notices,
-mark your changes, and identify the fork as unofficial Skedra development.
+## License
 
-You may also make private changes and self-host Skedra for personal or internal
-business use without contributing those changes back.
+Skedra is licensed under [AGPL-3.0-only](LICENSE). By intentionally submitting a
+contribution for inclusion, you offer it under that same license. You retain your
+copyright. No additional commercial license grant or copyright assignment is required.
 
-Development forks are not permission to release an independent product,
-rebrand the code, distribute a standalone SDK based on it, or offer a hosted
-service to third parties, whether free or paid. See [LICENSING.md](LICENSING.md)
-for examples and the distinction between collaboration and hosted services.
+Only submit material you have the rights to contribute. Identify third-party code,
+assets and licenses and preserve their notices. See [LICENSING.md](LICENSING.md).
 
-## Rights in contributions
+## Development
 
-By intentionally submitting a contribution for inclusion, you offer it under
-section 5 of the license, unless a different written agreement is made before
-submission. You keep your copyright. You also permit Simon Hediger to include
-your contribution in official Skedra products and services, including commercial
-Skedra Cloud. Read that section before submitting; it contains the exact grant.
-An existing fork alone does not grant these contribution rights.
+Follow [README.md](README.md) for local setup. Keep editor behavior shared between
+the app and SDK; `pnpm sdk:verify` checks their boundary and parity.
 
-Only submit material you have the necessary rights to contribute. Identify
-third-party code, assets, and licenses explicitly. Do not remove their notices
-or include incompatible dependencies. Existing contributions are not
-retroactively relicensed by this document.
+Before opening a pull request:
 
-## Before opening a pull request
+- Explain the problem, resulting behavior and verification.
+- Run the checks appropriate to the affected packages; `pnpm lint` and `pnpm test`
+  run the project checks.
+- Exclude secrets, private instance data and generated build files.
+- Preserve copyright, license and third-party notices.
 
-- Explain the problem, the change, and how you verified it.
-- Keep changes focused and run the checks relevant to the affected packages.
-- Exclude credentials, private instance data, and unrelated generated files.
-- Preserve copyright, license, and attribution notices.
-
-See [README.md](README.md) for local development setup. Contact
-support@skedra.xyz for a separate licensing arrangement.
+Website documentation is built from repository Markdown with `pnpm docs:build`.
+Run `pnpm docs:dev` to preview it locally on port 5176.

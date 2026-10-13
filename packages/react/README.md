@@ -15,13 +15,12 @@ controlled state, and an imperative API. Auth, roles, comments, and
 collaboration transport are intentionally left to the host app or optional
 adapters.
 
-This package uses the [Skedra Community License 1.0](LICENSE). Internal use,
-self-hosting, and contributions are allowed. Embedding this SDK in an independently
-offered product or hosted service requires a separate written license.
+This package uses [AGPL-3.0-only](LICENSE). Use, modify, embed and redistribute
+it under that license, including its source and notice obligations.
 
 This package is the shared editor surface. Workspace features such as accounts,
 teams, comments, hosted collaboration, AI backends, and voice/screen-share rooms live
-in the source-available Skedra Community workspace or optional commercial services. The SDK
+in the open-source, self-hosted Skedra workspace or integrations configured by the host. The SDK
 only exports typed hooks for those integrations.
 
 The package is ESM-only. Import the CSS explicitly alongside the component.

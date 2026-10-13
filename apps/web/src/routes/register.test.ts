@@ -83,10 +83,8 @@ test("managed signup shows email verification, skips E2EE and supports resend wi
 		},
 	});
 	queryClient.setQueryData(
-		getQueryKey(trpc.billing.getPublicConfig, undefined, "query"),
+		getQueryKey(trpc.publicConfig.get, undefined, "query"),
 		{
-			managed: true,
-			foundingTrialDays: 30,
 			socialSignUpEnabled: false,
 		},
 	);
@@ -96,8 +94,7 @@ test("managed signup shows email verification, skips E2EE and supports resend wi
 	const container = window.document.createElement("div");
 	window.document.body.append(container);
 	const root = createRoot(container as unknown as HTMLElement);
-	const redirectTo =
-		"/subscribe?plan=pro_yearly&checkout=start&redirect=%2Flibrary";
+	const redirectTo = "/library";
 	try {
 		await act(async () =>
 			root.render(

@@ -77,7 +77,7 @@ export function ProfileAccountSecurity({ email }: ProfileAccountSecurityProps) {
 	const { t } = useI18n();
 	const utils = trpc.useUtils();
 	const { data: session } = authClient.useSession();
-	const { data: publicConfig } = trpc.billing.getPublicConfig.useQuery();
+	const { data: publicConfig } = trpc.publicConfig.get.useQuery();
 	const { data: prefs } = trpc.userPreferences.get.useQuery();
 	const identityQuery = trpc.userE2ee.getIdentity.useQuery(undefined, {
 		retry: false,
@@ -997,11 +997,7 @@ export function ProfileAccountSecurity({ email }: ProfileAccountSecurityProps) {
 						<div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
 							{t("profileSettings.dangerZone.dataWarning")}
 						</div>
-						{publicConfig?.managed ? (
-							<div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
-								{t("profileSettings.dangerZone.subscriptionCancellation")}
-							</div>
-						) : null}
+
 						<div className="space-y-2">
 							<Label htmlFor="delete-confirmation">
 								{t("profileSettings.dangerZone.confirmationLabel", { email })}

@@ -1,40 +1,17 @@
-import { LegalPage, LegalSection } from "@/components/public/legal-page";
-import { legalIdentity } from "@/lib/legal";
-
+import { PublicSiteLayout } from "@/components/public/public-site-layout";
 export function ImprintPage() {
 	return (
-		<LegalPage
-			title="Impressum"
-			intro="Angaben zur verantwortlichen Anbieterin von Skedra und Kontaktmöglichkeiten."
-		>
-			<LegalSection title="Anbieterin">
-				<p>
-					<strong>{legalIdentity.operator}</strong>
-					<br />
-					{legalIdentity.address}
+		<PublicSiteLayout>
+			<article className="mx-auto max-w-3xl px-6 py-16">
+				<h1 className="mb-6 text-3xl font-semibold">Instance information</h1>
+				<p className="leading-7 text-muted-foreground">
+					You are using a self-hosted Skedra instance. The person or
+					organization operating this installation is responsible for its
+					operation and contact information. For questions about your account or
+					stored boards, contact your instance administrator. Project issues and
+					source code are available in the Skedra GitHub repository.
 				</p>
-			</LegalSection>
-			<LegalSection title="Kontakt">
-				<p>E-Mail: {legalIdentity.email}</p>
-			</LegalSection>
-			<LegalSection title="Register- und Unternehmensangaben">
-				<p>{legalIdentity.uid}</p>
-			</LegalSection>
-			<LegalSection title="Haftung für Links">
-				<p>
-					Diese Website kann Links zu externen Websites enthalten. Für deren
-					Inhalte und Datenschutzpraktiken sind ausschließlich die jeweiligen
-					Betreiber verantwortlich.
-				</p>
-			</LegalSection>
-			<LegalSection title="Urheberrecht">
-				<p>
-					Inhalte und Gestaltung dieser Website unterliegen dem anwendbaren
-					Urheberrecht. Der Skedra-Quellcode und Drittanbieter-Bestandteile
-					werden unter den jeweils im Repository ausgewiesenen Lizenzen
-					bereitgestellt.
-				</p>
-			</LegalSection>
-		</LegalPage>
+			</article>
+		</PublicSiteLayout>
 	);
 }

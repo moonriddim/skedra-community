@@ -6,7 +6,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 import { env } from "./env";
 import { auth } from "./lib/auth";
-import { userHasProductAccess } from "./lib/billing-entitlement";
+
 import { db } from "./lib/db";
 import {
 	mcpConsentContentSecurityPolicy,
@@ -236,12 +236,7 @@ mcpApp.get("/api/oauth/authorize", async (c) => {
 			loginUrl.searchParams.set("redirect", publicMcpAuthorizeUrl(c.req.url));
 			return c.redirect(loginUrl.toString());
 		}
-		if (!(await userHasProductAccess(db, session.user.id))) {
-			return c.html(
-				"<h1>Ein aktiver Skedra-Zugang ist erforderlich.</h1>",
-				403,
-			);
-		}
+
 		const consentToken = createMcpConsentToken(request, session.user.id);
 		c.header(
 			"Content-Security-Policy",
@@ -402,9 +397,6 @@ mcpApp.all("/api/mcp", async (c) => {
 				c.req.raw,
 				"Token wurde fuer eine andere Ressource ausgestellt",
 			);
-		}
-		if (!(await userHasProductAccess(db, access.user.id))) {
-			return mcpUnauthorized(c.req.raw, "Skedra-Zugang ist nicht aktiv");
 		}
 
 		const internalToken = createInternalMcpApiToken({

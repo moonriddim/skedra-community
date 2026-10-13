@@ -1,26 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-	DEFAULT_REMOTE_LIBRARY_CATALOG_API_URL,
-	DEFAULT_REMOTE_LIBRARY_SUBMIT_URL,
-	resolveLibraryCatalogConfig,
-} from "./shape-libraries";
+import { resolveLibraryCatalogConfig } from "./shape-libraries";
 
-test("self-hosted installations use the central library catalog by default", () => {
+test("explicit remote catalogs remain supported", () => {
 	const config = resolveLibraryCatalogConfig({
 		deploymentMode: "selfhost",
 		mode: "remote",
+		remoteApiUrl: "https://libraries.example.test",
 	});
 
 	assert.deepEqual(config, {
 		mode: "remote",
 		canSubmit: true,
-		submitUrl: DEFAULT_REMOTE_LIBRARY_SUBMIT_URL,
-		remoteBaseUrl: DEFAULT_REMOTE_LIBRARY_CATALOG_API_URL,
+		submitUrl: "https://libraries.example.test/login?redirect=%2Flibrary",
+		remoteBaseUrl: "https://libraries.example.test",
 	});
 });
 
-test("explicit local self-hosted catalogs remain read-only", () => {
+test("local self-hosted catalogs accept submissions", () => {
 	const config = resolveLibraryCatalogConfig({
 		deploymentMode: "selfhost",
 		mode: "local",
@@ -30,15 +27,15 @@ test("explicit local self-hosted catalogs remain read-only", () => {
 
 	assert.deepEqual(config, {
 		mode: "local",
-		canSubmit: false,
+		canSubmit: true,
 		submitUrl: "https://whiteboard.example.com/login?redirect=%2Flibrary",
 		remoteBaseUrl: null,
 	});
 });
 
-test("managed local catalogs accept submissions directly", () => {
+test("local catalogs accept submissions directly", () => {
 	const config = resolveLibraryCatalogConfig({
-		deploymentMode: "managed",
+		deploymentMode: "selfhost",
 		mode: "local",
 		appUrl: "https://skedra.example",
 	});
