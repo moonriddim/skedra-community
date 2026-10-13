@@ -75,6 +75,17 @@ const SKEDRA_HOSTNAMES = new Set(
 	[env.APP_URL, env.API_URL].map((value) => baseUrl(value).hostname),
 );
 
+/**
+ * Public authorize URL for the return trip from the login page. Behind the
+ * TLS-terminating proxy, the request URL reports http (and whatever host the
+ * proxy forwarded), which the login page rightly refuses as a redirect target.
+ */
+export function publicMcpAuthorizeUrl(requestUrl: string) {
+	const url = new URL("/api/oauth/authorize", `${MCP_OAUTH_ISSUER}/`);
+	url.search = new URL(requestUrl).search;
+	return url.toString();
+}
+
 export class McpOAuthError extends Error {
 	constructor(
 		readonly code: string,

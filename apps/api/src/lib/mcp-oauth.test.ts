@@ -14,6 +14,7 @@ import { inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import {
 	MCP_DEFAULT_RESOURCE,
+	MCP_OAUTH_ISSUER,
 	MCP_OAUTH_SCOPES,
 	McpOAuthError,
 	createMcpConsentToken,
@@ -28,6 +29,7 @@ import {
 	normalizeMcpClientName,
 	parseMcpAuthorizationRequest,
 	pruneUnusedMcpOauthClients,
+	publicMcpAuthorizeUrl,
 	registerMcpOauthClient,
 	revokeMcpConnection,
 	verifyMcpAccessToken,
@@ -98,6 +100,19 @@ test("consent tokens are signed, user-bound, and tamper evident", () => {
 	);
 	assert.throws(() => verifyMcpConsentToken(token, "user-two"));
 	assert.throws(() => verifyMcpConsentToken(`${token}x`, "user-one"));
+});
+
+test("login returns to the public authorize URL, not the proxied request URL", () => {
+	// Behind nginx the API sees plain http and possibly an internal host.
+	const returnUrl = new URL(
+		publicMcpAuthorizeUrl(
+			"http://api:3001/api/oauth/authorize?client_id=c&state=a%20b",
+		),
+	);
+	assert.equal(returnUrl.origin, new URL(MCP_OAUTH_ISSUER).origin);
+	assert.equal(returnUrl.pathname, "/api/oauth/authorize");
+	assert.equal(returnUrl.searchParams.get("client_id"), "c");
+	assert.equal(returnUrl.searchParams.get("state"), "a b");
 });
 
 const isOAuthError = (code: string) => (error: unknown) =>

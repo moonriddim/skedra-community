@@ -2,8 +2,11 @@ import { AuthFormLayout } from "@/components/auth/auth-form-layout";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
 import { authClient } from "@/lib/auth-client";
+import {
+	currentAuthRedirectOrigins,
+	resolveAuthRedirect,
+} from "@/lib/auth-redirect";
 import {
 	readE2eeKeyFromHash,
 	unlockOrCreateUserE2eeIdentity,
@@ -28,41 +31,21 @@ export function LoginPage() {
 		retry: false,
 	});
 	const saveIdentity = trpc.userE2ee.saveIdentity.useMutation();
-	const requestedRedirect = searchParams.get("redirect") || "/library";
-	const baseRedirectTo = (() => {
-		try {
-			const target = new URL(requestedRedirect, window.location.origin);
-			const allowedOrigins = new Set([
-				window.location.origin,
-				new URL(getAbsoluteApiBaseUrl()).origin,
-			]);
-			if (!allowedOrigins.has(target.origin)) return "/library";
-			return target.origin === window.location.origin
-				? `${target.pathname}${target.search}${target.hash}`
-				: target.toString();
-		} catch {
-			return "/library";
-		}
-	})();
-	const e2eeKeyFromHash = readE2eeKeyFromHash();
-	const redirectTo = e2eeKeyFromHash
-		? withE2eeKeyFragmentPath(baseRedirectTo, e2eeKeyFromHash)
-		: baseRedirectTo;
+	const resolvedRedirect = resolveAuthRedirect(
+		searchParams.get("redirect"),
+		currentAuthRedirectOrigins(),
+	);
+	// Board keys travel only to app routes, never to server-rendered pages.
+	const redirectTo =
+		resolvedRedirect.kind === "app"
+			? withE2eeKeyFragmentPath(resolvedRedirect.path, readE2eeKeyFromHash())
+			: resolvedRedirect.url;
 	const displayError =
 		error ||
 		(searchParams.get("oauthError") || searchParams.get("error")
 			? t("auth.social.failed")
 			: "");
-	const externalRedirect = (() => {
-		try {
-			return (
-				new URL(redirectTo, window.location.origin).origin !==
-				window.location.origin
-			);
-		} catch {
-			return false;
-		}
-	})();
+	const externalRedirect = resolvedRedirect.kind === "server";
 
 	useEffect(() => {
 		if (!isPending && session?.user && externalRedirect) {

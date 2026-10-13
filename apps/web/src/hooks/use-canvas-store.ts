@@ -15,6 +15,7 @@ import {
 	LASER_MIN_POINT_DISTANCE,
 	isLaserTrailVisible,
 } from "@/lib/canvas/laser-utils";
+import { createUuid } from "@/lib/uuid";
 import {
 	type ElementPlacementDraft,
 	createElementPlacementDraft,
@@ -617,7 +618,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
 	laserTrails: [],
 	addLaserTrailPoint: (x, y, trailId) => {
-		const id = trailId ?? crypto.randomUUID();
+		const id = trailId ?? createUuid();
 		const now = performance.now();
 		set((s) => {
 			const existing = s.laserTrails.find((trail) => trail.id === id);

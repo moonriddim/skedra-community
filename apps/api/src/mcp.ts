@@ -27,6 +27,7 @@ import {
 	isSkedraLookalikeHost,
 	issueMcpAuthorizationCode,
 	parseMcpAuthorizationRequest,
+	publicMcpAuthorizeUrl,
 	registerMcpOauthClient,
 	revokeMcpOauthToken,
 	verifyMcpAccessToken,
@@ -232,7 +233,7 @@ mcpApp.get("/api/oauth/authorize", async (c) => {
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session?.user) {
 			const loginUrl = new URL("/login", env.APP_URL);
-			loginUrl.searchParams.set("redirect", c.req.url);
+			loginUrl.searchParams.set("redirect", publicMcpAuthorizeUrl(c.req.url));
 			return c.redirect(loginUrl.toString());
 		}
 		if (!(await userHasProductAccess(db, session.user.id))) {

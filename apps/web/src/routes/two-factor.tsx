@@ -3,17 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import {
+	currentAuthRedirectOrigins,
+	resolveAuthRedirect,
+} from "@/lib/auth-redirect";
+import { readE2eeKeyFromHash, withE2eeKeyFragmentPath } from "@/lib/e2ee";
 import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-
-function safeRedirect(value: string | null) {
-	return value?.startsWith("/") &&
-		!value.startsWith("//") &&
-		!value.includes("\\")
-		? value
-		: "/library";
-}
 
 export function TwoFactorPage() {
 	const { t } = useI18n();
@@ -24,7 +21,10 @@ export function TwoFactorPage() {
 	const [trustDevice, setTrustDevice] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
-	const redirectTo = safeRedirect(searchParams.get("redirect"));
+	const resolvedRedirect = resolveAuthRedirect(
+		searchParams.get("redirect"),
+		currentAuthRedirectOrigins(),
+	);
 
 	const handleSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
@@ -46,7 +46,14 @@ export function TwoFactorPage() {
 				setError(result.error.message ?? t("auth.twoFactor.failed"));
 				return;
 			}
-			navigate(redirectTo, { replace: true });
+			if (resolvedRedirect.kind === "server") {
+				window.location.replace(resolvedRedirect.url);
+				return;
+			}
+			navigate(
+				withE2eeKeyFragmentPath(resolvedRedirect.path, readE2eeKeyFromHash()),
+				{ replace: true },
+			);
 		} catch {
 			setError(t("auth.twoFactor.failed"));
 		} finally {

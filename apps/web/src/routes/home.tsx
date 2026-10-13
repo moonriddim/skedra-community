@@ -46,6 +46,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { TEMPLATES, createBase64StateFromElements } from "@/lib/templates";
 import { trpc } from "@/lib/trpc";
+import { createUuid } from "@/lib/uuid";
 import { useThemeStore } from "@/stores/theme";
 import {
 	Archive,
@@ -237,7 +238,7 @@ export function HomePage() {
 		mode: BoardEncryptionMode,
 		identity?: UnlockedUserE2eeIdentity,
 	) => {
-		const boardId = crypto.randomUUID();
+		const boardId = createUuid();
 		const name = newName.trim() || t("project.newCanvas");
 		const folderId =
 			folderFilter !== "all" && folderFilter !== "unfiled"
@@ -288,7 +289,7 @@ export function HomePage() {
 		const elements = template.create(0, 0, { resolvedTheme });
 		const stateBase64 = createBase64StateFromElements(elements);
 		const templateName = t(action.templateTitleKey) || template.name;
-		const boardId = crypto.randomUUID();
+		const boardId = createUuid();
 		const folderId =
 			folderFilter !== "all" && folderFilter !== "unfiled"
 				? folderFilter

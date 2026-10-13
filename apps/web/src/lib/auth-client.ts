@@ -1,6 +1,7 @@
 import { twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { getAbsoluteApiBaseUrl } from "./api-url";
+import { twoFactorHandoffPath } from "./auth-redirect";
 
 export const authClient = createAuthClient({
 	baseURL: getAbsoluteApiBaseUrl(),
@@ -10,11 +11,7 @@ export const authClient = createAuthClient({
 	plugins: [
 		twoFactorClient({
 			onTwoFactorRedirect: () => {
-				const current = new URL(window.location.href);
-				const redirect = current.searchParams.get("redirect") || "/library";
-				window.location.assign(
-					`/two-factor?redirect=${encodeURIComponent(redirect)}`,
-				);
+				window.location.assign(twoFactorHandoffPath(window.location.href));
 			},
 		}),
 	],

@@ -8,6 +8,7 @@ import {
 	loadCanvasImageBlobDimensions,
 } from "@skedra/canvas-io/browser-images";
 import { getApiUrl } from "../api-url";
+import { createUuid } from "../uuid";
 import {
 	buildEncryptedAssetReference,
 	registerLocalEncryptedAssetPreview,
@@ -213,7 +214,7 @@ export async function uploadEncryptedCanvasAsset(
 	) {
 		return null;
 	}
-	const assetId = crypto.randomUUID();
+	const assetId = createUuid();
 	const encrypted = await encryptImageAsset({
 		file,
 		boardKey: options.encryptionMode === "server" ? null : options.e2eeKey,

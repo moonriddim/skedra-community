@@ -1,4 +1,5 @@
 import { getAbsoluteApiBaseUrl } from "@/lib/api-url";
+import { createUuid } from "./uuid";
 
 export type GrowthEventName =
 	| "page_view"
@@ -101,13 +102,13 @@ function visitorValue() {
 			return parsed.id;
 		}
 		const record = {
-			id: crypto.randomUUID(),
+			id: createUuid(),
 			expiresAt: now + VISITOR_TTL_MS,
 		};
 		localStorage.setItem(VISITOR_KEY, JSON.stringify(record));
 		return record.id;
 	} catch {
-		return crypto.randomUUID();
+		return createUuid();
 	}
 }
 
@@ -154,7 +155,7 @@ function sendGrowthEvent(
 	const body = JSON.stringify({
 		event,
 		visitorId,
-		sessionId: sessionValue(SESSION_KEY, () => crypto.randomUUID()),
+		sessionId: sessionValue(SESSION_KEY, createUuid),
 		pathname: sanitizePathname(options.pathname ?? window.location.pathname),
 		context: options.context?.slice(0, 64),
 		referrerHost: referrerHost(),
