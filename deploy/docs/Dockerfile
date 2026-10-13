@@ -12,4 +12,5 @@ FROM nginx:1.27-alpine
 COPY LICENSE /usr/share/doc/skedra/LICENSE
 COPY deploy/docs/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/docs/dist /usr/share/nginx/html
+RUN chmod -R a+rX /usr/share/nginx/html
 EXPOSE 80
