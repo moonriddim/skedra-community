@@ -23,7 +23,7 @@
 		"@trpc/server": "^11.0.0",
 		"better-auth": "~1.6.33",
 		"drizzle-orm": "^0.45.1",
-		"hono": "^4.13.8",
+		"hono": "^4.13.11",
 		"livekit-server-sdk": "^2.17.0",
 		"nodemailer": "^10.0.13",
 		"postgres": "^3.4.9",
