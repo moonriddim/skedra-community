@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-alpine AS base
+FROM node:22.23.4-alpine AS base
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -58,7 +58,7 @@ RUN pnpm exec esbuild apps/api/src/index.ts \
     --external:zod
 RUN rm -rf /runtime/api/src /runtime/api/dist /runtime/api/.turbo /runtime/api/.tmp /runtime/api/tsconfig.json /runtime/api/node_modules/@skedra
 
-FROM node:22-alpine AS api
+FROM node:22.23.4-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production
 COPY LICENSE /usr/share/doc/skedra/LICENSE
@@ -88,7 +88,7 @@ RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
 COPY --from=build /app/apps/libraries/dist /usr/share/nginx/html
 EXPOSE 80
 
-FROM node:22-alpine AS standalone
+FROM node:22.23.4-alpine AS standalone
 WORKDIR /app
 ENV NODE_ENV=production
 COPY LICENSE /usr/share/doc/skedra/LICENSE
