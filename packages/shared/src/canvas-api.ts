@@ -62,7 +62,7 @@ export const addCanvasElementSchema = z
 			.optional(),
 		roughFillScale: z.number().optional(),
 		stackIndex: z.string().min(1).optional(),
-		customData: z.record(z.unknown()).optional(),
+		customData: z.record(z.string(), z.unknown()).optional(),
 	})
 	.passthrough();
 
@@ -188,7 +188,7 @@ export const updateCanvasElementSchema = z
 	.object({
 		...canvasElementVisualUpdateShape,
 		stackIndex: z.string().min(1).optional(),
-		customData: z.record(z.unknown()).optional(),
+		customData: z.record(z.string(), z.unknown()).optional(),
 	})
 	.refine((value) => Object.keys(value).length > 0, {
 		message: "Mindestens ein Feld zum Aktualisieren erforderlich",

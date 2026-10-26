@@ -36,7 +36,7 @@ import { protectedProcedure, publicProcedure, router } from "../init";
 const libraryItemSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
-	elements: z.array(z.record(z.unknown())),
+	elements: z.array(z.record(z.string(), z.unknown())),
 });
 
 async function requireLibraryAdmin(db: Database, userId: string) {

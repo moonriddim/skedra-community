@@ -29,7 +29,7 @@
 		"@skedra/canvas-io": "workspace:*",
 		"@skedra/shared": "workspace:*",
 		"yjs": "^13.6.29",
-		"zod": "^3.24.0"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.0",

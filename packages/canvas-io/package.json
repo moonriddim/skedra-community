@@ -23,7 +23,7 @@
 	"dependencies": {
 		"@skedra/canvas-core": "workspace:*",
 		"yjs": "^13.6.29",
-		"zod": "^3.24.0"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"typescript": "^5.7.0"

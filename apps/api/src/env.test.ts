@@ -58,5 +58,7 @@ test("retired managed mode is rejected instead of enabling a paid deployment", (
 		SKEDRA_OBJECT_STORAGE_PRESET: "aws",
 	});
 	assert.notEqual(result.status, 0);
-	assert.match(result.stderr, /Invalid literal value, expected "selfhost"/);
+	assert.match(result.stderr, /SKEDRA_DEPLOYMENT_MODE/);
+	assert.match(result.stderr, /"code": "invalid_value"/);
+	assert.match(result.stderr, /"selfhost"/);
 });

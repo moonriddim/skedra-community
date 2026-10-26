@@ -24,8 +24,8 @@ export const skedraFileSchema = z.object({
 	type: z.literal(SKEDRA_FILE_TYPE),
 	version: z.number().int().positive(),
 	source: z.string().optional(),
-	elements: z.array(z.record(z.unknown())),
-	views: z.array(z.record(z.unknown())).optional(),
+	elements: z.array(z.record(z.string(), z.unknown())),
+	views: z.array(z.record(z.string(), z.unknown())).optional(),
 	appState: skedraFileAppStateSchema,
 });
 

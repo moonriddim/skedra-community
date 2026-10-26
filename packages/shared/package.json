@@ -18,7 +18,7 @@
 	"dependencies": {
 		"@skedra/canvas-core": "workspace:*",
 		"@skedra/canvas-io": "workspace:*",
-		"zod": "^3.24.0"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.0",

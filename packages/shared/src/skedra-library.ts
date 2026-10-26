@@ -9,7 +9,7 @@ export const SKEDRA_LIBRARY_LICENSE = "MIT" as const;
 export const skedraLibraryItemSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
-	elements: z.array(z.record(z.unknown())),
+	elements: z.array(z.record(z.string(), z.unknown())),
 });
 
 export const skedraLibrarySchema = z.object({
@@ -65,7 +65,7 @@ export const EXCALIDRAW_LIB_TYPE = "excalidrawlib" as const;
 export const excalidrawLibrarySchema = z.object({
 	type: z.literal(EXCALIDRAW_LIB_TYPE),
 	version: z.number().optional(),
-	library: z.array(z.array(z.record(z.unknown()))),
+	library: z.array(z.array(z.record(z.string(), z.unknown()))),
 });
 
 export type ExcalidrawLibraryFile = z.infer<typeof excalidrawLibrarySchema>;

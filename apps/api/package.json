@@ -25,10 +25,10 @@
 		"drizzle-orm": "^0.45.1",
 		"hono": "^4.13.11",
 		"livekit-server-sdk": "^2.17.0",
-		"nodemailer": "^10.0.13",
+		"nodemailer": "^10.1.4",
 		"postgres": "^3.4.9",
 		"yjs": "^13.6.29",
-		"zod": "^3.24.0"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@electric-sql/pglite": "0.5.8",
